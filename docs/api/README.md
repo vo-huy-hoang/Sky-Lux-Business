@@ -545,6 +545,7 @@ GET    /api/dossiers/:dossierId/conversation
 ```
 
 **Filter `GET /api/conversations`**:
+
 ```text
 type         (DIRECT, GROUP, DOSSIER)
 search       (tìm kiếm tên hội thoại / thành viên)
@@ -553,6 +554,7 @@ pageSize
 ```
 
 **Body `POST /api/conversations`**:
+
 ```json
 {
   "type": "DIRECT",
@@ -571,12 +573,14 @@ DELETE /api/messages/:messageId
 ```
 
 **Query `GET /api/conversations/:id/messages`**:
+
 ```text
 beforeMessageId (dùng cho cursor pagination load tin nhắn cũ)
 limit           (default 50)
 ```
 
 **Body `POST /api/conversations/:id/messages`**:
+
 ```json
 {
   "messageType": "TEXT",
@@ -603,6 +607,7 @@ DELETE /api/conversations/:id/participants/:userId
 ```
 
 **Body `POST /api/conversations/:id/read`**:
+
 ```json
 {
   "lastReadMessageId": "message-uuid-latest"

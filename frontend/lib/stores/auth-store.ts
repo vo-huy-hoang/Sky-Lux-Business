@@ -1,0 +1,91 @@
+import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import Cookies from 'js-cookie';
+import { UserProfile, LoginResponse } from '@/types/auth';
+
+interface AuthState {
+  user: UserProfile | null;
+  accessToken: string | null;
+  isAuthenticated: boolean;
+  setAuth: (data: LoginResponse) => void;
+  setUser: (user: UserProfile) => void;
+  logout: () => void;
+  hasPermission: (permission: string) => boolean;
+  hasRole: (role: string) => boolean;
+  isSuperAdmin: () => boolean;
+}
+
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set, get) => ({
+      user: null,
+      accessToken: null,
+      isAuthenticated: false,
+
+      setAuth: (data: LoginResponse) => {
+        const { accessToken, refreshToken, user } = data;
+
+        // Save tokens in cookies for Next.js SSR middleware
+        Cookies.set('access_token', accessToken, { expires: 1 });
+        Cookies.set('refresh_token', refreshToken, { expires: 7 });
+
+        set({
+          user,
+          accessToken,
+          isAuthenticated: true,
+        });
+      },
+
+      setUser: (user: UserProfile) => {
+        set({ user });
+      },
+
+      logout: () => {
+        Cookies.remove('access_token');
+        Cookies.remove('refresh_token');
+        set({
+          user: null,
+          accessToken: null,
+          isAuthenticated: false,
+        });
+      },
+
+      hasPermission: (permission: string) => {
+        const { user } = get();
+        if (!user || !user.permissions) return false;
+        if (
+          user.permissions.includes('*') ||
+          user.roles.includes('SUPER_ADMIN') ||
+          user.roles.includes('CEO_ADMIN')
+        ) {
+          return true;
+        }
+        return user.permissions.includes(permission);
+      },
+
+      hasRole: (role: string) => {
+        const { user } = get();
+        if (!user || !user.roles) return false;
+        if (user.roles.includes('SUPER_ADMIN')) return true;
+        return user.roles.includes(role);
+      },
+
+      isSuperAdmin: () => {
+        const { user } = get();
+        if (!user || !user.roles) return false;
+        return (
+          user.roles.includes('SUPER_ADMIN') || user.roles.includes('CEO_ADMIN')
+        );
+      },
+    }),
+    {
+      name: 'skylux-auth-storage',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        user: state.user,
+        accessToken: state.accessToken,
+        isAuthenticated: state.isAuthenticated,
+      }),
+    },
+  ),
+);

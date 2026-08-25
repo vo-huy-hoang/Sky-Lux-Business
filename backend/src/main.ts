@@ -1,8 +1,64 @@
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe, Logger } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
-  await app.listen(process.env.PORT ?? 3000);
+
+  // Security
+  app.use(helmet());
+  app.enableCors({
+    origin: true,
+    credentials: true,
+  });
+
+  // Global Prefix: /api
+  app.setGlobalPrefix('api');
+
+  // Global Validation Pipe
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+    }),
+  );
+
+  // Swagger Documentation Setup
+  const config = new DocumentBuilder()
+    .setTitle('Sky-Lux CRM API')
+    .setDescription('Tài liệu API hệ thống Quản lý Tour & Báo giá Sky-Lux CRM')
+    .setVersion('1.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description: 'Enter JWT Access Token',
+        in: 'header',
+      },
+      'JWT-auth',
+    )
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+  });
+
+  const port = process.env.APP_PORT || process.env.PORT || 3001;
+  await app.listen(port);
+  logger.log(`🚀 Application is running on: http://localhost:${port}/api`);
+  logger.log(`📚 Swagger documentation available at: http://localhost:${port}/api/docs`);
 }
+
 bootstrap();

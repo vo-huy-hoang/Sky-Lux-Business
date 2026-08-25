@@ -1,0 +1,71 @@
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { AuthService } from './auth.service';
+import { LoginDto } from './dto/login.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { Public } from '../../common/decorators/public.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+
+@ApiTags('Authentication')
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Public()
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Đăng nhập hệ thống (API-AUTH-001)' })
+  @ApiResponse({ status: 200, description: 'Đăng nhập thành công, trả về tokens và user info' })
+  @ApiResponse({ status: 401, description: 'Email hoặc mật khẩu không chính xác' })
+  login(@Body() loginDto: LoginDto) {
+    return this.authService.login(loginDto);
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Đăng xuất khỏi hệ thống (API-AUTH-002)' })
+  @ApiResponse({ status: 200, description: 'Đăng xuất thành công' })
+  logout(@CurrentUser('id') userId: string) {
+    return this.authService.logout(userId);
+  }
+
+  @Public()
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Làm mới Access Token (API-AUTH-003)' })
+  @ApiResponse({ status: 200, description: 'Cấp token mới thành công' })
+  @ApiResponse({ status: 401, description: 'Refresh token không hợp lệ hoặc hết hạn' })
+  refreshToken(@Body() refreshTokenDto: RefreshTokenDto) {
+    return this.authService.refreshToken(refreshTokenDto);
+  }
+
+  @Get('me')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Lấy thông tin tài khoản hiện tại kèm quyền & vai trò (API-AUTH-004)' })
+  @ApiResponse({ status: 200, description: 'Thông tin tài khoản hiện tại' })
+  getMe(@CurrentUser('id') userId: string) {
+    return this.authService.getMe(userId);
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Đổi mật khẩu người dùng (API-AUTH-005)' })
+  @ApiResponse({ status: 200, description: 'Đổi mật khẩu thành công' })
+  @ApiResponse({ status: 400, description: 'Mật khẩu hiện tại không đúng' })
+  changePassword(
+    @CurrentUser('id') userId: string,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(userId, changePasswordDto);
+  }
+}

@@ -1,0 +1,155 @@
+services:
+
+  frontend:
+    image: ghcr.io/YOUR_ORG/skylux-frontend:${APP_VERSION:-latest}
+
+    restart: unless-stopped
+
+    environment:
+      NODE_ENV: production
+
+    expose:
+      - "3000"
+
+    networks:
+      - skylux
+
+
+  backend:
+    image: ghcr.io/YOUR_ORG/skylux-backend:${APP_VERSION:-latest}
+
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    expose:
+      - "3001"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+      redis:
+        condition: service_healthy
+
+    networks:
+      - skylux
+
+
+  worker:
+    image: ghcr.io/YOUR_ORG/skylux-backend:${APP_VERSION:-latest}
+
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    command:
+      - node
+      - dist/worker.js
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+      redis:
+        condition: service_healthy
+
+    networks:
+      - skylux
+
+
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: skylux-postgres
+
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DB_USER} -d ${DB_NAME}"
+        ]
+
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+    networks:
+      - skylux
+
+  redis:
+    image: redis:7-alpine
+
+    restart: unless-stopped
+
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes"
+      ]
+
+    volumes:
+      - redis_data:/data
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "ping"
+        ]
+
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+    networks:
+      - skylux
+
+
+
+  nginx:
+    image: nginx:1.27-alpine
+
+    restart: unless-stopped
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/skylux.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./infra/nginx/certs:/etc/nginx/certs:ro
+
+    depends_on:
+      - frontend
+      - backend
+
+    networks:
+      - skylux
+
+
+
+volumes:
+  postgres_data:
+  redis_data:
+
+
+
+networks:
+  skylux:
+    driver: bridge

@@ -1,0 +1,75 @@
+name: Deploy Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Docker image version"
+        required: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Downcase Image Owner
+        id: image_owner
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_OUTPUT
+
+      - name: Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ghcr.io/${{ steps.image_owner.outputs.owner }}/skylux-frontend:${{ github.sha }}
+            ghcr.io/${{ steps.image_owner.outputs.owner }}/skylux-frontend:latest
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ghcr.io/${{ steps.image_owner.outputs.owner }}/skylux-backend:${{ github.sha }}
+            ghcr.io/${{ steps.image_owner.outputs.owner }}/skylux-backend:latest
+
+      - name: Deploy production server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/skylux
+            export APP_VERSION=${{ github.sha }}
+
+            echo "Pull latest images"
+            docker compose -f docker-compose.prod.yml pull
+
+            echo "Run database migration"
+            docker compose -f docker-compose.prod.yml run --rm backend npm run migration:run:prod
+
+            echo "Restart services"
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            echo "Cleanup unused images"
+            docker image prune -f

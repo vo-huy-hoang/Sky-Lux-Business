@@ -1,0 +1,116 @@
+import {
+  Entity,
+  Column,
+  ManyToOne,
+  OneToMany,
+  JoinColumn,
+  Index,
+  VersionColumn,
+} from 'typeorm';
+import { BaseEntity } from '../../../common/entities/base.entity';
+import { Organization } from '../../organizations/entities/organization.entity';
+import { Customer } from '../../customers/entities/customer.entity';
+import { BusinessLine } from '../../master-data/entities/business-line.entity';
+import { MarketType } from '../../master-data/entities/market-type.entity';
+import { User } from '../../users/entities/user.entity';
+import { DossierPassenger } from './dossier-passenger.entity';
+import { Estimate } from '../../estimates/entities/estimate.entity';
+import { DossierStatus, PriorityLevel } from '../../../common/enums';
+
+@Entity('dossiers')
+@Index('idx_dossiers_org_status', ['organizationId', 'status'])
+@Index('idx_dossiers_org_sales_period', ['organizationId', 'salesUserId', 'revenueRecognitionDate'])
+export class Dossier extends BaseEntity {
+  @Column({ name: 'organization_id', type: 'uuid' })
+  organizationId: string;
+
+  @Index({ unique: true })
+  @Column({ type: 'varchar', length: 50 })
+  code: string;
+
+  @Column({ type: 'varchar', length: 255 })
+  name: string;
+
+  @Column({ name: 'customer_id', type: 'uuid' })
+  customerId: string;
+
+  @Column({ name: 'business_line_id', type: 'uuid', nullable: true })
+  businessLineId?: string;
+
+  @Column({ name: 'market_type_id', type: 'uuid', nullable: true })
+  marketTypeId?: string;
+
+  @Column({ name: 'sales_user_id', type: 'uuid', nullable: true })
+  salesUserId?: string;
+
+  @Column({ name: 'operator_user_id', type: 'uuid', nullable: true })
+  operatorUserId?: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  route?: string;
+
+  @Column({ name: 'start_date', type: 'date', nullable: true })
+  startDate?: string;
+
+  @Column({ name: 'end_date', type: 'date', nullable: true })
+  endDate?: string;
+
+  @Column({ name: 'revenue_recognition_date', type: 'date', nullable: true })
+  revenueRecognitionDate?: string;
+
+  @Column({
+    type: 'enum',
+    enum: DossierStatus,
+    default: DossierStatus.DRAFT,
+  })
+  status: DossierStatus;
+
+  @Column({
+    type: 'enum',
+    enum: PriorityLevel,
+    default: PriorityLevel.MEDIUM,
+  })
+  priority: PriorityLevel;
+
+  @VersionColumn({ default: 1 })
+  version: number;
+
+  @Column({ name: 'locked_at', type: 'timestamptz', nullable: true })
+  lockedAt?: Date;
+
+  @Column({ name: 'locked_by', type: 'uuid', nullable: true })
+  lockedBy?: string;
+
+  @Column({ name: 'created_by', type: 'uuid', nullable: true })
+  createdBy?: string;
+
+  @ManyToOne(() => Organization, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'organization_id' })
+  organization: Organization;
+
+  @ManyToOne(() => Customer, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'customer_id' })
+  customer: Customer;
+
+  @ManyToOne(() => BusinessLine, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'business_line_id' })
+  businessLine?: BusinessLine;
+
+  @ManyToOne(() => MarketType, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'market_type_id' })
+  marketType?: MarketType;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'sales_user_id' })
+  salesUser?: User;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'operator_user_id' })
+  operatorUser?: User;
+
+  @OneToMany(() => DossierPassenger, (passenger) => passenger.dossier, { cascade: true })
+  passengers: DossierPassenger[];
+
+  @OneToMany(() => Estimate, (estimate) => estimate.dossier)
+  estimates: Estimate[];
+}
