@@ -12,6 +12,12 @@ describe('PermissionsService', () => {
   };
 
   beforeEach(async () => {
+    const mockPermissionRepository = {
+      find: jest.fn(),
+      findOne: jest.fn(),
+      createQueryBuilder: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PermissionsService,
@@ -51,3 +57,4 @@ describe('PermissionsService', () => {
     });
   });
 });
+

@@ -33,7 +33,7 @@ export class UsersService {
     user.status = UserStatus.LOCKED;
     await this.userRepository.save(user);
 
-    // Revoke all active sessions
+    // Thu hồi toàn bộ refresh token để kick user ra khỏi hệ thống ngay lập tức
     await this.refreshTokenRepository.update(
       { userId: id, isRevoked: false },
       { isRevoked: true },
@@ -42,6 +42,44 @@ export class UsersService {
     return {
       message: 'Đã khóa tài khoản và thu hồi tất cả phiên đăng nhập thành công',
     };
+  }
+
+  async findAll(organizationId?: string) {
+    return this.userRepository.find({
+      where: organizationId ? { organizationId } : {},
+      relations: {
+        department: true,
+        roles: true,
+      },
+      select: {
+        id: true,
+        employeeCode: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        avatarUrl: true,
+        status: true,
+        lastLoginAt: true,
+        createdAt: true,
+      },
+      order: {
+        createdAt: 'DESC',
+      },
+    });
+  }
+
+  async findOne(id: string) {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      relations: {
+        department: true,
+        roles: true,
+      },
+    });
+    if (!user) {
+      throw new NotFoundException(`Không tìm thấy người dùng với ID: ${id}`);
+    }
+    return user;
   }
 
   async assignRoles(
@@ -82,14 +120,6 @@ export class UsersService {
 
   create(createUserDto: CreateUserDto) {
     return 'This action adds a new user';
-  }
-
-  findAll() {
-    return `This action returns all users`;
-  }
-
-  findOne(id: string) {
-    return this.userRepository.findOne({ where: { id } });
   }
 
   update(id: string, updateUserDto: UpdateUserDto) {

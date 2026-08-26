@@ -9,12 +9,14 @@ import {
   Patch,
   Param,
   Delete,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiBearerAuth,
   ApiResponse,
+  ApiParam,
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -31,36 +33,49 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
+  @RequirePermissions('user.manage')
   create(@Body() createUserDto: CreateUserDto) {
     return this.usersService.create(createUserDto);
   }
 
   @Get()
-  findAll() {
-    return this.usersService.findAll();
+  @RequirePermissions('user.manage')
+  @ApiOperation({ summary: 'Lấy danh sách người dùng' })
+  findAll(@CurrentUser('organizationId') organizationId: string) {
+    return this.usersService.findAll(organizationId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  @RequirePermissions('user.manage')
+  @ApiParam({ name: 'id', description: 'User UUID' })
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.findOne(id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
+  @RequirePermissions('user.manage')
+  @ApiParam({ name: 'id', description: 'User UUID' })
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
     return this.usersService.update(id, updateUserDto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  @RequirePermissions('user.manage')
+  @ApiParam({ name: 'id', description: 'User UUID' })
+  remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.remove(id);
   }
 
-  @ApiOperation({
-    summary: 'Khóa tài khoản người dùng và thu hồi mọi phiên đăng nhập',
-  })
   @Post(':id/lock')
   @Roles('SUPER_ADMIN', 'CEO_ADMIN')
-  lock(@Param('id') id: string) {
+  @ApiOperation({
+    summary: 'Khóa tài khoản người dùng và thu hồi mọi phiên đăng nhập (API-USERS-005)',
+  })
+  @ApiParam({ name: 'id', description: 'User UUID' })
+  lock(@Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.lockUser(id);
   }
 
@@ -68,6 +83,7 @@ export class UsersController {
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('role.manage')
   @ApiOperation({ summary: 'Gán vai trò cho nhân viên (API-RBAC-006)' })
+  @ApiParam({ name: 'id', description: 'User UUID' })
   @ApiResponse({ status: 200, description: 'Gán vai trò thành công' })
   @ApiResponse({
     status: 400,
@@ -75,7 +91,7 @@ export class UsersController {
   })
   @ApiResponse({ status: 404, description: 'Không tìm thấy người dùng' })
   assignRoles(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() assignRolesDto: AssignRolesDto,
     @CurrentUser('organizationId') organizationId: string,
   ) {

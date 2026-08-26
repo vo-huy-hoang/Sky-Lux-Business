@@ -43,9 +43,9 @@ export class TransformInterceptor<T> implements NestInterceptor<
           return {
             success: true,
             statusCode,
-            message: (data as any).message || 'Operation successful',
-            data: (data as any).data,
-            meta: (data as any).meta,
+            message: data.message || 'Operation successful',
+            data: data.data,
+            meta: data.meta,
             timestamp: new Date().toISOString(),
           };
         }
