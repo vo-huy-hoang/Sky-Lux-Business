@@ -15,6 +15,16 @@ describe('RBAC Security & Tenant Boundary (Integration)', () => {
   let controller: RolesController;
   let roleRepository: jest.Mocked<Repository<Role>>;
 
+  // Shared constants for tests
+  const orgA = 'org-A-uuid';
+  const orgB = 'org-B-uuid';
+  const systemRole = {
+    id: 'system-role-uuid',
+    code: 'SUPER_ADMIN',
+    isSystem: true,
+    organizationId: orgA,
+  } as Role;
+
   // Mock repositories
   const mockRoleRepository = {
     create: jest.fn(),
@@ -31,7 +41,9 @@ describe('RBAC Security & Tenant Boundary (Integration)', () => {
   } as unknown as EntityManager;
 
   const mockDataSource = {
-    transaction: jest.fn((cb: (em: EntityManager) => Promise<any>) => cb(mockEntityManager)),
+    transaction: jest.fn((cb: (em: EntityManager) => Promise<any>) =>
+      cb(mockEntityManager),
+    ),
   };
 
   beforeEach(async () => {
@@ -51,7 +63,9 @@ describe('RBAC Security & Tenant Boundary (Integration)', () => {
     }).compile();
 
     controller = module.get<RolesController>(RolesController);
-    roleRepository = module.get<Repository<Role>>(getRepositoryToken(Role)) as jest.Mocked<Repository<Role>>;
+    roleRepository = module.get<Repository<Role>>(
+      getRepositoryToken(Role),
+    ) as jest.Mocked<Repository<Role>>;
   });
 
   afterEach(() => {
@@ -59,51 +73,41 @@ describe('RBAC Security & Tenant Boundary (Integration)', () => {
   });
 
   describe('1. Cô lập dữ liệu giữa các doanh nghiệp (Multi-tenancy isolation)', () => {
-    it('Doanh nghiệp A KHÔNG THỂ truy cập chi tiết vai trò của Doanh nghiệp B (Trả về 404)', async () => {
-      const roleId = 'role-of-org-B';
-      const orgA = 'org-A-uuid';
-      const orgB = 'org-B-uuid';
+    const roleOfOrgB = 'role-of-org-B';
 
-      // Giả lập tìm kiếm vai trò thuộc Org B
+    it('Doanh nghiệp A KHÔNG THỂ truy cập chi tiết vai trò của Doanh nghiệp B (Trả về 404)', async () => {
       roleRepository.findOne.mockImplementation(({ where }: any) => {
-        if (where.id === roleId && where.organizationId === orgA) {
-          return Promise.resolve(null); // Không tìm thấy dưới Org A
+        if (where.id === roleOfOrgB && where.organizationId === orgA) {
+          return Promise.resolve(null);
         }
-        return Promise.resolve({ id: roleId, organizationId: orgB, code: 'SALES' } as Role);
+        return Promise.resolve({
+          id: roleOfOrgB,
+          organizationId: orgB,
+          code: 'SALES',
+        } as Role);
       });
 
-      await expect(controller.findOne(roleId, orgA)).rejects.toThrow(
+      await expect(controller.findOne(roleOfOrgB, orgA)).rejects.toThrow(
         NotFoundException,
       );
     });
 
     it('Doanh nghiệp A KHÔNG THỂ chỉnh sửa (update) vai trò của Doanh nghiệp B', async () => {
-      const roleId = 'role-of-org-B';
-      const orgA = 'org-A-uuid';
-
-      roleRepository.findOne.mockResolvedValue(null); // Không tìm thấy dưới Org A
-
+      roleRepository.findOne.mockResolvedValue(null);
       await expect(
-        controller.update(roleId, { name: 'Hack Name' }, orgA),
+        controller.update(roleOfOrgB, { name: 'Hack Name' }, orgA),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('Doanh nghiệp A KHÔNG THỂ xóa vai trò của Doanh nghiệp B', async () => {
-      const roleId = 'role-of-org-B';
-      const orgA = 'org-A-uuid';
-
-      roleRepository.findOne.mockResolvedValue(null); // Không tìm thấy dưới Org A
-
-      await expect(controller.remove(roleId, orgA)).rejects.toThrow(
+      roleRepository.findOne.mockResolvedValue(null);
+      await expect(controller.remove(roleOfOrgB, orgA)).rejects.toThrow(
         NotFoundException,
       );
     });
 
     it('Doanh nghiệp A KHÔNG THỂ trùng mã code vai trò với vai trò tùy chỉnh khác cùng doanh nghiệp', async () => {
-      const orgA = 'org-A-uuid';
       const dto = { code: 'SALES', name: 'Nhân viên kinh doanh mới' };
-
-      // Giả lập đã tồn tại vai trò code SALES dưới Org A
       roleRepository.findOne.mockResolvedValue({
         id: 'existing-id',
         code: 'SALES',
@@ -117,20 +121,13 @@ describe('RBAC Security & Tenant Boundary (Integration)', () => {
   });
 
   describe('2. Bảo vệ vai trò hệ thống (System Roles Protection)', () => {
-    it('KHÔNG THỂ cập nhật (update) các vai trò mặc định của hệ thống (isSystem = true)', async () => {
-      const roleId = 'system-role-uuid';
-      const orgA = 'org-A-uuid';
-      const systemRole = {
-        id: roleId,
-        code: 'SUPER_ADMIN',
-        isSystem: true,
-        organizationId: orgA,
-      } as Role;
-
+    beforeEach(() => {
       roleRepository.findOne.mockResolvedValue(systemRole);
+    });
 
+    it('KHÔNG THỂ cập nhật (update) các vai trò mặc định của hệ thống (isSystem = true)', async () => {
       await expect(
-        controller.update(roleId, { name: 'Super Admin Hack' }, orgA),
+        controller.update(systemRole.id, { name: 'Super Admin Hack' }, orgA),
       ).rejects.toThrow(
         new BadRequestException(
           'Không thể chỉnh sửa vai trò mặc định của hệ thống',
@@ -139,39 +136,17 @@ describe('RBAC Security & Tenant Boundary (Integration)', () => {
     });
 
     it('KHÔNG THỂ xóa (delete) các vai trò mặc định của hệ thống (isSystem = true)', async () => {
-      const roleId = 'system-role-uuid';
-      const orgA = 'org-A-uuid';
-      const systemRole = {
-        id: roleId,
-        code: 'SUPER_ADMIN',
-        isSystem: true,
-        organizationId: orgA,
-      } as Role;
-
-      roleRepository.findOne.mockResolvedValue(systemRole);
-
-      await expect(controller.remove(roleId, orgA)).rejects.toThrow(
+      await expect(controller.remove(systemRole.id, orgA)).rejects.toThrow(
         new BadRequestException('Không thể xóa vai trò mặc định của hệ thống'),
       );
     });
 
     it('KHÔNG THỂ gán hoặc thay đổi quyền của vai trò mặc định hệ thống', async () => {
-      const roleId = 'system-role-uuid';
-      const orgA = 'org-A-uuid';
-      const systemRole = {
-        id: roleId,
-        code: 'SUPER_ADMIN',
-        isSystem: true,
-        organizationId: orgA,
-      } as Role;
       const dto = {
         permissions: [{ permissionId: 'p1', scope: RoleScope.ALL }],
       };
-
-      roleRepository.findOne.mockResolvedValue(systemRole);
-
       await expect(
-        controller.assignPermissions(roleId, dto, orgA),
+        controller.assignPermissions(systemRole.id, dto, orgA),
       ).rejects.toThrow(
         new BadRequestException(
           'Không thể gán hoặc thay đổi quyền hạn của vai trò mặc định hệ thống',
@@ -181,15 +156,18 @@ describe('RBAC Security & Tenant Boundary (Integration)', () => {
   });
 
   describe('3. Xác thực cơ chế Cảnh báo xóa thông minh (Dynamic Deletion Warning)', () => {
+    const roleId = 'custom-role-uuid';
+    const baseCustomRole = {
+      id: roleId,
+      code: 'ACCOUNTANT',
+      isSystem: false,
+      organizationId: orgA,
+    };
+
     it('Chặn và trả về cảnh báo ROLE_HAS_ASSIGNED_USERS nếu có nhân viên đang mang vai trò', async () => {
-      const roleId = 'custom-role-uuid';
-      const orgA = 'org-A-uuid';
       const roleWithUsers = {
-        id: roleId,
-        code: 'ACCOUNTANT',
-        isSystem: false,
-        organizationId: orgA,
-        users: [{ id: 'user1-uuid' }, { id: 'user2-uuid' }], // 2 users
+        ...baseCustomRole,
+        users: [{ id: 'user1-uuid' }, { id: 'user2-uuid' }],
       } as Role;
 
       roleRepository.findOne.mockResolvedValue(roleWithUsers);
@@ -204,18 +182,16 @@ describe('RBAC Security & Tenant Boundary (Integration)', () => {
     });
 
     it('Cho phép xóa vai trò nếu cờ force=true được kích hoạt (đồng thời xóa liên kết user)', async () => {
-      const roleId = 'custom-role-uuid';
-      const orgA = 'org-A-uuid';
       const roleWithUsers = {
-        id: roleId,
-        code: 'ACCOUNTANT',
-        isSystem: false,
-        organizationId: orgA,
+        ...baseCustomRole,
         users: [{ id: 'user1-uuid' }],
       } as Role;
 
       roleRepository.findOne.mockResolvedValue(roleWithUsers);
-      roleRepository.save.mockResolvedValue({ ...roleWithUsers, users: [] } as Role); // Gỡ liên kết
+      roleRepository.save.mockResolvedValue({
+        ...roleWithUsers,
+        users: [],
+      } as Role);
       roleRepository.softRemove.mockResolvedValue({
         ...roleWithUsers,
         users: [],

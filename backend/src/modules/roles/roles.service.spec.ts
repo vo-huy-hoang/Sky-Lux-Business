@@ -5,13 +5,23 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, Repository, EntityManager } from 'typeorm';
 import { RolesService } from './roles.service';
 import { Role } from './entities/role.entity';
 
 describe('RolesService', () => {
   let service: RolesService;
-  let repository: any;
+  let repository: jest.Mocked<Repository<Role>>;
+
+  // Shared constants for tests
+  const orgId = 'org-uuid';
+  const roleId = 'role-uuid';
+  const systemRole = {
+    id: roleId,
+    code: 'ADMIN',
+    name: 'Admin',
+    isSystem: true,
+  } as Role;
 
   const mockRepository = {
     create: jest.fn(),
@@ -23,12 +33,14 @@ describe('RolesService', () => {
 
   const mockEntityManager = {
     delete: jest.fn(),
-    create: jest.fn((entity, data) => data),
+    create: jest.fn((entity: any, data: any) => data),
     save: jest.fn(),
   };
 
   const mockDataSource = {
-    transaction: jest.fn((cb) => cb(mockEntityManager)),
+    transaction: jest.fn((cb: (em: any) => Promise<any>) =>
+      cb(mockEntityManager as any),
+    ),
   };
 
   beforeEach(async () => {
@@ -47,7 +59,9 @@ describe('RolesService', () => {
     }).compile();
 
     service = module.get<RolesService>(RolesService);
-    repository = module.get(getRepositoryToken(Role));
+    repository = module.get<Repository<Role>>(
+      getRepositoryToken(Role),
+    ) as jest.Mocked<Repository<Role>>;
   });
 
   afterEach(() => {
@@ -59,25 +73,25 @@ describe('RolesService', () => {
   });
 
   describe('create', () => {
+    const dto = {
+      code: 'TEST_ROLE',
+      name: 'Test Role',
+      description: 'Test desc',
+    };
+
     it('should create and save a new role', async () => {
-      const dto = {
-        code: 'TEST_ROLE',
-        name: 'Test Role',
-        description: 'Test desc',
-      };
-      const orgId = 'org-uuid';
       repository.findOne.mockResolvedValue(null);
       repository.create.mockReturnValue({
         ...dto,
         organizationId: orgId,
         isSystem: false,
-      });
+      } as Role);
       repository.save.mockResolvedValue({
-        id: 'role-uuid',
+        id: roleId,
         ...dto,
         organizationId: orgId,
         isSystem: false,
-      });
+      } as Role);
 
       const result = await service.create(dto, orgId);
 
@@ -86,13 +100,14 @@ describe('RolesService', () => {
       });
       expect(repository.create).toHaveBeenCalled();
       expect(repository.save).toHaveBeenCalled();
-      expect(result).toHaveProperty('id', 'role-uuid');
+      expect(result).toHaveProperty('id', roleId);
     });
 
     it('should throw ConflictException if role code already exists in organization', async () => {
-      const dto = { code: 'TEST_ROLE', name: 'Test Role' };
-      const orgId = 'org-uuid';
-      repository.findOne.mockResolvedValue({ id: 'existing-uuid', ...dto });
+      repository.findOne.mockResolvedValue({
+        id: 'existing-uuid',
+        ...dto,
+      } as Role);
 
       await expect(service.create(dto, orgId)).rejects.toThrow(
         ConflictException,
@@ -102,11 +117,10 @@ describe('RolesService', () => {
 
   describe('findAll', () => {
     it('should return all roles for organization', async () => {
-      const orgId = 'org-uuid';
       const mockRoles = [
         { id: '1', code: 'A' },
         { id: '2', code: 'B' },
-      ];
+      ] as Role[];
       repository.find.mockResolvedValue(mockRoles);
 
       const result = await service.findAll(orgId);
@@ -121,15 +135,13 @@ describe('RolesService', () => {
 
   describe('findOne', () => {
     it('should return role if found', async () => {
-      const id = 'role-uuid';
-      const orgId = 'org-uuid';
-      const mockRole = { id, code: 'ROLE' };
+      const mockRole = { id: roleId, code: 'ROLE' } as Role;
       repository.findOne.mockResolvedValue(mockRole);
 
-      const result = await service.findOne(id, orgId);
+      const result = await service.findOne(roleId, orgId);
 
       expect(repository.findOne).toHaveBeenCalledWith({
-        where: { id, organizationId: orgId },
+        where: { id: roleId, organizationId: orgId },
         relations: {
           rolePermissions: {
             permission: true,
@@ -141,86 +153,78 @@ describe('RolesService', () => {
 
     it('should throw NotFoundException if role not found', async () => {
       repository.findOne.mockResolvedValue(null);
-      await expect(service.findOne('invalid-id', 'org-id')).rejects.toThrow(
+      await expect(service.findOne('invalid-id', orgId)).rejects.toThrow(
         NotFoundException,
       );
     });
   });
 
   describe('update', () => {
+    const existingRole = {
+      id: roleId,
+      code: 'OLD',
+      name: 'Old Name',
+      isSystem: false,
+    } as Role;
+    const updateDto = { name: 'New Name' };
+
     it('should update role fields successfully', async () => {
-      const id = 'role-uuid';
-      const orgId = 'org-uuid';
-      const existingRole = {
-        id,
-        code: 'OLD',
-        name: 'Old Name',
-        isSystem: false,
-      };
-      const updateDto = { name: 'New Name' };
+      repository.findOne.mockResolvedValueOnce(existingRole);
+      repository.save.mockResolvedValue({
+        ...existingRole,
+        ...updateDto,
+      } as Role);
 
-      repository.findOne.mockResolvedValueOnce(existingRole); // For findOne
-      repository.save.mockResolvedValue({ ...existingRole, ...updateDto });
-
-      const result = await service.update(id, updateDto, orgId);
+      const result = await service.update(roleId, updateDto, orgId);
 
       expect(repository.save).toHaveBeenCalled();
       expect(result.name).toBe('New Name');
     });
 
     it('should throw BadRequestException when trying to update a system role', async () => {
-      const id = 'role-uuid';
-      const orgId = 'org-uuid';
-      const systemRole = { id, code: 'ADMIN', name: 'Admin', isSystem: true };
-
       repository.findOne.mockResolvedValue(systemRole);
 
       await expect(
-        service.update(id, { name: 'New Name' }, orgId),
+        service.update(roleId, { name: 'New Name' }, orgId),
       ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('remove', () => {
+    const customRole = {
+      id: roleId,
+      code: 'CUSTOM',
+      isSystem: false,
+      users: [] as any[],
+    } as Role;
+
     it('should soft delete role when no active users are assigned', async () => {
-      const id = 'role-uuid';
-      const orgId = 'org-uuid';
-      const role = { id, code: 'CUSTOM', isSystem: false, users: [] };
+      repository.findOne.mockResolvedValue(customRole);
+      repository.softRemove.mockResolvedValue(customRole);
 
-      repository.findOne.mockResolvedValue(role);
-      repository.softRemove.mockResolvedValue(role);
+      const result = await service.remove(roleId, orgId);
 
-      const result = await service.remove(id, orgId);
-
-      expect(repository.softRemove).toHaveBeenCalledWith(role);
+      expect(repository.softRemove).toHaveBeenCalledWith(customRole);
       expect(result).toEqual({ message: 'Đã xóa vai trò thành công' });
     });
 
     it('should throw BadRequestException when trying to delete system role', async () => {
-      const id = 'role-uuid';
-      const orgId = 'org-uuid';
-      const role = { id, code: 'ADMIN', isSystem: true };
+      repository.findOne.mockResolvedValue(systemRole);
 
-      repository.findOne.mockResolvedValue(role);
-
-      await expect(service.remove(id, orgId)).rejects.toThrow(
+      await expect(service.remove(roleId, orgId)).rejects.toThrow(
         BadRequestException,
       );
     });
 
     it('should throw ROLE_HAS_ASSIGNED_USERS warning when users are assigned and force is false', async () => {
-      const id = 'role-uuid';
-      const orgId = 'org-uuid';
-      const role = {
-        id,
-        code: 'CUSTOM',
-        isSystem: false,
+      const roleWithUsers = {
+        ...customRole,
         users: [{ id: 'user1' }],
-      };
+      } as Role;
 
-      repository.findOne.mockResolvedValue(role);
+      repository.findOne.mockResolvedValue(roleWithUsers);
 
-      await expect(service.remove(id, orgId)).rejects.toThrow(
+      await expect(service.remove(roleId, orgId)).rejects.toThrow(
         new BadRequestException({
           code: 'ROLE_HAS_ASSIGNED_USERS',
           message: 'Vai trò này hiện đang được gán cho 1 nhân viên.',
@@ -230,20 +234,22 @@ describe('RolesService', () => {
     });
 
     it('should clear users mapping and soft delete when force is true', async () => {
-      const id = 'role-uuid';
-      const orgId = 'org-uuid';
-      const role = {
-        id,
-        code: 'CUSTOM',
-        isSystem: false,
+      const roleWithUsers = {
+        ...customRole,
         users: [{ id: 'user1' }],
-      };
+      } as Role;
 
-      repository.findOne.mockResolvedValue(role);
-      repository.save.mockResolvedValue({ ...role, users: [] });
-      repository.softRemove.mockResolvedValue({ ...role, users: [] });
+      repository.findOne.mockResolvedValue(roleWithUsers);
+      repository.save.mockResolvedValue({
+        ...roleWithUsers,
+        users: [],
+      } as Role);
+      repository.softRemove.mockResolvedValue({
+        ...roleWithUsers,
+        users: [],
+      } as Role);
 
-      const result = await service.remove(id, orgId, true);
+      const result = await service.remove(roleId, orgId, true);
 
       expect(repository.save).toHaveBeenCalledWith(
         expect.objectContaining({ users: [] }),
@@ -254,10 +260,9 @@ describe('RolesService', () => {
   });
 
   describe('assignPermissions', () => {
+    const customRole = { id: roleId, code: 'CUSTOM', isSystem: false } as Role;
+
     it('should assign role permissions inside a database transaction', async () => {
-      const id = 'role-uuid';
-      const orgId = 'org-uuid';
-      const role = { id, code: 'CUSTOM', isSystem: false };
       const dto = {
         permissions: [
           { permissionId: 'p1-uuid', scope: 'ALL' as any },
@@ -265,16 +270,16 @@ describe('RolesService', () => {
         ],
       };
 
-      repository.findOne.mockResolvedValue(role);
+      repository.findOne.mockResolvedValue(customRole);
       mockEntityManager.delete.mockResolvedValue({ affected: 2 });
       mockEntityManager.save.mockResolvedValue([]);
 
-      const result = await service.assignPermissions(id, dto, orgId);
+      const result = await service.assignPermissions(roleId, dto, orgId);
 
       expect(repository.findOne).toHaveBeenCalled();
       expect(mockDataSource.transaction).toHaveBeenCalled();
       expect(mockEntityManager.delete).toHaveBeenCalledWith(expect.anything(), {
-        roleId: role.id,
+        roleId: customRole.id,
       });
       expect(mockEntityManager.create).toHaveBeenCalledTimes(2);
       expect(mockEntityManager.save).toHaveBeenCalled();
@@ -282,16 +287,13 @@ describe('RolesService', () => {
     });
 
     it('should throw BadRequestException if role is system role', async () => {
-      const id = 'role-uuid';
-      const orgId = 'org-uuid';
-      const systemRole = { id, code: 'ADMIN', isSystem: true };
       const dto = { permissions: [] };
 
       repository.findOne.mockResolvedValue(systemRole);
 
-      await expect(service.assignPermissions(id, dto, orgId)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.assignPermissions(roleId, dto, orgId),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });
