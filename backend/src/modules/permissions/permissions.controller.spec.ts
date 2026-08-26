@@ -11,10 +11,6 @@ describe('PermissionsController', () => {
   };
 
   beforeEach(async () => {
-    const mockPermissionsService = {
-      findAll: jest.fn(),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PermissionsController],
       providers: [

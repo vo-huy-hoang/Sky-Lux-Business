@@ -18,16 +18,6 @@ describe('RolesController', () => {
   };
 
   beforeEach(async () => {
-    const mockRolesService = {
-      create: jest.fn(),
-      findAll: jest.fn(),
-      findOne: jest.fn(),
-      update: jest.fn(),
-      remove: jest.fn(),
-      assignPermissions: jest.fn(),
-      assignUserRoles: jest.fn(),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       controllers: [RolesController],
       providers: [
