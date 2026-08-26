@@ -764,39 +764,61 @@ export class InitialSchema1724630400000 implements MigrationInterface {
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP TABLE IF EXISTS "audit_logs" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "saved_reports" CASCADE;`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "accounting_periods" CASCADE;`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "accounting_periods" CASCADE;`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "import_errors" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "import_rows" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "import_sessions" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "import_templates" CASCADE;`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "message_attachments" CASCADE;`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "message_attachments" CASCADE;`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "messages" CASCADE;`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "conversation_participants" CASCADE;`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "conversation_participants" CASCADE;`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "conversations" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "notifications" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "kpi_results" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "kpi_targets" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "payments" CASCADE;`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "task_checklist_items" CASCADE;`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "task_checklist_items" CASCADE;`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "tasks" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "comments" CASCADE;`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "document_versions" CASCADE;`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "document_versions" CASCADE;`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "documents" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "document_types" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "workflow_history" CASCADE;`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "approval_requests" CASCADE;`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "estimate_cost_lines" CASCADE;`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "estimate_revenue_lines" CASCADE;`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "approval_requests" CASCADE;`,
+    );
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "estimate_cost_lines" CASCADE;`,
+    );
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "estimate_revenue_lines" CASCADE;`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "estimates" CASCADE;`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "dossier_passengers" CASCADE;`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "dossier_passengers" CASCADE;`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "dossiers" CASCADE;`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "customer_contacts" CASCADE;`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "customer_contacts" CASCADE;`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "customers" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "suppliers" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "supplier_types" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "units" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "passenger_types" CASCADE;`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "service_categories" CASCADE;`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "service_categories" CASCADE;`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "market_types" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "business_lines" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "role_permissions" CASCADE;`);
@@ -805,7 +827,9 @@ export class InitialSchema1724630400000 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE IF EXISTS "roles" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "users" CASCADE;`);
     await queryRunner.query(`DROP TABLE IF EXISTS "departments" CASCADE;`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "organization_settings" CASCADE;`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "organization_settings" CASCADE;`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "organizations" CASCADE;`);
   }
 }

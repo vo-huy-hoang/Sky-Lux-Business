@@ -4,7 +4,12 @@ import { Organization } from '../../organizations/entities/organization.entity';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('audit_logs')
-@Index('idx_audit_entity_time', ['organizationId', 'entityType', 'entityId', 'createdAt'])
+@Index('idx_audit_entity_time', [
+  'organizationId',
+  'entityType',
+  'entityId',
+  'createdAt',
+])
 export class AuditLog extends BaseEntity {
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;

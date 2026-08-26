@@ -10,7 +10,9 @@ export class SettingsService {
     private readonly settingRepository: Repository<OrganizationSetting>,
   ) {}
 
-  async getOrganizationSettings(organizationId: string): Promise<Record<string, any>> {
+  async getOrganizationSettings(
+    organizationId: string,
+  ): Promise<Record<string, any>> {
     const settings = await this.settingRepository.find({
       where: { organizationId },
     });
@@ -22,7 +24,10 @@ export class SettingsService {
     return config;
   }
 
-  async getOrganizationSetting(organizationId: string, key: string): Promise<any> {
+  async getOrganizationSetting(
+    organizationId: string,
+    key: string,
+  ): Promise<any> {
     const setting = await this.settingRepository.findOne({
       where: { organizationId, key },
     });

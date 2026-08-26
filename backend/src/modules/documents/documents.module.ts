@@ -7,7 +7,9 @@ import { DocumentType } from './entities/document-type.entity';
 import { DocumentVersion } from './entities/document-version.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Document, DocumentType, DocumentVersion])],
+  imports: [
+    TypeOrmModule.forFeature([Document, DocumentType, DocumentVersion]),
+  ],
   controllers: [DocumentsController],
   providers: [DocumentsService],
   exports: [DocumentsService, TypeOrmModule],

@@ -55,7 +55,10 @@ export class User extends BaseEntity {
   @JoinColumn({ name: 'organization_id' })
   organization: Organization;
 
-  @ManyToOne(() => Department, (dept) => dept.users, { onDelete: 'SET NULL', nullable: true })
+  @ManyToOne(() => Department, (dept) => dept.users, {
+    onDelete: 'SET NULL',
+    nullable: true,
+  })
   @JoinColumn({ name: 'department_id' })
   department?: Department;
 

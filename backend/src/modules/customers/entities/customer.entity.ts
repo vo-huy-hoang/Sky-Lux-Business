@@ -1,4 +1,11 @@
-import { Entity, Column, ManyToOne, OneToMany, JoinColumn, Index } from 'typeorm';
+import {
+  Entity,
+  Column,
+  ManyToOne,
+  OneToMany,
+  JoinColumn,
+  Index,
+} from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Organization } from '../../organizations/entities/organization.entity';
 import { User } from '../../users/entities/user.entity';
@@ -52,6 +59,8 @@ export class Customer extends BaseEntity {
   @JoinColumn({ name: 'assigned_sales_id' })
   assignedSales?: User;
 
-  @OneToMany(() => CustomerContact, (contact) => contact.customer, { cascade: true })
+  @OneToMany(() => CustomerContact, (contact) => contact.customer, {
+    cascade: true,
+  })
   contacts: CustomerContact[];
 }

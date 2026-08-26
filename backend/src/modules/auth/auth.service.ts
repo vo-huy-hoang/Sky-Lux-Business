@@ -149,7 +149,12 @@ export class AuthService {
     await this.userRepository.save(user);
 
     const permissions = await this.extractUserPermissions(user.roles);
-    const tokens = await this.generateTokens(user, permissions, ipAddress, userAgent);
+    const tokens = await this.generateTokens(
+      user,
+      permissions,
+      ipAddress,
+      userAgent,
+    );
 
     return {
       ...tokens,
@@ -214,8 +219,14 @@ export class AuthService {
         where: { userId: decoded.id, tokenHash },
       });
 
-      if (!tokenRecord || tokenRecord.isRevoked || tokenRecord.expiresAt < new Date()) {
-        throw new UnauthorizedException('Phiên đăng nhập không hợp lệ hoặc đã bị thu hồi');
+      if (
+        !tokenRecord ||
+        tokenRecord.isRevoked ||
+        tokenRecord.expiresAt < new Date()
+      ) {
+        throw new UnauthorizedException(
+          'Phiên đăng nhập không hợp lệ hoặc đã bị thu hồi',
+        );
       }
 
       const user = await this.userRepository.findOne({
@@ -238,7 +249,9 @@ export class AuthService {
       if (err instanceof UnauthorizedException) {
         throw err;
       }
-      throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn');
+      throw new UnauthorizedException(
+        'Refresh token không hợp lệ hoặc đã hết hạn',
+      );
     }
   }
 
@@ -274,11 +287,12 @@ export class AuthService {
       avatarUrl: user.avatarUrl,
       status: user.status,
       lastLoginAt: user.lastLoginAt,
-      roles: user.roles?.map((r) => ({
-        id: r.id,
-        code: r.code,
-        name: r.name,
-      })) || [],
+      roles:
+        user.roles?.map((r) => ({
+          id: r.id,
+          code: r.code,
+          name: r.name,
+        })) || [],
       permissions,
     };
   }

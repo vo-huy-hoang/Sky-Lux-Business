@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: skylux_local_password
 
     ports:
-      - "5432:5432"
+      - "5435:5432"
 
     volumes:
       - postgres_data:/var/lib/postgresql/data

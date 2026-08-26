@@ -1,4 +1,11 @@
-import { Entity, Column, ManyToOne, OneToMany, JoinColumn, Index } from 'typeorm';
+import {
+  Entity,
+  Column,
+  ManyToOne,
+  OneToMany,
+  JoinColumn,
+  Index,
+} from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Organization } from '../../organizations/entities/organization.entity';
 import { User } from '../../users/entities/user.entity';
@@ -21,7 +28,9 @@ export class Department extends BaseEntity {
   @Column({ type: 'varchar', length: 30, default: 'ACTIVE' })
   status: string;
 
-  @ManyToOne(() => Organization, (org) => org.departments, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Organization, (org) => org.departments, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'organization_id' })
   organization: Organization;
 

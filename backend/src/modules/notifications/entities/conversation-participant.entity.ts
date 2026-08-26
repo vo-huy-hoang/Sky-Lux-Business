@@ -7,7 +7,11 @@ import { ParticipantRole } from '../../../common/enums';
 
 @Entity('conversation_participants')
 @Unique(['conversationId', 'userId'])
-@Index('idx_conv_participants_user', ['organizationId', 'userId', 'conversationId'])
+@Index('idx_conv_participants_user', [
+  'organizationId',
+  'userId',
+  'conversationId',
+])
 export class ConversationParticipant extends BaseEntity {
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;
@@ -31,7 +35,11 @@ export class ConversationParticipant extends BaseEntity {
   @Column({ name: 'last_read_at', type: 'timestamptz', nullable: true })
   lastReadAt?: Date;
 
-  @Column({ name: 'joined_at', type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({
+    name: 'joined_at',
+    type: 'timestamptz',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   joinedAt: Date;
 
   @Column({ name: 'left_at', type: 'timestamptz', nullable: true })

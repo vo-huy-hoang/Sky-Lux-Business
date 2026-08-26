@@ -14,7 +14,12 @@ import { TaskChecklistItem } from './task-checklist-item.entity';
 import { TaskStatus, PriorityLevel } from '../../../common/enums';
 
 @Entity('tasks')
-@Index('idx_tasks_assignee_status_due', ['organizationId', 'assignedTo', 'status', 'dueAt'])
+@Index('idx_tasks_assignee_status_due', [
+  'organizationId',
+  'assignedTo',
+  'status',
+  'dueAt',
+])
 export class Task extends BaseEntity {
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;
