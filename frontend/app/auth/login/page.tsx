@@ -9,7 +9,7 @@ import {
   Checkbox,
   Card,
   Typography,
-  message,
+  App,
   Tag,
   Divider,
   Spin,
@@ -28,6 +28,7 @@ import { LoginResponse } from '@/types/auth';
 const { Title, Text } = Typography;
 
 function LoginForm() {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const router = useRouter();

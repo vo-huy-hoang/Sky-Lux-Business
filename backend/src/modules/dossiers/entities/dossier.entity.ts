@@ -19,7 +19,11 @@ import { DossierStatus, PriorityLevel } from '../../../common/enums';
 
 @Entity('dossiers')
 @Index('idx_dossiers_org_status', ['organizationId', 'status'])
-@Index('idx_dossiers_org_sales_period', ['organizationId', 'salesUserId', 'revenueRecognitionDate'])
+@Index('idx_dossiers_org_sales_period', [
+  'organizationId',
+  'salesUserId',
+  'revenueRecognitionDate',
+])
 export class Dossier extends BaseEntity {
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;
@@ -108,7 +112,9 @@ export class Dossier extends BaseEntity {
   @JoinColumn({ name: 'operator_user_id' })
   operatorUser?: User;
 
-  @OneToMany(() => DossierPassenger, (passenger) => passenger.dossier, { cascade: true })
+  @OneToMany(() => DossierPassenger, (passenger) => passenger.dossier, {
+    cascade: true,
+  })
   passengers: DossierPassenger[];
 
   @OneToMany(() => Estimate, (estimate) => estimate.dossier)

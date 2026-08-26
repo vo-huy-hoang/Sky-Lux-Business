@@ -24,7 +24,12 @@ export class DossierPassenger extends BaseEntity {
   @Column({ type: 'varchar', length: 20, nullable: true })
   gender?: string;
 
-  @Column({ name: 'passport_number', type: 'varchar', length: 50, nullable: true })
+  @Column({
+    name: 'passport_number',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
   passportNumber?: string;
 
   @Column({ name: 'passport_expiry', type: 'date', nullable: true })
@@ -40,7 +45,9 @@ export class DossierPassenger extends BaseEntity {
   @JoinColumn({ name: 'organization_id' })
   organization: Organization;
 
-  @ManyToOne(() => Dossier, (dossier) => dossier.passengers, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Dossier, (dossier) => dossier.passengers, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'dossier_id' })
   dossier: Dossier;
 

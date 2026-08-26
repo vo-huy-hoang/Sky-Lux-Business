@@ -74,9 +74,17 @@ export async function runInitialSeed(dataSource: DataSource) {
   // 3. Departments
   const departmentsData = [
     { code: 'BOD', name: 'Ban Giám Đốc', description: 'Board of Directors' },
-    { code: 'SALES', name: 'Phòng Kinh Doanh', description: 'Sales & Marketing' },
+    {
+      code: 'SALES',
+      name: 'Phòng Kinh Doanh',
+      description: 'Sales & Marketing',
+    },
     { code: 'OPS', name: 'Phòng Điều Hành', description: 'Tour Operations' },
-    { code: 'ACC', name: 'Phòng Kế Toán - Tài Chính', description: 'Accounting & Finance' },
+    {
+      code: 'ACC',
+      name: 'Phòng Kế Toán - Tài Chính',
+      description: 'Accounting & Finance',
+    },
   ];
 
   const deptMap: Record<string, Department> = {};
@@ -108,7 +116,11 @@ export async function runInitialSeed(dataSource: DataSource) {
 
     // Dossiers
     { code: 'dossier.view.own', name: 'Xem hồ sơ cá nhân', module: 'DOSSIER' },
-    { code: 'dossier.view.team', name: 'Xem hồ sơ phòng ban', module: 'DOSSIER' },
+    {
+      code: 'dossier.view.team',
+      name: 'Xem hồ sơ phòng ban',
+      module: 'DOSSIER',
+    },
     { code: 'dossier.view.all', name: 'Xem toàn bộ hồ sơ', module: 'DOSSIER' },
     { code: 'dossier.create', name: 'Tạo hồ sơ', module: 'DOSSIER' },
     { code: 'dossier.update', name: 'Cập nhật hồ sơ', module: 'DOSSIER' },
@@ -126,7 +138,11 @@ export async function runInitialSeed(dataSource: DataSource) {
     { code: 'supplier.manage', name: 'Quản lý nhà cung cấp', module: 'CRM' },
 
     // Finance & Reports
-    { code: 'finance.view', name: 'Xem tài chính & công nợ', module: 'FINANCE' },
+    {
+      code: 'finance.view',
+      name: 'Xem tài chính & công nợ',
+      module: 'FINANCE',
+    },
     { code: 'finance.manage', name: 'Quản lý thanh toán', module: 'FINANCE' },
     { code: 'report.view', name: 'Xem báo cáo', module: 'REPORT' },
     { code: 'report.export', name: 'Xuất file báo cáo', module: 'REPORT' },
@@ -210,13 +226,25 @@ export async function runInitialSeed(dataSource: DataSource) {
         roles: [roleMap['SUPER_ADMIN'], roleMap['CEO_ADMIN']],
       }),
     );
-    console.log('  ✅ Created SuperAdmin user:', adminEmail, '(Password: Admin@123456)');
+    console.log(
+      '  ✅ Created SuperAdmin user:',
+      adminEmail,
+      '(Password: Admin@123456)',
+    );
   }
 
   // 7. Master Data Seed
   const businessLines = [
-    { code: 'TOUR_INBOUND', name: 'Tour Inbound (Quốc tế vào VN)', sortOrder: 1 },
-    { code: 'TOUR_OUTBOUND', name: 'Tour Outbound (VN ra nước ngoài)', sortOrder: 2 },
+    {
+      code: 'TOUR_INBOUND',
+      name: 'Tour Inbound (Quốc tế vào VN)',
+      sortOrder: 1,
+    },
+    {
+      code: 'TOUR_OUTBOUND',
+      name: 'Tour Outbound (VN ra nước ngoài)',
+      sortOrder: 2,
+    },
     { code: 'TOUR_DOMESTIC', name: 'Tour Nội Địa', sortOrder: 3 },
     { code: 'MICE', name: 'Du lịch Sự kiện MICE & Teambuilding', sortOrder: 4 },
     { code: 'TICKET_VISA', name: 'Vé máy bay & Dịch vụ Visa', sortOrder: 5 },

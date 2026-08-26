@@ -23,7 +23,10 @@ export class SettingsController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('key') key: string,
   ) {
-    return this.settingsService.getOrganizationSetting(user.organizationId, key);
+    return this.settingsService.getOrganizationSetting(
+      user.organizationId,
+      key,
+    );
   }
 
   @ApiOperation({ summary: 'Cập nhật hoặc tạo mới một cấu hình cho tổ chức' })

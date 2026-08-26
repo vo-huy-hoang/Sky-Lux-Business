@@ -21,7 +21,12 @@ export class Supplier extends BaseEntity {
   @Column({ name: 'tax_code', type: 'varchar', length: 50, nullable: true })
   taxCode?: string;
 
-  @Column({ name: 'contact_name', type: 'varchar', length: 255, nullable: true })
+  @Column({
+    name: 'contact_name',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
   contactName?: string;
 
   @Column({ type: 'varchar', length: 20, nullable: true })

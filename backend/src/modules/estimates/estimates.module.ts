@@ -8,11 +8,7 @@ import { EstimateCostLine } from './entities/estimate-cost-line.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      Estimate,
-      EstimateRevenueLine,
-      EstimateCostLine,
-    ]),
+    TypeOrmModule.forFeature([Estimate, EstimateRevenueLine, EstimateCostLine]),
   ],
   controllers: [EstimatesController],
   providers: [EstimatesService],

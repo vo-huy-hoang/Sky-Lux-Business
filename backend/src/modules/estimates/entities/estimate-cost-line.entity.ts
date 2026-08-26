@@ -33,22 +33,51 @@ export class EstimateCostLine extends BaseEntity {
   @Column({ type: 'numeric', precision: 12, scale: 3, default: 1 })
   multiplier: number;
 
-  @Column({ name: 'unit_price', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  @Column({
+    name: 'unit_price',
+    type: 'numeric',
+    precision: 18,
+    scale: 2,
+    default: 0,
+  })
   unitPrice: number;
 
-  @Column({ name: 'vat_rate', type: 'numeric', precision: 5, scale: 2, default: 0 })
+  @Column({
+    name: 'vat_rate',
+    type: 'numeric',
+    precision: 5,
+    scale: 2,
+    default: 0,
+  })
   vatRate: number;
 
   @Column({ name: 'price_basis', type: 'varchar', length: 50, nullable: true })
   priceBasis?: string;
 
-  @Column({ name: 'gross_amount', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  @Column({
+    name: 'gross_amount',
+    type: 'numeric',
+    precision: 18,
+    scale: 2,
+    default: 0,
+  })
   grossAmount: number;
 
-  @Column({ name: 'net_amount', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  @Column({
+    name: 'net_amount',
+    type: 'numeric',
+    precision: 18,
+    scale: 2,
+    default: 0,
+  })
   netAmount: number;
 
-  @Column({ name: 'validation_status', type: 'varchar', length: 30, default: 'VALID' })
+  @Column({
+    name: 'validation_status',
+    type: 'varchar',
+    length: 30,
+    default: 'VALID',
+  })
   validationStatus: string;
 
   @Column({ type: 'text', nullable: true })
@@ -61,7 +90,9 @@ export class EstimateCostLine extends BaseEntity {
   @JoinColumn({ name: 'organization_id' })
   organization: Organization;
 
-  @ManyToOne(() => Estimate, (estimate) => estimate.costLines, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Estimate, (estimate) => estimate.costLines, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'estimate_id' })
   estimate: Estimate;
 
