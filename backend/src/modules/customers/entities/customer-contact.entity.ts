@@ -30,7 +30,9 @@ export class CustomerContact extends BaseEntity {
   @JoinColumn({ name: 'organization_id' })
   organization: Organization;
 
-  @ManyToOne(() => Customer, (customer) => customer.contacts, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Customer, (customer) => customer.contacts, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'customer_id' })
   customer: Customer;
 }

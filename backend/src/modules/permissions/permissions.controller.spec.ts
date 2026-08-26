@@ -6,9 +6,18 @@ describe('PermissionsController', () => {
   let controller: PermissionsController;
 
   beforeEach(async () => {
+    const mockPermissionsService = {
+      findAll: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PermissionsController],
-      providers: [PermissionsService],
+      providers: [
+        {
+          provide: PermissionsService,
+          useValue: mockPermissionsService,
+        },
+      ],
     }).compile();
 
     controller = module.get<PermissionsController>(PermissionsController);
@@ -18,3 +27,4 @@ describe('PermissionsController', () => {
     expect(controller).toBeDefined();
   });
 });
+

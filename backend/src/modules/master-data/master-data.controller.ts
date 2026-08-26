@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+} from '@nestjs/common';
 import { MasterDataService } from './master-data.service';
 import { CreateMasterDatumDto } from './dto/create-master-datum.dto';
 import { UpdateMasterDatumDto } from './dto/update-master-datum.dto';
@@ -23,7 +31,10 @@ export class MasterDataController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateMasterDatumDto: UpdateMasterDatumDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateMasterDatumDto: UpdateMasterDatumDto,
+  ) {
     return this.masterDataService.update(+id, updateMasterDatumDto);
   }
 

@@ -7,7 +7,11 @@ import { User } from '../../users/entities/user.entity';
 import { ApprovalStatus } from '../../../common/enums';
 
 @Entity('approval_requests')
-@Index('idx_approvals_reviewer_status', ['organizationId', 'reviewerUserId', 'status'])
+@Index('idx_approvals_reviewer_status', [
+  'organizationId',
+  'reviewerUserId',
+  'status',
+])
 export class ApprovalRequest extends BaseEntity {
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;
@@ -34,7 +38,11 @@ export class ApprovalRequest extends BaseEntity {
   })
   status: ApprovalStatus;
 
-  @Column({ name: 'requested_at', type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({
+    name: 'requested_at',
+    type: 'timestamptz',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   requestedAt: Date;
 
   @Column({ name: 'decided_at', type: 'timestamptz', nullable: true })

@@ -33,10 +33,22 @@ export class KpiResult extends BaseEntity {
   @Column({ name: 'period_end', type: 'date' })
   periodEnd: string;
 
-  @Column({ name: 'actual_value', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  @Column({
+    name: 'actual_value',
+    type: 'numeric',
+    precision: 18,
+    scale: 2,
+    default: 0,
+  })
   actualValue: number;
 
-  @Column({ name: 'achievement_rate', type: 'numeric', precision: 5, scale: 2, default: 0 })
+  @Column({
+    name: 'achievement_rate',
+    type: 'numeric',
+    precision: 5,
+    scale: 2,
+    default: 0,
+  })
   achievementRate: number;
 
   @Column({ name: 'is_locked', type: 'boolean', default: false })

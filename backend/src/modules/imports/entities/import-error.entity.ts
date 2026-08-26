@@ -27,7 +27,9 @@ export class ImportError extends BaseEntity {
   })
   severity: ImportErrorSeverity;
 
-  @ManyToOne(() => ImportSession, (session) => session.errors, { onDelete: 'CASCADE' })
+  @ManyToOne(() => ImportSession, (session) => session.errors, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'session_id' })
   session: ImportSession;
 }

@@ -30,14 +30,19 @@ export class HttpExceptionFilter implements ExceptionFilter {
       } else if (typeof res === 'object' && res !== null) {
         const resObj = res as Record<string, any>;
         message = resObj.message || exception.message;
-        errors = resObj.errors || (Array.isArray(resObj.message) ? resObj.message : null);
+        errors =
+          resObj.errors ||
+          (Array.isArray(resObj.message) ? resObj.message : null);
         if (Array.isArray(resObj.message)) {
           message = resObj.message[0];
         }
       }
     } else if (exception instanceof Error) {
       message = exception.message;
-      this.logger.error(`Unhandled Exception at ${request.method} ${request.url}`, exception.stack);
+      this.logger.error(
+        `Unhandled Exception at ${request.method} ${request.url}`,
+        exception.stack,
+      );
     }
 
     response.status(status).json({
