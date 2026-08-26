@@ -3,15 +3,30 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 import { ROLES_KEY } from '../decorators/roles.decorator';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly configService: ConfigService,
+  ) {}
 
   canActivate(context: ExecutionContext): boolean {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (isPublic) {
+      return true;
+    }
+
     const requiredRoles = this.reflector.getAllAndOverride<string[]>(
       ROLES_KEY,
       [context.getHandler(), context.getClass()],
@@ -22,12 +37,17 @@ export class RolesGuard implements CanActivate {
     }
 
     const { user } = context.switchToHttp().getRequest();
-    if (!user || !user.roles) {
+    if (!user) {
+      throw new UnauthorizedException('Access denied: Session not established');
+    }
+    if (!user.roles) {
       throw new ForbiddenException('Access denied: No role assigned');
     }
 
-    // SuperAdmin has full access
-    if (user.roles.includes('SUPER_ADMIN') || user.roles.includes('CEO_ADMIN')) {
+    // Admin roles have full access (bypass)
+    const adminRoles = this.configService.get<string[]>('app.adminRoles') || [];
+    const hasAdminRole = user.roles.some((role) => adminRoles.includes(role));
+    if (hasAdminRole) {
       return true;
     }
 

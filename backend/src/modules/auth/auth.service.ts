@@ -9,9 +9,11 @@ import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 
 import { User } from '../users/entities/user.entity';
 import { RolePermission } from '../permissions/entities/role-permission.entity';
+import { RefreshToken } from './entities/refresh-token.entity';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -24,6 +26,8 @@ export class AuthService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(RolePermission)
     private readonly rolePermissionRepository: Repository<RolePermission>,
+    @InjectRepository(RefreshToken)
+    private readonly refreshTokenRepository: Repository<RefreshToken>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
@@ -55,7 +59,12 @@ export class AuthService {
     return Array.from(permissionCodes);
   }
 
-  private async generateTokens(user: User, permissions: string[]) {
+  private async generateTokens(
+    user: User,
+    permissions: string[],
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
     const roleCodes = user.roles?.map((r) => r.code) || [];
 
     const payload = {
@@ -86,10 +95,29 @@ export class AuthService {
       },
     );
 
+    // Hash the refresh token and save it to the database
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(refreshToken)
+      .digest('hex');
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+
+    const refreshTokenEntity = this.refreshTokenRepository.create({
+      userId: user.id,
+      tokenHash,
+      expiresAt,
+      isRevoked: false,
+      ipAddress,
+      userAgent,
+    });
+    await this.refreshTokenRepository.save(refreshTokenEntity);
+
     return { accessToken, refreshToken };
   }
 
-  async login(loginDto: LoginDto) {
+  async login(loginDto: LoginDto, ipAddress?: string, userAgent?: string) {
     const { email, password } = loginDto;
 
     const user = await this.userRepository.findOne({
@@ -121,7 +149,7 @@ export class AuthService {
     await this.userRepository.save(user);
 
     const permissions = await this.extractUserPermissions(user.roles);
-    const tokens = await this.generateTokens(user, permissions);
+    const tokens = await this.generateTokens(user, permissions, ipAddress, userAgent);
 
     return {
       ...tokens,
@@ -142,11 +170,30 @@ export class AuthService {
     };
   }
 
-  async logout(_userId: string) {
+  async logout(userId: string, refreshToken?: string) {
+    if (refreshToken) {
+      const tokenHash = crypto
+        .createHash('sha256')
+        .update(refreshToken)
+        .digest('hex');
+      await this.refreshTokenRepository.update(
+        { userId, tokenHash },
+        { isRevoked: true },
+      );
+    } else {
+      await this.refreshTokenRepository.update(
+        { userId, isRevoked: false },
+        { isRevoked: true },
+      );
+    }
     return { message: 'Đăng xuất thành công' };
   }
 
-  async refreshToken(refreshTokenDto: RefreshTokenDto) {
+  async refreshToken(
+    refreshTokenDto: RefreshTokenDto,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
     const { refreshToken } = refreshTokenDto;
     const secret =
       this.configService.get<string>('JWT_SECRET') ||
@@ -157,6 +204,20 @@ export class AuthService {
         secret,
       });
 
+      // Find token in database to check if it's revoked
+      const tokenHash = crypto
+        .createHash('sha256')
+        .update(refreshToken)
+        .digest('hex');
+
+      const tokenRecord = await this.refreshTokenRepository.findOne({
+        where: { userId: decoded.id, tokenHash },
+      });
+
+      if (!tokenRecord || tokenRecord.isRevoked || tokenRecord.expiresAt < new Date()) {
+        throw new UnauthorizedException('Phiên đăng nhập không hợp lệ hoặc đã bị thu hồi');
+      }
+
       const user = await this.userRepository.findOne({
         where: { id: decoded.id },
         relations: { roles: true },
@@ -166,11 +227,26 @@ export class AuthService {
         throw new UnauthorizedException('Phiên đăng nhập không hợp lệ');
       }
 
+      // Revoke the old token (rotation)
+      tokenRecord.isRevoked = true;
+      await this.refreshTokenRepository.save(tokenRecord);
+
       const permissions = await this.extractUserPermissions(user.roles);
-      return await this.generateTokens(user, permissions);
-    } catch {
+      // Generate new tokens
+      return await this.generateTokens(user, permissions, ipAddress, userAgent);
+    } catch (err) {
+      if (err instanceof UnauthorizedException) {
+        throw err;
+      }
       throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn');
     }
+  }
+
+  async revokeUserTokens(userId: string): Promise<void> {
+    await this.refreshTokenRepository.update(
+      { userId, isRevoked: false },
+      { isRevoked: true },
+    );
   }
 
   async getMe(userId: string) {

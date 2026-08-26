@@ -6,9 +6,20 @@ describe('SettingsController', () => {
   let controller: SettingsController;
 
   beforeEach(async () => {
+    const mockSettingsService = {
+      getOrganizationSettings: jest.fn(),
+      getOrganizationSetting: jest.fn(),
+      updateOrganizationSetting: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SettingsController],
-      providers: [SettingsService],
+      providers: [
+        {
+          provide: SettingsService,
+          useValue: mockSettingsService,
+        },
+      ],
     }).compile();
 
     controller = module.get<SettingsController>(SettingsController);

@@ -5,14 +5,16 @@ import {
   Body,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { Public } from '../../common/decorators/public.decorator';
-import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -25,8 +27,13 @@ export class AuthController {
   @ApiOperation({ summary: 'Đăng nhập hệ thống (API-AUTH-001)' })
   @ApiResponse({ status: 200, description: 'Đăng nhập thành công, trả về tokens và user info' })
   @ApiResponse({ status: 401, description: 'Email hoặc mật khẩu không chính xác' })
-  login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  login(
+    @Body() loginDto: LoginDto,
+    @Req() req: Request,
+  ) {
+    const ipAddress = req.ip;
+    const userAgent = req.headers['user-agent'];
+    return this.authService.login(loginDto, ipAddress, userAgent);
   }
 
   @Post('logout')
@@ -34,8 +41,11 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Đăng xuất khỏi hệ thống (API-AUTH-002)' })
   @ApiResponse({ status: 200, description: 'Đăng xuất thành công' })
-  logout(@CurrentUser('id') userId: string) {
-    return this.authService.logout(userId);
+  logout(
+    @CurrentUser('id') userId: string,
+    @Body('refreshToken') refreshToken?: string,
+  ) {
+    return this.authService.logout(userId, refreshToken);
   }
 
   @Public()
@@ -44,8 +54,13 @@ export class AuthController {
   @ApiOperation({ summary: 'Làm mới Access Token (API-AUTH-003)' })
   @ApiResponse({ status: 200, description: 'Cấp token mới thành công' })
   @ApiResponse({ status: 401, description: 'Refresh token không hợp lệ hoặc hết hạn' })
-  refreshToken(@Body() refreshTokenDto: RefreshTokenDto) {
-    return this.authService.refreshToken(refreshTokenDto);
+  refreshToken(
+    @Body() refreshTokenDto: RefreshTokenDto,
+    @Req() req: Request,
+  ) {
+    const ipAddress = req.ip;
+    const userAgent = req.headers['user-agent'];
+    return this.authService.refreshToken(refreshTokenDto, ipAddress, userAgent);
   }
 
   @Get('me')

@@ -1,7 +1,7 @@
 services:
 
   frontend:
-    image: ghcr.io/YOUR_ORG/skylux-frontend:${APP_VERSION:-latest}
+    image: ghcr.io/${REGISTRY_OWNER:-YOUR_ORG}/skylux-frontend:${APP_VERSION:-latest}
 
     restart: unless-stopped
 
@@ -16,7 +16,7 @@ services:
 
 
   backend:
-    image: ghcr.io/YOUR_ORG/skylux-backend:${APP_VERSION:-latest}
+    image: ghcr.io/${REGISTRY_OWNER:-YOUR_ORG}/skylux-backend:${APP_VERSION:-latest}
 
     restart: unless-stopped
 
@@ -38,7 +38,7 @@ services:
 
 
   worker:
-    image: ghcr.io/YOUR_ORG/skylux-backend:${APP_VERSION:-latest}
+    image: ghcr.io/${REGISTRY_OWNER:-YOUR_ORG}/skylux-backend:${APP_VERSION:-latest}
 
     restart: unless-stopped
 
