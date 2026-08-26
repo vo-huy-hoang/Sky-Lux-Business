@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import databaseConfig from './config/database.config';
+import appConfig from './config/app.config';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -38,7 +39,7 @@ import { ImportsModule } from './modules/imports/imports.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig],
+      load: [databaseConfig, appConfig],
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],

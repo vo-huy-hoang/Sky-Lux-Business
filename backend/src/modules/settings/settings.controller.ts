@@ -1,34 +1,42 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Put, Body, Param } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SettingsService } from './settings.service';
-import { CreateSettingDto } from './dto/create-setting.dto';
 import { UpdateSettingDto } from './dto/update-setting.dto';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
+@ApiTags('Settings')
+@ApiBearerAuth('JWT-auth')
 @Controller('settings')
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
 
-  @Post()
-  create(@Body() createSettingDto: CreateSettingDto) {
-    return this.settingsService.create(createSettingDto);
-  }
-
+  @ApiOperation({ summary: 'Lấy danh sách cấu hình của tổ chức hiện tại' })
   @Get()
-  findAll() {
-    return this.settingsService.findAll();
+  getSettings(@CurrentUser() user: CurrentUserPayload) {
+    return this.settingsService.getOrganizationSettings(user.organizationId);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.settingsService.findOne(+id);
+  @ApiOperation({ summary: 'Lấy giá trị của một cấu hình cụ thể' })
+  @Get(':key')
+  getSetting(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('key') key: string,
+  ) {
+    return this.settingsService.getOrganizationSetting(user.organizationId, key);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateSettingDto: UpdateSettingDto) {
-    return this.settingsService.update(+id, updateSettingDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.settingsService.remove(+id);
+  @ApiOperation({ summary: 'Cập nhật hoặc tạo mới một cấu hình cho tổ chức' })
+  @Put(':key')
+  updateSetting(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('key') key: string,
+    @Body() updateSettingDto: UpdateSettingDto,
+  ) {
+    return this.settingsService.updateOrganizationSetting(
+      user.organizationId,
+      key,
+      updateSettingDto.value,
+    );
   }
 }

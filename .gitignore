@@ -98,3 +98,5 @@ outputs/
 
 # Vercel & Deployment
 .vercel/
+
+.scratch/

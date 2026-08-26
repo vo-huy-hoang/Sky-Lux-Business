@@ -3,15 +3,31 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 import { PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { hasPermission } from '../utils/permission.util';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly configService: ConfigService,
+  ) {}
 
   canActivate(context: ExecutionContext): boolean {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (isPublic) {
+      return true;
+    }
+
     const requiredPermissions = this.reflector.getAllAndOverride<string[]>(
       PERMISSIONS_KEY,
       [context.getHandler(), context.getClass()],
@@ -23,20 +39,19 @@ export class PermissionsGuard implements CanActivate {
 
     const { user } = context.switchToHttp().getRequest();
     if (!user) {
-      throw new ForbiddenException('Access denied: Unauthorized');
+      throw new UnauthorizedException('Access denied: Session not established');
     }
 
-    // SuperAdmin has full access
-    if (
-      user.roles &&
-      (user.roles.includes('SUPER_ADMIN') || user.roles.includes('CEO_ADMIN'))
-    ) {
+    // Admin roles have full access (bypass)
+    const adminRoles = this.configService.get<string[]>('app.adminRoles') || [];
+    const hasAdminRole = user.roles && user.roles.some((role) => adminRoles.includes(role));
+    if (hasAdminRole) {
       return true;
     }
 
     const userPermissions: string[] = user.permissions || [];
     const hasAllPermissions = requiredPermissions.every((perm) =>
-      userPermissions.includes(perm),
+      hasPermission(userPermissions, perm),
     );
 
     if (!hasAllPermissions) {

@@ -2,7 +2,11 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import { types } from 'pg';
 import { AppModule } from './app.module';
+
+// Configure pg driver to parse NUMERIC (OID 1700) as float number in Javascript
+types.setTypeParser(1700, (val) => (val === null ? null : parseFloat(val)));
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');

@@ -27,6 +27,18 @@ export class TransformInterceptor<T>
           return data;
         }
 
+        // If response contains pagination metadata (data and meta)
+        if (data && typeof data === 'object' && 'data' in data && 'meta' in data) {
+          return {
+            success: true,
+            statusCode,
+            message: (data as any).message || 'Operation successful',
+            data: (data as any).data,
+            meta: (data as any).meta,
+            timestamp: new Date().toISOString(),
+          };
+        }
+
         return {
           success: true,
           statusCode,
