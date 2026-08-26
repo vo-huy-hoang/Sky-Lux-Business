@@ -27,7 +27,7 @@ import Link from 'next/link';
 const { Title, Text } = Typography;
 
 export default function DashboardPage() {
-  const { user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
 
   const sampleDossiers = [
     {
@@ -157,7 +157,7 @@ export default function DashboardPage() {
               title={<span className="text-slate-500 font-medium">Doanh thu tháng này</span>}
               value="2.45 tỷ ₫"
               prefix={<DollarOutlined className="text-emerald-500 mr-2" />}
-              valueStyle={{ color: '#0F172A', fontWeight: 700 }}
+              styles={{ content: { color: '#0F172A', fontWeight: 700 } }}
               suffix={
                 <span className="text-xs text-emerald-600 font-normal flex items-center ml-2">
                   <ArrowUpOutlined /> +18.4%
@@ -173,7 +173,7 @@ export default function DashboardPage() {
               title={<span className="text-slate-500 font-medium">Tổng hồ sơ tour đang chạy</span>}
               value={24}
               prefix={<FolderOpenOutlined className="text-blue-500 mr-2" />}
-              valueStyle={{ color: '#0F172A', fontWeight: 700 }}
+              styles={{ content: { color: '#0F172A', fontWeight: 700 } }}
             />
           </Card>
         </Col>
@@ -184,7 +184,7 @@ export default function DashboardPage() {
               title={<span className="text-slate-500 font-medium">Dự toán chờ phê duyệt</span>}
               value={5}
               prefix={<ClockCircleOutlined className="text-amber-500 mr-2" />}
-              valueStyle={{ color: '#FAAD14', fontWeight: 700 }}
+              styles={{ content: { color: '#FAAD14', fontWeight: 700 } }}
             />
           </Card>
         </Col>
@@ -195,7 +195,7 @@ export default function DashboardPage() {
               title={<span className="text-slate-500 font-medium">Công việc hoàn thành</span>}
               value="92%"
               prefix={<CheckCircleOutlined className="text-indigo-500 mr-2" />}
-              valueStyle={{ color: '#0F172A', fontWeight: 700 }}
+              styles={{ content: { color: '#0F172A', fontWeight: 700 } }}
             />
           </Card>
         </Col>

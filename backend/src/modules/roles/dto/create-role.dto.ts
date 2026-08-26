@@ -2,53 +2,39 @@ import {
   IsString,
   IsNotEmpty,
   IsOptional,
-  IsArray,
-  MaxLength,
-  MinLength,
   Matches,
+  Length,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateRoleDto {
   @ApiProperty({
-    example: 'SALES_LEAD',
-    description:
-      'Mã định danh vai trò (viết hoa, không dấu, ngăn cách bằng gạch dưới)',
+    description: 'Mã vai trò (chỉ chứa chữ hoa, số và dấu gạch dưới)',
+    example: 'ACCOUNTANT',
   })
-  @IsString()
+  @IsString({ message: 'Mã vai trò phải là chuỗi ký tự' })
   @IsNotEmpty({ message: 'Mã vai trò không được để trống' })
-  @MinLength(2, { message: 'Mã vai trò tối thiểu 2 ký tự' })
-  @MaxLength(50, { message: 'Mã vai trò tối đa 50 ký tự' })
+  @Length(3, 50, { message: 'Mã vai trò phải dài từ 3 đến 50 ký tự' })
   @Matches(/^[A-Z0-9_]+$/, {
-    message:
-      'Mã vai trò chỉ được chứa chữ hoa, số và dấu gạch dưới (VD: SALES_LEAD)',
+    message: 'Mã vai trò chỉ được chứa chữ cái viết hoa, số và dấu gạch dưới',
   })
   code: string;
 
   @ApiProperty({
-    example: 'Trưởng nhóm Kinh doanh',
-    description: 'Tên hiển thị của vai trò',
+    description: 'Tên vai trò hiển thị',
+    example: 'Kế toán doanh nghiệp',
   })
-  @IsString()
+  @IsString({ message: 'Tên vai trò phải là chuỗi ký tự' })
   @IsNotEmpty({ message: 'Tên vai trò không được để trống' })
-  @MaxLength(255, { message: 'Tên vai trò tối đa 255 ký tự' })
+  @Length(2, 255, { message: 'Tên vai trò phải dài từ 2 đến 255 ký tự' })
   name: string;
 
-  @ApiPropertyOptional({
-    example: 'Phụ trách duyệt báo giá cấp nhóm và quản lý KPIs sales',
-    description: 'Mô tả chi tiết vai trò',
+  @ApiProperty({
+    description: 'Mô tả chi tiết chức năng vai trò',
+    example: 'Quản lý thu chi và công nợ lữ hành',
+    required: false,
   })
-  @IsString()
+  @IsString({ message: 'Mô tả vai trò phải là chuỗi ký tự' })
   @IsOptional()
   description?: string;
-
-  @ApiPropertyOptional({
-    example: ['dossier.view', 'dossier.create', 'estimate.view'],
-    description: 'Danh sách mã quyền gán cho vai trò này',
-    type: [String],
-  })
-  @IsArray({ message: 'Danh sách quyền phải là một mảng' })
-  @IsString({ each: true, message: 'Mỗi mã quyền phải là chuỗi' })
-  @IsOptional()
-  permissionCodes?: string[];
 }

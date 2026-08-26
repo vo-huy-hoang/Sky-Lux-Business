@@ -1,4 +1,7 @@
 import {
+  Put,
+  HttpCode,
+  HttpStatus,
   Controller,
   Get,
   Post,
@@ -6,21 +9,19 @@ import {
   Patch,
   Param,
   Delete,
-  Put,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
-  ApiResponse,
   ApiBearerAuth,
+  ApiResponse,
   ApiParam,
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
-import { RolesService } from '../roles/roles.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { AssignUserRolesDto } from '../roles/dto/assign-user-roles.dto';
+import { AssignRolesDto } from './dto/assign-roles.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -29,10 +30,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @ApiBearerAuth('JWT-auth')
 @Controller('users')
 export class UsersController {
-  constructor(
-    private readonly usersService: UsersService,
-    private readonly rolesService: RolesService,
-  ) {}
+  constructor(private readonly usersService: UsersService) {}
 
   @Post()
   @RequirePermissions('user.manage')
@@ -49,12 +47,14 @@ export class UsersController {
 
   @Get(':id')
   @RequirePermissions('user.manage')
+  @ApiParam({ name: 'id', description: 'User UUID' })
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.findOne(id);
   }
 
   @Patch(':id')
   @RequirePermissions('user.manage')
+  @ApiParam({ name: 'id', description: 'User UUID' })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserDto: UpdateUserDto,
@@ -64,36 +64,37 @@ export class UsersController {
 
   @Delete(':id')
   @RequirePermissions('user.manage')
+  @ApiParam({ name: 'id', description: 'User UUID' })
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.remove(id);
   }
 
-  @Put(':id/roles')
-  @RequirePermissions('user.manage')
-  @ApiOperation({
-    summary: 'Gán danh sách vai trò cho người dùng (API-RBAC-006)',
-  })
-  @ApiParam({ name: 'id', description: 'User UUID' })
-  @ApiResponse({ status: 200, description: 'Gán vai trò thành công' })
-  @ApiResponse({ status: 404, description: 'Không tìm thấy người dùng' })
-  assignUserRoles(
-    @CurrentUser('organizationId') organizationId: string,
-    @CurrentUser('id') actorUserId: string,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() assignUserRolesDto: AssignUserRolesDto,
-  ) {
-    return this.rolesService.assignUserRoles(
-      organizationId,
-      id,
-      assignUserRolesDto.roleIds,
-      actorUserId,
-    );
-  }
-
   @Post(':id/lock')
   @Roles('SUPER_ADMIN', 'CEO_ADMIN')
-  @ApiOperation({ summary: 'Khóa tài khoản người dùng (API-USERS-005)' })
+  @ApiOperation({
+    summary: 'Khóa tài khoản người dùng và thu hồi mọi phiên đăng nhập (API-USERS-005)',
+  })
+  @ApiParam({ name: 'id', description: 'User UUID' })
   lock(@Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.lockUser(id);
+  }
+
+  @Put(':id/roles')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('role.manage')
+  @ApiOperation({ summary: 'Gán vai trò cho nhân viên (API-RBAC-006)' })
+  @ApiParam({ name: 'id', description: 'User UUID' })
+  @ApiResponse({ status: 200, description: 'Gán vai trò thành công' })
+  @ApiResponse({
+    status: 400,
+    description: 'Yêu cầu không hợp lệ hoặc vai trò sai tổ chức',
+  })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy người dùng' })
+  assignRoles(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() assignRolesDto: AssignRolesDto,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.usersService.assignRoles(id, assignRolesDto, organizationId);
   }
 }

@@ -47,7 +47,9 @@ export default function MainLayout({
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout, isSuperAdmin } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
+  const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin);
   const { token } = antTheme.useToken();
 
   const handleLogout = () => {
