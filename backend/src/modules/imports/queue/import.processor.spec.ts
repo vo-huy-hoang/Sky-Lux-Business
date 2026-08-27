@@ -159,7 +159,7 @@ describe('ImportProcessor', () => {
             'Mã khách hàng': 'KH002',
             'Tên khách hàng': 'Tran Van B',
             'Số điện thoại': '0987654321',
-            'Email': 'vanb@example.com',
+            Email: 'vanb@example.com',
             'Ngày sinh nhật': '1995-10-20',
           },
           status: 'PENDING',
@@ -172,7 +172,7 @@ describe('ImportProcessor', () => {
             'Tên hồ sơ': 'Tour Nha Trang',
             'Mã khách hàng': 'KH003',
             'Số điện thoại': 'abc-not-phone',
-            'Email': 'invalid-email',
+            Email: 'invalid-email',
             'Ngày sinh nhật': '2099-01-01',
           },
           status: 'PENDING',
@@ -180,8 +180,10 @@ describe('ImportProcessor', () => {
       ];
       rowRepository.find.mockResolvedValue(mockRows);
       customerRepository.findOne.mockImplementation(({ where }: any) => {
-        if (where.code === 'KH002') return Promise.resolve({ id: 'cust-uuid-2' });
-        if (where.code === 'KH003') return Promise.resolve({ id: 'cust-uuid-3' });
+        if (where.code === 'KH002')
+          return Promise.resolve({ id: 'cust-uuid-2' });
+        if (where.code === 'KH003')
+          return Promise.resolve({ id: 'cust-uuid-3' });
         return Promise.resolve(null);
       });
 

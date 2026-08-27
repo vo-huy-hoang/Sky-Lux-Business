@@ -240,13 +240,8 @@ export class ImportsService {
       for (const row of validRows) {
         if (!row.normalizedData) continue;
 
-        const {
-          customerName,
-          phone,
-          email,
-          dateOfBirth,
-          ...dossierFields
-        } = row.normalizedData;
+        const { customerName, phone, email, dateOfBirth, ...dossierFields } =
+          row.normalizedData;
 
         // Map normalizedData directly to Dossier properties
         const dossierData = {
@@ -259,7 +254,10 @@ export class ImportsService {
         await transactionalEntityManager.save(Dossier, dossier);
 
         // Update customer details if customer exists and info was provided
-        if (row.normalizedData.customerId && (phone || email || dateOfBirth || customerName)) {
+        if (
+          row.normalizedData.customerId &&
+          (phone || email || dateOfBirth || customerName)
+        ) {
           const updateCustomerData: any = {};
           if (phone) updateCustomerData.phone = phone;
           if (email) updateCustomerData.email = email;
