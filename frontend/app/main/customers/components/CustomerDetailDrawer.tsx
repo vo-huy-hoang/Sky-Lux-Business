@@ -287,7 +287,12 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
                 <Descriptions.Item label="Email">
                   {customer.email || '—'}
                 </Descriptions.Item>
-                <Descriptions.Item label="Địa chỉ" span={2}>
+                <Descriptions.Item label="Ngày sinh nhật">
+                  {customer.dateOfBirth
+                    ? new Date(customer.dateOfBirth).toLocaleDateString('vi-VN')
+                    : '—'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Địa chỉ">
                   {customer.address || '—'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Sales phụ trách" span={2}>

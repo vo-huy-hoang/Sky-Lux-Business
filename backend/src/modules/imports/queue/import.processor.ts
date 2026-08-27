@@ -139,6 +139,14 @@ export class ImportProcessor extends WorkerHost {
     const routeKey = mapping.routeColumn || 'Tuyến đường';
     const priorityKey = mapping.priorityColumn || 'Mức độ ưu tiên';
 
+    const customerNameKey = mapping.customerNameColumn || 'Tên khách hàng';
+    const phoneKey = mapping.phoneColumn || 'Số điện thoại';
+    const emailKey = mapping.emailColumn || 'Email';
+    const dobKey = mapping.dobColumn || mapping.birthDateColumn || 'Ngày sinh nhật';
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^[0-9+\s().-]{8,20}$/;
+
     for (const row of rows) {
       const errors: string[] = [];
       const data = row.rawData;
@@ -149,6 +157,20 @@ export class ImportProcessor extends WorkerHost {
       const customerCode = String(data[customerKey] || '').trim();
       const startDate = String(data[startDateKey] || '').trim();
       const endDate = String(data[endDateKey] || '').trim();
+
+      // Additional customer info fields if present in Excel
+      const customerName = String(
+        data[customerNameKey] !== undefined ? data[customerNameKey] : data['Tên khách hàng'] || '',
+      ).trim();
+      const phone = String(
+        data[phoneKey] !== undefined ? data[phoneKey] : data['Số điện thoại'] || data['Số ĐT'] || '',
+      ).trim();
+      const email = String(
+        data[emailKey] !== undefined ? data[emailKey] : data['Email'] || '',
+      ).trim();
+      const dob = String(
+        data[dobKey] !== undefined ? data[dobKey] : data['Ngày sinh nhật'] || data['Ngày sinh'] || '',
+      ).trim();
 
       if (!code) {
         errors.push(`${codeKey} không được để trống`);
@@ -170,6 +192,24 @@ export class ImportProcessor extends WorkerHost {
           errors.push(
             `Không tìm thấy khách hàng có mã "${customerCode}" trong hệ thống`,
           );
+        }
+      }
+
+      // Customer fields validation
+      if (email && !emailRegex.test(email)) {
+        errors.push(`${emailKey} không đúng định dạng email`);
+      }
+
+      if (phone && !phoneRegex.test(phone)) {
+        errors.push(`${phoneKey} không đúng định dạng số điện thoại`);
+      }
+
+      if (dob) {
+        const parsedDob = Date.parse(dob);
+        if (isNaN(parsedDob)) {
+          errors.push(`${dobKey} không đúng định dạng ngày hợp lệ`);
+        } else if (new Date(dob) > new Date()) {
+          errors.push(`${dobKey} không thể lớn hơn ngày hiện tại`);
         }
       }
 
@@ -197,7 +237,7 @@ export class ImportProcessor extends WorkerHost {
         );
         await this.errorRepository.save(errorEntities);
       } else {
-        // Save normalized data structure for Dossier migration
+        // Save normalized data structure for Dossier & Customer migration
         validRowsCount++;
         row.status = 'VALID';
         row.normalizedData = {
@@ -212,6 +252,12 @@ export class ImportProcessor extends WorkerHost {
             ? new Date(endDate).toISOString().slice(0, 10)
             : undefined,
           priority: data[priorityKey] || 'MEDIUM',
+          ...(customerName ? { customerName } : {}),
+          ...(phone ? { phone } : {}),
+          ...(email ? { email } : {}),
+          ...(dob && !isNaN(Date.parse(dob))
+            ? { dateOfBirth: new Date(dob).toISOString().slice(0, 10) }
+            : {}),
         };
       }
 

@@ -44,6 +44,9 @@ export class Customer extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   address?: string;
 
+  @Column({ name: 'date_of_birth', type: 'date', nullable: true })
+  dateOfBirth?: string;
+
   @Column({ name: 'assigned_sales_id', type: 'uuid', nullable: true })
   assignedSalesId?: string;
 
