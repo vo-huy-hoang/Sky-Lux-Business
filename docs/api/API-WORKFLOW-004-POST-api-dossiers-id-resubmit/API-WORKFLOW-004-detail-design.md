@@ -4,15 +4,15 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-075 |
+| Task ID | Sky-Lux-073 |
 | Level 0 | Lap trinh Backend API (Dossier, Import & Workflow) |
 | Level 1 | API Workflow / Approvals (MOD-WORKFLOW) |
 | Level 2 | API-WORKFLOW-004-POST-api-dossiers-id-resubmit |
 | Method | POST |
 | Endpoint | `/api/dossiers/:id/resubmit` |
-| Phase | Phase 1-2 |
+| Phase | Phase 1 |
 | Mục tiêu | Submit lai |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

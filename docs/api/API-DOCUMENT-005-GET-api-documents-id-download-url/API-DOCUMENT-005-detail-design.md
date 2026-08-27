@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-087 |
+| Task ID | Sky-Lux-084 |
 | Level 0 | Lap trinh Backend API (Documents & Communication) |
 | Level 1 | API Documents (MOD-DOCUMENT) |
 | Level 2 | API-DOCUMENT-005-GET-api-documents-id-download-url |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/documents/:id/download-url` |
 | Phase | Phase 1 |
 | Mục tiêu | Lay signed URL download |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

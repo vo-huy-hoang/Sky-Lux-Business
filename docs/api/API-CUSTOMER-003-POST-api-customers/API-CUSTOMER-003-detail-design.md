@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-032 |
+| Task ID | Sky-Lux-031 |
 | Level 0 | Lap trinh Backend API (CRM & Master Data) |
 | Level 1 | API Customers (MOD-CUSTOMER) |
 | Level 2 | API-CUSTOMER-003-POST-api-customers |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/customers` |
 | Phase | Phase 1 |
 | Mục tiêu | Tao khach hang |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

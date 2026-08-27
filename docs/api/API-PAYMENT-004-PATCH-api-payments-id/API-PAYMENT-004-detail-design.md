@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-135 |
+| Task ID | Sky-Lux-143 |
 | Level 0 | Lap trinh Backend API (Tasks, Finance, KPI & Ops) |
 | Level 1 | API Payments / Debt (MOD-PAYMENT) |
 | Level 2 | API-PAYMENT-004-PATCH-api-payments-id |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/payments/:id` |
 | Phase | Phase 2 |
 | Mục tiêu | Cap nhat thanh toan |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

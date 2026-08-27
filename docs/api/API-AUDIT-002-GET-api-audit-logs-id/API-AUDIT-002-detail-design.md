@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-160 |
+| Task ID | Sky-Lux-096 |
 | Level 0 | Lap trinh Backend API (Tasks, Finance, KPI & Ops) |
 | Level 1 | API Audit Log (MOD-AUDIT) |
 | Level 2 | API-AUDIT-002-GET-api-audit-logs-id |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/audit-logs/:id` |
 | Phase | Phase 1 |
 | Mục tiêu | Chi tiet audit log |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

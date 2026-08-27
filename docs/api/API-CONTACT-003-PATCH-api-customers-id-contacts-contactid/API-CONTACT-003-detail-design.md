@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-038 |
+| Task ID | Sky-Lux-037 |
 | Level 0 | Lap trinh Backend API (CRM & Master Data) |
 | Level 1 | API Customer Contacts (MOD-CONTACT) |
 | Level 2 | API-CONTACT-003-PATCH-api-customers-id-contacts-contactid |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/customers/:id/contacts/:contactId` |
 | Phase | Phase 1 |
 | Mục tiêu | Cap nhat lien he |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 
