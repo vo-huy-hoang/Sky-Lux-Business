@@ -1,0 +1,15 @@
+{
+  "threshold": 5,
+  "reporters": ["console", "html"],
+  "output": "./coverage/cpd",
+  "ignore": [
+    "**/*.spec.ts",
+    "**/*.e2e-spec.ts",
+    "src/database/seeds/**",
+    "src/database/migrations/**",
+    "src/database/data-source.ts"
+  ],
+  "minLines": 6,
+  "minTokens": 50,
+  "absolute": false
+}

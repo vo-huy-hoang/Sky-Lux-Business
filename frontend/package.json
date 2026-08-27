@@ -9,7 +9,9 @@
     "lint": "eslint",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:cov": "jest --coverage"
+    "test:cov": "jest --coverage",
+    "test:cpd": "jscpd app/ components/ lib/",
+    "test:cpd:full": "jscpd app/ components/ lib/ --ignore ''"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.2",
@@ -46,6 +48,7 @@
     "eslint-config-next": "16.3.1",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
+    "jscpd": "^5.0.16",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
     "typescript": "^5"

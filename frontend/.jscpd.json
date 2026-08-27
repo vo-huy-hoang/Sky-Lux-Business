@@ -1,0 +1,14 @@
+{
+  "threshold": 5,
+  "reporters": ["console", "html"],
+  "output": "./coverage/cpd",
+  "ignore": [
+    "**/*.spec.{ts,tsx,js,jsx}",
+    "**/*.test.{ts,tsx,js,jsx}",
+    ".next/**",
+    "node_modules/**"
+  ],
+  "minLines": 6,
+  "minTokens": 50,
+  "absolute": false
+}
