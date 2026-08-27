@@ -134,7 +134,9 @@ describe('KPIs Module (Integration)', () => {
         andWhere: jest.fn().mockReturnThis(),
         getCount: jest.fn().mockResolvedValue(4),
       };
-      mockDossierRepository.createQueryBuilder.mockReturnValue(mockQueryBuilder);
+      mockDossierRepository.createQueryBuilder.mockReturnValue(
+        mockQueryBuilder,
+      );
 
       const result = await controller.findMyKpi(orgA, userA, {
         periodType: KpiPeriodType.MONTHLY,

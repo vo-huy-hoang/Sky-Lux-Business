@@ -61,7 +61,9 @@ describe('ImportsService', () => {
     dataSource = {
       transaction: jest.fn().mockImplementation((cb) => {
         const mockManager = {
-          save: jest.fn().mockImplementation((entityClass, data) => Promise.resolve(data)),
+          save: jest
+            .fn()
+            .mockImplementation((entityClass, data) => Promise.resolve(data)),
         };
         return cb(mockManager);
       }),
@@ -116,10 +118,15 @@ describe('ImportsService', () => {
     it('should throw NotFoundException if templateId is provided but not found', async () => {
       templateRepository.findOne.mockResolvedValue(null);
       await expect(
-        service.upload('org-id', 'user-id', { originalname: 'file.xlsx', size: 100, buffer: Buffer.from('') }, {
-          templateType: 'ESTIMATE',
-          templateId: 'cb5a125a-45c1-4df2-a9b0-13f56b3e34b9',
-        }),
+        service.upload(
+          'org-id',
+          'user-id',
+          { originalname: 'file.xlsx', size: 100, buffer: Buffer.from('') },
+          {
+            templateType: 'ESTIMATE',
+            templateId: 'cb5a125a-45c1-4df2-a9b0-13f56b3e34b9',
+          },
+        ),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -202,13 +209,23 @@ describe('ImportsService', () => {
       const mockSession = { id: 'session-id', organizationId: 'org-id' };
       sessionRepository.findOne.mockResolvedValue(mockSession);
 
-      const mockRow = { id: 'row-id', sessionId: 'session-id', rawData: {}, status: 'ERROR' };
+      const mockRow = {
+        id: 'row-id',
+        sessionId: 'session-id',
+        rawData: {},
+        status: 'ERROR',
+      };
       rowRepository.findOne.mockResolvedValue(mockRow);
       rowRepository.save.mockResolvedValue(mockRow);
 
-      const result = await service.updateRowStaging('org-id', 'session-id', 'row-id', {
-        rawData: { name: 'Fixed Name' },
-      });
+      const result = await service.updateRowStaging(
+        'org-id',
+        'session-id',
+        'row-id',
+        {
+          rawData: { name: 'Fixed Name' },
+        },
+      );
 
       expect(result.rawData).toEqual({ name: 'Fixed Name' });
       expect(result.status).toBe('PENDING');
@@ -220,7 +237,11 @@ describe('ImportsService', () => {
 
   describe('confirm', () => {
     it('should throw BadRequestException if session has error rows', async () => {
-      const mockSession = { id: 'session-id', organizationId: 'org-id', errorRows: 5 };
+      const mockSession = {
+        id: 'session-id',
+        organizationId: 'org-id',
+        errorRows: 5,
+      };
       sessionRepository.findOne.mockResolvedValue(mockSession);
 
       await expect(service.confirm('org-id', 'session-id')).rejects.toThrow(
@@ -229,7 +250,12 @@ describe('ImportsService', () => {
     });
 
     it('should migrate valid rows to Dossier table inside transaction', async () => {
-      const mockSession = { id: 'session-id', organizationId: 'org-id', errorRows: 0, uploadedBy: 'user-id' };
+      const mockSession = {
+        id: 'session-id',
+        organizationId: 'org-id',
+        errorRows: 0,
+        uploadedBy: 'user-id',
+      };
       sessionRepository.findOne.mockResolvedValue(mockSession);
 
       const mockRows = [
