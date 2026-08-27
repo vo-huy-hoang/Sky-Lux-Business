@@ -152,6 +152,21 @@ export async function runInitialSeed(dataSource: DataSource) {
     { code: 'chat.access', name: 'Sử dụng hệ thống chat', module: 'CHAT' },
     { code: 'kpi.manage', name: 'Quản lý chỉ tiêu KPI', module: 'KPI' },
 
+    // Dashboards
+    {
+      code: 'dashboard.sales',
+      name: 'Xem Dashboard Sales',
+      module: 'DASHBOARD',
+    },
+    {
+      code: 'dashboard.operator',
+      name: 'Xem Dashboard Operator',
+      module: 'DASHBOARD',
+    },
+    {
+      code: 'dashboard.ceo',
+      name: 'Xem Dashboard CEO',
+      module: 'DASHBOARD',
     // Master Data
     {
       code: 'master_data.view',
