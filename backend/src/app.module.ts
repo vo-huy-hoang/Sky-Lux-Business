@@ -37,6 +37,7 @@ import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { ImportsModule } from './modules/imports/imports.module';
 import { DashboardsModule } from './modules/dashboards/dashboards.module';
+import { HealthModule } from './modules/health/health.module';
 
 @Module({
   imports: [
@@ -79,6 +80,7 @@ import { DashboardsModule } from './modules/dashboards/dashboards.module';
     SettingsModule,
     ImportsModule,
     DashboardsModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [
