@@ -72,7 +72,8 @@ export class UsersController {
   @Post(':id/lock')
   @Roles('SUPER_ADMIN', 'CEO_ADMIN')
   @ApiOperation({
-    summary: 'Khóa tài khoản người dùng và thu hồi mọi phiên đăng nhập (API-USERS-005)',
+    summary:
+      'Khóa tài khoản người dùng và thu hồi mọi phiên đăng nhập (API-USERS-005)',
   })
   @ApiParam({ name: 'id', description: 'User UUID' })
   lock(@Param('id', ParseUUIDPipe) id: string) {

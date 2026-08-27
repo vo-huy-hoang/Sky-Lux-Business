@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { OrganizationSetting } from './entities/organization-setting.entity';
+import { OrganizationSetting } from '../organizations/entities/organization-setting.entity';
 
 @Injectable()
 export class SettingsService {
