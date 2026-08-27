@@ -9,17 +9,22 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
 } from '@nestjs/swagger';
 import { CustomersService } from './customers.service';
 import { QueryCustomerDto } from './dto/query-customer.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { CreateContactDto } from './dto/create-contact.dto';
+import { UpdateContactDto } from './dto/update-contact.dto';
+import { QueryDossierDto } from '../dossiers/dto/query-dossier.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
@@ -47,10 +52,11 @@ export class CustomersController {
   @ApiOperation({
     summary: 'Lấy chi tiết khách hàng theo ID (API-CUSTOMER-002)',
   })
+  @ApiParam({ name: 'id', description: 'Customer UUID' })
   @ApiResponse({ status: 200, description: 'Lấy chi tiết thành công' })
   findOne(
     @CurrentUser('organizationId') organizationId: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.customersService.findOne(organizationId, id);
   }
@@ -67,10 +73,11 @@ export class CustomersController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Cập nhật thông tin khách hàng (API-CUSTOMER-004)' })
+  @ApiParam({ name: 'id', description: 'Customer UUID' })
   @ApiResponse({ status: 200, description: 'Cập nhật thành công' })
   update(
     @CurrentUser('organizationId') organizationId: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateCustomerDto: UpdateCustomerDto,
   ) {
     return this.customersService.update(organizationId, id, updateCustomerDto);
@@ -79,11 +86,88 @@ export class CustomersController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Xóa khách hàng (API-CUSTOMER-005)' })
+  @ApiParam({ name: 'id', description: 'Customer UUID' })
   @ApiResponse({ status: 204, description: 'Xóa thành công' })
   remove(
     @CurrentUser('organizationId') organizationId: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.customersService.remove(organizationId, id);
+  }
+
+  @Post(':id/contacts')
+  @ApiOperation({
+    summary: 'Tạo liên hệ mới cho khách hàng (API-CONTACT-002)',
+  })
+  @ApiParam({ name: 'id', description: 'Customer UUID' })
+  @ApiResponse({ status: 201, description: 'Tạo liên hệ thành công' })
+  createContact(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() createContactDto: CreateContactDto,
+  ) {
+    return this.customersService.createContact(
+      organizationId,
+      id,
+      createContactDto,
+    );
+  }
+
+  @Patch(':id/contacts/:contactId')
+  @ApiOperation({
+    summary: 'Cập nhật thông tin người liên hệ (API-CONTACT-003)',
+  })
+  @ApiParam({ name: 'id', description: 'Customer UUID' })
+  @ApiParam({ name: 'contactId', description: 'Contact UUID' })
+  @ApiResponse({ status: 200, description: 'Cập nhật liên hệ thành công' })
+  updateContact(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('contactId', ParseUUIDPipe) contactId: string,
+    @Body() updateContactDto: UpdateContactDto,
+  ) {
+    return this.customersService.updateContact(
+      organizationId,
+      id,
+      contactId,
+      updateContactDto,
+    );
+  }
+
+  @Delete(':id/contacts/:contactId')
+  @ApiOperation({
+    summary: 'Xóa người liên hệ của khách hàng (API-CONTACT-004)',
+  })
+  @ApiParam({ name: 'id', description: 'Customer UUID' })
+  @ApiParam({ name: 'contactId', description: 'Contact UUID' })
+  @ApiResponse({ status: 200, description: 'Xóa liên hệ thành công' })
+  removeContact(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('contactId', ParseUUIDPipe) contactId: string,
+  ) {
+    return this.customersService.removeContact(organizationId, id, contactId);
+  }
+
+  @Get(':id/dossiers')
+  @ApiOperation({
+    summary:
+      'Lấy danh sách hồ sơ tour (Dossiers) liên quan đến khách hàng (API-CONTACT-005)',
+  })
+  @ApiParam({ name: 'id', description: 'Customer UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lấy danh sách hồ sơ tour thành công',
+  })
+  findCustomerDossiers(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() queryDto: QueryDossierDto,
+  ) {
+    return this.customersService.findCustomerDossiers(
+      organizationId,
+      id,
+      queryDto,
+    );
   }
 }

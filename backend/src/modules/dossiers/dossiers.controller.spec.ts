@@ -24,6 +24,7 @@ describe('DossiersController', () => {
     create: jest.fn(),
     update: jest.fn(),
     remove: jest.fn(),
+    findComments: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -140,6 +141,24 @@ describe('DossiersController', () => {
         mockUserPayload,
         'dossier-uuid',
       );
+    });
+  });
+
+  describe('findComments (API-COMMENT-001)', () => {
+    it('should call service.findComments and return comments', async () => {
+      const mockComments = { data: [{ id: 'comm-1', content: 'Test' }] };
+      mockDossiersService.findComments.mockResolvedValue(mockComments);
+
+      const result = await controller.findComments(
+        mockUserPayload,
+        'dossier-uuid',
+      );
+
+      expect(service.findComments).toHaveBeenCalledWith(
+        mockUserPayload,
+        'dossier-uuid',
+      );
+      expect(result).toEqual(mockComments);
     });
   });
 });

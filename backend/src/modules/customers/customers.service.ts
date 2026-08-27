@@ -7,9 +7,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Customer } from './entities/customer.entity';
 import { CustomerContact } from './entities/customer-contact.entity';
+import { Dossier } from '../dossiers/entities/dossier.entity';
 import { QueryCustomerDto } from './dto/query-customer.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { CreateContactDto } from './dto/create-contact.dto';
+import { UpdateContactDto } from './dto/update-contact.dto';
+import { QueryDossierDto } from '../dossiers/dto/query-dossier.dto';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
 
 @Injectable()
@@ -19,6 +23,8 @@ export class CustomersService {
     private readonly customerRepository: Repository<Customer>,
     @InjectRepository(CustomerContact)
     private readonly contactRepository: Repository<CustomerContact>,
+    @InjectRepository(Dossier)
+    private readonly dossierRepository: Repository<Dossier>,
   ) {}
 
   async findAll(
@@ -177,5 +183,154 @@ export class CustomersService {
   async remove(organizationId: string, id: string): Promise<void> {
     const customer = await this.findOne(organizationId, id);
     await this.customerRepository.softRemove(customer);
+  }
+
+  /**
+   * API-CONTACT-002: Tạo liên hệ mới cho khách hàng
+   */
+  async createContact(
+    organizationId: string,
+    customerId: string,
+    createContactDto: CreateContactDto,
+  ) {
+    // 1. Kiểm tra khách hàng tồn tại trong tổ chức
+    await this.findOne(organizationId, customerId);
+
+    // 2. Nếu contact này là primary, bỏ primary của các contact cũ
+    if (createContactDto.isPrimary) {
+      await this.contactRepository.update(
+        { customerId, organizationId, isPrimary: true },
+        { isPrimary: false },
+      );
+    }
+
+    // 3. Tạo và lưu contact
+    const contact = this.contactRepository.create({
+      ...createContactDto,
+      organizationId,
+      customerId,
+    });
+
+    const savedContact = await this.contactRepository.save(contact);
+
+    return {
+      data: savedContact,
+    };
+  }
+
+  /**
+   * API-CONTACT-003: Cập nhật thông tin người liên hệ
+   */
+  async updateContact(
+    organizationId: string,
+    customerId: string,
+    contactId: string,
+    updateContactDto: UpdateContactDto,
+  ) {
+    const contact = await this.contactRepository.findOne({
+      where: { id: contactId, customerId, organizationId },
+    });
+
+    if (!contact) {
+      throw new NotFoundException(
+        `Không tìm thấy người liên hệ với ID "${contactId}" thuộc khách hàng`,
+      );
+    }
+
+    // Nếu contact cập nhật thành primary, bỏ primary của các contact khác
+    if (updateContactDto.isPrimary) {
+      await this.contactRepository.update(
+        { customerId, organizationId, isPrimary: true },
+        { isPrimary: false },
+      );
+    }
+
+    Object.assign(contact, updateContactDto);
+    const updatedContact = await this.contactRepository.save(contact);
+
+    return {
+      data: updatedContact,
+    };
+  }
+
+  /**
+   * API-CONTACT-004: Xóa người liên hệ
+   */
+  async removeContact(
+    organizationId: string,
+    customerId: string,
+    contactId: string,
+  ) {
+    const contact = await this.contactRepository.findOne({
+      where: { id: contactId, customerId, organizationId },
+    });
+
+    if (!contact) {
+      throw new NotFoundException(
+        `Không tìm thấy người liên hệ với ID "${contactId}" thuộc khách hàng`,
+      );
+    }
+
+    await this.contactRepository.softRemove(contact);
+
+    return {
+      message: 'Đã xóa người liên hệ thành công',
+      data: { deleted: true },
+    };
+  }
+
+  /**
+   * API-CONTACT-005: Lấy danh sách hồ sơ tour (Dossiers) liên quan đến khách hàng
+   */
+  async findCustomerDossiers(
+    organizationId: string,
+    customerId: string,
+    queryDto: QueryDossierDto,
+  ) {
+    // 1. Kiểm tra khách hàng tồn tại trong tổ chức
+    await this.findOne(organizationId, customerId);
+
+    const { page = 1, limit = 20, search, status, priority } = queryDto;
+    const skip = (page - 1) * limit;
+
+    const queryBuilder = this.dossierRepository
+      .createQueryBuilder('dossier')
+      .leftJoinAndSelect('dossier.salesUser', 'salesUser')
+      .leftJoinAndSelect('dossier.operatorUser', 'operatorUser')
+      .leftJoinAndSelect('dossier.businessLine', 'businessLine')
+      .leftJoinAndSelect('dossier.marketType', 'marketType')
+      .where('dossier.organizationId = :organizationId', { organizationId })
+      .andWhere('dossier.customerId = :customerId', { customerId });
+
+    if (status) {
+      queryBuilder.andWhere('dossier.status = :status', { status });
+    }
+
+    if (priority) {
+      queryBuilder.andWhere('dossier.priority = :priority', { priority });
+    }
+
+    if (search && search.trim()) {
+      const keyword = `%${search.trim()}%`;
+      queryBuilder.andWhere(
+        '(dossier.code ILIKE :keyword OR dossier.name ILIKE :keyword OR dossier.route ILIKE :keyword)',
+        { keyword },
+      );
+    }
+
+    queryBuilder.orderBy('dossier.createdAt', 'DESC').skip(skip).take(limit);
+
+    const [items, total] = await queryBuilder.getManyAndCount();
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: items,
+      meta: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages,
+      },
+    };
   }
 }

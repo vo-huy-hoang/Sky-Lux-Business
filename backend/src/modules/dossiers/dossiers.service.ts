@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Dossier } from './entities/dossier.entity';
+import { Comment } from './entities/comment.entity';
 import { QueryDossierDto } from './dto/query-dossier.dto';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
@@ -19,6 +20,8 @@ export class DossiersService {
   constructor(
     @InjectRepository(Dossier)
     private readonly dossierRepository: Repository<Dossier>,
+    @InjectRepository(Comment)
+    private readonly commentRepository: Repository<Comment>,
   ) {}
 
   async findAll(
@@ -85,8 +88,12 @@ export class DossiersService {
       where: { id, organizationId },
       relations: {
         customer: true,
+        businessLine: true,
+        marketType: true,
         salesUser: true,
+        operatorUser: true,
         passengers: true,
+        estimates: true,
       },
     });
 
@@ -94,7 +101,6 @@ export class DossiersService {
       throw new NotFoundException(`Không tìm thấy hồ sơ với ID "${id}"`);
     }
 
-    // Verify own record permissions
     const hasViewAll =
       user.permissions.includes('dossier.view.all') ||
       user.permissions.includes('*') ||
@@ -102,6 +108,7 @@ export class DossiersService {
 
     if (
       !hasViewAll &&
+      user.permissions.includes('dossier.view.own') &&
       dossier.salesUserId !== user.id &&
       dossier.createdBy !== user.id
     ) {
@@ -118,13 +125,12 @@ export class DossiersService {
     const { code } = createDossierDto;
     const organizationId = user.organizationId;
 
-    // Verify system-wide code uniqueness
     const existingCode = await this.dossierRepository.findOne({
-      where: { code },
+      where: { code, organizationId },
     });
     if (existingCode) {
       throw new ConflictException(
-        `Mã hồ sơ "${code}" đã tồn tại trên hệ thống`,
+        `Mã hồ sơ "${code}" đã tồn tại trong tổ chức của bạn`,
       );
     }
 
@@ -132,6 +138,7 @@ export class DossiersService {
       ...createDossierDto,
       organizationId,
       status: DossierStatus.DRAFT,
+      salesUserId: createDossierDto.salesUserId || user.id,
       createdBy: user.id,
     });
 
@@ -145,16 +152,14 @@ export class DossiersService {
   ): Promise<Dossier> {
     const dossier = await this.findOne(user, id);
     if (dossier.status === DossierStatus.LOCKED) {
-      throw new BadRequestException(
-        'Hồ sơ đã khóa, không thể thay đổi thông tin',
-      );
+      throw new BadRequestException('Không thể chỉnh sửa hồ sơ khi đã bị khóa');
     }
     const { code, status, ...updateData } = updateDossierDto;
+    const organizationId = user.organizationId;
 
-    // Check code uniqueness if changing
     if (code && code !== dossier.code) {
       const existingCode = await this.dossierRepository.findOne({
-        where: { code },
+        where: { code, organizationId },
       });
       if (existingCode) {
         throw new ConflictException(`Mã hồ sơ "${code}" đã tồn tại`);
@@ -162,31 +167,68 @@ export class DossiersService {
       dossier.code = code;
     }
 
-    // Validate status state machine transitions
     if (status && status !== dossier.status) {
       this.validateStatusTransition(dossier.status, status);
       dossier.status = status;
     }
 
     Object.assign(dossier, updateData);
+
     return this.dossierRepository.save(dossier);
   }
 
   async remove(user: CurrentUserPayload, id: string): Promise<void> {
     const dossier = await this.findOne(user, id);
+    if (
+      dossier.status === DossierStatus.APPROVED ||
+      dossier.status === DossierStatus.COMPLETED ||
+      dossier.status === DossierStatus.LOCKED
+    ) {
+      throw new BadRequestException(
+        `Không thể xóa hồ sơ khi đang ở trạng thái ${dossier.status}`,
+      );
+    }
     await this.dossierRepository.softRemove(dossier);
+  }
+
+  /**
+   * API-COMMENT-001: Lấy danh sách bình luận của hồ sơ tour
+   */
+  async findComments(user: CurrentUserPayload, dossierId: string) {
+    // 1. Xác thực hồ sơ và quyền truy cập
+    await this.findOne(user, dossierId);
+
+    // 2. Truy vấn danh sách bình luận
+    const comments = await this.commentRepository
+      .createQueryBuilder('comment')
+      .leftJoinAndSelect('comment.user', 'user')
+      .where('comment.dossierId = :dossierId', { dossierId })
+      .andWhere('comment.organizationId = :organizationId', {
+        organizationId: user.organizationId,
+      })
+      .orderBy('comment.createdAt', 'ASC')
+      .getMany();
+
+    // 3. Ẩn thông tin nhạy cảm của người bình luận
+    const sanitizedComments = comments.map((c) => {
+      if (c.user) {
+        const { passwordHash: _passwordHash, ...safeUser } = c.user;
+        c.user = safeUser as any;
+      }
+      return c;
+    });
+
+    return {
+      data: sanitizedComments,
+    };
   }
 
   private validateStatusTransition(
     current: DossierStatus,
     next: DossierStatus,
   ) {
-    if (current === next) return;
-
-    if (current === DossierStatus.LOCKED) {
-      throw new BadRequestException(
-        'Hồ sơ đã khóa, không thể thay đổi trạng thái',
-      );
+    if (current === next) {
+      return;
     }
 
     const validTransitions: Record<DossierStatus, DossierStatus[]> = {

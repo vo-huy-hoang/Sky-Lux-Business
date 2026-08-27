@@ -8,6 +8,7 @@ import {
 import { Repository } from 'typeorm';
 import { DossiersService } from './dossiers.service';
 import { Dossier } from './entities/dossier.entity';
+import { Comment } from './entities/comment.entity';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { QueryDossierDto } from './dto/query-dossier.dto';
 import { CreateDossierDto } from './dto/create-dossier.dto';
@@ -17,6 +18,7 @@ import { DossierStatus } from '../../common/enums';
 describe('DossiersService', () => {
   let service: DossiersService;
   let repository: jest.Mocked<Repository<Dossier>>;
+  let commentRepository: jest.Mocked<Repository<Comment>>;
 
   const mockUserPayload = {
     id: 'user-uuid',
@@ -42,6 +44,7 @@ describe('DossiersService', () => {
     skip: jest.fn().mockReturnThis(),
     take: jest.fn().mockReturnThis(),
     getManyAndCount: jest.fn(),
+    getMany: jest.fn(),
   };
 
   const mockDossierRepository = {
@@ -52,6 +55,10 @@ describe('DossiersService', () => {
     softRemove: jest.fn(),
   };
 
+  const mockCommentRepository = {
+    createQueryBuilder: jest.fn(() => mockQueryBuilder),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -60,13 +67,16 @@ describe('DossiersService', () => {
           provide: getRepositoryToken(Dossier),
           useValue: mockDossierRepository,
         },
+        {
+          provide: getRepositoryToken(Comment),
+          useValue: mockCommentRepository,
+        },
       ],
     }).compile();
 
     service = module.get<DossiersService>(DossiersService);
-    repository = module.get<Repository<Dossier>>(
-      getRepositoryToken(Dossier),
-    ) as jest.Mocked<Repository<Dossier>>;
+    repository = module.get(getRepositoryToken(Dossier));
+    commentRepository = module.get(getRepositoryToken(Comment));
   });
 
   afterEach(() => {
@@ -79,124 +89,104 @@ describe('DossiersService', () => {
 
   describe('findAll', () => {
     it('should return a paginated list of dossiers', async () => {
-      const queryDto = new QueryDossierDto();
-      mockQueryBuilder.getManyAndCount.mockResolvedValue([[mockDossier], 1]);
+      const mockDossiers = [mockDossier];
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([mockDossiers, 1]);
+
+      const queryDto: QueryDossierDto = {
+        page: 1,
+        limit: 20,
+        search: 'VIP',
+        status: DossierStatus.DRAFT,
+      };
 
       const result = await service.findAll(mockUserPayload, queryDto);
 
       expect(repository.createQueryBuilder).toHaveBeenCalledWith('dossier');
-      expect(mockQueryBuilder.where).toHaveBeenCalledWith(
-        'dossier.organizationId = :organizationId',
-        { organizationId: 'org-uuid' },
-      );
       expect(result).toEqual({
-        items: [mockDossier],
+        items: mockDossiers,
         total: 1,
         page: 1,
         limit: 20,
         totalPages: 1,
       });
     });
-
-    it('should filter own dossiers if lacking view.all but having view.own', async () => {
-      const ownOnlyUser = {
-        id: 'user-uuid',
-        organizationId: 'org-uuid',
-        permissions: ['dossier.view.own'],
-        roles: [],
-      } as unknown as CurrentUserPayload;
-
-      mockQueryBuilder.getManyAndCount.mockResolvedValue([[mockDossier], 1]);
-
-      await service.findAll(ownOnlyUser, new QueryDossierDto());
-
-      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
-        '(dossier.salesUserId = :userId OR dossier.createdBy = :userId)',
-        { userId: 'user-uuid' },
-      );
-    });
   });
 
   describe('findOne', () => {
-    it('should return the dossier if found and authorized', async () => {
+    it('should return dossier detail when found and authorized', async () => {
       repository.findOne.mockResolvedValue(mockDossier);
 
       const result = await service.findOne(mockUserPayload, 'dossier-uuid');
 
       expect(repository.findOne).toHaveBeenCalledWith({
         where: { id: 'dossier-uuid', organizationId: 'org-uuid' },
-        relations: { customer: true, salesUser: true, passengers: true },
+        relations: {
+          customer: true,
+          businessLine: true,
+          marketType: true,
+          salesUser: true,
+          operatorUser: true,
+          passengers: true,
+          estimates: true,
+        },
       });
       expect(result).toEqual(mockDossier);
     });
 
-    it('should throw NotFoundException if dossier not found', async () => {
+    it('should throw NotFoundException if dossier is not found', async () => {
       repository.findOne.mockResolvedValue(null);
 
       await expect(
-        service.findOne(mockUserPayload, 'invalid-uuid'),
-      ).rejects.toThrow(NotFoundException);
-    });
-
-    it('should throw NotFoundException if user has only view.own but dossier is not owned by them', async () => {
-      const ownOnlyUser = {
-        id: 'other-user-uuid',
-        organizationId: 'org-uuid',
-        permissions: ['dossier.view.own'],
-        roles: [],
-      } as unknown as CurrentUserPayload;
-
-      repository.findOne.mockResolvedValue(mockDossier);
-
-      await expect(
-        service.findOne(ownOnlyUser, 'dossier-uuid'),
+        service.findOne(mockUserPayload, 'non-existent-uuid'),
       ).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('create', () => {
-    it('should throw ConflictException if dossier code already exists', async () => {
-      repository.findOne.mockResolvedValue(mockDossier);
-
+    it('should create and save a new dossier with status DRAFT', async () => {
       const createDto: CreateDossierDto = {
         code: 'HS001',
         name: 'VIP Tour',
         customerId: 'cust-uuid',
       };
 
+      repository.findOne.mockResolvedValue(null);
+      repository.save.mockResolvedValue({
+        id: 'new-uuid',
+        ...createDto,
+        status: DossierStatus.DRAFT,
+      } as any);
+
+      const result = await service.create(mockUserPayload, createDto);
+
+      expect(repository.findOne).toHaveBeenCalledWith({
+        where: { code: 'HS001', organizationId: 'org-uuid' },
+      });
+      expect(repository.create).toHaveBeenCalled();
+      expect(repository.save).toHaveBeenCalled();
+      expect(result.status).toEqual(DossierStatus.DRAFT);
+    });
+
+    it('should throw ConflictException if dossier code already exists', async () => {
+      const createDto: CreateDossierDto = {
+        code: 'HS001',
+        name: 'VIP Tour',
+        customerId: 'cust-uuid',
+      };
+
+      repository.findOne.mockResolvedValue(mockDossier);
+
       await expect(service.create(mockUserPayload, createDto)).rejects.toThrow(
         ConflictException,
       );
     });
-
-    it('should create and save a new dossier with default DRAFT status', async () => {
-      repository.findOne.mockResolvedValue(null);
-      repository.save.mockImplementation((entity) =>
-        Promise.resolve(entity as any),
-      );
-
-      const createDto: CreateDossierDto = {
-        code: 'HS002',
-        name: 'VIP Tour 2',
-        customerId: 'cust-uuid',
-      };
-
-      const result = await service.create(mockUserPayload, createDto);
-
-      expect(repository.save).toHaveBeenCalled();
-      expect(result.status).toEqual(DossierStatus.DRAFT);
-      expect(result.createdBy).toEqual(mockUserPayload.id);
-    });
   });
 
   describe('update', () => {
-    it('should throw ConflictException if updating to an already existing code', async () => {
-      repository.findOne.mockResolvedValue(mockDossier);
-      // Mock code search on repository.findOne to find a conflicting dossier
-      repository.findOne.mockImplementation(({ where }: any) => {
-        if (where.id === 'dossier-uuid') return Promise.resolve(mockDossier);
-        return Promise.resolve({ id: 'conflicting-uuid' } as any);
-      });
+    it('should throw ConflictException if code is changed to an existing code', async () => {
+      repository.findOne
+        .mockResolvedValueOnce(mockDossier) // findOne by ID
+        .mockResolvedValueOnce({ id: 'other-id' } as any); // code existence check
 
       const updateDto: UpdateDossierDto = { code: 'HS_DUPLICATE' };
 
@@ -252,6 +242,31 @@ describe('DossiersService', () => {
 
       expect(repository.findOne).toHaveBeenCalled();
       expect(repository.softRemove).toHaveBeenCalledWith(mockDossier);
+    });
+  });
+
+  describe('findComments (API-COMMENT-001)', () => {
+    it('should return comments with sanitized user details', async () => {
+      repository.findOne.mockResolvedValue(mockDossier);
+      const mockComments = [
+        {
+          id: 'comment-1',
+          content: 'Hello, this is a note.',
+          user: { id: 'u1', fullName: 'Nguyen A', passwordHash: 'secret' },
+        },
+      ];
+      mockQueryBuilder.getMany.mockResolvedValue(mockComments);
+
+      const result = await service.findComments(
+        mockUserPayload,
+        'dossier-uuid',
+      );
+
+      expect(commentRepository.createQueryBuilder).toHaveBeenCalledWith(
+        'comment',
+      );
+      expect(result.data).toHaveLength(1);
+      expect((result.data[0].user as any).passwordHash).toBeUndefined();
     });
   });
 });

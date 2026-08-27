@@ -4,6 +4,9 @@ import { CustomersService } from './customers.service';
 import { QueryCustomerDto } from './dto/query-customer.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { CreateContactDto } from './dto/create-contact.dto';
+import { UpdateContactDto } from './dto/update-contact.dto';
+import { QueryDossierDto } from '../dossiers/dto/query-dossier.dto';
 import { CustomerType } from '../../common/enums';
 
 describe('CustomersController', () => {
@@ -16,6 +19,10 @@ describe('CustomersController', () => {
     create: jest.fn(),
     update: jest.fn(),
     remove: jest.fn(),
+    createContact: jest.fn(),
+    updateContact: jest.fn(),
+    removeContact: jest.fn(),
+    findCustomerDossiers: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -121,6 +128,96 @@ describe('CustomersController', () => {
       await controller.remove('org-uuid', 'cust-uuid');
 
       expect(service.remove).toHaveBeenCalledWith('org-uuid', 'cust-uuid');
+    });
+  });
+
+  describe('createContact (API-CONTACT-002)', () => {
+    it('should call service.createContact', async () => {
+      const dto: CreateContactDto = { name: 'Nguyen Van B' };
+      const expectedResult = { data: { id: 'contact-uuid', ...dto } };
+      mockCustomersService.createContact.mockResolvedValue(expectedResult);
+
+      const result = await controller.createContact(
+        'org-uuid',
+        'cust-uuid',
+        dto,
+      );
+
+      expect(service.createContact).toHaveBeenCalledWith(
+        'org-uuid',
+        'cust-uuid',
+        dto,
+      );
+      expect(result).toEqual(expectedResult);
+    });
+  });
+
+  describe('updateContact (API-CONTACT-003)', () => {
+    it('should call service.updateContact', async () => {
+      const dto: UpdateContactDto = { name: 'Updated Contact' };
+      const expectedResult = { data: { id: 'contact-uuid', ...dto } };
+      mockCustomersService.updateContact.mockResolvedValue(expectedResult);
+
+      const result = await controller.updateContact(
+        'org-uuid',
+        'cust-uuid',
+        'contact-uuid',
+        dto,
+      );
+
+      expect(service.updateContact).toHaveBeenCalledWith(
+        'org-uuid',
+        'cust-uuid',
+        'contact-uuid',
+        dto,
+      );
+      expect(result).toEqual(expectedResult);
+    });
+  });
+
+  describe('removeContact (API-CONTACT-004)', () => {
+    it('should call service.removeContact', async () => {
+      const expectedResult = { message: 'Success', data: { deleted: true } };
+      mockCustomersService.removeContact.mockResolvedValue(expectedResult);
+
+      const result = await controller.removeContact(
+        'org-uuid',
+        'cust-uuid',
+        'contact-uuid',
+      );
+
+      expect(service.removeContact).toHaveBeenCalledWith(
+        'org-uuid',
+        'cust-uuid',
+        'contact-uuid',
+      );
+      expect(result).toEqual(expectedResult);
+    });
+  });
+
+  describe('findCustomerDossiers (API-CONTACT-005)', () => {
+    it('should call service.findCustomerDossiers', async () => {
+      const queryDto: QueryDossierDto = { page: 1, limit: 20 };
+      const expectedResult = {
+        data: [],
+        meta: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+      };
+      mockCustomersService.findCustomerDossiers.mockResolvedValue(
+        expectedResult,
+      );
+
+      const result = await controller.findCustomerDossiers(
+        'org-uuid',
+        'cust-uuid',
+        queryDto,
+      );
+
+      expect(service.findCustomerDossiers).toHaveBeenCalledWith(
+        'org-uuid',
+        'cust-uuid',
+        queryDto,
+      );
+      expect(result).toEqual(expectedResult);
     });
   });
 });

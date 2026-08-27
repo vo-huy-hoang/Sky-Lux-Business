@@ -12,12 +12,10 @@ import {
   Typography,
   Badge,
   Button,
-  theme as antTheme,
 } from 'antd';
 import {
   DashboardOutlined,
   FolderOpenOutlined,
-  CalculatorOutlined,
   UsergroupAddOutlined,
   ShopOutlined,
   FileExcelOutlined,
@@ -49,8 +47,6 @@ export default function MainLayout({
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
-  const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin);
-  const { token } = antTheme.useToken();
 
   const handleLogout = () => {
     logout();
