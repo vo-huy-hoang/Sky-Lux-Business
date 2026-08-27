@@ -38,7 +38,10 @@ export class KpisService {
     queryDto: QueryMyKpiDto,
   ) {
     const periodType = queryDto.periodType || KpiPeriodType.MONTHLY;
-    const { periodStart, periodEnd } = this.getPeriodDates(periodType, queryDto.date);
+    const { periodStart, periodEnd } = this.getPeriodDates(
+      periodType,
+      queryDto.date,
+    );
 
     // 1. Fetch all KPI Targets for this period
     const targets = await this.targetRepository.find({
@@ -59,22 +62,45 @@ export class KpisService {
 
       switch (target.metricCode) {
         case KpiMetric.REVENUE:
-          actualValue = await this.calculateLiveRevenue(organizationId, userId, periodStart, periodEnd);
+          actualValue = await this.calculateLiveRevenue(
+            organizationId,
+            userId,
+            periodStart,
+            periodEnd,
+          );
           break;
         case KpiMetric.PROFIT:
-          actualValue = await this.calculateLiveProfit(organizationId, userId, periodStart, periodEnd);
+          actualValue = await this.calculateLiveProfit(
+            organizationId,
+            userId,
+            periodStart,
+            periodEnd,
+          );
           break;
         case KpiMetric.DOSSIER_COUNT:
-          actualValue = await this.calculateLiveDossierCount(organizationId, userId, periodStart, periodEnd);
+          actualValue = await this.calculateLiveDossierCount(
+            organizationId,
+            userId,
+            periodStart,
+            periodEnd,
+          );
           break;
         case KpiMetric.CLOSE_RATE:
-          actualValue = await this.calculateLiveCloseRate(organizationId, userId, periodStart, periodEnd);
+          actualValue = await this.calculateLiveCloseRate(
+            organizationId,
+            userId,
+            periodStart,
+            periodEnd,
+          );
           break;
       }
 
       // Compute achievementRate
       const targetVal = Number(target.targetValue) || 0;
-      const achievementRate = targetVal > 0 ? Number(((actualValue / targetVal) * 100).toFixed(2)) : 0;
+      const achievementRate =
+        targetVal > 0
+          ? Number(((actualValue / targetVal) * 100).toFixed(2))
+          : 0;
 
       // 3. Upsert KpiResult in DB (Caching)
       let result = await this.resultRepository.findOne({
@@ -148,11 +174,14 @@ export class KpisService {
     start: string,
     end: string,
   ): Promise<Estimate[]> {
-    return this.estimateRepository.createQueryBuilder('estimate')
+    return this.estimateRepository
+      .createQueryBuilder('estimate')
       .innerJoin('estimate.dossier', 'dossier')
       .where('dossier.salesUserId = :userId', { userId })
       .andWhere('dossier.organizationId = :organizationId', { organizationId })
-      .andWhere('estimate.status = :status', { status: EstimateStatus.APPROVED })
+      .andWhere('estimate.status = :status', {
+        status: EstimateStatus.APPROVED,
+      })
       .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
         start: new Date(start + 'T00:00:00Z'),
         end: new Date(end + 'T23:59:59Z'),
@@ -166,14 +195,20 @@ export class KpisService {
     start: string,
     end: string,
   ): Promise<number> {
-    const approvedEstimates = await this.getApprovedEstimates(organizationId, userId, start, end);
+    const approvedEstimates = await this.getApprovedEstimates(
+      organizationId,
+      userId,
+      start,
+      end,
+    );
 
     if (approvedEstimates.length === 0) {
       return 0;
     }
 
     const estimateIds = approvedEstimates.map((e) => e.id);
-    const sumResult = await this.revenueLineRepository.createQueryBuilder('line')
+    const sumResult = await this.revenueLineRepository
+      .createQueryBuilder('line')
       .select('SUM(line.netAmount)', 'sum')
       .where('line.estimateId IN (:...estimateIds)', { estimateIds })
       .getRawOne();
@@ -187,7 +222,12 @@ export class KpisService {
     start: string,
     end: string,
   ): Promise<number> {
-    const approvedEstimates = await this.getApprovedEstimates(organizationId, userId, start, end);
+    const approvedEstimates = await this.getApprovedEstimates(
+      organizationId,
+      userId,
+      start,
+      end,
+    );
 
     if (approvedEstimates.length === 0) {
       return 0;
@@ -195,12 +235,14 @@ export class KpisService {
 
     const estimateIds = approvedEstimates.map((e) => e.id);
 
-    const revenueSumResult = await this.revenueLineRepository.createQueryBuilder('line')
+    const revenueSumResult = await this.revenueLineRepository
+      .createQueryBuilder('line')
       .select('SUM(line.netAmount)', 'sum')
       .where('line.estimateId IN (:...estimateIds)', { estimateIds })
       .getRawOne();
 
-    const costSumResult = await this.costLineRepository.createQueryBuilder('line')
+    const costSumResult = await this.costLineRepository
+      .createQueryBuilder('line')
       .select('SUM(line.netAmount)', 'sum')
       .where('line.estimateId IN (:...estimateIds)', { estimateIds })
       .getRawOne();
@@ -217,7 +259,8 @@ export class KpisService {
     start: string,
     end: string,
   ): Promise<number> {
-    return this.dossierRepository.createQueryBuilder('dossier')
+    return this.dossierRepository
+      .createQueryBuilder('dossier')
       .where('dossier.salesUserId = :userId', { userId })
       .andWhere('dossier.organizationId = :organizationId', { organizationId })
       .andWhere('dossier.status IN (:...statuses)', {
@@ -240,7 +283,8 @@ export class KpisService {
     start: string,
     end: string,
   ): Promise<number> {
-    const totalAssigned = await this.dossierRepository.createQueryBuilder('dossier')
+    const totalAssigned = await this.dossierRepository
+      .createQueryBuilder('dossier')
       .where('dossier.salesUserId = :userId', { userId })
       .andWhere('dossier.organizationId = :organizationId', { organizationId })
       .andWhere('dossier.createdAt BETWEEN :start AND :end', {
@@ -253,7 +297,12 @@ export class KpisService {
       return 0;
     }
 
-    const wonCount = await this.calculateLiveDossierCount(organizationId, userId, start, end);
+    const wonCount = await this.calculateLiveDossierCount(
+      organizationId,
+      userId,
+      start,
+      end,
+    );
 
     return Number(((wonCount / totalAssigned) * 100).toFixed(2));
   }

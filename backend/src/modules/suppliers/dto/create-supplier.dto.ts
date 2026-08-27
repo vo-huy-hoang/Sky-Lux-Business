@@ -1,9 +1,11 @@
 import {
+  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
   IsEmail,
+  IsIn,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -12,6 +14,7 @@ export class CreateSupplierDto {
     description: 'Mã nhà cung cấp (độc nhất trong tổ chức)',
     example: 'NCC-ABC',
   })
+  @IsNotEmpty({ message: 'Mã nhà cung cấp không được để trống' })
   @IsString({ message: 'Mã nhà cung cấp phải là một chuỗi ký tự' })
   @MaxLength(50, { message: 'Mã nhà cung cấp không được vượt quá 50 ký tự' })
   code: string;
@@ -20,6 +23,7 @@ export class CreateSupplierDto {
     description: 'Tên nhà cung cấp',
     example: 'Công ty Du lịch Hàng không ABC',
   })
+  @IsNotEmpty({ message: 'Tên nhà cung cấp không được để trống' })
   @IsString({ message: 'Tên nhà cung cấp phải là một chuỗi ký tự' })
   @MaxLength(255, { message: 'Tên nhà cung cấp không được vượt quá 255 ký tự' })
   name: string;
@@ -82,4 +86,14 @@ export class CreateSupplierDto {
   @IsUUID('all', { message: 'ID loại nhà cung cấp phải là UUID hợp lệ' })
   @IsOptional()
   supplierTypeId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Trạng thái nhà cung cấp',
+    enum: ['ACTIVE', 'INACTIVE', 'LOCKED'],
+    default: 'ACTIVE',
+  })
+  @IsString()
+  @IsIn(['ACTIVE', 'INACTIVE', 'LOCKED'])
+  @IsOptional()
+  status?: string;
 }

@@ -63,7 +63,9 @@ export class ImportsService {
         where: { id: uploadImportDto.templateId, organizationId },
       });
       if (!template) {
-        throw new NotFoundException('Không tìm thấy template mẫu được chỉ định');
+        throw new NotFoundException(
+          'Không tìm thấy template mẫu được chỉ định',
+        );
       }
     }
 
@@ -107,17 +109,15 @@ export class ImportsService {
     });
 
     if (!session) {
-      throw new NotFoundException(`Không tìm thấy phiên nhập dữ liệu với ID: ${id}`);
+      throw new NotFoundException(
+        `Không tìm thấy phiên nhập dữ liệu với ID: ${id}`,
+      );
     }
 
     return session;
   }
 
-  async preview(
-    organizationId: string,
-    id: string,
-    queryDto: QueryImportDto,
-  ) {
+  async preview(organizationId: string, id: string, queryDto: QueryImportDto) {
     // Verify session ownership
     await this.findOne(organizationId, id);
 
@@ -144,11 +144,7 @@ export class ImportsService {
     };
   }
 
-  async errors(
-    organizationId: string,
-    id: string,
-    queryDto: QueryImportDto,
-  ) {
+  async errors(organizationId: string, id: string, queryDto: QueryImportDto) {
     // Verify session ownership
     await this.findOne(organizationId, id);
 
@@ -184,7 +180,9 @@ export class ImportsService {
     });
 
     if (!row) {
-      throw new NotFoundException(`Không tìm thấy dòng dữ liệu tạm với ID: ${rowId}`);
+      throw new NotFoundException(
+        `Không tìm thấy dòng dữ liệu tạm với ID: ${rowId}`,
+      );
     }
 
     // Update rawData and set status to PENDING for re-validation

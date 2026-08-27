@@ -42,7 +42,9 @@ export class ImportsController {
     }),
   )
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Tải lên tệp Excel và khởi tạo phiên nhập (API-IMPORT-001)' })
+  @ApiOperation({
+    summary: 'Tải lên tệp Excel và khởi tạo phiên nhập (API-IMPORT-001)',
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -69,7 +71,9 @@ export class ImportsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Xem trạng thái phiên nhập dữ liệu (API-IMPORT-002)' })
+  @ApiOperation({
+    summary: 'Xem trạng thái phiên nhập dữ liệu (API-IMPORT-002)',
+  })
   @ApiResponse({ status: 200, description: 'Lấy trạng thái thành công' })
   findOne(
     @CurrentUser('organizationId') organizationId: string,
@@ -79,8 +83,13 @@ export class ImportsController {
   }
 
   @Get(':id/preview')
-  @ApiOperation({ summary: 'Xem trước các dòng dữ liệu thô và đã chuẩn hóa (API-IMPORT-003)' })
-  @ApiResponse({ status: 200, description: 'Lấy danh sách xem trước thành công' })
+  @ApiOperation({
+    summary: 'Xem trước các dòng dữ liệu thô và đã chuẩn hóa (API-IMPORT-003)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lấy danh sách xem trước thành công',
+  })
   preview(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -90,7 +99,10 @@ export class ImportsController {
   }
 
   @Get(':id/errors')
-  @ApiOperation({ summary: 'Xem danh sách lỗi kiểm duyệt tương ứng từng dòng (API-IMPORT-004)' })
+  @ApiOperation({
+    summary:
+      'Xem danh sách lỗi kiểm duyệt tương ứng từng dòng (API-IMPORT-004)',
+  })
   @ApiResponse({ status: 200, description: 'Lấy danh sách lỗi thành công' })
   errors(
     @CurrentUser('organizationId') organizationId: string,
@@ -101,7 +113,9 @@ export class ImportsController {
   }
 
   @Patch(':id/rows/:rowId')
-  @ApiOperation({ summary: 'Sửa lỗi thông tin dòng trên bảng tạm (API-IMPORT-005)' })
+  @ApiOperation({
+    summary: 'Sửa lỗi thông tin dòng trên bảng tạm (API-IMPORT-005)',
+  })
   @ApiResponse({ status: 200, description: 'Cập nhật dòng tạm thành công' })
   updateRowStaging(
     @CurrentUser('organizationId') organizationId: string,
@@ -119,7 +133,9 @@ export class ImportsController {
 
   @Post(':id/validate')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Yêu cầu chạy lại tiến trình validate dữ liệu (API-IMPORT-006)' })
+  @ApiOperation({
+    summary: 'Yêu cầu chạy lại tiến trình validate dữ liệu (API-IMPORT-006)',
+  })
   @ApiResponse({ status: 200, description: 'Kích hoạt validate thành công' })
   validateSession(
     @CurrentUser('organizationId') organizationId: string,
@@ -130,7 +146,10 @@ export class ImportsController {
 
   @Post(':id/confirm')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Xác nhận nhập dữ liệu hợp lệ chính thức sang hệ thống (API-IMPORT-007)' })
+  @ApiOperation({
+    summary:
+      'Xác nhận nhập dữ liệu hợp lệ chính thức sang hệ thống (API-IMPORT-007)',
+  })
   @ApiResponse({ status: 200, description: 'Đồng bộ dữ liệu thành công' })
   confirm(
     @CurrentUser('organizationId') organizationId: string,

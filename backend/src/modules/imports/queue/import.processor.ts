@@ -167,7 +167,9 @@ export class ImportProcessor extends WorkerHost {
           where: { code: customerCode, organizationId: session.organizationId },
         });
         if (!customer) {
-          errors.push(`Không tìm thấy khách hàng có mã "${customerCode}" trong hệ thống`);
+          errors.push(
+            `Không tìm thấy khách hàng có mã "${customerCode}" trong hệ thống`,
+          );
         }
       }
 
@@ -203,8 +205,12 @@ export class ImportProcessor extends WorkerHost {
           name,
           customerId: customer?.id,
           route: String(data[routeKey] || '').trim(),
-          startDate: startDate ? new Date(startDate).toISOString().slice(0, 10) : undefined,
-          endDate: endDate ? new Date(endDate).toISOString().slice(0, 10) : undefined,
+          startDate: startDate
+            ? new Date(startDate).toISOString().slice(0, 10)
+            : undefined,
+          endDate: endDate
+            ? new Date(endDate).toISOString().slice(0, 10)
+            : undefined,
           priority: data[priorityKey] || 'MEDIUM',
         };
       }

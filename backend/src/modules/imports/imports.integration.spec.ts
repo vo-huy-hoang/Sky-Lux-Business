@@ -60,7 +60,9 @@ describe('Imports Module (Integration)', () => {
   const mockDataSource = {
     transaction: jest.fn().mockImplementation((cb) => {
       const mockManager = {
-        save: jest.fn().mockImplementation((entityClass, data) => Promise.resolve(data)),
+        save: jest
+          .fn()
+          .mockImplementation((entityClass, data) => Promise.resolve(data)),
       };
       return cb(mockManager);
     }),
@@ -160,9 +162,9 @@ describe('Imports Module (Integration)', () => {
 
       sessionRepository.findOne.mockResolvedValue(mockSessionWithError);
 
-      await expect(controller.confirm(orgA, 'session-error-uuid')).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        controller.confirm(orgA, 'session-error-uuid'),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('Đồng bộ thành công và di chuyển dữ liệu sang bảng Dossier nếu hợp lệ', async () => {
