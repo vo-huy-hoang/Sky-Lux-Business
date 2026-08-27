@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-065 |
+| Task ID | Sky-Lux-063 |
 | Level 0 | Lap trinh Backend API (Dossier, Import & Workflow) |
 | Level 1 | API Import Excel (MOD-IMPORT) |
 | Level 2 | API-IMPORT-006-POST-api-imports-id-validate |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/imports/:id/validate` |
 | Phase | Phase 1 |
 | Mục tiêu | Validate lai import |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

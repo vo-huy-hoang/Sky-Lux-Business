@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-093 |
+| Task ID | Sky-Lux-087 |
 | Level 0 | Lap trinh Backend API (Documents & Communication) |
 | Level 1 | API Comments (MOD-COMMENT) |
 | Level 2 | API-COMMENT-002-POST-api-dossiers-id-comments |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/dossiers/:id/comments` |
 | Phase | Phase 1 |
 | Mục tiêu | Tao binh luan ho so |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

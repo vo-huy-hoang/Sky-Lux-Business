@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-130 |
+| Task ID | Sky-Lux-138 |
 | Level 0 | Lap trinh Backend API (Tasks, Finance, KPI & Ops) |
 | Level 1 | API Task Checklist (MOD-CHECKLIST) |
 | Level 2 | API-CHECKLIST-003-PATCH-api-tasks-id-checklist-itemid |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/tasks/:id/checklist/:itemId` |
 | Phase | Phase 2 |
 | Mục tiêu | Cap nhat checklist item |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

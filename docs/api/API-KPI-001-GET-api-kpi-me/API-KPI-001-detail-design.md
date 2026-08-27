@@ -4,15 +4,15 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-138 |
+| Task ID | Sky-Lux-089 |
 | Level 0 | Lap trinh Backend API (Tasks, Finance, KPI & Ops) |
 | Level 1 | API KPI (MOD-KPI) |
 | Level 2 | API-KPI-001-GET-api-kpi-me |
 | Method | GET |
 | Endpoint | `/api/kpi/me` |
-| Phase | Phase 1-2 |
+| Phase | Phase 1 |
 | Mục tiêu | KPI ca nhan Sales |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

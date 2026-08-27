@@ -4,15 +4,15 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-148 |
+| Task ID | Sky-Lux-151 |
 | Level 0 | Lap trinh Backend API (Tasks, Finance, KPI & Ops) |
 | Level 1 | API Reports (MOD-REPORT) |
 | Level 2 | API-REPORT-001-GET-api-reports-revenue |
 | Method | GET |
 | Endpoint | `/api/reports/revenue` |
-| Phase | Phase 1-2 |
+| Phase | Phase 2 |
 | Mục tiêu | Bao cao doanh thu |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

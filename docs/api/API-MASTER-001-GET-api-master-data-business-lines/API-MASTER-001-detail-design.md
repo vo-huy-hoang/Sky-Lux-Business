@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-048 |
+| Task ID | Sky-Lux-047 |
 | Level 0 | Lap trinh Backend API (CRM & Master Data) |
 | Level 1 | API Master Data (MOD-MASTER) |
 | Level 2 | API-MASTER-001-GET-api-master-data-business-lines |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/master-data/business-lines` |
 | Phase | Phase 1 |
 | Mục tiêu | Danh muc mang kinh doanh |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 
