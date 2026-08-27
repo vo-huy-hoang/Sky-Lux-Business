@@ -9,10 +9,13 @@ import {
   Tag,
   Space,
   Input,
+  Select,
   Typography,
   Avatar,
   Badge,
   Tooltip,
+  Popconfirm,
+  message,
 } from 'antd';
 import {
   TeamOutlined,
@@ -23,55 +26,128 @@ import {
   SearchOutlined,
   UserOutlined,
   ReloadOutlined,
+  EyeOutlined,
+  LockOutlined,
+  UnlockOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
-import {
-  rbacService,
-  RoleItem,
-  UserItem,
-} from '@/services/rbac.service';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { rbacService, RoleItem } from '@/services/rbac.service';
+import { usersService } from '@/services/users.service';
+import { UserItem, UserStatus } from '@/types/user';
 import { useRbacStore } from './store';
 import RoleModal from './components/RoleModal';
 import PermissionMatrixModal from './components/PermissionMatrixModal';
 import UserRoleModal from './components/UserRoleModal';
+import UserModal from './components/UserModal';
+import UserDetailDrawer from './components/UserDetailDrawer';
 
 const { Title, Text } = Typography;
 
 export default function UsersAndRbacPage() {
+  const queryClient = useQueryClient();
+
   // Zustand Store
   const {
     activeTab,
     setActiveTab,
     userSearch,
     setUserSearch,
+    userStatusFilter,
+    setUserStatusFilter,
+    userRoleFilter,
+    setUserRoleFilter,
+    userPage,
+    setUserPage,
+    userPageSize,
+    setUserPageSize,
     roleSearch,
     setRoleSearch,
+    openCreateUser,
+    openEditUser,
+    openUserDetail,
     openCreateRole,
     openEditRole,
     openPermMatrix,
     openUserRoles,
   } = useRbacStore();
 
-  // 1. Fetch Users
-  const { data: users = [], isLoading: isUsersLoading, refetch: refetchUsers } = useQuery({
-    queryKey: ['users'],
-    queryFn: () => rbacService.getUsers(),
+  // 1. Fetch Paginated & Filtered Users (API-USERS-001)
+  const {
+    data: usersResponse,
+    isLoading: isUsersLoading,
+    refetch: refetchUsers,
+  } = useQuery({
+    queryKey: [
+      'users',
+      userPage,
+      userPageSize,
+      userSearch,
+      userStatusFilter,
+      userRoleFilter,
+    ],
+    queryFn: () =>
+      usersService.getUsers({
+        page: userPage,
+        pageSize: userPageSize,
+        search: userSearch || undefined,
+        status: (userStatusFilter || undefined) as UserStatus | undefined,
+        roleId: userRoleFilter || undefined,
+      }),
   });
 
-  // 2. Fetch Roles
-  const { data: rolesData, isLoading: isRolesLoading, refetch: refetchRoles } = useQuery({
+  // Handle both array or { data, meta } structure
+  const users: UserItem[] = Array.isArray(usersResponse)
+    ? usersResponse
+    : usersResponse?.data || [];
+  const totalUsers: number = Array.isArray(usersResponse)
+    ? usersResponse.length
+    : usersResponse?.meta?.total || users.length;
+
+  // 2. Fetch Roles for Filter and Roles Tab
+  const {
+    data: rolesData,
+    isLoading: isRolesLoading,
+    refetch: refetchRoles,
+  } = useQuery({
     queryKey: ['roles', roleSearch],
     queryFn: () => rbacService.getRoles({ search: roleSearch }),
   });
   const roles = rolesData?.items || [];
 
-  // Filtered Users
-  const filteredUsers = users.filter(
-    (u) =>
-      u.fullName.toLowerCase().includes(userSearch.toLowerCase()) ||
-      u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
-      u.employeeCode.toLowerCase().includes(userSearch.toLowerCase()),
-  );
+  // Mutations
+  const lockMutation = useMutation({
+    mutationFn: (id: string) => usersService.lockUser(id),
+    onSuccess: () => {
+      message.success('Đã khóa tài khoản người dùng thành công');
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (err: any) => {
+      message.error(err.message || 'Lỗi khi khóa tài khoản');
+    },
+  });
+
+  const unlockMutation = useMutation({
+    mutationFn: (id: string) => usersService.unlockUser(id),
+    onSuccess: () => {
+      message.success('Đã mở khóa tài khoản người dùng thành công');
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (err: any) => {
+      message.error(err.message || 'Lỗi khi mở khóa tài khoản');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => usersService.deleteUser(id),
+    onSuccess: () => {
+      message.success('Đã xóa người dùng thành công');
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (err: any) => {
+      message.error(err.message || 'Lỗi khi xóa người dùng');
+    },
+  });
 
   // Columns for Users Table
   const userColumns = [
@@ -79,17 +155,25 @@ export default function UsersAndRbacPage() {
       title: 'Nhân viên',
       key: 'user',
       render: (_: any, record: UserItem) => (
-        <Space size={12}>
+        <Space
+          size={12}
+          className="cursor-pointer group"
+          onClick={() => openUserDetail(record)}
+        >
           <Avatar
             style={{ backgroundColor: '#0A2540' }}
             src={record.avatarUrl}
             icon={<UserOutlined />}
           >
-            {record.fullName.charAt(0)}
+            {record.fullName?.charAt(0)}
           </Avatar>
           <div>
-            <div className="font-semibold text-slate-800">{record.fullName}</div>
-            <div className="text-xs text-slate-500 font-mono">{record.employeeCode}</div>
+            <div className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
+              {record.fullName}
+            </div>
+            <div className="text-xs text-slate-500 font-mono">
+              {record.employeeCode}
+            </div>
           </div>
         </Space>
       ),
@@ -100,7 +184,9 @@ export default function UsersAndRbacPage() {
       render: (_: any, record: UserItem) => (
         <div>
           <div className="text-slate-700 text-sm">{record.email}</div>
-          <div className="text-xs text-slate-400">{record.phone || 'Chưa có SĐT'}</div>
+          <div className="text-xs text-slate-400">
+            {record.phone || 'Chưa có SĐT'}
+          </div>
         </div>
       ),
     },
@@ -149,8 +235,21 @@ export default function UsersAndRbacPage() {
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => (
-        <Tag color={status === 'ACTIVE' ? 'success' : 'error'}>
-          {status === 'ACTIVE' ? 'Hoạt động' : 'Bị khóa'}
+        <Tag
+          color={
+            status === 'ACTIVE'
+              ? 'success'
+              : status === 'LOCKED'
+              ? 'error'
+              : 'default'
+          }
+          className="font-semibold"
+        >
+          {status === 'ACTIVE'
+            ? 'Hoạt động'
+            : status === 'LOCKED'
+            ? 'Bị khóa'
+            : 'Chưa kích hoạt'}
         </Tag>
       ),
     },
@@ -158,16 +257,90 @@ export default function UsersAndRbacPage() {
       title: 'Hành động',
       key: 'actions',
       render: (_: any, record: UserItem) => (
-        <Button
-          type="primary"
-          ghost
-          size="small"
-          icon={<KeyOutlined />}
-          onClick={() => openUserRoles(record, record.roles?.map((r) => r.id) || [])}
-          className="text-xs"
-        >
-          Gán vai trò
-        </Button>
+        <Space size={6}>
+          <Tooltip title="Xem chi tiết">
+            <Button
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => openUserDetail(record)}
+            />
+          </Tooltip>
+
+          <Tooltip title="Chỉnh sửa">
+            <Button
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => openEditUser(record)}
+            />
+          </Tooltip>
+
+          <Tooltip title="Gán vai trò">
+            <Button
+              type="primary"
+              ghost
+              size="small"
+              icon={<KeyOutlined />}
+              onClick={() =>
+                openUserRoles(record, record.roles?.map((r) => r.id) || [])
+              }
+            />
+          </Tooltip>
+
+          {record.status === 'LOCKED' ? (
+            <Tooltip title="Mở khóa tài khoản">
+              <Popconfirm
+                title="Mở khóa tài khoản?"
+                description={`Bạn có chắc muốn mở khóa cho ${record.fullName}?`}
+                onConfirm={() => unlockMutation.mutate(record.id)}
+                okText="Mở khóa"
+                cancelText="Hủy"
+              >
+                <Button
+                  size="small"
+                  icon={<UnlockOutlined className="text-emerald-600" />}
+                  loading={unlockMutation.isPending}
+                />
+              </Popconfirm>
+            </Tooltip>
+          ) : (
+            <Tooltip title="Khóa tài khoản">
+              <Popconfirm
+                title="Khóa tài khoản?"
+                description={`Nhân viên ${record.fullName} sẽ bị đăng xuất khỏi hệ thống.`}
+                onConfirm={() => lockMutation.mutate(record.id)}
+                okText="Khóa tài khoản"
+                cancelText="Hủy"
+                okButtonProps={{ danger: true }}
+              >
+                <Button
+                  size="small"
+                  danger
+                  icon={<LockOutlined />}
+                  loading={lockMutation.isPending}
+                />
+              </Popconfirm>
+            </Tooltip>
+          )}
+
+          <Tooltip title="Xóa nhân viên">
+            <Popconfirm
+              title="Xóa nhân viên này?"
+              description="Dữ liệu nhân viên sẽ được lưu trữ và có thể khôi phục."
+              onConfirm={() => deleteMutation.mutate(record.id)}
+              okText="Xóa"
+              cancelText="Hủy"
+              okButtonProps={{ danger: true }}
+            >
+              <Button
+                size="small"
+                danger
+                type="text"
+                icon={<DeleteOutlined />}
+                loading={deleteMutation.isPending}
+              />
+            </Popconfirm>
+          </Tooltip>
+        </Space>
       ),
     },
   ];
@@ -193,13 +366,17 @@ export default function UsersAndRbacPage() {
       title: 'Tên vai trò',
       dataIndex: 'name',
       key: 'name',
-      render: (name: string) => <span className="font-semibold text-slate-800">{name}</span>,
+      render: (name: string) => (
+        <span className="font-semibold text-slate-800">{name}</span>
+      ),
     },
     {
       title: 'Mô tả',
       dataIndex: 'description',
       key: 'description',
-      render: (desc: string) => <span className="text-slate-500 text-xs">{desc || '—'}</span>,
+      render: (desc: string) => (
+        <span className="text-slate-500 text-xs">{desc || '—'}</span>
+      ),
     },
     {
       title: 'Số quyền hạn',
@@ -208,7 +385,10 @@ export default function UsersAndRbacPage() {
         <Badge
           count={record.permissionCount || 0}
           overflowCount={999}
-          style={{ backgroundColor: record.permissionCount > 0 ? '#10B981' : '#94A3B8' }}
+          style={{
+            backgroundColor:
+              record.permissionCount > 0 ? '#10B981' : '#94A3B8',
+          }}
         />
       ),
     },
@@ -228,7 +408,12 @@ export default function UsersAndRbacPage() {
             size="small"
             type="primary"
             icon={<SafetyCertificateOutlined />}
-            onClick={() => openPermMatrix(record, record.permissions?.map((p) => p.code) || [])}
+            onClick={() =>
+              openPermMatrix(
+                record,
+                record.permissions?.map((p) => p.code) || [],
+              )
+            }
             className="bg-[#0A2540] hover:bg-[#133E68] border-none text-xs"
           >
             Phân quyền
@@ -244,18 +429,35 @@ export default function UsersAndRbacPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <Title level={3} style={{ marginBottom: 2, color: '#0F172A' }}>
-            Quản trị Người dùng & Phân quyền (RBAC)
+            Quản trị Người dùng & Phân quyền (Users & RBAC)
           </Title>
           <Text type="secondary" className="text-sm">
-            Quản lý tài khoản nhân viên, thiết lập vai trò và cấu hình ma trận quyền hạn bảo mật.
+            Quản lý tài khoản nhân viên, thiết lập vai trò và cấu hình ma trận
+            quyền hạn bảo mật hệ thống.
           </Text>
         </div>
 
         <Space>
-          <Button icon={<ReloadOutlined />} onClick={() => { refetchUsers(); refetchRoles(); }}>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => {
+              refetchUsers();
+              refetchRoles();
+            }}
+          >
             Làm mới
           </Button>
-          {activeTab === 'roles' && (
+
+          {activeTab === 'users' ? (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={openCreateUser}
+              className="bg-[#0A2540] hover:bg-[#133E68] border-none"
+            >
+              Thêm người dùng mới
+            </Button>
+          ) : (
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -269,7 +471,10 @@ export default function UsersAndRbacPage() {
       </div>
 
       {/* Main Tabbed Card */}
-      <Card className="shadow-xs border-slate-200" styles={{ body: { padding: '20px 24px' } }}>
+      <Card
+        className="shadow-xs border-slate-200"
+        styles={{ body: { padding: '20px 24px' } }}
+      >
         <Tabs
           activeKey={activeTab}
           onChange={setActiveTab}
@@ -278,28 +483,92 @@ export default function UsersAndRbacPage() {
               key: 'users',
               label: (
                 <span className="font-semibold text-sm flex items-center gap-2">
-                  <TeamOutlined /> Danh sách Người dùng ({users.length})
+                  <TeamOutlined /> Danh sách Người dùng ({totalUsers})
                 </span>
               ),
               children: (
                 <div className="space-y-4 pt-2">
-                  <div className="flex justify-between items-center gap-4">
-                    <Input
-                      placeholder="Tìm theo tên, email, mã nhân viên..."
-                      prefix={<SearchOutlined className="text-slate-400" />}
-                      value={userSearch}
-                      onChange={(e) => setUserSearch(e.target.value)}
-                      className="max-w-md"
-                      allowClear
-                    />
+                  {/* Search & Filter Toolbar */}
+                  <div className="flex flex-wrap justify-between items-center gap-4">
+                    <div className="flex flex-wrap items-center gap-3 flex-1">
+                      <Input
+                        placeholder="Tìm theo tên, email, mã nhân viên, SĐT..."
+                        prefix={<SearchOutlined className="text-slate-400" />}
+                        value={userSearch}
+                        onChange={(e) => setUserSearch(e.target.value)}
+                        className="max-w-xs"
+                        allowClear
+                      />
+
+                      <Select
+                        placeholder="Trạng thái"
+                        value={userStatusFilter || undefined}
+                        onChange={(value) => setUserStatusFilter(value || '')}
+                        allowClear
+                        className="w-40"
+                        options={[
+                          { label: 'Tất cả trạng thái', value: '' },
+                          { label: '🟢 Hoạt động', value: 'ACTIVE' },
+                          { label: '🔴 Bị khóa', value: 'LOCKED' },
+                          { label: '⚪ Chưa kích hoạt', value: 'INACTIVE' },
+                        ]}
+                      />
+
+                      <Select
+                        placeholder="Lọc theo vai trò"
+                        value={userRoleFilter || undefined}
+                        onChange={(value) => setUserRoleFilter(value || undefined)}
+                        allowClear
+                        className="w-48"
+                        options={roles.map((r) => ({
+                          label: `${r.name} (${r.code})`,
+                          value: r.id,
+                        }))}
+                      />
+
+                      {(userSearch || userStatusFilter || userRoleFilter) && (
+                        <Button
+                          type="link"
+                          onClick={() => {
+                            setUserSearch('');
+                            setUserStatusFilter('');
+                            setUserRoleFilter(undefined);
+                          }}
+                          className="text-xs text-slate-500"
+                        >
+                          Xóa bộ lọc
+                        </Button>
+                      )}
+                    </div>
+
+                    <Button
+                      type="primary"
+                      icon={<PlusOutlined />}
+                      onClick={openCreateUser}
+                      className="bg-[#0A2540] hover:bg-[#133E68] border-none"
+                    >
+                      Thêm người dùng
+                    </Button>
                   </div>
 
+                  {/* Users Data Table */}
                   <Table
-                    dataSource={filteredUsers}
+                    dataSource={users}
                     columns={userColumns}
                     rowKey="id"
                     loading={isUsersLoading}
-                    pagination={{ pageSize: 15, showTotal: (total) => `Tổng số ${total} người dùng` }}
+                    pagination={{
+                      current: userPage,
+                      pageSize: userPageSize,
+                      total: totalUsers,
+                      showSizeChanger: true,
+                      pageSizeOptions: ['10', '20', '50', '100'],
+                      showTotal: (total) => `Tổng số ${total} người dùng`,
+                      onChange: (page, pageSize) => {
+                        setUserPage(page);
+                        setUserPageSize(pageSize);
+                      },
+                    }}
                     className="border border-slate-100 rounded-lg overflow-hidden"
                   />
                 </div>
@@ -348,7 +617,9 @@ export default function UsersAndRbacPage() {
         />
       </Card>
 
-      {/* Custom Modal Components */}
+      {/* Modals & Drawers */}
+      <UserModal />
+      <UserDetailDrawer />
       <RoleModal />
       <PermissionMatrixModal />
       <UserRoleModal />

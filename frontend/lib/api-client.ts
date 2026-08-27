@@ -45,7 +45,14 @@ const processQueue = (error: any, token: string | null = null) => {
 apiClient.interceptors.response.use(
   (response) => {
     // Unwrap standard envelope if present: { success, data, ... }
-    if (response.data && response.data.success !== undefined && response.data.data !== undefined) {
+    if (
+      response.data &&
+      response.data.success !== undefined &&
+      response.data.data !== undefined
+    ) {
+      if (response.data.meta !== undefined) {
+        return { data: response.data.data, meta: response.data.meta };
+      }
       return response.data.data;
     }
     return response.data;
