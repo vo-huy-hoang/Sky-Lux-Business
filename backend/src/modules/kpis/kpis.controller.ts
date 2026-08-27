@@ -1,42 +1,32 @@
 import {
   Controller,
   Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
+  Query,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { KpisService } from './kpis.service';
-import { CreateKpiDto } from './dto/create-kpi.dto';
-import { UpdateKpiDto } from './dto/update-kpi.dto';
+import { QueryMyKpiDto } from './dto/query-my-kpi.dto';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
+@ApiTags('KPIs')
+@ApiBearerAuth('JWT-auth')
 @Controller('kpis')
 export class KpisController {
   constructor(private readonly kpisService: KpisService) {}
 
-  @Post()
-  create(@Body() createKpiDto: CreateKpiDto) {
-    return this.kpisService.create(createKpiDto);
-  }
-
-  @Get()
-  findAll() {
-    return this.kpisService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.kpisService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateKpiDto: UpdateKpiDto) {
-    return this.kpisService.update(+id, updateKpiDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.kpisService.remove(+id);
+  @Get('me')
+  @ApiOperation({ summary: 'Xem KPI cá nhân của Sales (API-KPI-001)' })
+  @ApiResponse({ status: 200, description: 'Lấy KPI cá nhân thành công' })
+  findMyKpi(
+    @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser('id') userId: string,
+    @Query() queryDto: QueryMyKpiDto,
+  ) {
+    return this.kpisService.findMyKpi(organizationId, userId, queryDto);
   }
 }

@@ -6,9 +6,18 @@ describe('KpisController', () => {
   let controller: KpisController;
 
   beforeEach(async () => {
+    const mockKpisService = {
+      findMyKpi: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [KpisController],
-      providers: [KpisService],
+      providers: [
+        {
+          provide: KpisService,
+          useValue: mockKpisService,
+        },
+      ],
     }).compile();
 
     controller = module.get<KpisController>(KpisController);
