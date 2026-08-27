@@ -167,6 +167,7 @@ export async function runInitialSeed(dataSource: DataSource) {
       code: 'dashboard.ceo',
       name: 'Xem Dashboard CEO',
       module: 'DASHBOARD',
+    },
     // Master Data
     {
       code: 'master_data.view',
