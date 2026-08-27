@@ -88,7 +88,7 @@ describe('OrganizationsService', () => {
         name: 'Updated Name',
         currency: 'USD',
       };
-      const updatedOrg = { ...mockOrganization, ...updateDto } as Organization;
+      const updatedOrg = { ...mockOrganization, ...updateDto };
 
       repository.findOne.mockResolvedValue(mockOrganization);
       repository.save.mockResolvedValue(updatedOrg);

@@ -171,7 +171,7 @@ describe('Dossiers Module (Integration)', () => {
       const lockedDossier = {
         ...mockDossierOfOrgA,
         status: DossierStatus.LOCKED,
-      } as unknown as Dossier;
+      };
 
       dossierRepository.findOne.mockResolvedValue(lockedDossier);
 

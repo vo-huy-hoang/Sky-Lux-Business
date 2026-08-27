@@ -173,7 +173,7 @@ describe('RolesService', () => {
       repository.save.mockResolvedValue({
         ...existingRole,
         ...updateDto,
-      } as Role);
+      });
 
       const result = await service.update(roleId, updateDto, orgId);
 
@@ -243,11 +243,11 @@ describe('RolesService', () => {
       repository.save.mockResolvedValue({
         ...roleWithUsers,
         users: [],
-      } as Role);
+      });
       repository.softRemove.mockResolvedValue({
         ...roleWithUsers,
         users: [],
-      } as Role);
+      });
 
       const result = await service.remove(roleId, orgId, true);
 

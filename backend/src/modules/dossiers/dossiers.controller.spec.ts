@@ -50,7 +50,7 @@ describe('DossiersController', () => {
   });
 
   describe('findAll', () => {
-    it('should throw ForbiddenException if user lacks view permission', async () => {
+    it('should throw ForbiddenException if user lacks view permission', () => {
       const badUser = { permissions: [], roles: [] } as any;
       const queryDto = new QueryDossierDto();
 

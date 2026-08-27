@@ -191,11 +191,11 @@ describe('RBAC Security & Tenant Boundary (Integration)', () => {
       roleRepository.save.mockResolvedValue({
         ...roleWithUsers,
         users: [],
-      } as Role);
+      });
       roleRepository.softRemove.mockResolvedValue({
         ...roleWithUsers,
         users: [],
-      } as Role);
+      });
 
       const result = await controller.remove(roleId, orgA, 'true');
 

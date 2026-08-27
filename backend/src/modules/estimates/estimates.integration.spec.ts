@@ -129,7 +129,7 @@ describe('Estimates Module (Integration)', () => {
       const approvedEst = {
         ...mockEstimateOrgA,
         status: EstimateStatus.APPROVED,
-      } as unknown as Estimate;
+      };
       estimateRepository.findOne.mockResolvedValue(approvedEst);
 
       const updateDto: UpdateEstimateDto = { note: 'Change after approval' };
@@ -143,7 +143,7 @@ describe('Estimates Module (Integration)', () => {
       const supersededEst = {
         ...mockEstimateOrgA,
         status: EstimateStatus.SUPERSEDED,
-      } as unknown as Estimate;
+      };
       estimateRepository.findOne.mockResolvedValue(supersededEst);
 
       const updateDto: UpdateEstimateDto = { note: 'Change after supersede' };

@@ -169,7 +169,7 @@ describe('TasksService', () => {
       const activeTask = {
         ...mockTask,
         checklistItems: [{ id: 'item-1', isCompleted: false } as any],
-      } as unknown as Task;
+      };
 
       taskRepository.findOne.mockResolvedValue(activeTask);
       taskRepository.save.mockImplementation((entity) =>

@@ -213,7 +213,7 @@ describe('EstimatesService', () => {
       const approvedEstimate = {
         ...mockEstimate,
         status: EstimateStatus.APPROVED,
-      } as unknown as Estimate;
+      };
       estimateRepository.findOne.mockResolvedValue(approvedEstimate);
 
       const updateDto: UpdateEstimateDto = { note: 'Try modify' };

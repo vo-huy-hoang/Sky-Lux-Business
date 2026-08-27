@@ -219,7 +219,7 @@ describe('DossiersService', () => {
       const activeDossier = {
         ...mockDossier,
         status: DossierStatus.DRAFT,
-      } as unknown as Dossier;
+      };
 
       repository.findOne.mockResolvedValue(activeDossier);
       repository.save.mockImplementation((entity) =>

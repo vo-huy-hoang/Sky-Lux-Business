@@ -115,7 +115,7 @@ describe('Organization & Settings Module (Integration)', () => {
         name: 'New Skylux A',
         currency: 'USD',
       };
-      const updatedOrg = { ...mockOrgProfileA, ...updateDto } as Organization;
+      const updatedOrg = { ...mockOrgProfileA, ...updateDto };
 
       orgRepository.findOne.mockResolvedValue(mockOrgProfileA);
       orgRepository.save.mockResolvedValue(updatedOrg);
