@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-051 |
+| Task ID | Sky-Lux-050 |
 | Level 0 | Lap trinh Backend API (CRM & Master Data) |
 | Level 1 | API Master Data (MOD-MASTER) |
 | Level 2 | API-MASTER-004-GET-api-master-data-passenger-types |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/master-data/passenger-types` |
 | Phase | Phase 1 |
 | Mục tiêu | Danh muc loai khach |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

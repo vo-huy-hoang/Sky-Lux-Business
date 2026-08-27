@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-107 |
+| Task ID | Sky-Lux-116 |
 | Level 0 | Lap trinh Backend API (Documents & Communication) |
 | Level 1 | API Chat Read / Participants (MOD-PARTICIPANT) |
 | Level 2 | API-PARTICIPANT-004-DELETE-api-conversations-id-participants-userid |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/conversations/:id/participants/:userId` |
 | Phase | Phase 2 |
 | Mục tiêu | Xoa thanh vien |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

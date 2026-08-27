@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-113 |
+| Task ID | Sky-Lux-122 |
 | Level 0 | Lap trinh Backend API (Documents & Communication) |
 | Level 1 | WebSocket Chat Events (MOD-WS-CHAT) |
 | Level 2 | API-WS-CHAT-005-WS-ws-chat-messagereceived |
@@ -12,7 +12,7 @@
 | Endpoint | `/ws/chat message:received` |
 | Phase | Phase 2 |
 | Mục tiêu | Nhan tin nhan moi |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

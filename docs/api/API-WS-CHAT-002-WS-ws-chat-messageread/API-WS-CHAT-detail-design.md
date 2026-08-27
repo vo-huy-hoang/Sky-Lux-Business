@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-110 |
+| Task ID | Sky-Lux-119 |
 | Level 0 | Lap trinh Backend API (Documents & Communication) |
 | Level 1 | WebSocket Chat Events (MOD-WS-CHAT) |
 | Level 2 | API-WS-CHAT-002-WS-ws-chat-messageread |
@@ -12,7 +12,7 @@
 | Endpoint | `/ws/chat message:read` |
 | Phase | Phase 2 |
 | Mục tiêu | Danh dau doc realtime |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-084 |
+| Task ID | Sky-Lux-081 |
 | Level 0 | Lap trinh Backend API (Documents & Communication) |
 | Level 1 | API Documents (MOD-DOCUMENT) |
 | Level 2 | API-DOCUMENT-002-POST-api-dossiers-id-documents |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/dossiers/:id/documents` |
 | Phase | Phase 1 |
 | Mục tiêu | Upload tai lieu cho ho so |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

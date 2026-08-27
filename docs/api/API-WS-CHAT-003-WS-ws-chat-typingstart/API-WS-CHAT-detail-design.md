@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-111 |
+| Task ID | Sky-Lux-120 |
 | Level 0 | Lap trinh Backend API (Documents & Communication) |
 | Level 1 | WebSocket Chat Events (MOD-WS-CHAT) |
 | Level 2 | API-WS-CHAT-003-WS-ws-chat-typingstart |
@@ -12,7 +12,7 @@
 | Endpoint | `/ws/chat typing:start` |
 | Phase | Phase 2 |
 | Mục tiêu | Bat trang thai dang go |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 
