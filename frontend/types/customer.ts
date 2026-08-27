@@ -21,6 +21,7 @@ export interface CustomerItem {
   taxCode?: string;
   phone?: string;
   email?: string;
+  dateOfBirth?: string;
   address?: string;
   status: string;
   assignedSalesId?: string;

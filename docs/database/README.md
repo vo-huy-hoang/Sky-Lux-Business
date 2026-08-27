@@ -307,6 +307,7 @@ display_name
 tax_code
 phone
 email
+date_of_birth
 address
 assigned_sales_id
 status

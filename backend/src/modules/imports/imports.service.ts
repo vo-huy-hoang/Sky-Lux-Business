@@ -15,6 +15,7 @@ import { ImportRow } from './entities/import-row.entity';
 import { ImportError } from './entities/import-error.entity';
 import { ImportTemplate } from './entities/import-template.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
+import { Customer } from '../customers/entities/customer.entity';
 
 import { UploadImportDto } from './dto/upload-import.dto';
 import { QueryImportDto } from './dto/query-import.dto';
@@ -239,15 +240,38 @@ export class ImportsService {
       for (const row of validRows) {
         if (!row.normalizedData) continue;
 
+        const {
+          customerName,
+          phone,
+          email,
+          dateOfBirth,
+          ...dossierFields
+        } = row.normalizedData;
+
         // Map normalizedData directly to Dossier properties
         const dossierData = {
-          ...row.normalizedData,
+          ...dossierFields,
           organizationId,
           createdBy: session.uploadedBy,
         };
 
         const dossier = this.dossierRepository.create(dossierData);
         await transactionalEntityManager.save(Dossier, dossier);
+
+        // Update customer details if customer exists and info was provided
+        if (row.normalizedData.customerId && (phone || email || dateOfBirth || customerName)) {
+          const updateCustomerData: any = {};
+          if (phone) updateCustomerData.phone = phone;
+          if (email) updateCustomerData.email = email;
+          if (dateOfBirth) updateCustomerData.dateOfBirth = dateOfBirth;
+          if (customerName) updateCustomerData.displayName = customerName;
+
+          await transactionalEntityManager.update(
+            Customer,
+            { id: row.normalizedData.customerId, organizationId },
+            updateCustomerData,
+          );
+        }
 
         // Mark row as IMPORTED
         row.status = 'IMPORTED';
