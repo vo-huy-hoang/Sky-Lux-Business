@@ -151,6 +151,13 @@ export async function runInitialSeed(dataSource: DataSource) {
     { code: 'task.manage', name: 'Quản lý công việc', module: 'TASK' },
     { code: 'chat.access', name: 'Sử dụng hệ thống chat', module: 'CHAT' },
     { code: 'kpi.manage', name: 'Quản lý chỉ tiêu KPI', module: 'KPI' },
+
+    // Master Data
+    {
+      code: 'master_data.view',
+      name: 'Xem danh mục hệ thống',
+      module: 'MASTER',
+    },
   ];
 
   const permMap: Record<string, Permission> = {};

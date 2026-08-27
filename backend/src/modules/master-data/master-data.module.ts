@@ -7,6 +7,7 @@ import { MarketType } from './entities/market-type.entity';
 import { ServiceCategory } from './entities/service-category.entity';
 import { PassengerType } from './entities/passenger-type.entity';
 import { Unit } from './entities/unit.entity';
+import { SupplierType } from '../suppliers/entities/supplier-type.entity';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { Unit } from './entities/unit.entity';
       ServiceCategory,
       PassengerType,
       Unit,
+      SupplierType,
     ]),
   ],
   controllers: [MasterDataController],
