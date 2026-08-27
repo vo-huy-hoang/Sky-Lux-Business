@@ -10,12 +10,14 @@ import {
   HttpCode,
   HttpStatus,
   ForbiddenException,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
 } from '@nestjs/swagger';
 import { DossiersService } from './dossiers.service';
 import { QueryDossierDto } from './dto/query-dossier.dto';
@@ -46,8 +48,12 @@ export class DossiersController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Lấy chi tiết hồ sơ theo ID (API-DOSSIER-002)' })
+  @ApiParam({ name: 'id', description: 'Dossier UUID' })
   @ApiResponse({ status: 200, description: 'Lấy chi tiết thành công' })
-  findOne(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+  findOne(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     this.checkViewPermission(user);
     return this.dossiersService.findOne(user, id);
   }
@@ -66,10 +72,11 @@ export class DossiersController {
   @Patch(':id')
   @RequirePermissions('dossier.update')
   @ApiOperation({ summary: 'Cập nhật thông tin hồ sơ (API-DOSSIER-004)' })
+  @ApiParam({ name: 'id', description: 'Dossier UUID' })
   @ApiResponse({ status: 200, description: 'Cập nhật thành công' })
   update(
     @CurrentUser() user: CurrentUserPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateDossierDto: UpdateDossierDto,
   ) {
     return this.dossiersService.update(user, id, updateDossierDto);
@@ -79,9 +86,30 @@ export class DossiersController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @RequirePermissions('dossier.update')
   @ApiOperation({ summary: 'Xóa hồ sơ (API-DOSSIER-005)' })
+  @ApiParam({ name: 'id', description: 'Dossier UUID' })
   @ApiResponse({ status: 204, description: 'Xóa thành công' })
-  remove(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+  remove(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.dossiersService.remove(user, id);
+  }
+
+  @Get(':id/comments')
+  @ApiOperation({
+    summary: 'Lấy danh sách bình luận của hồ sơ tour (API-COMMENT-001)',
+  })
+  @ApiParam({ name: 'id', description: 'Dossier UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lấy danh sách bình luận thành công',
+  })
+  findComments(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    this.checkViewPermission(user);
+    return this.dossiersService.findComments(user, id);
   }
 
   private checkViewPermission(user: CurrentUserPayload) {
@@ -89,7 +117,7 @@ export class DossiersController {
       user.permissions.includes('dossier.view.own') ||
       user.permissions.includes('dossier.view.all') ||
       user.permissions.includes('*') ||
-      user.roles.includes('SUPER_ADMIN'); // fallback support for system admin bypass
+      user.roles.includes('SUPER_ADMIN');
 
     if (!hasViewPerm) {
       throw new ForbiddenException(

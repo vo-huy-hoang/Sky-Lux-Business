@@ -9,6 +9,7 @@ import {
 import { DossiersController } from './dossiers.controller';
 import { DossiersService } from './dossiers.service';
 import { Dossier } from './entities/dossier.entity';
+import { Comment } from './entities/comment.entity';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
@@ -61,6 +62,10 @@ describe('Dossiers Module (Integration)', () => {
     softRemove: jest.fn(),
   };
 
+  const mockCommentRepository = {
+    createQueryBuilder: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [DossiersController],
@@ -69,6 +74,10 @@ describe('Dossiers Module (Integration)', () => {
         {
           provide: getRepositoryToken(Dossier),
           useValue: mockDossierRepository,
+        },
+        {
+          provide: getRepositoryToken(Comment),
+          useValue: mockCommentRepository,
         },
       ],
     }).compile();

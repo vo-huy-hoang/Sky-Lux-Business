@@ -9,19 +9,28 @@ import { CustomerContact } from './entities/customer-contact.entity';
 import { CustomerType } from '../../common/enums';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { Dossier } from '../dossiers/entities/dossier.entity';
 
 describe('Customers Module (Integration)', () => {
   let controller: CustomersController;
   let customerRepository: jest.Mocked<Repository<Customer>>;
   let contactRepository: jest.Mocked<Repository<CustomerContact>>;
 
-  const orgA = 'org-A-uuid';
-  const orgB = 'org-B-uuid';
+  const orgA = 'org-a-uuid';
+  const orgB = 'org-b-uuid';
+
+  const mockCustomerOfOrgA = {
+    id: 'cust-A-uuid',
+    code: 'KH001',
+    displayName: 'Customer A',
+    organizationId: orgA,
+    contacts: [],
+  } as unknown as Customer;
 
   const mockCustomerOfOrgB = {
     id: 'customer-B-uuid',
     code: 'KH001',
-    displayName: 'Customer of B',
+    displayName: 'Customer B',
     organizationId: orgB,
     contacts: [],
   } as unknown as Customer;
@@ -37,6 +46,14 @@ describe('Customers Module (Integration)', () => {
   const mockContactRepository = {
     create: jest.fn((dto) => dto),
     remove: jest.fn(),
+    update: jest.fn(),
+    save: jest.fn(),
+    findOne: jest.fn(),
+    softRemove: jest.fn(),
+  };
+
+  const mockDossierRepository = {
+    createQueryBuilder: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -51,6 +68,10 @@ describe('Customers Module (Integration)', () => {
         {
           provide: getRepositoryToken(CustomerContact),
           useValue: mockContactRepository,
+        },
+        {
+          provide: getRepositoryToken(Dossier),
+          useValue: mockDossierRepository,
         },
       ],
     }).compile();

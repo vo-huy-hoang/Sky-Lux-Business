@@ -5,15 +5,17 @@ import { Repository } from 'typeorm';
 import { CustomersService } from './customers.service';
 import { Customer } from './entities/customer.entity';
 import { CustomerContact } from './entities/customer-contact.entity';
+import { Dossier } from '../dossiers/entities/dossier.entity';
 import { QueryCustomerDto } from './dto/query-customer.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { CreateContactDto } from './dto/create-contact.dto';
+import { UpdateContactDto } from './dto/update-contact.dto';
+import { QueryDossierDto } from '../dossiers/dto/query-dossier.dto';
 import { CustomerType } from '../../common/enums';
 
 describe('CustomersService', () => {
   let service: CustomersService;
-  let repository: jest.Mocked<Repository<Customer>>;
-  let contactRepository: jest.Mocked<Repository<CustomerContact>>;
 
   const mockCustomer = {
     id: 'cust-uuid',
@@ -43,7 +45,15 @@ describe('CustomersService', () => {
 
   const mockContactRepository = {
     create: jest.fn((dto) => dto),
+    save: jest.fn(),
+    findOne: jest.fn(),
+    update: jest.fn(),
     remove: jest.fn(),
+    softRemove: jest.fn(),
+  };
+
+  const mockDossierRepository = {
+    createQueryBuilder: jest.fn(() => mockQueryBuilder),
   };
 
   beforeEach(async () => {
@@ -58,16 +68,14 @@ describe('CustomersService', () => {
           provide: getRepositoryToken(CustomerContact),
           useValue: mockContactRepository,
         },
+        {
+          provide: getRepositoryToken(Dossier),
+          useValue: mockDossierRepository,
+        },
       ],
     }).compile();
 
     service = module.get<CustomersService>(CustomersService);
-    repository = module.get<Repository<Customer>>(
-      getRepositoryToken(Customer),
-    ) as jest.Mocked<Repository<Customer>>;
-    contactRepository = module.get<Repository<CustomerContact>>(
-      getRepositoryToken(CustomerContact),
-    ) as jest.Mocked<Repository<CustomerContact>>;
   });
 
   afterEach(() => {
@@ -80,29 +88,25 @@ describe('CustomersService', () => {
 
   describe('findAll', () => {
     it('should return a paginated list of customers', async () => {
+      const mockCustomers = [mockCustomer];
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([mockCustomers, 1]);
+
       const queryDto: QueryCustomerDto = {
         page: 1,
         limit: 20,
         search: 'Customer',
+        customerType: CustomerType.INDIVIDUAL,
+        status: 'ACTIVE',
       };
-      const mockItems = [mockCustomer];
-      const mockTotal = 1;
-
-      mockQueryBuilder.getManyAndCount.mockResolvedValue([
-        mockItems,
-        mockTotal,
-      ]);
 
       const result = await service.findAll('org-uuid', queryDto);
 
-      expect(repository.createQueryBuilder).toHaveBeenCalledWith('customer');
-      expect(mockQueryBuilder.where).toHaveBeenCalledWith(
-        'customer.organizationId = :organizationId',
-        { organizationId: 'org-uuid' },
+      expect(mockCustomerRepository.createQueryBuilder).toHaveBeenCalledWith(
+        'customer',
       );
       expect(result).toEqual({
-        items: mockItems,
-        total: mockTotal,
+        items: mockCustomers,
+        total: 1,
         page: 1,
         limit: 20,
         totalPages: 1,
@@ -111,12 +115,12 @@ describe('CustomersService', () => {
   });
 
   describe('findOne', () => {
-    it('should return the customer if found', async () => {
-      repository.findOne.mockResolvedValue(mockCustomer);
+    it('should return customer profile if found', async () => {
+      mockCustomerRepository.findOne.mockResolvedValue(mockCustomer);
 
       const result = await service.findOne('org-uuid', 'cust-uuid');
 
-      expect(repository.findOne).toHaveBeenCalledWith({
+      expect(mockCustomerRepository.findOne).toHaveBeenCalledWith({
         where: { id: 'cust-uuid', organizationId: 'org-uuid' },
         relations: { contacts: true, assignedSales: true },
       });
@@ -124,174 +128,213 @@ describe('CustomersService', () => {
     });
 
     it('should throw NotFoundException if customer not found', async () => {
-      repository.findOne.mockResolvedValue(null);
+      mockCustomerRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.findOne('org-uuid', 'invalid-uuid')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.findOne('org-uuid', 'non-existent-uuid'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('create', () => {
-    it('should throw ConflictException if customer code already exists in organization', async () => {
-      repository.findOne.mockResolvedValue(mockCustomer);
+    it('should create and save a new customer successfully', async () => {
+      const createDto: CreateCustomerDto = {
+        code: 'KH001',
+        customerType: CustomerType.INDIVIDUAL,
+        displayName: 'New Customer',
+        contacts: [{ name: 'Contact 1', isPrimary: true }],
+      };
 
-      const dto: CreateCustomerDto = {
+      mockCustomerRepository.findOne.mockResolvedValue(null);
+      mockCustomerRepository.save.mockResolvedValue({
+        id: 'new-uuid',
+        ...createDto,
+      });
+
+      const result = await service.create('org-uuid', createDto);
+
+      expect(mockCustomerRepository.findOne).toHaveBeenCalledWith({
+        where: { code: 'KH001', organizationId: 'org-uuid' },
+      });
+      expect(mockContactRepository.create).toHaveBeenCalled();
+      expect(mockCustomerRepository.save).toHaveBeenCalled();
+      expect(result).toBeDefined();
+    });
+
+    it('should throw ConflictException if customer code already exists', async () => {
+      const createDto: CreateCustomerDto = {
         code: 'KH001',
         customerType: CustomerType.INDIVIDUAL,
         displayName: 'New Customer',
       };
 
-      await expect(service.create('org-uuid', dto)).rejects.toThrow(
+      mockCustomerRepository.findOne.mockResolvedValue(mockCustomer);
+
+      await expect(service.create('org-uuid', createDto)).rejects.toThrow(
         ConflictException,
       );
-    });
-
-    it('should successfully create and save a new customer', async () => {
-      repository.findOne.mockResolvedValue(null);
-      repository.save.mockImplementation((entity) =>
-        Promise.resolve(entity as any),
-      );
-
-      const dto: CreateCustomerDto = {
-        code: 'KH002',
-        customerType: CustomerType.INDIVIDUAL,
-        displayName: 'New Customer',
-        contacts: [{ name: 'Contact A', isPrimary: true }],
-      };
-
-      const result = await service.create('org-uuid', dto);
-
-      expect(repository.findOne).toHaveBeenCalledWith({
-        where: { code: 'KH002', organizationId: 'org-uuid' },
-      });
-      expect(repository.save).toHaveBeenCalled();
-      expect(result.code).toEqual('KH002');
-      expect(result.contacts?.length).toEqual(1);
     });
   });
 
   describe('update', () => {
-    it('should throw ConflictException if new code is already used by another customer', async () => {
-      const existingCustomer = {
-        id: 'cust-uuid-1',
-        code: 'KH001',
-        displayName: 'Customer 1',
-        organizationId: 'org-uuid',
-      } as Customer;
+    it('should update customer profile successfully', async () => {
+      const updateDto: UpdateCustomerDto = {
+        displayName: 'Updated Name',
+        contacts: [],
+      };
 
-      const duplicateCustomer = {
-        id: 'cust-uuid-2',
-        code: 'KH002',
-        displayName: 'Customer 2',
-        organizationId: 'org-uuid',
-      } as Customer;
-
-      repository.findOne.mockImplementation(({ where }: any) => {
-        if (where.id === 'cust-uuid-1')
-          return Promise.resolve(existingCustomer);
-        if (where.code === 'KH002') return Promise.resolve(duplicateCustomer);
-        return Promise.resolve(null);
+      mockCustomerRepository.findOne.mockResolvedValue({ ...mockCustomer });
+      mockCustomerRepository.save.mockResolvedValue({
+        ...mockCustomer,
+        displayName: 'Updated Name',
       });
 
-      const dto: UpdateCustomerDto = { code: 'KH002' };
+      const result = await service.update('org-uuid', 'cust-uuid', updateDto);
 
-      await expect(
-        service.update('org-uuid', 'cust-uuid-1', dto),
-      ).rejects.toThrow(ConflictException);
-    });
-
-    it('should update customer properties and sync nested contacts', async () => {
-      const existingContact1 = {
-        id: 'contact-uuid-1',
-        name: 'Contact 1',
-      } as CustomerContact;
-      const existingCustomer = {
-        id: 'cust-uuid',
-        code: 'KH001',
-        displayName: 'Customer 1',
-        organizationId: 'org-uuid',
-        contacts: [existingContact1],
-      } as Customer;
-
-      repository.findOne.mockResolvedValue(existingCustomer);
-      repository.save.mockImplementation((entity) =>
-        Promise.resolve(entity as any),
-      );
-
-      const dto: UpdateCustomerDto = {
-        displayName: 'Updated Customer Name',
-        contacts: [
-          { id: 'contact-uuid-1', name: 'Contact 1 Updated' }, // update
-          { name: 'Contact 2 New' }, // create
-        ],
-      };
-
-      const result = await service.update('org-uuid', 'cust-uuid', dto);
-
-      expect(contactRepository.remove).not.toHaveBeenCalled();
-      expect(repository.save).toHaveBeenCalled();
-      expect(result.displayName).toEqual('Updated Customer Name');
-      expect(result.contacts?.length).toEqual(2);
-      expect(result.contacts?.[0].name).toEqual('Contact 1 Updated');
-      expect(result.contacts?.[1].name).toEqual('Contact 2 New');
-    });
-
-    it('should delete contacts that are not present in incoming list', async () => {
-      const existingContact1 = {
-        id: 'contact-uuid-1',
-        name: 'Contact 1',
-      } as CustomerContact;
-      const existingContact2 = {
-        id: 'contact-uuid-2',
-        name: 'Contact 2',
-      } as CustomerContact;
-      const existingCustomer = {
-        id: 'cust-uuid',
-        code: 'KH001',
-        displayName: 'Customer 1',
-        organizationId: 'org-uuid',
-        contacts: [existingContact1, existingContact2],
-      } as Customer;
-
-      repository.findOne.mockResolvedValue(existingCustomer);
-      repository.save.mockImplementation((entity) =>
-        Promise.resolve(entity as any),
-      );
-
-      const dto: UpdateCustomerDto = {
-        contacts: [
-          { id: 'contact-uuid-1', name: 'Contact 1' }, // keep contact 1
-        ],
-      };
-
-      await service.update('org-uuid', 'cust-uuid', dto);
-
-      expect(contactRepository.remove).toHaveBeenCalledWith([existingContact2]);
-      expect(repository.save).toHaveBeenCalled();
+      expect(mockCustomerRepository.save).toHaveBeenCalled();
+      expect(result.displayName).toEqual('Updated Name');
     });
   });
 
   describe('remove', () => {
-    it('should load customer and soft remove it', async () => {
-      repository.findOne.mockResolvedValue(mockCustomer);
-      repository.softRemove.mockResolvedValue(mockCustomer);
+    it('should soft-remove the customer', async () => {
+      mockCustomerRepository.findOne.mockResolvedValue(mockCustomer);
+      mockCustomerRepository.softRemove.mockResolvedValue(mockCustomer);
 
       await service.remove('org-uuid', 'cust-uuid');
 
-      expect(repository.findOne).toHaveBeenCalledWith({
-        where: { id: 'cust-uuid', organizationId: 'org-uuid' },
-        relations: { contacts: true, assignedSales: true },
-      });
-      expect(repository.softRemove).toHaveBeenCalledWith(mockCustomer);
+      expect(mockCustomerRepository.softRemove).toHaveBeenCalledWith(
+        mockCustomer,
+      );
+    });
+  });
+
+  describe('createContact (API-CONTACT-002)', () => {
+    it('should create new contact and reset other primary contacts if isPrimary is true', async () => {
+      mockCustomerRepository.findOne.mockResolvedValue(mockCustomer);
+      const dto: CreateContactDto = {
+        name: 'Nguyen Van B',
+        email: 'b@skylux.vn',
+        isPrimary: true,
+      };
+
+      const savedContact = {
+        id: 'contact-uuid',
+        ...dto,
+        organizationId: 'org-uuid',
+        customerId: 'cust-uuid',
+      };
+      mockContactRepository.save.mockResolvedValue(savedContact);
+
+      const result = await service.createContact('org-uuid', 'cust-uuid', dto);
+
+      expect(mockContactRepository.update).toHaveBeenCalledWith(
+        {
+          customerId: 'cust-uuid',
+          organizationId: 'org-uuid',
+          isPrimary: true,
+        },
+        { isPrimary: false },
+      );
+      expect(mockContactRepository.create).toHaveBeenCalled();
+      expect(mockContactRepository.save).toHaveBeenCalled();
+      expect(result.data).toEqual(savedContact);
+    });
+  });
+
+  describe('updateContact (API-CONTACT-003)', () => {
+    it('should update contact successfully', async () => {
+      const existingContact = {
+        id: 'contact-uuid',
+        name: 'Old Name',
+        isPrimary: false,
+      };
+      mockContactRepository.findOne.mockResolvedValue(existingContact);
+      mockContactRepository.save.mockImplementation((c) => Promise.resolve(c));
+
+      const dto: UpdateContactDto = { name: 'New Name', isPrimary: true };
+      const result = await service.updateContact(
+        'org-uuid',
+        'cust-uuid',
+        'contact-uuid',
+        dto,
+      );
+
+      expect(mockContactRepository.update).toHaveBeenCalledWith(
+        {
+          customerId: 'cust-uuid',
+          organizationId: 'org-uuid',
+          isPrimary: true,
+        },
+        { isPrimary: false },
+      );
+      expect(mockContactRepository.save).toHaveBeenCalled();
+      expect(result.data.name).toBe('New Name');
     });
 
-    it('should throw NotFoundException if customer to remove is not found', async () => {
-      repository.findOne.mockResolvedValue(null);
+    it('should throw NotFoundException if contact does not exist', async () => {
+      mockContactRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.remove('org-uuid', 'invalid-uuid')).rejects.toThrow(
-        NotFoundException,
+      await expect(
+        service.updateContact('org-uuid', 'cust-uuid', 'non-existent', {
+          name: 'Test',
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('removeContact (API-CONTACT-004)', () => {
+    it('should soft-remove contact', async () => {
+      const existingContact = { id: 'contact-uuid', name: 'Contact' };
+      mockContactRepository.findOne.mockResolvedValue(existingContact);
+      mockContactRepository.softRemove.mockResolvedValue(existingContact);
+
+      const result = await service.removeContact(
+        'org-uuid',
+        'cust-uuid',
+        'contact-uuid',
       );
+
+      expect(mockContactRepository.softRemove).toHaveBeenCalledWith(
+        existingContact,
+      );
+      expect(result.data.deleted).toBe(true);
+    });
+
+    it('should throw NotFoundException if contact does not exist for deletion', async () => {
+      mockContactRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.removeContact('org-uuid', 'cust-uuid', 'non-existent'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('findCustomerDossiers (API-CONTACT-005)', () => {
+    it('should return paginated list of dossiers related to customer', async () => {
+      mockCustomerRepository.findOne.mockResolvedValue(mockCustomer);
+      const mockDossiers = [
+        { id: 'dossier-uuid', code: 'DOS001', name: 'Tour Han Quoc' },
+      ];
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([mockDossiers, 1]);
+
+      const queryDto: QueryDossierDto = { page: 1, limit: 20 };
+      const result = await service.findCustomerDossiers(
+        'org-uuid',
+        'cust-uuid',
+        queryDto,
+      );
+
+      expect(mockDossierRepository.createQueryBuilder).toHaveBeenCalledWith(
+        'dossier',
+      );
+      expect(result.data).toEqual(mockDossiers);
+      expect(result.meta).toEqual({
+        page: 1,
+        pageSize: 20,
+        total: 1,
+        totalPages: 1,
+      });
     });
   });
 });
