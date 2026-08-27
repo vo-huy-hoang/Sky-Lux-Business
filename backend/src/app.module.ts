@@ -4,6 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import databaseConfig from './config/database.config';
 import appConfig from './config/app.config';
+import redisConfig from './config/redis.config';
+import { BullModule } from '@nestjs/bullmq';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -39,7 +41,16 @@ import { ImportsModule } from './modules/imports/imports.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, appConfig],
+      load: [databaseConfig, appConfig, redisConfig],
+    }),
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        connection: {
+          host: configService.get<string>('redis.host'),
+          port: configService.get<number>('redis.port'),
+        },
+      }),
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
