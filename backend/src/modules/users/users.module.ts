@@ -5,9 +5,10 @@ import { UsersController } from './users.controller';
 import { User } from './entities/user.entity';
 import { RefreshToken } from '../auth/entities/refresh-token.entity';
 import { Role } from '../roles/entities/role.entity';
+import { Department } from '../departments/entities/department.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, RefreshToken, Role])],
+  imports: [TypeOrmModule.forFeature([User, RefreshToken, Role, Department])],
   controllers: [UsersController],
   providers: [UsersService],
   exports: [UsersService, TypeOrmModule],

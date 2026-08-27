@@ -9,6 +9,7 @@ import {
   Patch,
   Param,
   Delete,
+  Query,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import {
@@ -21,8 +22,8 @@ import {
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { QueryUserDto } from './dto/query-user.dto';
 import { AssignRolesDto } from './dto/assign-roles.dto';
-import { Roles } from '../../common/decorators/roles.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -32,52 +33,134 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Post()
-  @RequirePermissions('user.manage')
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.create(createUserDto);
-  }
-
   @Get()
   @RequirePermissions('user.manage')
-  @ApiOperation({ summary: 'Lấy danh sách người dùng' })
-  findAll(@CurrentUser('organizationId') organizationId: string) {
-    return this.usersService.findAll(organizationId);
+  @ApiOperation({
+    summary: 'Lấy danh sách người dùng phân trang và lọc (API-USERS-001)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lấy danh sách người dùng thành công',
+  })
+  findAll(
+    @CurrentUser('organizationId') organizationId: string,
+    @Query() queryDto: QueryUserDto,
+  ) {
+    return this.usersService.findAll(organizationId, queryDto);
   }
 
   @Get(':id')
   @RequirePermissions('user.manage')
+  @ApiOperation({
+    summary: 'Lấy chi tiết người dùng theo ID (API-USERS-002)',
+  })
   @ApiParam({ name: 'id', description: 'User UUID' })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.usersService.findOne(id);
+  @ApiResponse({
+    status: 200,
+    description: 'Lấy thông tin chi tiết người dùng thành công',
+  })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy người dùng' })
+  findOne(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.usersService.findOne(organizationId, id);
+  }
+
+  @Post()
+  @RequirePermissions('user.manage')
+  @ApiOperation({ summary: 'Tạo người dùng mới (API-USERS-003)' })
+  @ApiResponse({ status: 201, description: 'Tạo người dùng thành công' })
+  @ApiResponse({
+    status: 400,
+    description: 'Dữ liệu không hợp lệ hoặc sai phòng ban/vai trò',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Email hoặc mã nhân viên đã tồn tại',
+  })
+  create(
+    @CurrentUser('organizationId') organizationId: string,
+    @Body() createUserDto: CreateUserDto,
+  ) {
+    return this.usersService.create(organizationId, createUserDto);
   }
 
   @Patch(':id')
   @RequirePermissions('user.manage')
+  @ApiOperation({
+    summary: 'Cập nhật thông tin người dùng (API-USERS-004)',
+  })
   @ApiParam({ name: 'id', description: 'User UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Cập nhật người dùng thành công',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Dữ liệu không hợp lệ hoặc sai phòng ban/vai trò',
+  })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy người dùng' })
+  @ApiResponse({
+    status: 409,
+    description: 'Email hoặc mã nhân viên bị trùng lặp',
+  })
   update(
+    @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserDto: UpdateUserDto,
   ) {
-    return this.usersService.update(id, updateUserDto);
-  }
-
-  @Delete(':id')
-  @RequirePermissions('user.manage')
-  @ApiParam({ name: 'id', description: 'User UUID' })
-  remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.usersService.remove(id);
+    return this.usersService.update(organizationId, id, updateUserDto);
   }
 
   @Post(':id/lock')
-  @Roles('SUPER_ADMIN', 'CEO_ADMIN')
+  @RequirePermissions('user.manage')
   @ApiOperation({
     summary:
       'Khóa tài khoản người dùng và thu hồi mọi phiên đăng nhập (API-USERS-005)',
   })
   @ApiParam({ name: 'id', description: 'User UUID' })
-  lock(@Param('id', ParseUUIDPipe) id: string) {
-    return this.usersService.lockUser(id);
+  @ApiResponse({
+    status: 200,
+    description: 'Khóa tài khoản người dùng thành công',
+  })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy người dùng' })
+  lock(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.usersService.lockUser(organizationId, id);
+  }
+
+  @Post(':id/unlock')
+  @RequirePermissions('user.manage')
+  @ApiOperation({
+    summary: 'Mở khóa tài khoản người dùng (API-USERS-006)',
+  })
+  @ApiParam({ name: 'id', description: 'User UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Mở khóa tài khoản người dùng thành công',
+  })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy người dùng' })
+  unlock(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.usersService.unlockUser(organizationId, id);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('user.manage')
+  @ApiOperation({ summary: 'Xóa người dùng (API-USERS-007)' })
+  @ApiParam({ name: 'id', description: 'User UUID' })
+  @ApiResponse({ status: 200, description: 'Xóa người dùng thành công' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy người dùng' })
+  remove(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.usersService.remove(organizationId, id);
   }
 
   @Put(':id/roles')
