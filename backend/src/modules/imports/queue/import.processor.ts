@@ -142,7 +142,8 @@ export class ImportProcessor extends WorkerHost {
     const customerNameKey = mapping.customerNameColumn || 'Tên khách hàng';
     const phoneKey = mapping.phoneColumn || 'Số điện thoại';
     const emailKey = mapping.emailColumn || 'Email';
-    const dobKey = mapping.dobColumn || mapping.birthDateColumn || 'Ngày sinh nhật';
+    const dobKey =
+      mapping.dobColumn || mapping.birthDateColumn || 'Ngày sinh nhật';
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const phoneRegex = /^[0-9+\s().-]{8,20}$/;
@@ -160,16 +161,22 @@ export class ImportProcessor extends WorkerHost {
 
       // Additional customer info fields if present in Excel
       const customerName = String(
-        data[customerNameKey] !== undefined ? data[customerNameKey] : data['Tên khách hàng'] || '',
+        data[customerNameKey] !== undefined
+          ? data[customerNameKey]
+          : data['Tên khách hàng'] || '',
       ).trim();
       const phone = String(
-        data[phoneKey] !== undefined ? data[phoneKey] : data['Số điện thoại'] || data['Số ĐT'] || '',
+        data[phoneKey] !== undefined
+          ? data[phoneKey]
+          : data['Số điện thoại'] || data['Số ĐT'] || '',
       ).trim();
       const email = String(
         data[emailKey] !== undefined ? data[emailKey] : data['Email'] || '',
       ).trim();
       const dob = String(
-        data[dobKey] !== undefined ? data[dobKey] : data['Ngày sinh nhật'] || data['Ngày sinh'] || '',
+        data[dobKey] !== undefined
+          ? data[dobKey]
+          : data['Ngày sinh nhật'] || data['Ngày sinh'] || '',
       ).trim();
 
       if (!code) {
