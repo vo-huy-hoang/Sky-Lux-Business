@@ -15,6 +15,7 @@ import { MarketType } from '../../master-data/entities/market-type.entity';
 import { User } from '../../users/entities/user.entity';
 import { DossierPassenger } from './dossier-passenger.entity';
 import { Estimate } from '../../estimates/entities/estimate.entity';
+import { Conversation } from '../../chat/entities/conversation.entity';
 import { DossierStatus, PriorityLevel } from '../../../common/enums';
 
 @Entity('dossiers')
@@ -119,4 +120,7 @@ export class Dossier extends BaseEntity {
 
   @OneToMany(() => Estimate, (estimate) => estimate.dossier)
   estimates: Estimate[];
+
+  @OneToMany(() => Conversation, (conversation) => conversation.dossier)
+  conversations: Conversation[];
 }
