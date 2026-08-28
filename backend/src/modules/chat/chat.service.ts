@@ -16,7 +16,12 @@ import { CurrentUserPayload } from '../../common/decorators/current-user.decorat
 
 @Injectable()
 export class ChatService {
-  private readonly message$ = new Subject<Message>();
+  private readonly chatEvent$ = new Subject<{
+    type: 'message.created' | 'message.deleted';
+    organizationId: string;
+    conversationId: string;
+    data: any;
+  }>();
 
   constructor(
     @InjectRepository(Conversation)
@@ -65,36 +70,17 @@ export class ChatService {
     });
 
     if (!conversation) {
-      throw new NotFoundException(
-        `Không tìm thấy cuộc hội thoại với ID "${id}"`,
-      );
+      throw new NotFoundException('Không tìm thấy cuộc hội thoại');
     }
 
     const isMember = conversation.members.some((m) => m.userId === user.id);
     if (!isMember) {
       throw new ForbiddenException(
-        'Bạn không có quyền tham gia cuộc hội thoại này',
+        'Bạn không phải thành viên cuộc hội thoại này',
       );
     }
 
     return conversation;
-  }
-
-  /**
-   * Lấy lịch sử tin nhắn của cuộc hội thoại
-   */
-  async findMessages(
-    user: CurrentUserPayload,
-    conversationId: string,
-  ): Promise<Message[]> {
-    // Xác thực quyền truy cập hội thoại trước
-    await this.findConversation(user, conversationId);
-
-    return this.messageRepository.find({
-      where: { conversationId, organizationId: user.organizationId },
-      relations: { sender: true },
-      order: { createdAt: 'ASC' },
-    });
   }
 
   /**
@@ -111,40 +97,79 @@ export class ChatService {
       dossierId: dto.dossierId,
     });
 
-    const savedConv = await this.conversationRepository.save(conversation);
+    const savedConversation =
+      await this.conversationRepository.save(conversation);
 
-    // Gom nhóm danh sách thành viên (người tạo luôn luôn được thêm vào)
-    const memberUserIds = Array.from(new Set([user.id, ...dto.userIds]));
-
-    const members = memberUserIds.map((uid) =>
+    // Thêm các thành viên vào cuộc hội thoại
+    const members = dto.userIds.map((userId) =>
       this.memberRepository.create({
         organizationId: user.organizationId,
-        conversationId: savedConv.id,
-        userId: uid,
+        conversationId: savedConversation.id,
+        userId,
       }),
     );
 
+    // Luôn thêm chính người tạo phòng vào hội thoại nếu chưa có
+    if (!dto.userIds.includes(user.id)) {
+      members.push(
+        this.memberRepository.create({
+          organizationId: user.organizationId,
+          conversationId: savedConversation.id,
+          userId: user.id,
+        }),
+      );
+    }
+
     await this.memberRepository.save(members);
 
-    return this.findConversation(user, savedConv.id);
+    const result = await this.findConversation(user, savedConversation.id);
+    return result;
   }
 
   /**
-   * Lấy cuộc hội thoại gắn với hồ sơ tour
+   * Lấy hội thoại liên kết với Dossier
    */
   async findDossierConversation(
     user: CurrentUserPayload,
     dossierId: string,
   ): Promise<Conversation | null> {
-    return this.conversationRepository
-      .createQueryBuilder('conversation')
-      .leftJoinAndSelect('conversation.members', 'member')
-      .leftJoinAndSelect('member.user', 'user')
-      .where('conversation.dossierId = :dossierId', { dossierId })
-      .andWhere('conversation.organizationId = :organizationId', {
-        organizationId: user.organizationId,
-      })
-      .getOne();
+    const conversation = await this.conversationRepository.findOne({
+      where: { dossierId, organizationId: user.organizationId },
+      relations: {
+        members: { user: true },
+        dossier: true,
+      },
+    });
+
+    if (!conversation) {
+      return null;
+    }
+
+    const isMember = conversation.members.some((m) => m.userId === user.id);
+    if (!isMember) {
+      throw new ForbiddenException(
+        'Bạn không phải thành viên cuộc hội thoại này',
+      );
+    }
+
+    return conversation;
+  }
+
+  /**
+   * Lấy danh sách tin nhắn của một cuộc hội thoại
+   */
+  async findMessages(
+    user: CurrentUserPayload,
+    conversationId: string,
+  ): Promise<Message[]> {
+    // Xác thực quyền truy cập hội thoại trước
+    await this.findConversation(user, conversationId);
+
+    return this.messageRepository.find({
+      where: { conversationId, organizationId: user.organizationId },
+      relations: { sender: true },
+      order: { createdAt: 'ASC' },
+    });
   }
 
   /**
@@ -182,24 +207,60 @@ export class ChatService {
     }
 
     // Đẩy sự kiện tin nhắn mới vào luồng SSE
-    this.message$.next(fullMessage);
+    this.chatEvent$.next({
+      type: 'message.created',
+      organizationId: fullMessage.organizationId,
+      conversationId: fullMessage.conversationId,
+      data: fullMessage,
+    });
 
     return fullMessage;
+  }
+
+  /**
+   * Xóa/Thu hồi tin nhắn
+   */
+  async deleteMessage(user: CurrentUserPayload, id: string): Promise<void> {
+    const message = await this.messageRepository.findOne({
+      where: { id, organizationId: user.organizationId },
+    });
+
+    if (!message) {
+      throw new NotFoundException('Không tìm thấy tin nhắn');
+    }
+
+    // Kiểm tra quyền: Chỉ người gửi mới được xóa tin nhắn của chính mình
+    if (message.senderId !== user.id) {
+      throw new ForbiddenException('Bạn không có quyền xóa tin nhắn này');
+    }
+
+    await this.messageRepository.delete(id);
+
+    // Đẩy sự kiện xóa tin nhắn vào luồng SSE
+    this.chatEvent$.next({
+      type: 'message.deleted',
+      organizationId: message.organizationId,
+      conversationId: message.conversationId,
+      data: { id: message.id, conversationId: message.conversationId },
+    });
   }
 
   /**
    * Đăng ký luồng tin nhắn thời gian thực cho một User cụ thể
    */
   getMessagesStream(user: CurrentUserPayload): Observable<MessageEvent> {
-    return this.message$.asObservable().pipe(
-      filter((msg) => msg.organizationId === user.organizationId),
-      mergeMap(async (msg) => {
-        const isMember = await this.isMember(user.id, msg.conversationId);
-        return { msg, isMember };
+    return this.chatEvent$.asObservable().pipe(
+      filter((evt) => evt.organizationId === user.organizationId),
+      mergeMap(async (evt) => {
+        const isMember = await this.isMember(user.id, evt.conversationId);
+        return { evt, isMember };
       }),
       filter(({ isMember }) => isMember),
-      map(({ msg }) => ({
-        data: msg,
+      map(({ evt }) => ({
+        data: {
+          type: evt.type,
+          payload: evt.data,
+        },
       })),
     );
   }

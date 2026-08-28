@@ -27,6 +27,7 @@ describe('ChatController', () => {
     findConversation: jest.fn().mockResolvedValue({ id: 'conv-1' }),
     findMessages: jest.fn().mockResolvedValue([]),
     sendMessage: jest.fn().mockResolvedValue({ id: 'msg-1' }),
+    deleteMessage: jest.fn().mockResolvedValue(undefined),
     findDossierConversation: jest.fn().mockResolvedValue(null),
     getMessagesStream: jest.fn().mockReturnValue({ pipe: jest.fn() }),
   };
@@ -95,6 +96,13 @@ describe('ChatController', () => {
         'conv-1',
         'hello',
       );
+    });
+  });
+
+  describe('deleteMessage', () => {
+    it('should call chatService.deleteMessage', async () => {
+      await controller.deleteMessage(mockUser, 'msg-1');
+      expect(service.deleteMessage).toHaveBeenCalledWith(mockUser, 'msg-1');
     });
   });
 
