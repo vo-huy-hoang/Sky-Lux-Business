@@ -38,6 +38,7 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { ImportsModule } from './modules/imports/imports.module';
 import { DashboardsModule } from './modules/dashboards/dashboards.module';
 import { HealthModule } from './modules/health/health.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -81,6 +82,7 @@ import { HealthModule } from './modules/health/health.module';
     ImportsModule,
     DashboardsModule,
     HealthModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [
