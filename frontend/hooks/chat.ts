@@ -2,7 +2,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import Cookies from 'js-cookie';
 import { chatService } from '@/services/chat.service';
-import { CreateConversationPayload, Message, ChatEvent } from '@/types/chat';
+import {
+  CreateConversationPayload,
+  Message,
+  ChatEvent,
+  ConversationMember,
+  AddParticipantsPayload,
+  MarkReadPayload,
+} from '@/types/chat';
 
 const appendMessageToCache = (newMessage: Message) => (old?: Message[]) => {
   if (!old) return [newMessage];
@@ -133,6 +140,47 @@ export const useChatRealtime = (conversationId?: string) => {
               removeMessageFromCache(id),
             );
           }
+        } else if (chatEvent.type === 'member.joined') {
+          const { conversationId: joinedConvId, member } = chatEvent.payload;
+          // Thêm thành viên mới vào danh sách cache nếu thuộc cuộc hội thoại đang xem
+          if (joinedConvId === conversationId) {
+            queryClient.setQueryData<ConversationMember[]>(
+              ['conversation-participants', conversationId],
+              (old) => {
+                if (!old) return [member];
+                if (old.some((m) => m.id === member.id)) return old;
+                return [...old, member];
+              },
+            );
+          }
+        } else if (chatEvent.type === 'member.left') {
+          const { conversationId: leftConvId, userId } = chatEvent.payload;
+          // Xóa thành viên khỏi danh sách cache nếu thuộc cuộc hội thoại đang xem
+          if (leftConvId === conversationId) {
+            queryClient.setQueryData<ConversationMember[]>(
+              ['conversation-participants', conversationId],
+              (old) => {
+                if (!old) return [];
+                return old.filter((m) => m.userId !== userId);
+              },
+            );
+          }
+        } else if (chatEvent.type === 'message.read') {
+          const { conversationId: readConvId, userId, messageId, readAt } = chatEvent.payload;
+          // Cập nhật trạng thái đã đọc của thành viên trong cache nếu thuộc cuộc hội thoại đang xem
+          if (readConvId === conversationId) {
+            queryClient.setQueryData<ConversationMember[]>(
+              ['conversation-participants', conversationId],
+              (old) => {
+                if (!old) return [];
+                return old.map((m) =>
+                  m.userId === userId
+                    ? { ...m, lastReadMessageId: messageId, lastReadAt: readAt }
+                    : m,
+                );
+              },
+            );
+          }
         }
 
         // Invalidate danh sách để float hội thoại có hoạt động mới lên trên cùng
@@ -150,4 +198,63 @@ export const useChatRealtime = (conversationId?: string) => {
       eventSource.close();
     };
   }, [conversationId, queryClient]);
+};
+
+/**
+ * Hook lấy danh sách thành viên trong cuộc hội thoại
+ */
+export const useConversationParticipants = (conversationId: string) => {
+  return useQuery({
+    queryKey: ['conversation-participants', conversationId],
+    queryFn: () => chatService.getParticipants(conversationId),
+    enabled: !!conversationId,
+  });
+};
+
+/**
+ * Hook đánh dấu đã đọc tin nhắn trong cuộc hội thoại
+ */
+export const useMarkMessageRead = (conversationId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload?: MarkReadPayload) =>
+      chatService.markAsRead(conversationId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['conversation-participants', conversationId],
+      });
+    },
+  });
+};
+
+/**
+ * Hook thêm thành viên vào cuộc hội thoại nhóm
+ */
+export const useAddParticipants = (conversationId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: AddParticipantsPayload) =>
+      chatService.addParticipants(conversationId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['conversation-participants', conversationId],
+      });
+    },
+  });
+};
+
+/**
+ * Hook xóa thành viên hoặc rời khỏi cuộc hội thoại nhóm
+ */
+export const useRemoveParticipant = (conversationId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) =>
+      chatService.removeParticipant(conversationId, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['conversation-participants', conversationId],
+      });
+    },
+  });
 };
