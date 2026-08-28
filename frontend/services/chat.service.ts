@@ -47,4 +47,11 @@ export const chatService = {
   getDossierConversation: (dossierId: string) => {
     return apiClient.get<any, Conversation | null>(`/dossiers/${dossierId}/conversation`);
   },
+
+  /**
+   * Xóa/Thu hồi tin nhắn
+   */
+  deleteMessage: (messageId: string) => {
+    return apiClient.delete<any, void>(`/messages/${messageId}`);
+  },
 };

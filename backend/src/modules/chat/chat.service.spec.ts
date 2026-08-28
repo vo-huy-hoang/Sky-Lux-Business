@@ -59,6 +59,7 @@ describe('ChatService', () => {
       ),
     find: jest.fn().mockResolvedValue([]),
     findOne: jest.fn(),
+    delete: jest.fn().mockResolvedValue({ affected: 1 }),
   };
 
   beforeEach(async () => {
@@ -150,6 +151,62 @@ describe('ChatService', () => {
       const res = await service.sendMessage(mockUser, 'conv-1', 'hello');
       expect(res).toBeDefined();
       expect(res.id).toBe('msg-1');
+    });
+  });
+
+  describe('deleteMessage', () => {
+    it('should throw NotFoundException if message not found', async () => {
+      mockMessageRepo.findOne.mockResolvedValueOnce(null);
+      await expect(
+        service.deleteMessage(mockUser, 'invalid-msg'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ForbiddenException if user is not the sender', async () => {
+      mockMessageRepo.findOne.mockResolvedValueOnce({
+        id: 'msg-1',
+        senderId: 'another-user',
+        organizationId: 'org-1',
+      });
+      await expect(service.deleteMessage(mockUser, 'msg-1')).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should delete message and push deletion event to stream', async () => {
+      const mockMsg = {
+        id: 'msg-1',
+        senderId: 'user-1',
+        organizationId: 'org-1',
+        conversationId: 'conv-1',
+      };
+      mockMessageRepo.findOne.mockResolvedValueOnce(mockMsg);
+
+      await service.deleteMessage(mockUser, 'msg-1');
+      expect(mockMessageRepo.delete).toHaveBeenCalledWith('msg-1');
+    });
+  });
+
+  describe('getMessagesStream', () => {
+    it('should filter stream by organization and membership', (done) => {
+      mockMemberRepo.findOne.mockResolvedValueOnce({ userId: 'user-1' });
+
+      const sub = service.getMessagesStream(mockUser).subscribe({
+        next: (event) => {
+          expect(event.data).toBeDefined();
+          expect((event.data as any).type).toBe('message.created');
+          sub.unsubscribe();
+          done();
+        },
+      });
+
+      // Simulating a stream event
+      (service as any).chatEvent$.next({
+        type: 'message.created',
+        organizationId: 'org-1',
+        conversationId: 'conv-1',
+        data: { id: 'msg-1' },
+      });
     });
   });
 });

@@ -44,3 +44,8 @@ export interface CreateConversationPayload {
 export interface SendMessagePayload {
   content: string;
 }
+
+export interface ChatEvent {
+  type: 'message.created' | 'message.deleted';
+  payload: any;
+}

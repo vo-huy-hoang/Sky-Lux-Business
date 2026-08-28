@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Param,
   ParseUUIDPipe,
@@ -86,6 +87,17 @@ export class ChatController {
     @Body() dto: SendMessageDto,
   ): Promise<Message> {
     return this.chatService.sendMessage(user, id, dto.content);
+  }
+
+  @Delete('messages/:id')
+  @ApiOperation({ summary: 'Xóa/Thu hồi tin nhắn' })
+  @ApiParam({ name: 'id', description: 'ID tin nhắn (UUID)' })
+  @ApiResponse({ status: 200, description: 'Xóa tin nhắn thành công' })
+  deleteMessage(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    return this.chatService.deleteMessage(user, id);
   }
 
   @Get('dossiers/:dossierId/conversation')
