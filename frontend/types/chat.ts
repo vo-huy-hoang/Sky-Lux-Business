@@ -11,6 +11,9 @@ export interface ConversationMember {
   userId: string;
   joinedAt: string;
   user: ChatUser;
+  lastReadMessageId?: string;
+  lastReadAt?: string;
+  role: 'ADMIN' | 'MEMBER';
 }
 
 export interface Conversation {
@@ -45,7 +48,20 @@ export interface SendMessagePayload {
   content: string;
 }
 
+export interface AddParticipantsPayload {
+  userIds: string[];
+}
+
+export interface MarkReadPayload {
+  messageId?: string;
+}
+
 export interface ChatEvent {
-  type: 'message.created' | 'message.deleted';
+  type:
+    | 'message.created'
+    | 'message.deleted'
+    | 'message.read'
+    | 'member.joined'
+    | 'member.left';
   payload: any;
 }

@@ -3,6 +3,9 @@ import {
   Conversation,
   Message,
   CreateConversationPayload,
+  ConversationMember,
+  AddParticipantsPayload,
+  MarkReadPayload,
 } from '@/types/chat';
 
 export const chatService = {
@@ -53,5 +56,33 @@ export const chatService = {
    */
   deleteMessage: (messageId: string) => {
     return apiClient.delete<any, void>(`/messages/${messageId}`);
+  },
+
+  /**
+   * Đánh dấu đã đọc tin nhắn (API-PARTICIPANT-001)
+   */
+  markAsRead: (conversationId: string, payload?: MarkReadPayload) => {
+    return apiClient.post<any, any>(`/conversations/${conversationId}/read`, payload || {});
+  },
+
+  /**
+   * Lấy danh sách thành viên trong cuộc hội thoại (API-PARTICIPANT-002)
+   */
+  getParticipants: (conversationId: string) => {
+    return apiClient.get<any, ConversationMember[]>(`/conversations/${conversationId}/participants`);
+  },
+
+  /**
+   * Thêm thành viên vào cuộc hội thoại (API-PARTICIPANT-003)
+   */
+  addParticipants: (conversationId: string, payload: AddParticipantsPayload) => {
+    return apiClient.post<any, any>(`/conversations/${conversationId}/participants`, payload);
+  },
+
+  /**
+   * Xóa thành viên khỏi cuộc hội thoại (API-PARTICIPANT-004)
+   */
+  removeParticipant: (conversationId: string, userId: string) => {
+    return apiClient.delete<any, any>(`/conversations/${conversationId}/participants/${userId}`);
   },
 };

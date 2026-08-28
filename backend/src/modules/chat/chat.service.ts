@@ -14,10 +14,18 @@ import { Message } from './entities/message.entity';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
+import { AddParticipantsDto } from './dto/add-participants.dto';
+import { MarkReadDto } from './dto/mark-read.dto';
+
 @Injectable()
 export class ChatService {
   private readonly chatEvent$ = new Subject<{
-    type: 'message.created' | 'message.deleted';
+    type:
+      | 'message.created'
+      | 'message.deleted'
+      | 'message.read'
+      | 'member.joined'
+      | 'member.left';
     organizationId: string;
     conversationId: string;
     data: any;
@@ -41,7 +49,7 @@ export class ChatService {
       .innerJoin(
         'conversation.members',
         'm',
-        'm.user_id = :userId AND m.organization_id = :organizationId',
+        'm.userId = :userId AND m.organizationId = :organizationId',
         { userId: user.id, organizationId: user.organizationId },
       )
       .leftJoinAndSelect('conversation.members', 'member')
@@ -263,6 +271,205 @@ export class ChatService {
         },
       })),
     );
+  }
+
+  /**
+   * Đánh dấu đã đọc tin nhắn
+   */
+  async markAsRead(
+    conversationId: string,
+    payload: MarkReadDto,
+    user: CurrentUserPayload,
+  ): Promise<any> {
+    const member = await this.memberRepository.findOne({
+      where: { userId: user.id, conversationId },
+    });
+    if (!member) {
+      throw new ForbiddenException(
+        'Bạn không phải là thành viên hội thoại này',
+      );
+    }
+
+    let lastReadMessageId = payload.messageId;
+    if (!lastReadMessageId) {
+      // Tìm tin nhắn mới nhất trong cuộc trò chuyện
+      const latestMessage = await this.messageRepository.findOne({
+        where: { conversationId },
+        order: { createdAt: 'DESC' },
+      });
+      if (latestMessage) {
+        lastReadMessageId = latestMessage.id;
+      }
+    }
+
+    member.lastReadMessageId = lastReadMessageId;
+    member.lastReadAt = new Date();
+    await this.memberRepository.save(member);
+
+    // Phát sự kiện SSE
+    if (lastReadMessageId) {
+      this.chatEvent$.next({
+        type: 'message.read',
+        organizationId: user.organizationId,
+        conversationId,
+        data: {
+          conversationId,
+          userId: user.id,
+          messageId: lastReadMessageId,
+          readAt: member.lastReadAt,
+        },
+      });
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * Lấy danh sách thành viên trong cuộc hội thoại
+   */
+  async getParticipants(
+    conversationId: string,
+    user: CurrentUserPayload,
+  ): Promise<ConversationMember[]> {
+    const isMember = await this.isMember(user.id, conversationId);
+    if (!isMember) {
+      throw new ForbiddenException('Bạn không có quyền truy cập hội thoại này');
+    }
+
+    return this.memberRepository.find({
+      where: { conversationId },
+      relations: { user: true },
+      order: { joinedAt: 'ASC' },
+    });
+  }
+
+  /**
+   * Thêm thành viên vào cuộc hội thoại
+   */
+  async addParticipants(
+    conversationId: string,
+    payload: AddParticipantsDto,
+    user: CurrentUserPayload,
+  ): Promise<any> {
+    const isMember = await this.isMember(user.id, conversationId);
+    if (!isMember) {
+      throw new ForbiddenException('Bạn không có quyền truy cập hội thoại này');
+    }
+
+    const conversation = await this.conversationRepository.findOne({
+      where: { id: conversationId },
+    });
+    if (!conversation) {
+      throw new NotFoundException('Không tìm thấy cuộc hội thoại');
+    }
+
+    if (!conversation.isGroup) {
+      throw new ForbiddenException(
+        'Không thể thêm thành viên vào cuộc hội thoại cá nhân. Hãy tạo nhóm chat mới.',
+      );
+    }
+
+    const addedMembers: ConversationMember[] = [];
+    for (const memberId of payload.userIds) {
+      // Kiểm tra xem đã là thành viên chưa
+      const existing = await this.memberRepository.findOne({
+        where: { userId: memberId, conversationId },
+      });
+      if (!existing) {
+        const newMember = this.memberRepository.create({
+          organizationId: user.organizationId,
+          conversationId,
+          userId: memberId,
+          role: 'MEMBER',
+        });
+        const saved = await this.memberRepository.save(newMember);
+        // Load relation user
+        const memberWithUser = await this.memberRepository.findOne({
+          where: { id: saved.id },
+          relations: { user: true },
+        });
+        if (memberWithUser) {
+          addedMembers.push(memberWithUser);
+        }
+      }
+    }
+
+    // Gửi sự kiện SSE cho mỗi thành viên mới gia nhập
+    for (const member of addedMembers) {
+      this.chatEvent$.next({
+        type: 'member.joined',
+        organizationId: user.organizationId,
+        conversationId,
+        data: {
+          conversationId,
+          member,
+        },
+      });
+    }
+
+    return { success: true, addedCount: addedMembers.length };
+  }
+
+  /**
+   * Xóa hoặc rời khỏi cuộc hội thoại
+   */
+  async removeParticipant(
+    conversationId: string,
+    participantUserId: string,
+    user: CurrentUserPayload,
+  ): Promise<any> {
+    const conversation = await this.conversationRepository.findOne({
+      where: { id: conversationId },
+    });
+    if (!conversation) {
+      throw new NotFoundException('Không tìm thấy cuộc hội thoại');
+    }
+
+    // Lấy thông tin thành viên của người gửi yêu cầu
+    const requesterMember = await this.memberRepository.findOne({
+      where: { userId: user.id, conversationId },
+    });
+    if (!requesterMember) {
+      throw new ForbiddenException(
+        'Bạn không phải là thành viên hội thoại này',
+      );
+    }
+
+    const isSelfLeaving = participantUserId === user.id;
+    // Lấy thông tin thành viên cần xóa (nếu tự rời thì dùng luôn thông tin requester)
+    const targetMember = isSelfLeaving
+      ? requesterMember
+      : await this.memberRepository.findOne({
+          where: { userId: participantUserId, conversationId },
+        });
+    if (!targetMember) {
+      throw new NotFoundException(
+        'Không tìm thấy thành viên này trong hội thoại',
+      );
+    }
+    const isRequesterAdmin = requesterMember.role === 'ADMIN';
+    const isRequesterCreator = conversation.createdBy === user.id;
+
+    if (!isSelfLeaving && !isRequesterAdmin && !isRequesterCreator) {
+      throw new ForbiddenException(
+        'Bạn không có quyền xóa thành viên khác khỏi phòng này',
+      );
+    }
+
+    await this.memberRepository.remove(targetMember);
+
+    // Phát sự kiện SSE báo thành viên đã rời đi
+    this.chatEvent$.next({
+      type: 'member.left',
+      organizationId: user.organizationId,
+      conversationId,
+      data: {
+        conversationId,
+        userId: participantUserId,
+      },
+    });
+
+    return { success: true };
   }
 
   /**
