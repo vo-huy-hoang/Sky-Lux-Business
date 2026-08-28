@@ -24,6 +24,15 @@ export class ConversationMember {
   @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
+  @Column({ name: 'last_read_message_id', type: 'uuid', nullable: true })
+  lastReadMessageId?: string;
+
+  @Column({ name: 'last_read_at', type: 'timestamptz', nullable: true })
+  lastReadAt?: Date;
+
+  @Column({ type: 'varchar', length: 30, default: 'MEMBER' })
+  role: 'ADMIN' | 'MEMBER';
+
   @CreateDateColumn({
     name: 'joined_at',
     type: 'timestamptz',

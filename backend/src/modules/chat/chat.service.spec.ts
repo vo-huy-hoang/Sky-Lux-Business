@@ -48,6 +48,8 @@ describe('ChatService', () => {
     create: jest.fn().mockImplementation((dto) => dto),
     save: jest.fn().mockImplementation((entity) => Promise.resolve(entity)),
     findOne: jest.fn(),
+    find: jest.fn(),
+    remove: jest.fn(),
   };
 
   const mockMessageRepo = {
@@ -207,6 +209,162 @@ describe('ChatService', () => {
         conversationId: 'conv-1',
         data: { id: 'msg-1' },
       });
+    });
+  });
+
+  describe('markAsRead', () => {
+    it('should throw ForbiddenException if user is not a member', async () => {
+      mockMemberRepo.findOne.mockResolvedValueOnce(null);
+      await expect(
+        service.markAsRead('conv-1', { messageId: 'msg-1' }, mockUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should successfully save read state and trigger SSE event', async () => {
+      const mockMember = { userId: 'user-1', conversationId: 'conv-1' };
+      mockMemberRepo.findOne.mockResolvedValueOnce(mockMember);
+
+      const res = await service.markAsRead(
+        'conv-1',
+        { messageId: 'msg-1' },
+        mockUser,
+      );
+      expect(res).toEqual({ success: true });
+      expect(mockMemberRepo.save).toHaveBeenCalled();
+    });
+  });
+
+  describe('getParticipants', () => {
+    it('should throw ForbiddenException if user is not a member', async () => {
+      mockMemberRepo.findOne.mockResolvedValueOnce(null);
+      await expect(service.getParticipants('conv-1', mockUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should return all participants of conversation', async () => {
+      mockMemberRepo.findOne.mockResolvedValueOnce({ userId: 'user-1' });
+      const mockParticipants = [{ userId: 'user-1' }, { userId: 'user-2' }];
+      mockMemberRepo.find.mockResolvedValueOnce(mockParticipants);
+
+      const res = await service.getParticipants('conv-1', mockUser);
+      expect(res).toEqual(mockParticipants);
+    });
+  });
+
+  describe('addParticipants', () => {
+    it('should throw ForbiddenException if requester is not a member', async () => {
+      mockMemberRepo.findOne.mockResolvedValueOnce(null);
+      await expect(
+        service.addParticipants('conv-1', { userIds: ['user-2'] }, mockUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw NotFoundException if conversation does not exist', async () => {
+      mockMemberRepo.findOne.mockResolvedValueOnce({ userId: 'user-1' });
+      mockConversationRepo.findOne.mockResolvedValueOnce(null);
+      await expect(
+        service.addParticipants('conv-1', { userIds: ['user-2'] }, mockUser),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ForbiddenException if conversation is not a group', async () => {
+      mockMemberRepo.findOne.mockResolvedValueOnce({ userId: 'user-1' });
+      mockConversationRepo.findOne.mockResolvedValueOnce({
+        id: 'conv-1',
+        isGroup: false,
+      });
+      await expect(
+        service.addParticipants('conv-1', { userIds: ['user-2'] }, mockUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should add multiple members to group chat', async () => {
+      mockMemberRepo.findOne.mockResolvedValueOnce({ userId: 'user-1' }); // for isMember check
+      mockConversationRepo.findOne.mockResolvedValueOnce({
+        id: 'conv-1',
+        isGroup: true,
+      });
+      mockMemberRepo.findOne.mockResolvedValueOnce(null); // not existing member
+      mockMemberRepo.create.mockReturnValueOnce({
+        id: 'member-2',
+        userId: 'user-2',
+      });
+      mockMemberRepo.save.mockResolvedValueOnce({
+        id: 'member-2',
+        userId: 'user-2',
+      });
+      mockMemberRepo.findOne.mockResolvedValueOnce({
+        id: 'member-2',
+        userId: 'user-2',
+        user: { fullName: 'User 2' },
+      });
+
+      const res = await service.addParticipants(
+        'conv-1',
+        { userIds: ['user-2'] },
+        mockUser,
+      );
+      expect(res.success).toBe(true);
+      expect(res.addedCount).toBe(1);
+    });
+  });
+
+  describe('removeParticipant', () => {
+    it('should throw NotFoundException if conversation does not exist', async () => {
+      mockConversationRepo.findOne.mockResolvedValueOnce(null);
+      await expect(
+        service.removeParticipant('conv-1', 'user-2', mockUser),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ForbiddenException if requester is not a member', async () => {
+      mockConversationRepo.findOne.mockResolvedValueOnce({ id: 'conv-1' });
+      mockMemberRepo.findOne.mockResolvedValueOnce(null); // requester not member
+      await expect(
+        service.removeParticipant('conv-1', 'user-2', mockUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw NotFoundException if target is not a member', async () => {
+      mockConversationRepo.findOne.mockResolvedValueOnce({ id: 'conv-1' });
+      mockMemberRepo.findOne.mockResolvedValueOnce({
+        userId: 'user-1',
+        role: 'MEMBER',
+      }); // requester
+      mockMemberRepo.findOne.mockResolvedValueOnce(null); // target not member
+      await expect(
+        service.removeParticipant('conv-1', 'user-2', mockUser),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ForbiddenException if requester has no permission to kick', async () => {
+      mockConversationRepo.findOne.mockResolvedValueOnce({
+        id: 'conv-1',
+        createdBy: 'admin',
+      });
+      mockMemberRepo.findOne.mockResolvedValueOnce({
+        userId: 'user-1',
+        role: 'MEMBER',
+      }); // requester
+      mockMemberRepo.findOne.mockResolvedValueOnce({
+        userId: 'user-2',
+        role: 'MEMBER',
+      }); // target
+      await expect(
+        service.removeParticipant('conv-1', 'user-2', mockUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should allow user to leave conversation by themselves', async () => {
+      mockConversationRepo.findOne.mockResolvedValueOnce({ id: 'conv-1' });
+      const mockMember = { userId: 'user-1', role: 'MEMBER' };
+      mockMemberRepo.findOne.mockResolvedValueOnce(mockMember); // requester (self)
+      mockMemberRepo.findOne.mockResolvedValueOnce(mockMember); // target (self)
+
+      const res = await service.removeParticipant('conv-1', 'user-1', mockUser);
+      expect(res).toEqual({ success: true });
+      expect(mockMemberRepo.remove).toHaveBeenCalledWith(mockMember);
     });
   });
 });

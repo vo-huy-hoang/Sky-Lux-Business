@@ -30,6 +30,12 @@ export class Conversation extends BaseEntity {
   @JoinColumn({ name: 'dossier_id' })
   dossier?: Dossier;
 
+  @Column({ name: 'created_by', type: 'uuid', nullable: true })
+  createdBy?: string;
+
+  @Column({ name: 'last_message_at', type: 'timestamptz', nullable: true })
+  lastMessageAt?: Date;
+
   @OneToMany(() => ConversationMember, (member) => member.conversation, {
     cascade: true,
   })

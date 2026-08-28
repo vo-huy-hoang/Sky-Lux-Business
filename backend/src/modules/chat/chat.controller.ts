@@ -23,11 +23,14 @@ import {
 import { ChatService } from './chat.service';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
+import { AddParticipantsDto } from './dto/add-participants.dto';
+import { MarkReadDto } from './dto/mark-read.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { Conversation } from './entities/conversation.entity';
 import { Message } from './entities/message.entity';
+import { ConversationMember } from './entities/conversation-member.entity';
 
 @ApiTags('Chat')
 @ApiBearerAuth('JWT-auth')
@@ -109,6 +112,71 @@ export class ChatController {
     @Param('dossierId', ParseUUIDPipe) dossierId: string,
   ): Promise<Conversation | null> {
     return this.chatService.findDossierConversation(user, dossierId);
+  }
+
+  @Post('conversations/:id/read')
+  @ApiOperation({
+    summary:
+      'Đánh dấu đã đọc tin nhắn trong cuộc hội thoại (API-PARTICIPANT-001)',
+  })
+  @ApiParam({ name: 'id', description: 'ID cuộc hội thoại (UUID)' })
+  @ApiResponse({ status: 200, description: 'Đánh dấu đã đọc thành công' })
+  markAsRead(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: MarkReadDto,
+  ): Promise<any> {
+    return this.chatService.markAsRead(id, dto, user);
+  }
+
+  @Get('conversations/:id/participants')
+  @ApiOperation({
+    summary:
+      'Lấy danh sách thành viên trong cuộc hội thoại (API-PARTICIPANT-002)',
+  })
+  @ApiParam({ name: 'id', description: 'ID cuộc hội thoại (UUID)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lấy danh sách thành viên thành công',
+  })
+  getParticipants(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ConversationMember[]> {
+    return this.chatService.getParticipants(id, user);
+  }
+
+  @Post('conversations/:id/participants')
+  @ApiOperation({
+    summary: 'Thêm thành viên vào cuộc hội thoại nhóm (API-PARTICIPANT-003)',
+  })
+  @ApiParam({ name: 'id', description: 'ID cuộc hội thoại (UUID)' })
+  @ApiResponse({ status: 200, description: 'Thêm thành viên thành công' })
+  addParticipants(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AddParticipantsDto,
+  ): Promise<any> {
+    return this.chatService.addParticipants(id, dto, user);
+  }
+
+  @Delete('conversations/:id/participants/:userId')
+  @ApiOperation({
+    summary:
+      'Xóa thành viên hoặc tự rời khỏi cuộc hội thoại (API-PARTICIPANT-004)',
+  })
+  @ApiParam({ name: 'id', description: 'ID cuộc hội thoại (UUID)' })
+  @ApiParam({ name: 'userId', description: 'ID người dùng cần xóa (UUID)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Xóa/Rời khỏi thành viên thành công',
+  })
+  removeParticipant(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+  ): Promise<any> {
+    return this.chatService.removeParticipant(id, userId, user);
   }
 
   @Sse('conversations/stream')
