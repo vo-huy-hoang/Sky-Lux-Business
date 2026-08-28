@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -12,7 +12,6 @@ import {
   Space,
   Badge,
   Button,
-  Input,
 } from 'antd';
 import {
   DashboardOutlined,
@@ -26,10 +25,10 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   MessageOutlined,
-  SearchOutlined,
   DownOutlined,
   CustomerServiceOutlined,
   TeamOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useAuthStore } from '@/lib/stores/auth-store';
@@ -53,9 +52,9 @@ function BrandLogo({ collapsed }: { collapsed: boolean }) {
         <Image
           src="/logo/logo.png"
           alt="SkyLux Travel"
-          width={178}
-          height={148}
-          className="h-[116px] w-[138px] object-contain"
+          width={180}
+          height={180}
+          className="h-[154px] w-[154px] object-contain"
           onError={() => setFailed(true)}
           unoptimized
         />
@@ -88,6 +87,46 @@ export default function MainLayout({
     router.push('/auth/login');
   };
 
+  const isOperator = user?.roles?.includes('OPERATOR');
+  const isSales = user?.roles?.includes('SALES');
+
+  const routeMeta = useMemo(() => {
+    if (pathname?.startsWith('/main/dossiers')) {
+      return {
+        title: isOperator ? 'Hồ sơ chờ xử lý' : 'Hồ sơ của tôi',
+        subtitle: isOperator ? 'Danh sách hồ sơ và dự toán cần kiểm tra điều hành' : 'Danh sách và tiến độ các hồ sơ tour của bạn',
+      };
+    }
+    if (pathname?.startsWith('/main/imports')) {
+      return {
+        title: isOperator ? 'Kiểm tra dữ liệu nhập' : 'Import dự toán Excel',
+        subtitle: isOperator ? 'Rà soát dữ liệu dự toán được nhập từ file Excel' : 'Tải lên và kiểm tra bảng tính dự toán chi phí',
+      };
+    }
+    if (pathname?.startsWith('/main/tasks')) {
+      return {
+        title: isOperator ? 'Công việc điều hành' : 'Công việc của tôi',
+        subtitle: isOperator ? 'Theo dõi và quản lý công việc xử lý hồ sơ' : 'Quản lý danh sách đầu việc cần thực hiện',
+      };
+    }
+    if (pathname?.startsWith('/main/messages')) {
+      return { title: 'Tin nhắn', subtitle: 'Trao đổi và phối hợp công việc' };
+    }
+    if (pathname?.startsWith('/main/profile')) {
+      return { title: 'Hồ sơ cá nhân', subtitle: 'Quản lý thông tin tài khoản và cài đặt' };
+    }
+    if (pathname?.startsWith('/main/customers')) {
+      return {
+        title: isOperator ? 'Khách hàng' : 'Khách hàng của tôi',
+        subtitle: 'Quản lý thông tin và lịch sử khách hàng',
+      };
+    }
+    return {
+      title: 'Bảng điều khiển',
+      subtitle: isOperator ? 'Tổng quan hoạt động điều hành' : isSales ? 'Tổng quan hoạt động kinh doanh của bạn' : 'Tổng quan hoạt động hệ thống',
+    };
+  }, [pathname, isOperator, isSales]);
+
   const menuItems: MenuProps['items'] = [
     {
       key: '/main/dashboard',
@@ -97,22 +136,22 @@ export default function MainLayout({
     {
       key: '/main/dossiers',
       icon: <FolderOpenOutlined />,
-      label: <Link href="/main/dossiers">Hồ sơ của tôi</Link>,
+      label: <Link href="/main/dossiers">{isOperator ? 'Hồ sơ chờ xử lý' : 'Hồ sơ của tôi'}</Link>,
     },
     {
       key: '/main/imports',
       icon: <FileExcelOutlined />,
-      label: <Link href="/main/imports">Import dự toán Excel</Link>,
+      label: <Link href="/main/imports">{isOperator ? 'Kiểm tra dữ liệu nhập' : 'Import dự toán Excel'}</Link>,
     },
     {
       key: '/main/customers',
       icon: <UsergroupAddOutlined />,
-      label: <Link href="/main/customers">Khách hàng của tôi</Link>,
+      label: <Link href="/main/customers">{isOperator ? 'Khách hàng' : 'Khách hàng của tôi'}</Link>,
     },
     {
       key: '/main/tasks',
       icon: <CheckSquareOutlined />,
-      label: <Link href="/main/tasks">Công việc của tôi</Link>,
+      label: <Link href="/main/tasks">{isOperator ? 'Công việc điều hành' : 'Công việc của tôi'}</Link>,
     },
     {
       key: '/main/messages',
@@ -181,9 +220,11 @@ export default function MainLayout({
     ? '/main/messages'
     : pathname?.startsWith('/main/dossiers')
     ? '/main/dossiers'
-    : pathname?.startsWith('/main/customers')
-    ? '/main/customers'
-    : pathname || '/main/dashboard';
+    : pathname?.startsWith('/main/imports')
+      ? '/main/imports'
+      : pathname?.startsWith('/main/customers')
+      ? '/main/customers'
+      : pathname || '/main/dashboard';
 
   return (
     <Layout className="min-h-[100dvh] bg-[var(--color-bg)]">
@@ -191,7 +232,7 @@ export default function MainLayout({
         trigger={null}
         collapsible
         collapsed={collapsed}
-        width={228}
+        width={238}
         collapsedWidth={isMobile ? 0 : 72}
         breakpoint="lg"
         onBreakpoint={(broken) => {
@@ -207,10 +248,10 @@ export default function MainLayout({
           top: 0,
           left: 0,
           zIndex: isMobile ? 40 : undefined,
-          backgroundColor: '#003F31',
+          backgroundColor: '#004533',
         }}
       >
-        <div className="px-4 pb-4 pt-4">
+        <div className="px-4 pb-6 pt-5">
           <BrandLogo collapsed={collapsed} />
         </div>
 
@@ -222,15 +263,15 @@ export default function MainLayout({
           style={{ background: 'transparent' }}
         />
 
-        <div className="absolute bottom-0 left-0 right-0 px-5 pb-7">
-          <div className="border-t border-white/10 pt-6 text-[#D6A51F]">
+        <div className="absolute bottom-0 left-0 right-0 px-4 pb-5">
+          <div className="skylux-sidebar-support px-4 py-4 text-[#D3A11B]">
             <div className="flex items-center gap-3">
               <CustomerServiceOutlined className="text-lg text-white" />
               {!collapsed && (
                 <div>
-                  <div className="text-sm">Cần hỗ trợ?</div>
-                  <div className="mt-1 text-sm font-semibold text-[#D6A51F]">
-                    1900 6688
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Hỗ trợ & hướng dẫn</div>
+                  <div className="mt-1 text-sm font-semibold text-white">
+                    Gọi trợ giúp nội bộ
                   </div>
                 </div>
               )}
@@ -242,7 +283,7 @@ export default function MainLayout({
       <Layout>
         <Header
           className="skylux-app-header sticky top-0 z-20 flex items-center justify-between border-b border-[var(--color-border)] px-7"
-          style={{ height: 68, backgroundColor: '#FFFFFF' }}
+          style={{ height: 78, backgroundColor: '#FFFFFF' }}
         >
           <div className="flex flex-1 items-center gap-4">
             <Button
@@ -252,20 +293,24 @@ export default function MainLayout({
               className="text-slate-600"
               aria-label={collapsed ? 'Mở menu' : 'Thu gọn menu'}
             />
-            <Input
-              prefix={<SearchOutlined className="text-slate-400" />}
-              placeholder="Tìm kiếm hồ sơ, khách hàng, công việc..."
-              suffix={<span className="text-xs font-medium text-slate-400">⌘ K</span>}
-              className="hidden h-11 max-w-[560px] rounded-lg md:flex"
-              aria-label="Tìm kiếm toàn hệ thống"
-            />
+            <div className="min-w-0">
+              <h1 className="m-0 truncate text-[25px] font-bold leading-tight text-[var(--color-text)]">{routeMeta.title}</h1>
+              <div className="mt-0.5 hidden truncate text-sm text-[var(--color-text-muted)] md:block">{routeMeta.subtitle}</div>
+            </div>
           </div>
 
-          <Space size={16}>
+          <Space size={14}>
+            <Button
+              className="skylux-date-control hidden md:inline-flex"
+              icon={<CalendarOutlined />}
+              aria-label="Ngày hiện tại"
+            >
+              {new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date())}
+            </Button>
             <Badge
-              count={5}
+              dot
               size="small"
-              offset={[-2, 4]}
+              offset={[-2, 5]}
               color="var(--color-gold)"
             >
               <Button
@@ -292,10 +337,10 @@ export default function MainLayout({
                 </Avatar>
                 <div className="hidden md:flex flex-col text-left">
                   <span className="text-sm font-semibold leading-tight text-slate-900">
-                    {user?.fullName || 'Nguyễn Thu Hà'}
+                    {user?.fullName || 'Người dùng'}
                   </span>
                   <span className="text-xs leading-tight text-slate-500">
-                    {user?.roles?.[0] || 'Sales'}
+                    {user?.roles?.[0] || 'Điều hành'}
                   </span>
                 </div>
                 <DownOutlined className="hidden text-xs text-slate-500 md:inline-block" />
@@ -304,7 +349,7 @@ export default function MainLayout({
           </Space>
         </Header>
 
-        <Content className="overflow-y-auto bg-[var(--color-bg)] px-7 py-6">
+        <Content className="skylux-content-shell overflow-y-auto bg-[var(--color-bg)]">
           <div className="mx-auto max-w-[1540px]">{children}</div>
         </Content>
       </Layout>

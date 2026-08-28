@@ -18,7 +18,6 @@ import {
 } from 'antd';
 import {
   ArrowRightOutlined,
-  ArrowUpOutlined,
   CheckCircleOutlined,
   FileDoneOutlined,
   FileExcelOutlined,
@@ -35,15 +34,18 @@ import {
   LinearScale,
   Tooltip,
   ArcElement,
+  LineElement,
+  PointElement,
 } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
-import { customersService } from '@/services/customers.service';
 import { dossiersService } from '@/services/dossiers.service';
 import { DossierItem } from '@/types/dossier';
+import { useOperatorDashboard, useSalesDashboard } from '@/hooks/dashboards';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend, LineElement, PointElement);
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const statusConfig: Record<string, { label: string; className: string; color: string }> = {
   DRAFT: { label: 'Mới nhập', className: 'skylux-status-info', color: '#2F80ED' },
@@ -84,7 +86,20 @@ function buildDailyCounts(items: DossierItem[]) {
   });
 }
 
+const taskStatusLabels: Record<string, string> = {
+  TODO: 'Cần làm',
+  IN_PROGRESS: 'Đang xử lý',
+  WAITING: 'Chờ phản hồi',
+  COMPLETED: 'Hoàn thành',
+  CANCELLED: 'Đã hủy',
+};
+
 export default function DashboardPage() {
+  const { hasRole } = useAuthStore();
+  const isOperator = hasRole('OPERATOR');
+  const isSales = hasRole('SALES');
+  const isSuperAdmin = hasRole('SUPER_ADMIN') || hasRole('CEO_ADMIN');
+
   const {
     data: dossiersData,
     isLoading: isLoadingDossiers,
@@ -95,26 +110,37 @@ export default function DashboardPage() {
   });
 
   const {
-    data: customersData,
-    isLoading: isLoadingCustomers,
-    isError: isCustomerError,
-  } = useQuery({
-    queryKey: ['dashboard-customers'],
-    queryFn: () => customersService.getCustomers({ page: 1, limit: 100 }),
-  });
+    data: operatorDashboard,
+    isLoading: isLoadingOperator,
+    isError: isOperatorError,
+  } = useOperatorDashboard(undefined, { enabled: isOperator || isSuperAdmin });
+
+  const {
+    data: salesDashboard,
+    isLoading: isLoadingSales,
+    isError: isSalesError,
+  } = useSalesDashboard(undefined, { enabled: (isSales && !isOperator) || isSuperAdmin });
 
   const dossiers = useMemo(() => dossiersData?.items || [], [dossiersData?.items]);
   const totalDossiers = dossiersData?.total || 0;
-  const totalCustomers = customersData?.total || 0;
   const processingCount = dossiers.filter((item) =>
     ['SUBMITTED', 'IN_REVIEW', 'DRAFT'].includes(item.status),
   ).length;
+  const priorityCount =
+    operatorDashboard?.priorityBreakdown?.reduce(
+      (total, item) => total + item.count,
+      0,
+    ) || 0;
   const completedCount = dossiers.filter((item) =>
     ['APPROVED', 'COMPLETED'].includes(item.status),
   ).length;
   const completionPercent = totalDossiers
     ? Math.round((completedCount / Math.max(dossiers.length, 1)) * 100)
     : 0;
+
+  const tasksBreakdown =
+    operatorDashboard?.tasksBreakdown || salesDashboard?.tasksBreakdown || [];
+  const isLoadingTasks = isOperator ? isLoadingOperator : isLoadingSales;
 
   const dailyCounts = useMemo(() => buildDailyCounts(dossiers), [dossiers]);
   const statusCounts = useMemo(() => {
@@ -229,7 +255,9 @@ export default function DashboardPage() {
     },
   ];
 
-  if (isDossierError || isCustomerError) {
+  const isDashboardError = isDossierError || (isOperator ? isOperatorError : isSales ? isSalesError : false);
+
+  if (isDashboardError) {
     return (
       <Alert
         type="error"
@@ -242,13 +270,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <Title level={1} className="skylux-page-title">
-          Bảng điều khiển Sales
-        </Title>
-        <div className="skylux-subtitle mt-1">Tổng quan hoạt động kinh doanh của bạn</div>
-      </div>
-
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} xl={6}>
           <Card className="skylux-card skylux-kpi">
@@ -257,12 +278,18 @@ export default function DashboardPage() {
                 <FolderOpenOutlined />
               </span>
               <div>
-                <Text className="text-sm text-slate-500">Tổng hồ sơ</Text>
+                <Text className="text-sm text-slate-500">
+                  {isOperator ? 'Hồ sơ đang theo dõi' : 'Tổng hồ sơ'}
+                </Text>
                 <div className="mt-1 text-[30px] font-bold leading-none text-[var(--color-primary-900)]">
-                  {isLoadingDossiers ? <Skeleton.Input active size="small" /> : totalDossiers}
+                  {isLoadingDossiers || (isOperator && isLoadingOperator) ? (
+                    <Skeleton.Input active size="small" />
+                  ) : (
+                    isOperator ? operatorDashboard?.activeDossiersCount ?? totalDossiers : totalDossiers
+                  )}
                 </div>
                 <div className="mt-3 text-xs font-medium text-[var(--color-primary-600)]">
-                  <ArrowUpOutlined /> Từ API hồ sơ
+                  {isOperator ? 'Hồ sơ cần điều hành' : 'Từ danh sách hồ sơ'}
                 </div>
               </div>
             </div>
@@ -275,12 +302,18 @@ export default function DashboardPage() {
                 <FileDoneOutlined />
               </span>
               <div>
-                <Text className="text-sm text-slate-500">Hồ sơ đang xử lý</Text>
+                <Text className="text-sm text-slate-500">
+                  {isOperator ? 'Hồ sơ cần ưu tiên' : 'Hồ sơ đang xử lý'}
+                </Text>
                 <div className="mt-1 text-[30px] font-bold leading-none text-[var(--color-primary-900)]">
-                  {isLoadingDossiers ? <Skeleton.Input active size="small" /> : processingCount}
+                  {isOperator ? (
+                    isLoadingOperator ? <Skeleton.Input active size="small" /> : priorityCount
+                  ) : (
+                    isLoadingDossiers ? <Skeleton.Input active size="small" /> : processingCount
+                  )}
                 </div>
-                <div className="mt-3 text-xs font-medium text-[var(--color-primary-600)]">
-                  Trạng thái mở
+                <div className="mt-3 text-xs font-medium text-[var(--color-warning)]">
+                  {isOperator ? 'Tổng các mức ưu tiên' : 'Trạng thái đang mở'}
                 </div>
               </div>
             </div>
@@ -293,12 +326,24 @@ export default function DashboardPage() {
                 <TeamOutlined />
               </span>
               <div>
-                <Text className="text-sm text-slate-500">Khách hàng đang chăm sóc</Text>
-                <div className="mt-1 text-[30px] font-bold leading-none text-[var(--color-primary-900)]">
-                  {isLoadingCustomers ? <Skeleton.Input active size="small" /> : totalCustomers}
+                <Text className="text-sm text-slate-500">
+                  {isOperator ? 'Công việc quá hạn' : 'Doanh thu báo giá'}
+                </Text>
+                <div className="mt-1 text-[26px] font-bold leading-none text-[var(--color-primary-900)]">
+                  {isOperator ? (
+                    isLoadingOperator ? <Skeleton.Input active size="small" /> : (operatorDashboard?.overdueTasksCount || 0)
+                  ) : (
+                    isLoadingSales ? (
+                      <Skeleton.Input active size="small" />
+                    ) : salesDashboard?.revenue ? (
+                      `${(salesDashboard.revenue / 1_000_000).toLocaleString('vi-VN')} Tr`
+                    ) : (
+                      '0 ₫'
+                    )
+                  )}
                 </div>
-                <div className="mt-3 text-xs font-medium text-[var(--color-primary-600)]">
-                  Từ API khách hàng
+                <div className={`mt-3 text-xs font-medium ${isOperator ? 'text-[var(--color-danger)]' : 'text-[var(--color-primary-600)]'}`}>
+                  {isOperator ? 'Cần được xử lý kịp thời' : 'Báo giá đã được duyệt'}
                 </div>
               </div>
             </div>
@@ -311,15 +356,15 @@ export default function DashboardPage() {
                 <CheckCircleOutlined />
               </span>
               <div className="min-w-0 flex-1">
-                <Text className="text-sm text-slate-500">% hồ sơ hoàn tất</Text>
+                <Text className="text-sm text-slate-500">Tỷ lệ hoàn tất</Text>
                 <div className="mt-1 text-[30px] font-bold leading-none text-[var(--color-primary-900)]">
                   {isLoadingDossiers ? <Skeleton.Input active size="small" /> : `${completionPercent}%`}
                 </div>
                 <Progress
-                  percent={completionPercent}
+                  percent={Math.min(completionPercent, 100)}
                   showInfo={false}
-                  strokeColor="#D6A51F"
-                  railColor="#E8E8E8"
+                  strokeColor="#0B7A5B"
+                  railColor="#E5E8E6"
                   className="mt-3"
                 />
               </div>
@@ -332,7 +377,7 @@ export default function DashboardPage() {
         <Col xs={24} xl={14}>
           <Card
             className="skylux-card h-full"
-            title={<span className="font-bold text-slate-900">Hồ sơ tạo trong 14 ngày</span>}
+            title={<span className="font-bold text-slate-900">Hồ sơ tạo theo ngày</span>}
           >
             <div className="h-[288px]">
               {isLoadingDossiers ? (
@@ -397,12 +442,22 @@ export default function DashboardPage() {
         <Col xs={24} md={12} xl={5}>
           <Card
             className="skylux-card h-full"
-            title={<span className="font-bold text-slate-900">Việc cần làm hôm nay</span>}
+            title={<span className="font-bold text-slate-900">Tình trạng công việc</span>}
           >
-            <Empty
-              description="Chưa có API công việc cho dashboard"
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-            />
+            {isLoadingTasks ? (
+              <Skeleton active paragraph={{ rows: 6 }} />
+            ) : tasksBreakdown.length ? (
+              <div className="space-y-3 pt-1">
+                {tasksBreakdown.map((item) => (
+                  <div key={item.status} className="flex items-center justify-between border-b border-[var(--color-divider)] pb-3 last:border-b-0">
+                    <span className="text-sm text-[var(--color-text-muted)]">{taskStatusLabels[item.status] || item.status}</span>
+                    <span className="text-base font-bold tabular-nums text-[var(--color-primary-900)]">{item.count}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Empty description="Chưa có dữ liệu công việc từ API" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            )}
           </Card>
         </Col>
       </Row>

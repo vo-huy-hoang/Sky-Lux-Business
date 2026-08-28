@@ -235,6 +235,7 @@ export async function runInitialSeed(dataSource: DataSource) {
   const roleSpecificPerms: Record<string, { codes: string[]; scope: RoleScope }> = {
     SALES: {
       codes: [
+        'dashboard.sales',
         'dossier.view.own',
         'dossier.view.team',
         'dossier.create',
@@ -254,6 +255,7 @@ export async function runInitialSeed(dataSource: DataSource) {
     },
     OPERATOR: {
       codes: [
+        'dashboard.operator',
         'dossier.view.all',
         'dossier.view.team',
         'dossier.update',
