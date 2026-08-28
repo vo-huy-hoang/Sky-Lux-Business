@@ -231,29 +231,153 @@ export async function runInitialSeed(dataSource: DataSource) {
     }
   }
 
-  // 6. Super Admin User
-  const adminEmail = 'admin@skylux.vn';
-  let adminUser = await userRepo.findOne({ where: { email: adminEmail } });
-  if (!adminUser) {
-    const passwordHash = await bcrypt.hash('Admin@123456', 10);
-    adminUser = await userRepo.save(
-      userRepo.create({
-        organizationId: org.id,
-        departmentId: deptMap['BOD'].id,
-        employeeCode: 'EMP001',
-        fullName: 'Super Administrator',
-        email: adminEmail,
-        phone: '0901234567',
-        passwordHash,
-        status: UserStatus.ACTIVE,
-        roles: [roleMap['SUPER_ADMIN'], roleMap['CEO_ADMIN']],
-      }),
-    );
-    console.log(
-      '  ✅ Created SuperAdmin user:',
-      adminEmail,
-      '(Password: Admin@123456)',
-    );
+  // Assign specific permissions to SALES, OPERATOR, ACCOUNTANT
+  const roleSpecificPerms: Record<string, { codes: string[]; scope: RoleScope }> = {
+    SALES: {
+      codes: [
+        'dossier.view.own',
+        'dossier.view.team',
+        'dossier.create',
+        'dossier.update',
+        'dossier.submit',
+        'estimate.create',
+        'estimate.update',
+        'estimate.view',
+        'customer.manage',
+        'supplier.manage',
+        'task.manage',
+        'chat.access',
+        'master_data.view',
+        'kpi.manage',
+      ],
+      scope: RoleScope.ALL,
+    },
+    OPERATOR: {
+      codes: [
+        'dossier.view.all',
+        'dossier.view.team',
+        'dossier.update',
+        'estimate.view',
+        'estimate.update',
+        'supplier.manage',
+        'task.manage',
+        'chat.access',
+        'master_data.view',
+      ],
+      scope: RoleScope.ALL,
+    },
+    ACCOUNTANT: {
+      codes: [
+        'dossier.view.all',
+        'estimate.view',
+        'finance.view',
+        'finance.manage',
+        'report.view',
+        'report.export',
+        'task.manage',
+        'chat.access',
+        'master_data.view',
+      ],
+      scope: RoleScope.ALL,
+    },
+  };
+
+  for (const [rCode, config] of Object.entries(roleSpecificPerms)) {
+    const targetRole = roleMap[rCode];
+    if (!targetRole) continue;
+    for (const code of config.codes) {
+      const perm = permMap[code];
+      if (!perm) continue;
+      const exists = await rpRepo.findOne({
+        where: { roleId: targetRole.id, permissionId: perm.id },
+      });
+      if (!exists) {
+        await rpRepo.save(
+          rpRepo.create({
+            roleId: targetRole.id,
+            permissionId: perm.id,
+            scope: config.scope,
+          }),
+        );
+      }
+    }
+  }
+
+  // 6. Default users for local development and initial access
+  const defaultUsers = [
+    {
+      employeeCode: 'EMP001',
+      fullName: 'Super Administrator',
+      email: 'admin@skylux.vn',
+      phone: '0901234567',
+      password: 'Admin@123456',
+      departmentCode: 'BOD',
+      roleCodes: ['SUPER_ADMIN', 'CEO_ADMIN'],
+    },
+    {
+      employeeCode: 'EMP002',
+      fullName: 'Nguyễn Thu Hà',
+      email: 'sales@skylux.vn',
+      phone: '0901234568',
+      password: 'Sales@123456',
+      departmentCode: 'SALES',
+      roleCodes: ['SALES'],
+    },
+    {
+      employeeCode: 'EMP005',
+      fullName: 'Nguyễn Văn Minh',
+      email: 'ceo@skylux.vn',
+      phone: '0901234571',
+      password: 'CeoAdmin@123456',
+      departmentCode: 'BOD',
+      roleCodes: ['CEO_ADMIN'],
+    },
+    {
+      employeeCode: 'EMP003',
+      fullName: 'Phạm Minh Quân',
+      email: 'operator@skylux.vn',
+      phone: '0901234569',
+      password: 'Operator@123456',
+      departmentCode: 'OPS',
+      roleCodes: ['OPERATOR'],
+    },
+    {
+      employeeCode: 'EMP004',
+      fullName: 'Trần Minh Ngọc',
+      email: 'accountant@skylux.vn',
+      phone: '0901234570',
+      password: 'Accountant@123456',
+      departmentCode: 'ACC',
+      roleCodes: ['ACCOUNTANT'],
+    },
+  ];
+
+  for (const userData of defaultUsers) {
+    let user = await userRepo.findOne({
+      where: { email: userData.email },
+      relations: { roles: true },
+    });
+
+    if (!user) {
+      const passwordHash = await bcrypt.hash(userData.password, 10);
+      user = await userRepo.save(
+        userRepo.create({
+          organizationId: org.id,
+          departmentId: deptMap[userData.departmentCode].id,
+          employeeCode: userData.employeeCode,
+          fullName: userData.fullName,
+          email: userData.email,
+          phone: userData.phone,
+          passwordHash,
+          status: UserStatus.ACTIVE,
+          roles: userData.roleCodes.map((roleCode) => roleMap[roleCode]),
+        }),
+      );
+
+      console.log(
+        `  ✅ Created ${userData.roleCodes.join('/')} user: ${userData.email} (Password: ${userData.password})`,
+      );
+    }
   }
 
   // 7. Master Data Seed

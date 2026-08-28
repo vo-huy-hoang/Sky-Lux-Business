@@ -1,33 +1,53 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  Table,
+  Avatar,
   Button,
+  Card,
+  Col,
+  Empty,
   Input,
+  Popconfirm,
+  Row,
   Select,
+  Skeleton,
   Space,
+  Table,
   Tag,
   Typography,
-  Card,
-  Popconfirm,
   message,
 } from 'antd';
 import {
-  SearchOutlined,
-  EyeOutlined,
+  ArrowUpOutlined,
   DeleteOutlined,
-  TeamOutlined,
+  EyeOutlined,
+  FolderOpenOutlined,
+  MoreOutlined,
+  PlusOutlined,
   ReloadOutlined,
+  SearchOutlined,
   StarFilled,
+  TeamOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { customersService } from '@/services/customers.service';
 import { CustomerItem, CustomerType } from '@/types/customer';
 import { CustomerDetailDrawer } from './components/CustomerDetailDrawer';
 
 const { Title, Text } = Typography;
-const { Option } = Select;
+
+function initials(name?: string) {
+  if (!name) return 'KH';
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(-2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
+}
 
 export default function CustomersPage() {
   const queryClient = useQueryClient();
@@ -36,9 +56,7 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('');
   const [customerType, setCustomerType] = useState<CustomerType | undefined>();
   const [status, setStatus] = useState<string | undefined>();
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
-    null,
-  );
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [drawerVisible, setDrawerVisible] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
@@ -53,11 +71,17 @@ export default function CustomersPage() {
       }),
   });
 
+  const { data: summaryData, isLoading: isLoadingSummary } = useQuery({
+    queryKey: ['customers-summary'],
+    queryFn: () => customersService.getCustomers({ page: 1, limit: 100 }),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => customersService.deleteCustomer(id),
     onSuccess: () => {
       message.success('Đã xóa khách hàng');
       queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['customers-summary'] });
     },
     onError: (err: any) => {
       message.error(err?.response?.data?.message || 'Không thể xóa khách hàng');
@@ -69,26 +93,47 @@ export default function CustomersPage() {
     setDrawerVisible(true);
   };
 
+  const summary = useMemo(() => {
+    const items = summaryData?.items || [];
+    return {
+      total: summaryData?.total || 0,
+      active: items.filter((item) => item.status === 'ACTIVE').length,
+      business: items.filter((item) => item.customerType === 'BUSINESS').length,
+      individual: items.filter((item) => item.customerType === 'INDIVIDUAL').length,
+    };
+  }, [summaryData]);
+
   const columns = [
     {
-      title: 'Mã khách hàng',
+      title: 'Mã KH',
       dataIndex: 'code',
       key: 'code',
-      width: 130,
+      width: 120,
       render: (code: string) => <Text strong>{code}</Text>,
     },
     {
-      title: 'Tên khách hàng',
+      title: 'Khách hàng',
       dataIndex: 'displayName',
       key: 'displayName',
       render: (text: string, record: CustomerItem) => (
-        <Space direction="vertical" size={0}>
-          <Text strong>{text}</Text>
-          {record.address && (
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {record.address}
+        <Space size={12}>
+          <Avatar
+            size={34}
+            style={{
+              background: record.customerType === 'BUSINESS' ? '#EEF5FF' : '#EAF5EF',
+              color: record.customerType === 'BUSINESS' ? '#2F80ED' : '#007A55',
+              fontWeight: 700,
+            }}
+            icon={record.customerType === 'BUSINESS' ? <TeamOutlined /> : undefined}
+          >
+            {record.customerType === 'BUSINESS' ? undefined : initials(text)}
+          </Avatar>
+          <Space direction="vertical" size={0}>
+            <Text strong>{text}</Text>
+            <Text type="secondary" className="text-xs">
+              {record.email || record.address || '-'}
             </Text>
-          )}
+          </Space>
         </Space>
       ),
     },
@@ -96,61 +141,70 @@ export default function CustomersPage() {
       title: 'Loại',
       dataIndex: 'customerType',
       key: 'customerType',
-      width: 120,
+      width: 135,
       render: (type: CustomerType) => (
-        <Tag color={type === 'BUSINESS' ? 'geekblue' : 'purple'}>
+        <Tag className={type === 'BUSINESS' ? 'skylux-status-info' : 'skylux-status-valid'}>
           {type === 'BUSINESS' ? 'Doanh nghiệp' : 'Cá nhân'}
         </Tag>
       ),
     },
     {
-      title: 'Liên hệ chính',
+      title: 'Người liên hệ chính',
       key: 'primaryContact',
-      render: (_: any, record: CustomerItem) => {
-        const primary =
-          record.contacts?.find((c) => c.isPrimary) || record.contacts?.[0];
-        if (!primary) return <Text type="secondary">—</Text>;
+      render: (_: unknown, record: CustomerItem) => {
+        const primary = record.contacts?.find((contact) => contact.isPrimary) || record.contacts?.[0];
+        if (!primary) return <Text type="secondary">-</Text>;
         return (
           <Space direction="vertical" size={0}>
-            <Space>
-              <span>{primary.name}</span>
-              {primary.isPrimary && (
-                <StarFilled style={{ color: '#faad14', fontSize: 12 }} />
-              )}
+            <Space size={6}>
+              <Text>{primary.name}</Text>
+              {primary.isPrimary && <StarFilled style={{ color: '#D6A51F', fontSize: 12 }} />}
             </Space>
-            {primary.phone && (
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {primary.phone}
-              </Text>
-            )}
+            <Text type="secondary" className="text-xs">
+              {primary.position || primary.phone || '-'}
+            </Text>
           </Space>
         );
       },
     },
     {
+      title: 'Điện thoại',
+      dataIndex: 'phone',
+      key: 'phone',
+      width: 150,
+      render: (phone?: string) => phone || '-',
+    },
+    {
+      title: 'Hồ sơ',
+      key: 'contacts',
+      width: 95,
+      render: (_: unknown, record: CustomerItem) => (
+        <Tag className="skylux-status-valid">{record.contacts?.length || 0}</Tag>
+      ),
+    },
+    {
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
-      width: 110,
-      render: (st: string) => (
-        <Tag color={st === 'ACTIVE' ? 'success' : 'default'}>{st}</Tag>
+      width: 135,
+      render: (value: string) => (
+        <Tag className={value === 'ACTIVE' ? 'skylux-status-valid' : 'skylux-status-info'}>
+          {value === 'ACTIVE' ? 'Đang chăm sóc' : value}
+        </Tag>
       ),
     },
     {
       title: 'Thao tác',
       key: 'actions',
-      width: 120,
-      render: (_: any, record: CustomerItem) => (
+      width: 135,
+      render: (_: unknown, record: CustomerItem) => (
         <Space size="small">
           <Button
-            type="primary"
-            ghost
             icon={<EyeOutlined />}
             size="small"
+            aria-label="Xem chi tiết khách hàng"
             onClick={() => handleViewDetail(record.id)}
-          >
-            Chi tiết
-          </Button>
+          />
           <Popconfirm
             title="Xóa khách hàng"
             description="Bạn có chắc chắn muốn xóa khách hàng này?"
@@ -163,98 +217,150 @@ export default function CustomersPage() {
               danger
               icon={<DeleteOutlined />}
               size="small"
+              aria-label="Xóa khách hàng"
               loading={deleteMutation.isPending}
             />
           </Popconfirm>
+          <Button icon={<MoreOutlined />} size="small" aria-label="Mở thêm thao tác" />
         </Space>
       ),
     },
   ];
 
-  return (
-    <div style={{ padding: 24 }}>
-      <Card>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 20,
-          }}
-        >
-          <Title level={4} style={{ margin: 0 }}>
-            <TeamOutlined /> Quản lý Khách hàng (CRM)
-          </Title>
-        </div>
+  const metricCards = [
+    {
+      label: 'Tổng khách hàng',
+      value: summary.total,
+      icon: <TeamOutlined />,
+      bubble: 'bg-[var(--color-primary-soft)] text-[var(--color-primary-600)]',
+      hint: 'Từ API khách hàng',
+    },
+    {
+      label: 'Đang chăm sóc',
+      value: summary.active,
+      icon: <UserOutlined />,
+      bubble: 'bg-[var(--color-gold-soft)] text-[var(--color-gold)]',
+      hint: 'Trạng thái active',
+    },
+    {
+      label: 'Doanh nghiệp',
+      value: summary.business,
+      icon: <TeamOutlined />,
+      bubble: 'bg-[var(--color-info-soft)] text-[var(--color-info)]',
+      hint: 'Theo trang dữ liệu tải',
+    },
+    {
+      label: 'Cá nhân',
+      value: summary.individual,
+      icon: <FolderOpenOutlined />,
+      bubble: 'bg-[var(--color-primary-soft)] text-[var(--color-primary-600)]',
+      hint: 'Theo trang dữ liệu tải',
+    },
+  ];
 
-        {/* Thanh tìm kiếm và bộ lọc */}
-        <Space wrap style={{ marginBottom: 16 }}>
+  return (
+    <div className="space-y-5">
+      <div>
+        <Title level={1} className="skylux-page-title">
+          Khách hàng của tôi
+        </Title>
+        <div className="skylux-subtitle mt-1">
+          Danh sách khách hàng cá nhân và doanh nghiệp bạn đang quản lý
+        </div>
+      </div>
+
+      <Row gutter={[16, 16]}>
+        {metricCards.map((metric) => (
+          <Col xs={24} sm={12} xl={6} key={metric.label}>
+            <Card className="skylux-card skylux-kpi">
+              <div className="flex items-center gap-5">
+                <span className={`skylux-icon-bubble ${metric.bubble}`}>{metric.icon}</span>
+                <div>
+                  <Text className="text-sm text-slate-500">{metric.label}</Text>
+                  <div className="mt-1 text-[30px] font-bold leading-none text-[var(--color-primary-900)]">
+                    {isLoadingSummary ? <Skeleton.Input active size="small" /> : metric.value}
+                  </div>
+                  <div className="mt-3 text-xs font-medium text-[var(--color-primary-600)]">
+                    <ArrowUpOutlined /> {metric.hint}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </Col>
+        ))}
+      </Row>
+
+      <Card className="skylux-card">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_220px_220px_auto_auto]">
           <Input
             placeholder="Tìm kiếm theo mã, tên, SĐT, email..."
             prefix={<SearchOutlined />}
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
+            onChange={(event) => {
+              setSearch(event.target.value);
               setPage(1);
             }}
-            style={{ width: 280 }}
             allowClear
           />
-
           <Select
             placeholder="Loại khách hàng"
             value={customerType}
-            onChange={(val) => {
-              setCustomerType(val);
+            onChange={(value) => {
+              setCustomerType(value);
               setPage(1);
             }}
-            style={{ width: 160 }}
             allowClear
-          >
-            <Option value="INDIVIDUAL">Cá nhân</Option>
-            <Option value="BUSINESS">Doanh nghiệp</Option>
-          </Select>
-
+            options={[
+              { label: 'Cá nhân', value: 'INDIVIDUAL' },
+              { label: 'Doanh nghiệp', value: 'BUSINESS' },
+            ]}
+          />
           <Select
             placeholder="Trạng thái"
             value={status}
-            onChange={(val) => {
-              setStatus(val);
+            onChange={(value) => {
+              setStatus(value);
               setPage(1);
             }}
-            style={{ width: 140 }}
             allowClear
-          >
-            <Option value="ACTIVE">Hoạt động</Option>
-            <Option value="INACTIVE">Ngừng hoạt động</Option>
-          </Select>
-
+            options={[
+              { label: 'Hoạt động', value: 'ACTIVE' },
+              { label: 'Ngừng hoạt động', value: 'INACTIVE' },
+            ]}
+          />
           <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
-            Làm mới
+            Đặt lại
           </Button>
-        </Space>
+          <Button icon={<PlusOutlined />} className="skylux-primary-button">
+            Thêm khách hàng
+          </Button>
+        </div>
+      </Card>
 
-        {/* Bảng danh sách khách hàng */}
+      <Card className="skylux-card">
         <Table
           dataSource={data?.items || []}
           columns={columns}
           rowKey="id"
           loading={isLoading}
+          className="skylux-table"
+          locale={{ emptyText: <Empty description="Chưa có khách hàng từ API" /> }}
+          scroll={{ x: 1120 }}
           pagination={{
             current: page,
             pageSize,
             total: data?.total || 0,
             showSizeChanger: true,
             pageSizeOptions: ['10', '20', '50'],
-            onChange: (p, ps) => {
-              setPage(p);
-              setPageSize(ps);
+            showTotal: (total) => `Hiển thị ${data?.items?.length || 0} trong tổng số ${total} khách hàng`,
+            onChange: (nextPage, nextPageSize) => {
+              setPage(nextPage);
+              setPageSize(nextPageSize);
             },
           }}
         />
       </Card>
 
-      {/* Side Drawer xem chi tiết, quản lý liên hệ và hồ sơ liên quan */}
       <CustomerDetailDrawer
         visible={drawerVisible}
         customerId={selectedCustomerId}

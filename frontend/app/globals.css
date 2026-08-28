@@ -1,8 +1,35 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8f8f8;
+  --foreground: #111827;
+  --color-primary-950: #003020;
+  --color-primary-900: #003828;
+  --color-primary-850: #003830;
+  --color-primary-800: #004030;
+  --color-primary-700: #00543d;
+  --color-primary-600: #007a55;
+  --color-primary-soft: #eaf5ef;
+  --color-primary-soft-2: #dff1e7;
+  --color-gold: #d6a51f;
+  --color-gold-strong: #f0c020;
+  --color-gold-soft: #fff6df;
+  --color-warning: #f59e0b;
+  --color-warning-soft: #fff7e8;
+  --color-danger: #d93737;
+  --color-danger-soft: #fff1f2;
+  --color-info: #2f80ed;
+  --color-info-soft: #eef5ff;
+  --color-purple: #7c5ccb;
+  --color-purple-soft: #f3f0ff;
+  --color-bg: #f8f8f8;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f9fafa;
+  --color-border: #e8e8e8;
+  --color-divider: #f0f0f0;
+  --color-text: #111827;
+  --color-text-muted: #6b7280;
+  --color-text-soft: #9ca3af;
 }
 
 @theme inline {
@@ -12,15 +39,392 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.skylux-card {
+  border: 1px solid var(--color-border) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.04), 0 8px 24px rgb(16 24 40 / 0.03) !important;
+}
+
+.skylux-card .ant-card-head {
+  min-height: 50px;
+  border-bottom-color: var(--color-divider);
+}
+
+.skylux-kpi .ant-card-body {
+  padding: 20px 22px !important;
+}
+
+.skylux-icon-bubble {
+  display: inline-flex;
+  width: 58px;
+  height: 58px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 26px;
+  flex: 0 0 auto;
+}
+
+.skylux-page-title {
+  margin: 0 !important;
+  color: var(--color-text) !important;
+  font-size: 28px !important;
+  line-height: 1.2 !important;
+  font-weight: 750 !important;
+}
+
+.skylux-subtitle {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.skylux-table .ant-table {
+  color: var(--color-text);
+}
+
+.skylux-table .ant-table-thead > tr > th {
+  background: var(--color-surface-muted) !important;
+  border-bottom-color: var(--color-divider) !important;
+  color: #374151 !important;
+  font-size: 13px;
+  font-weight: 650 !important;
+}
+
+.skylux-table .ant-table-tbody > tr > td {
+  border-bottom-color: var(--color-divider) !important;
+  font-size: 14px;
+}
+
+.skylux-table .ant-table-tbody > tr:hover > td {
+  background: #f9fafa !important;
+}
+
+.skylux-table .ant-pagination-item-active {
+  background: var(--color-primary-700) !important;
+  border-color: var(--color-primary-700) !important;
+}
+
+.skylux-table .ant-pagination-item-active a {
+  color: #ffffff !important;
+}
+
+.skylux-sidebar .ant-layout-sider-children {
+  position: relative;
+  min-height: 100dvh;
+}
+
+.skylux-sidebar.ant-layout-sider {
+  background: #003f31 !important;
+}
+
+.skylux-app-header.ant-layout-header {
+  background: #ffffff !important;
+  color: var(--color-text) !important;
+}
+
+.skylux-side-menu.ant-menu,
+.skylux-side-menu.ant-menu-dark,
+.skylux-side-menu.ant-menu-light {
+  background: transparent !important;
+  color: rgb(255 255 255 / 0.86) !important;
+}
+
+.skylux-side-menu .ant-menu-item,
+.skylux-side-menu .ant-menu-item a,
+.skylux-side-menu .ant-menu-item .ant-menu-title-content,
+.skylux-side-menu .ant-menu-item .ant-menu-item-icon,
+.skylux-side-menu .ant-menu-item .anticon {
+  color: rgb(255 255 255 / 0.86) !important;
+}
+
+.skylux-side-menu .ant-menu-item {
+  height: 52px;
+  margin: 5px 0;
+  border-radius: 10px;
+  background: transparent !important;
+}
+
+.skylux-side-menu.ant-menu-dark .ant-menu-item .ant-menu-title-content {
+  overflow: visible;
+}
+
+.skylux-side-menu .ant-menu-item-selected {
+  background: rgb(44 172 126 / 0.28) !important;
+  color: #ffffff !important;
+}
+
+.skylux-side-menu .ant-menu-item-selected a,
+.skylux-side-menu .ant-menu-item-selected .ant-menu-title-content,
+.skylux-side-menu .ant-menu-item-selected .ant-menu-item-icon,
+.skylux-side-menu .ant-menu-item-selected .anticon {
+  color: #ffffff !important;
+}
+
+.skylux-side-menu .ant-menu-item:hover {
+  background: rgb(44 172 126 / 0.18) !important;
+  color: #ffffff !important;
+}
+
+.skylux-side-menu .ant-menu-item:hover a,
+.skylux-side-menu .ant-menu-item:hover .ant-menu-title-content,
+.skylux-side-menu .ant-menu-item:hover .ant-menu-item-icon,
+.skylux-side-menu .ant-menu-item:hover .anticon {
+  color: #ffffff !important;
+}
+
+.skylux-side-menu.ant-menu-dark .ant-menu-item-icon {
+  font-size: 18px !important;
+}
+
+.skylux-primary-button {
+  background: var(--color-primary-700) !important;
+  border-color: var(--color-primary-700) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 20px rgb(0 84 61 / 0.14);
+}
+
+.skylux-primary-button:hover,
+.skylux-primary-button:focus {
+  background: var(--color-primary-600) !important;
+  border-color: var(--color-primary-600) !important;
+  color: #ffffff !important;
+}
+
+.skylux-outline-button {
+  border-color: #b7d3c7 !important;
+  color: var(--color-primary-700) !important;
+}
+
+.skylux-outline-button:hover,
+.skylux-outline-button:focus {
+  border-color: var(--color-primary-600) !important;
+  color: var(--color-primary-600) !important;
+}
+
+.skylux-status-valid {
+  background: var(--color-primary-soft) !important;
+  color: var(--color-primary-600) !important;
+  border-color: transparent !important;
+}
+
+.skylux-status-warning {
+  background: var(--color-warning-soft) !important;
+  color: var(--color-warning) !important;
+  border-color: transparent !important;
+}
+
+.skylux-status-danger {
+  background: var(--color-danger-soft) !important;
+  color: var(--color-danger) !important;
+  border-color: transparent !important;
+}
+
+.skylux-status-info {
+  background: var(--color-info-soft) !important;
+  color: var(--color-info) !important;
+  border-color: transparent !important;
+}
+
+.skylux-status-purple {
+  background: var(--color-purple-soft) !important;
+  color: var(--color-purple) !important;
+  border-color: transparent !important;
+}
+
+.skylux-focus-input:focus-within {
+  border-color: var(--color-primary-700) !important;
+  box-shadow: 0 0 0 3px rgb(0 84 61 / 0.1) !important;
+}
+
+.ant-btn,
+.ant-input,
+.ant-select-selector,
+.ant-card,
+.ant-tag {
+  letter-spacing: 0;
+}
+
+.skylux-task-metric,
+.skylux-task-side-panel,
+.skylux-task-column {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.04), 0 8px 24px rgb(16 24 40 / 0.03);
+}
+
+.skylux-task-metric {
+  display: flex;
+  min-height: 108px;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 20px;
+}
+
+.skylux-task-metric .skylux-icon-bubble {
+  width: 52px;
+  height: 52px;
+  font-size: 23px;
+}
+
+.skylux-task-side-panel {
+  padding: 18px;
+}
+
+.skylux-task-reminder {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.skylux-task-reminder:hover .text-slate-700 {
+  color: var(--color-primary-600);
+}
+
+.skylux-task-column {
+  min-height: 535px;
+  padding: 14px;
+  background: #fbfcfb;
+}
+
+.skylux-task-card {
+  border: 1px solid #e8ecea;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 13px;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.035);
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.skylux-task-card:hover {
+  border-color: #b7d3c7;
+  box-shadow: 0 8px 18px rgb(0 84 61 / 0.08);
+  transform: translateY(-1px);
+}
+
+.skylux-task-card:focus-visible,
+.skylux-task-reminder:focus-visible {
+  outline: 3px solid rgb(0 122 85 / 0.22);
+  outline-offset: 2px;
+}
+
+.skylux-task-drawer .ant-drawer-header {
+  border-bottom-color: var(--color-divider);
+}
+
+.skylux-message-workspace {
+  display: grid;
+  min-height: calc(100dvh - 116px);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.04), 0 8px 24px rgb(16 24 40 / 0.03);
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr) minmax(280px, 330px);
+}
+
+.skylux-message-list,
+.skylux-message-information {
+  min-width: 0;
+  background: #ffffff;
+}
+
+.skylux-message-list {
+  border-right: 1px solid var(--color-divider);
+}
+
+.skylux-message-thread {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  background: #fdfefd;
+}
+
+.skylux-message-thread-header {
+  display: flex;
+  min-height: 76px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--color-divider);
+  background: #ffffff;
+  padding: 14px 20px;
+}
+
+.skylux-message-information {
+  border-left: 1px solid var(--color-divider);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skylux-task-card {
+    transition: none;
+  }
+
+  .skylux-task-card:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 1439px) {
+  .skylux-message-workspace {
+    grid-template-columns: minmax(280px, 330px) minmax(0, 1fr);
+  }
+
+  .skylux-message-information {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .skylux-message-workspace {
+    grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .skylux-message-workspace {
+    min-height: calc(100dvh - 100px);
+    grid-template-columns: 1fr;
+  }
+
+  .skylux-message-list {
+    min-height: 230px;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-divider);
+  }
+
+  .skylux-message-thread {
+    min-height: 420px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skylux-card,
+  .ant-btn,
+  .ant-menu-item,
+  .ant-table-tbody > tr > td {
+    transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+  }
+}
+
+@media (max-width: 768px) {
+  .skylux-page-title {
+    font-size: 24px !important;
+  }
 }

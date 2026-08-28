@@ -1,229 +1,441 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
+import Link from 'next/link';
 import {
-  Row,
-  Col,
-  Card,
-  Statistic,
-  Typography,
+  Alert,
   Button,
+  Card,
+  Col,
+  Empty,
+  Progress,
+  Row,
+  Skeleton,
+  Space,
   Table,
   Tag,
-  Space,
+  Typography,
 } from 'antd';
 import {
-  FolderOpenOutlined,
-  DollarOutlined,
-  ClockCircleOutlined,
-  CheckCircleOutlined,
-  PlusOutlined,
-  FileExcelOutlined,
+  ArrowRightOutlined,
   ArrowUpOutlined,
+  CheckCircleOutlined,
+  FileDoneOutlined,
+  FileExcelOutlined,
+  FolderOpenOutlined,
+  TeamOutlined,
 } from '@ant-design/icons';
-import { useAuthStore } from '@/lib/stores/auth-store';
-import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
+import {
+  BarElement,
+  CategoryScale,
+  Chart as ChartJS,
+  ChartOptions,
+  Legend,
+  LinearScale,
+  Tooltip,
+  ArcElement,
+} from 'chart.js';
+import { Bar, Doughnut } from 'react-chartjs-2';
+import { customersService } from '@/services/customers.service';
+import { dossiersService } from '@/services/dossiers.service';
+import { DossierItem } from '@/types/dossier';
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
 const { Title, Text } = Typography;
 
-export default function DashboardPage() {
-  const user = useAuthStore((state) => state.user);
+const statusConfig: Record<string, { label: string; className: string; color: string }> = {
+  DRAFT: { label: 'Mới nhập', className: 'skylux-status-info', color: '#2F80ED' },
+  SUBMITTED: { label: 'Đã gửi', className: 'skylux-status-purple', color: '#7C5CCB' },
+  IN_REVIEW: { label: 'Đang xử lý', className: 'skylux-status-warning', color: '#F59E0B' },
+  APPROVED: { label: 'Đã duyệt', className: 'skylux-status-valid', color: '#007A55' },
+  COMPLETED: { label: 'Thành công', className: 'skylux-status-valid', color: '#00543D' },
+  CANCELLED: { label: 'Đã hủy', className: 'skylux-status-danger', color: '#D93737' },
+};
 
-  const sampleDossiers = [
-    {
-      key: '1',
-      code: 'DOS-2026-001',
-      name: 'Tour Khám Phá Bắc Âu 10N9Đ - Đoàn Doanh Nghiệp',
-      customer: 'Tập đoàn ABC',
-      sales: 'Nguyễn Văn A',
-      status: 'APPROVED',
-      grossRevenue: '1,450,000,000 ₫',
-      startDate: '15/09/2026',
+function formatDate(value?: string) {
+  if (!value) return '-';
+  return new Date(value).toLocaleDateString('vi-VN');
+}
+
+function getStatus(status?: string) {
+  return statusConfig[status || ''] || {
+    label: status || 'Chưa rõ',
+    className: 'skylux-status-info',
+    color: '#6B7280',
+  };
+}
+
+function buildDailyCounts(items: DossierItem[]) {
+  const days = Array.from({ length: 14 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (13 - index));
+    return date;
+  });
+
+  return days.map((date) => {
+    const key = date.toISOString().slice(0, 10);
+    const count = items.filter((item) => item.createdAt?.slice(0, 10) === key).length;
+    return {
+      label: date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }),
+      count,
+    };
+  });
+}
+
+export default function DashboardPage() {
+  const {
+    data: dossiersData,
+    isLoading: isLoadingDossiers,
+    isError: isDossierError,
+  } = useQuery({
+    queryKey: ['dashboard-dossiers'],
+    queryFn: () => dossiersService.getDossiers({ page: 1, limit: 100 }),
+  });
+
+  const {
+    data: customersData,
+    isLoading: isLoadingCustomers,
+    isError: isCustomerError,
+  } = useQuery({
+    queryKey: ['dashboard-customers'],
+    queryFn: () => customersService.getCustomers({ page: 1, limit: 100 }),
+  });
+
+  const dossiers = useMemo(() => dossiersData?.items || [], [dossiersData?.items]);
+  const totalDossiers = dossiersData?.total || 0;
+  const totalCustomers = customersData?.total || 0;
+  const processingCount = dossiers.filter((item) =>
+    ['SUBMITTED', 'IN_REVIEW', 'DRAFT'].includes(item.status),
+  ).length;
+  const completedCount = dossiers.filter((item) =>
+    ['APPROVED', 'COMPLETED'].includes(item.status),
+  ).length;
+  const completionPercent = totalDossiers
+    ? Math.round((completedCount / Math.max(dossiers.length, 1)) * 100)
+    : 0;
+
+  const dailyCounts = useMemo(() => buildDailyCounts(dossiers), [dossiers]);
+  const statusCounts = useMemo(() => {
+    return dossiers.reduce<Record<string, number>>((acc, item) => {
+      acc[item.status] = (acc[item.status] || 0) + 1;
+      return acc;
+    }, {});
+  }, [dossiers]);
+
+  const barOptions: ChartOptions<'bar'> = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (context) => `${context.parsed.y} hồ sơ`,
+        },
+      },
     },
-    {
-      key: '2',
-      code: 'DOS-2026-002',
-      name: 'Hội nghị MICE Đà Nẵng - Hội Thảo Y Dược',
-      customer: 'Công ty Dược Phẩm XYZ',
-      sales: 'Trần Thị B',
-      status: 'IN_REVIEW',
-      grossRevenue: '680,000,000 ₫',
-      startDate: '20/10/2026',
+    scales: {
+      x: {
+        grid: { display: false },
+        border: { display: false },
+        ticks: { color: '#6B7280', font: { size: 12 } },
+      },
+      y: {
+        beginAtZero: true,
+        grid: { color: '#F0F0F0' },
+        border: { display: false },
+        ticks: { color: '#6B7280', precision: 0, font: { size: 12 } },
+      },
     },
-    {
-      key: '3',
-      code: 'DOS-2026-003',
-      name: 'Tour Nhật Bản Mùa Thu - Cung Đường Vàng',
-      customer: 'Khách lẻ VIP Group',
-      sales: 'Lê Văn C',
-      status: 'DRAFT',
-      grossRevenue: '320,000,000 ₫',
-      startDate: '05/11/2026',
-    },
-  ];
+  };
+
+  const barData = {
+    labels: dailyCounts.map((item) => item.label),
+    datasets: [
+      {
+        data: dailyCounts.map((item) => item.count),
+        backgroundColor: '#007A55',
+        borderRadius: 999,
+        borderSkipped: false,
+        barThickness: 18,
+      },
+    ],
+  };
+
+  const doughnutLabels = Object.keys(statusCounts);
+  const doughnutData = {
+    labels: doughnutLabels.map((status) => getStatus(status).label),
+    datasets: [
+      {
+        data: doughnutLabels.map((status) => statusCounts[status]),
+        backgroundColor: doughnutLabels.map((status) => getStatus(status).color),
+        borderColor: '#FFFFFF',
+        borderWidth: 4,
+        hoverOffset: 4,
+      },
+    ],
+  };
 
   const columns = [
     {
       title: 'Mã hồ sơ',
       dataIndex: 'code',
       key: 'code',
-      render: (code: string) => (
-        <span className="font-semibold text-blue-600 cursor-pointer hover:underline">
-          {code}
-        </span>
-      ),
-    },
-    {
-      title: 'Tên hồ sơ / Tour',
-      dataIndex: 'name',
-      key: 'name',
-      render: (name: string) => <span className="font-medium">{name}</span>,
+      width: 120,
+      render: (code: string) => <Text strong>{code}</Text>,
     },
     {
       title: 'Khách hàng',
-      dataIndex: 'customer',
       key: 'customer',
+      render: (_: unknown, record: DossierItem) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.customer?.displayName || record.name}</Text>
+          <Text type="secondary" className="text-xs">
+            {record.route || '-'}
+          </Text>
+        </Space>
+      ),
     },
     {
-      title: 'Phụ trách',
-      dataIndex: 'sales',
-      key: 'sales',
-    },
-    {
-      title: 'Doanh thu dự kiến',
-      dataIndex: 'grossRevenue',
-      key: 'grossRevenue',
-      render: (rev: string) => <span className="font-semibold text-slate-800">{rev}</span>,
-    },
-    {
-      title: 'Khởi hành',
+      title: 'Ngày đi',
       dataIndex: 'startDate',
       key: 'startDate',
+      width: 120,
+      render: formatDate,
     },
     {
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
+      width: 130,
       render: (status: string) => {
-        const colors: Record<string, string> = {
-          APPROVED: 'green',
-          IN_REVIEW: 'gold',
-          DRAFT: 'default',
-        };
-        const labels: Record<string, string> = {
-          APPROVED: 'Đã duyệt',
-          IN_REVIEW: 'Đang xem xét',
-          DRAFT: 'Bản nháp',
-        };
-        return <Tag color={colors[status] || 'blue'}>{labels[status] || status}</Tag>;
+        const config = getStatus(status);
+        return <Tag className={config.className}>{config.label}</Tag>;
       },
+    },
+    {
+      title: 'Sales',
+      key: 'sales',
+      width: 160,
+      render: (_: unknown, record: DossierItem) => record.salesUser?.fullName || '-',
+    },
+    {
+      title: 'Cập nhật cuối',
+      dataIndex: 'updatedAt',
+      key: 'updatedAt',
+      width: 140,
+      render: formatDate,
     },
   ];
 
-  return (
-    <div className="space-y-6">
-      {/* Top Welcome & Actions Banner */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
-        <div>
-          <Title level={3} style={{ marginBottom: 2, color: '#0F172A' }}>
-            Xin chào, {user?.fullName || 'Quản trị viên'} 👋
-          </Title>
-          <Text type="secondary" className="text-sm">
-            Hôm nay là {new Date().toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}. Dưới đây là tổng quan tình hình kinh doanh.
-          </Text>
-        </div>
+  if (isDossierError || isCustomerError) {
+    return (
+      <Alert
+        type="error"
+        showIcon
+        title="Không thể tải dữ liệu dashboard"
+        description="Vui lòng kiểm tra kết nối API rồi tải lại trang."
+      />
+    );
+  }
 
-        <Space>
-          <Link href="/main/imports">
-            <Button icon={<FileExcelOutlined />}>Import Excel</Button>
-          </Link>
-          <Link href="/main/dossiers">
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              className="bg-[#0A2540] hover:bg-[#133E68] border-none"
-            >
-              Tạo hồ sơ tour mới
-            </Button>
-          </Link>
-        </Space>
+  return (
+    <div className="space-y-5">
+      <div>
+        <Title level={1} className="skylux-page-title">
+          Bảng điều khiển Sales
+        </Title>
+        <div className="skylux-subtitle mt-1">Tổng quan hoạt động kinh doanh của bạn</div>
       </div>
 
-      {/* KPI Metric Cards */}
       <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card className="shadow-xs border-slate-200">
-            <Statistic
-              title={<span className="text-slate-500 font-medium">Doanh thu tháng này</span>}
-              value="2.45 tỷ ₫"
-              prefix={<DollarOutlined className="text-emerald-500 mr-2" />}
-              styles={{ content: { color: '#0F172A', fontWeight: 700 } }}
-              suffix={
-                <span className="text-xs text-emerald-600 font-normal flex items-center ml-2">
-                  <ArrowUpOutlined /> +18.4%
-                </span>
-              }
-            />
+        <Col xs={24} sm={12} xl={6}>
+          <Card className="skylux-card skylux-kpi">
+            <div className="flex items-center gap-5">
+              <span className="skylux-icon-bubble bg-[var(--color-primary-soft)] text-[var(--color-primary-600)]">
+                <FolderOpenOutlined />
+              </span>
+              <div>
+                <Text className="text-sm text-slate-500">Tổng hồ sơ</Text>
+                <div className="mt-1 text-[30px] font-bold leading-none text-[var(--color-primary-900)]">
+                  {isLoadingDossiers ? <Skeleton.Input active size="small" /> : totalDossiers}
+                </div>
+                <div className="mt-3 text-xs font-medium text-[var(--color-primary-600)]">
+                  <ArrowUpOutlined /> Từ API hồ sơ
+                </div>
+              </div>
+            </div>
           </Card>
         </Col>
-
-        <Col xs={24} sm={12} lg={6}>
-          <Card className="shadow-xs border-slate-200">
-            <Statistic
-              title={<span className="text-slate-500 font-medium">Tổng hồ sơ tour đang chạy</span>}
-              value={24}
-              prefix={<FolderOpenOutlined className="text-blue-500 mr-2" />}
-              styles={{ content: { color: '#0F172A', fontWeight: 700 } }}
-            />
+        <Col xs={24} sm={12} xl={6}>
+          <Card className="skylux-card skylux-kpi">
+            <div className="flex items-center gap-5">
+              <span className="skylux-icon-bubble bg-[var(--color-gold-soft)] text-[var(--color-gold)]">
+                <FileDoneOutlined />
+              </span>
+              <div>
+                <Text className="text-sm text-slate-500">Hồ sơ đang xử lý</Text>
+                <div className="mt-1 text-[30px] font-bold leading-none text-[var(--color-primary-900)]">
+                  {isLoadingDossiers ? <Skeleton.Input active size="small" /> : processingCount}
+                </div>
+                <div className="mt-3 text-xs font-medium text-[var(--color-primary-600)]">
+                  Trạng thái mở
+                </div>
+              </div>
+            </div>
           </Card>
         </Col>
-
-        <Col xs={24} sm={12} lg={6}>
-          <Card className="shadow-xs border-slate-200">
-            <Statistic
-              title={<span className="text-slate-500 font-medium">Dự toán chờ phê duyệt</span>}
-              value={5}
-              prefix={<ClockCircleOutlined className="text-amber-500 mr-2" />}
-              styles={{ content: { color: '#FAAD14', fontWeight: 700 } }}
-            />
+        <Col xs={24} sm={12} xl={6}>
+          <Card className="skylux-card skylux-kpi">
+            <div className="flex items-center gap-5">
+              <span className="skylux-icon-bubble bg-[var(--color-primary-soft)] text-[var(--color-primary-600)]">
+                <TeamOutlined />
+              </span>
+              <div>
+                <Text className="text-sm text-slate-500">Khách hàng đang chăm sóc</Text>
+                <div className="mt-1 text-[30px] font-bold leading-none text-[var(--color-primary-900)]">
+                  {isLoadingCustomers ? <Skeleton.Input active size="small" /> : totalCustomers}
+                </div>
+                <div className="mt-3 text-xs font-medium text-[var(--color-primary-600)]">
+                  Từ API khách hàng
+                </div>
+              </div>
+            </div>
           </Card>
         </Col>
+        <Col xs={24} sm={12} xl={6}>
+          <Card className="skylux-card skylux-kpi">
+            <div className="flex items-center gap-5">
+              <span className="skylux-icon-bubble bg-[var(--color-gold-soft)] text-[var(--color-gold)]">
+                <CheckCircleOutlined />
+              </span>
+              <div className="min-w-0 flex-1">
+                <Text className="text-sm text-slate-500">% hồ sơ hoàn tất</Text>
+                <div className="mt-1 text-[30px] font-bold leading-none text-[var(--color-primary-900)]">
+                  {isLoadingDossiers ? <Skeleton.Input active size="small" /> : `${completionPercent}%`}
+                </div>
+                <Progress
+                  percent={completionPercent}
+                  showInfo={false}
+                  strokeColor="#D6A51F"
+                  railColor="#E8E8E8"
+                  className="mt-3"
+                />
+              </div>
+            </div>
+          </Card>
+        </Col>
+      </Row>
 
-        <Col xs={24} sm={12} lg={6}>
-          <Card className="shadow-xs border-slate-200">
-            <Statistic
-              title={<span className="text-slate-500 font-medium">Công việc hoàn thành</span>}
-              value="92%"
-              prefix={<CheckCircleOutlined className="text-indigo-500 mr-2" />}
-              styles={{ content: { color: '#0F172A', fontWeight: 700 } }}
+      <Row gutter={[16, 16]}>
+        <Col xs={24} xl={14}>
+          <Card
+            className="skylux-card h-full"
+            title={<span className="font-bold text-slate-900">Hồ sơ tạo trong 14 ngày</span>}
+          >
+            <div className="h-[288px]">
+              {isLoadingDossiers ? (
+                <Skeleton active paragraph={{ rows: 8 }} />
+              ) : dossiers.length ? (
+                <Bar data={barData} options={barOptions} />
+              ) : (
+                <Empty description="Chưa có dữ liệu hồ sơ để hiển thị biểu đồ" />
+              )}
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} md={12} xl={5}>
+          <Card
+            className="skylux-card h-full"
+            title={<span className="font-bold text-slate-900">Hồ sơ theo trạng thái</span>}
+          >
+            <div className="relative h-[260px]">
+              {isLoadingDossiers ? (
+                <Skeleton active paragraph={{ rows: 6 }} />
+              ) : doughnutLabels.length ? (
+                <>
+                  <Doughnut
+                    data={doughnutData}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      cutout: '66%',
+                      plugins: { legend: { display: false } },
+                    }}
+                  />
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="text-xs text-slate-500">Tổng số</div>
+                      <div className="text-3xl font-bold text-slate-900">{dossiers.length}</div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <Empty description="Chưa có dữ liệu trạng thái" />
+              )}
+            </div>
+            <div className="mt-4 space-y-2">
+              {doughnutLabels.map((status) => {
+                const config = getStatus(status);
+                return (
+                  <div key={status} className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ background: config.color }}
+                      />
+                      {config.label}
+                    </span>
+                    <span className="font-semibold text-slate-800">{statusCounts[status]}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} md={12} xl={5}>
+          <Card
+            className="skylux-card h-full"
+            title={<span className="font-bold text-slate-900">Việc cần làm hôm nay</span>}
+          >
+            <Empty
+              description="Chưa có API công việc cho dashboard"
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
             />
           </Card>
         </Col>
       </Row>
 
-      {/* Recent Dossiers Table Card */}
       <Card
-        title={
-          <div className="flex justify-between items-center py-1">
-            <span className="font-bold text-slate-800 text-base">
-              Hồ sơ tour & Dự toán mới nhất
-            </span>
-            <Link href="/main/dossiers">
-              <Button type="link" size="small" className="text-blue-600 font-medium">
-                Xem tất cả &rarr;
-              </Button>
-            </Link>
-          </div>
+        className="skylux-card"
+        title={<span className="font-bold text-slate-900">Hồ sơ gần đây</span>}
+        extra={
+          <Link href="/main/dossiers">
+            <Button type="link" className="font-semibold text-[var(--color-primary-700)]">
+              Xem tất cả hồ sơ <ArrowRightOutlined />
+            </Button>
+          </Link>
         }
-        className="shadow-xs border-slate-200"
       >
         <Table
-          dataSource={sampleDossiers}
+          dataSource={dossiers.slice(0, 8)}
           columns={columns}
+          rowKey="id"
+          loading={isLoadingDossiers}
           pagination={false}
-          className="border border-slate-100 rounded-lg overflow-hidden"
+          className="skylux-table"
+          scroll={{ x: 860 }}
         />
       </Card>
+
+      <div className="flex justify-end">
+        <Link href="/main/imports">
+          <Button icon={<FileExcelOutlined />} className="skylux-outline-button">
+            Import dự toán Excel
+          </Button>
+        </Link>
+      </div>
     </div>
   );
 }

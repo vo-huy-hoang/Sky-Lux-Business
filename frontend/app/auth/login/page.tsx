@@ -2,30 +2,59 @@
 
 import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
 import {
   Form,
   Input,
   Button,
   Checkbox,
-  Card,
   Typography,
   App,
-  Tag,
   Divider,
   Spin,
 } from 'antd';
 import {
   MailOutlined,
   LockOutlined,
-  SafetyCertificateOutlined,
-  CompassOutlined,
-  ThunderboltOutlined,
+  EyeInvisibleOutlined,
+  EyeTwoTone,
+  ArrowRightOutlined,
+  LineChartOutlined,
+  GlobalOutlined,
+  SendOutlined,
 } from '@ant-design/icons';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { LoginResponse } from '@/types/auth';
 
 const { Title, Text } = Typography;
+
+function LoginLogo() {
+  const [failed, setFailed] = useState(false);
+
+  if (!failed) {
+    return (
+      <Image
+        src="/logo/logo.png"
+        alt="SkyLux Travel"
+        width={178}
+        height={148}
+        className="h-[148px] w-[178px] object-contain"
+        onError={() => setFailed(true)}
+        unoptimized
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-[148px] w-[148px] items-center justify-center rounded-full border border-[#D6A51F]/80 text-center text-[#F0C020]">
+      <div>
+        <div className="text-2xl font-bold leading-none">SKYLUX</div>
+        <div className="mt-1 text-[11px] font-semibold">TRAVEL</div>
+      </div>
+    </div>
+  );
+}
 
 function LoginForm() {
   const { message } = App.useApp();
@@ -58,24 +87,14 @@ function LoginForm() {
     }
   };
 
-  const handleFillDemoAdmin = () => {
-    form.setFieldsValue({
-      email: 'admin@skylux.vn',
-      password: 'Admin@123456',
-    });
-  };
-
   return (
-    <Card
-      className="shadow-2xl border-slate-700/50 backdrop-blur-xl bg-white/95"
-      styles={{ body: { padding: '36px 32px' } }}
-    >
-      <div className="mb-6">
-        <Title level={4} style={{ marginBottom: 4, color: '#0F172A' }}>
-          Đăng nhập tài khoản
+    <div className="mx-auto w-full max-w-[480px]">
+      <div className="mb-9">
+        <Title level={2} style={{ marginBottom: 10, color: '#003828' }}>
+          Đăng nhập hệ thống
         </Title>
-        <Text type="secondary" style={{ fontSize: 13 }}>
-          Nhập email công việc và mật khẩu để tiếp tục
+        <Text style={{ color: '#6B7280', fontSize: 15 }}>
+          Vui lòng nhập thông tin để tiếp tục
         </Text>
       </div>
 
@@ -89,7 +108,7 @@ function LoginForm() {
       >
         <Form.Item
           name="email"
-          label={<span className="text-slate-700 font-medium">Email</span>}
+          label={<span className="font-medium text-slate-900">Email</span>}
           rules={[
             { required: true, message: 'Vui lòng nhập email' },
             { type: 'email', message: 'Email không đúng định dạng' },
@@ -97,28 +116,15 @@ function LoginForm() {
         >
           <Input
             prefix={<MailOutlined className="text-slate-400 mr-1" />}
-            placeholder="name@skylux.vn"
+            placeholder="Nhập email của bạn"
             autoComplete="email"
+            className="h-14 rounded-lg"
           />
         </Form.Item>
 
         <Form.Item
           name="password"
-          label={
-            <div className="flex justify-between items-center w-full">
-              <span className="text-slate-700 font-medium">Mật khẩu</span>
-              <a
-                className="text-xs text-blue-600 hover:text-blue-700"
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  message.info('Vui lòng liên hệ Admin để đặt lại mật khẩu.');
-                }}
-              >
-                Quên mật khẩu?
-              </a>
-            </div>
-          }
+          label={<span className="font-medium text-slate-900">Mật khẩu</span>}
           rules={[
             { required: true, message: 'Vui lòng nhập mật khẩu' },
             { min: 6, message: 'Mật khẩu tối thiểu 6 ký tự' },
@@ -126,105 +132,118 @@ function LoginForm() {
         >
           <Input.Password
             prefix={<LockOutlined className="text-slate-400 mr-1" />}
-            placeholder="••••••••"
+            placeholder="Nhập mật khẩu"
             autoComplete="current-password"
+            className="h-14 rounded-lg"
+            iconRender={(visible) =>
+              visible ? <EyeTwoTone twoToneColor="#9CA3AF" /> : <EyeInvisibleOutlined />
+            }
           />
         </Form.Item>
 
-        <Form.Item name="remember" valuePropName="checked" className="mb-4">
-          <Checkbox className="text-slate-600 text-xs">
-            Ghi nhớ đăng nhập trên thiết bị này
+        <Form.Item name="remember" valuePropName="checked" className="mb-5">
+          <Checkbox className="text-sm text-slate-700">
+            Ghi nhớ đăng nhập
           </Checkbox>
         </Form.Item>
 
-        <Form.Item className="mb-2">
+        <Form.Item className="mb-6">
           <Button
             type="primary"
             htmlType="submit"
             loading={loading}
             block
-            className="h-11 font-semibold text-base bg-[#0A2540] hover:bg-[#133E68] border-none shadow-md"
+            iconPlacement="end"
+            icon={!loading ? <ArrowRightOutlined /> : undefined}
+            className="skylux-primary-button h-14 text-base font-semibold"
           >
             {loading ? 'Đang xác thực...' : 'Đăng nhập'}
           </Button>
         </Form.Item>
       </Form>
 
-      <Divider style={{ margin: '20px 0', borderColor: '#E2E8F0' }}>
-        <span className="text-xs text-slate-400 uppercase tracking-wider">
-          Tài khoản dùng thử
-        </span>
+      <Divider style={{ margin: '22px 0', borderColor: '#E8E8E8' }}>
+        <span className="text-sm text-slate-400">hoặc</span>
       </Divider>
 
-      {/* Quick Demo Login Pill */}
-      <div
-        onClick={handleFillDemoAdmin}
-        className="flex items-center justify-between p-3 rounded-xl border border-blue-100 bg-blue-50/70 hover:bg-blue-100/70 cursor-pointer transition-all duration-200"
-      >
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-semibold text-xs shadow-sm">
-            <ThunderboltOutlined />
-          </div>
-          <div className="text-left">
-            <div className="text-xs font-semibold text-slate-800">
-              Tài khoản Quản trị SuperAdmin
-            </div>
-            <div className="text-[11px] text-slate-500 font-mono">
-              admin@skylux.vn
-            </div>
-          </div>
-        </div>
-        <Tag color="blue" className="mr-0 text-[11px] font-medium">
-          Bấm để điền
-        </Tag>
+      <div className="flex items-center justify-between gap-4 text-sm font-medium">
+        <a
+          className="text-[#00543D] hover:text-[#007A55]"
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            message.info('Vui lòng liên hệ Admin để đặt lại mật khẩu.');
+          }}
+        >
+          Quên mật khẩu?
+        </a>
+        <a className="inline-flex items-center gap-2 text-[#00543D] hover:text-[#007A55]" href="#">
+          Đăng ký tài khoản <ArrowRightOutlined />
+        </a>
       </div>
-    </Card>
+    </div>
   );
 }
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#071728] via-[#0A2540] to-[#133E68] p-4 relative overflow-hidden">
-      {/* Decorative Glow Elements */}
-      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-blue-500/10 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] rounded-full bg-amber-500/10 blur-[140px] pointer-events-none" />
+    <div className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-[#F8F8F8] px-5 py-8">
+      <div className="absolute inset-0 pointer-events-none opacity-[0.08]">
+        <div className="absolute -left-14 bottom-10 h-52 w-80 rounded-[50%] border border-[#003828]" />
+        <div className="absolute right-12 top-8 h-20 w-20 rounded-full border border-dashed border-[#003828]" />
+        <SendOutlined className="absolute bottom-24 left-[12%] rotate-[-18deg] text-6xl text-[#003828]" />
+        <GlobalOutlined className="absolute bottom-12 right-[10%] text-8xl text-[#003828]" />
+      </div>
 
-      <div className="w-full max-w-[440px] z-10">
-        {/* Brand Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-400 to-amber-200 text-[#0A2540] shadow-xl shadow-amber-500/20 mb-3">
-            <CompassOutlined style={{ fontSize: 28 }} />
+      <div className="skylux-card relative grid min-h-[720px] w-full max-w-[1400px] overflow-hidden bg-white md:grid-cols-[48%_52%]">
+        <div className="relative overflow-hidden bg-[linear-gradient(160deg,#003828,#003020)] px-8 py-10 text-white md:px-14 md:py-14">
+          <LoginLogo />
+
+          <div className="mt-10 max-w-[430px]">
+            <Text className="text-xl text-white/78">Chào mừng bạn đến với</Text>
+            <Title level={1} style={{ color: '#FFFFFF', margin: '8px 0 6px', fontSize: 40 }}>
+              SkyLux Travel
+            </Title>
+            <Text className="text-lg text-white/70">
+              Phần mềm quản trị nội bộ dành cho Sales
+            </Text>
+            <div className="mt-6 h-[2px] w-16 bg-[#D6A51F]" />
+            <p className="mt-7 text-[16px] leading-7 text-white/78">
+              Nền tảng quản lý toàn diện giúp đội ngũ Sales vận hành hiệu quả,
+              theo dõi doanh thu, xử lý khách hàng và chốt tour nhanh chóng.
+            </p>
           </div>
-          <Title
-            level={2}
-            style={{
-              color: '#FFFFFF',
-              marginBottom: 4,
-              letterSpacing: '-0.02em',
-            }}
-          >
-            SKY-LUX CRM
-          </Title>
-          <Text style={{ color: '#94A3B8', fontSize: 14 }}>
-            Hệ thống Quản trị Điều hành & Báo giá Tour Du lịch
-          </Text>
+
+          <div className="absolute bottom-11 left-8 right-8 rounded-xl border border-white/12 bg-white/[0.05] p-6 text-white/35 md:left-14 md:right-14">
+            <div className="mb-5 flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-white/20" />
+              <span className="h-3 w-3 rounded-full bg-white/20" />
+              <span className="h-3 w-3 rounded-full bg-white/20" />
+            </div>
+            <LineChartOutlined className="text-7xl" />
+            <div className="mt-5 grid grid-cols-3 gap-3">
+              <div className="h-14 rounded-lg bg-white/10" />
+              <div className="h-14 rounded-lg bg-white/10" />
+              <div className="h-14 rounded-lg bg-white/10" />
+            </div>
+          </div>
         </div>
 
-        {/* Form wrapped in Suspense for Next.js SSR */}
-        <Suspense
-          fallback={
-            <div className="p-12 text-center bg-white rounded-2xl">
-              <Spin size="large" />
-            </div>
-          }
-        >
-          <LoginForm />
-        </Suspense>
+        <div className="flex flex-col justify-center px-8 py-10 md:px-20">
+          <Suspense
+            fallback={
+              <div className="p-12 text-center">
+                <Spin size="large" />
+              </div>
+            }
+          >
+            <LoginForm />
+          </Suspense>
 
-        {/* Footer Security Badge */}
-        <div className="flex items-center justify-center gap-2 mt-6 text-slate-400 text-xs">
-          <SafetyCertificateOutlined className="text-emerald-400" />
-          <span>Hệ thống bảo mật chuẩn SSL & JWT RBAC</span>
+          <div className="mt-24 flex items-center justify-between border-t border-[#E8E8E8] pt-8 text-xs text-slate-500">
+            <span>© 2025 SkyLux Travel. All rights reserved.</span>
+            <span>Phiên bản 1.0.0</span>
+          </div>
         </div>
       </div>
     </div>

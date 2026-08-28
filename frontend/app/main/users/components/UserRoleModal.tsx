@@ -54,7 +54,7 @@ export default function UserRoleModal() {
       confirmLoading={assignUserRolesMutation.isPending}
       okText="Lưu vai trò"
       cancelText="Hủy"
-      destroyOnClose
+      destroyOnHidden
     >
       <div className="py-4 space-y-4">
         <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">

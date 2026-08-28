@@ -60,7 +60,8 @@ export default function RoleModal() {
       confirmLoading={saveRoleMutation.isPending}
       okText={editingRole ? 'Lưu thay đổi' : 'Tạo vai trò'}
       cancelText="Hủy"
-      destroyOnClose
+      forceRender
+      destroyOnHidden
     >
       <Form
         form={form}

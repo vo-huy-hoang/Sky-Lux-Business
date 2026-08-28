@@ -215,7 +215,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
       title: 'Sales phụ trách',
       key: 'sales',
       render: (_: any, record: DossierItem) => (
-        <span>{record.salesUser?.fullName || '—'}</span>
+        <span>{record.salesUser?.fullName || '-'}</span>
       ),
     },
     {
@@ -223,7 +223,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
       dataIndex: 'createdAt',
       key: 'createdAt',
       render: (date: string) =>
-        date ? new Date(date).toLocaleDateString('vi-VN') : '—',
+        date ? new Date(date).toLocaleDateString('vi-VN') : '-',
     },
   ];
 
@@ -237,7 +237,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
         </Space>
       }
       placement="right"
-      width={720}
+      styles={{ wrapper: { width: 720, maxWidth: '100vw' } }}
       open={visible}
       onClose={onClose}
       loading={isLoadingCustomer}
@@ -272,7 +272,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
                   {customer.displayName}
                 </Descriptions.Item>
                 <Descriptions.Item label="Mã số thuế">
-                  {customer.taxCode || '—'}
+                  {customer.taxCode || '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Trạng thái">
                   <Tag
@@ -282,18 +282,18 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
                   </Tag>
                 </Descriptions.Item>
                 <Descriptions.Item label="Số điện thoại">
-                  {customer.phone || '—'}
+                  {customer.phone || '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Email">
-                  {customer.email || '—'}
+                  {customer.email || '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Ngày sinh nhật">
                   {customer.dateOfBirth
                     ? new Date(customer.dateOfBirth).toLocaleDateString('vi-VN')
-                    : '—'}
+                    : '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Địa chỉ">
-                  {customer.address || '—'}
+                  {customer.address || '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Sales phụ trách" span={2}>
                   {customer.assignedSales?.fullName ? (
@@ -305,7 +305,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
                       </Text>
                     </Space>
                   ) : (
-                    '—'
+                    '-'
                   )}
                 </Descriptions.Item>
                 <Descriptions.Item label="Ngày tạo">

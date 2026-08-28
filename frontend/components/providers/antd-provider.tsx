@@ -31,34 +31,54 @@ export function AntdProvider({ children }: { children: React.ReactNode }) {
         theme={{
           algorithm: antTheme.defaultAlgorithm,
           token: {
-            colorPrimary: '#0A2540',
-            colorInfo: '#1890FF',
-            colorSuccess: '#52C41A',
-            colorWarning: '#FAAD14',
-            colorError: '#FF4D4F',
+            colorPrimary: '#00543D',
+            colorInfo: '#2F80ED',
+            colorSuccess: '#007A55',
+            colorWarning: '#F59E0B',
+            colorError: '#D93737',
+            colorText: '#111827',
+            colorTextSecondary: '#6B7280',
+            colorBorder: '#E8E8E8',
+            colorBgLayout: '#F8F8F8',
+            colorBgContainer: '#FFFFFF',
             borderRadius: 8,
             fontFamily:
               'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
           },
           components: {
             Button: {
-              controlHeight: 38,
+              controlHeight: 42,
               borderRadius: 8,
-              fontWeight: 500,
+              fontWeight: 600,
+              primaryShadow: '0 10px 20px rgb(0 84 61 / 0.14)',
             },
             Input: {
-              controlHeight: 38,
+              controlHeight: 42,
               borderRadius: 8,
+              activeBorderColor: '#00543D',
+              hoverBorderColor: '#B7D3C7',
+              activeShadow: '0 0 0 3px rgb(0 84 61 / 0.10)',
             },
             Select: {
-              controlHeight: 38,
+              controlHeight: 42,
               borderRadius: 8,
+              optionSelectedBg: '#EAF5EF',
             },
             Card: {
-              borderRadiusLG: 12,
+              borderRadiusLG: 10,
+              headerBg: '#FFFFFF',
+              boxShadowTertiary:
+                '0 1px 2px rgb(16 24 40 / 0.04), 0 8px 24px rgb(16 24 40 / 0.03)',
             },
             Table: {
               borderRadiusLG: 8,
+              headerBg: '#F9FAFA',
+              headerColor: '#374151',
+              rowHoverBg: '#F9FAFA',
+            },
+            Tag: {
+              borderRadiusSM: 999,
+              fontSizeSM: 12,
             },
           },
         }}

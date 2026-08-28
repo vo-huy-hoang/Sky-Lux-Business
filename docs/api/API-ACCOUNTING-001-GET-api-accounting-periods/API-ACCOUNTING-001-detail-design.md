@@ -2,17 +2,17 @@
 
 ## 1. Tổng quan
 
-| Trường | Giá trị |
-| --- | --- |
-| Task ID | Sky-Lux-157 |
-| Level 0 | Lap trinh Backend API (Tasks, Finance, KPI & Ops) |
-| Level 1 | API Accounting Period (MOD-ACCOUNTING) |
-| Level 2 | API-ACCOUNTING-001-GET-api-accounting-periods |
-| Method | GET |
-| Endpoint | `/api/accounting-periods` |
-| Phase | Phase 2 |
-| Mục tiêu | Danh sach ky ke toan |
-| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
+| Trường   | Giá trị                                         |
+| ---------- | ------------------------------------------------- |
+| Task ID    | Sky-Lux-157                                       |
+| Level 0    | Lap trinh Backend API (Tasks, Finance, KPI & Ops) |
+| Level 1    | API Accounting Period (MOD-ACCOUNTING)            |
+| Level 2    | API-ACCOUNTING-001-GET-api-accounting-periods     |
+| Method     | GET                                               |
+| Endpoint   | `/api/accounting-periods`                       |
+| Phase      | Phase 2                                           |
+| Mục tiêu | Danh sach ky ke toan                              |
+| Nguồn     | `sky_lux_api_tasks_phase_sorted.xlsx`           |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 
@@ -48,7 +48,7 @@ Tên DTO: `AccountingPeriodQueryDto`
 - `pageSize?: number`
 - `search?: string`
 
-### 4.3 Request Body DTO
+#### 4.3 Request Body DTO
 
 Tên DTO: `N/A`
 
