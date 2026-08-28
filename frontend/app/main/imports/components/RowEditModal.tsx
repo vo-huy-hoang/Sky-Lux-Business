@@ -118,7 +118,8 @@ export const RowEditModal: React.FC<RowEditModalProps> = ({
           Lưu & Validate lại
         </Button>,
       ]}
-      destroyOnClose
+      forceRender
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>

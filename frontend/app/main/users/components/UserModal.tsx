@@ -125,7 +125,8 @@ export default function UserModal() {
       okText={isEditing ? 'Lưu thay đổi' : 'Tạo mới'}
       cancelText="Hủy"
       width={720}
-      destroyOnClose
+      forceRender
+      destroyOnHidden
       okButtonProps={{ className: 'bg-[#0A2540] hover:bg-[#133E68] border-none' }}
     >
       <Form
@@ -226,9 +227,9 @@ export default function UserModal() {
             >
               <Select
                 options={[
-                  { label: '🟢 Hoạt động (ACTIVE)', value: 'ACTIVE' },
-                  { label: '⚪ Chưa kích hoạt (INACTIVE)', value: 'INACTIVE' },
-                  { label: '🔴 Đang bị khóa (LOCKED)', value: 'LOCKED' },
+                  { label: 'Hoạt động (ACTIVE)', value: 'ACTIVE' },
+                  { label: 'Chưa kích hoạt (INACTIVE)', value: 'INACTIVE' },
+                  { label: 'Đang bị khóa (LOCKED)', value: 'LOCKED' },
                 ]}
               />
             </Form.Item>

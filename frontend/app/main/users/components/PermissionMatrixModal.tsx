@@ -80,7 +80,7 @@ export default function PermissionMatrixModal() {
       okText="Lưu danh sách quyền"
       cancelText="Đóng"
       width={900}
-      destroyOnClose
+      destroyOnHidden
     >
       <div className="py-2 max-h-[65vh] overflow-y-auto pr-2 space-y-6">
         <div className="flex justify-between items-center bg-blue-50 p-3 rounded-xl border border-blue-100">

@@ -96,9 +96,10 @@ export const ContactModal: React.FC<ContactModalProps> = ({
       onOk={handleOk}
       onCancel={onCancel}
       confirmLoading={isLoading}
+      forceRender
       okText={isEditing ? 'Lưu thay đổi' : 'Thêm liên hệ'}
       cancelText="Hủy"
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" preserve={false}>
         <Form.Item

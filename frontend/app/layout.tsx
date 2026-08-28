@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Sky-Lux CRM — Hệ Thống Quản Lý Tour & Dự Toán Báo Giá',
+  title: 'Sky-Lux CRM - Hệ Thống Quản Lý Tour & Dự Toán Báo Giá',
   description: 'Nền tảng quản lý điều hành tour, dự toán chiết tính và CRM chuyên biệt cho Sky-Lux Travel Corporation',
 };
 

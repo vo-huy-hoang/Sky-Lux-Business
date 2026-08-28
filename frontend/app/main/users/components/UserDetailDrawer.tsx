@@ -94,7 +94,7 @@ export default function UserDetailDrawer() {
     <Drawer
       title="Chi tiết hồ sơ nhân viên"
       placement="right"
-      width={540}
+      styles={{ wrapper: { width: 540, maxWidth: '100vw' } }}
       onClose={closeUserDetail}
       open={isUserDrawerOpen}
       extra={

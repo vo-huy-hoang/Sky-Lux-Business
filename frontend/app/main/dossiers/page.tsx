@@ -1,0 +1,439 @@
+'use client';
+
+import React, { useMemo, useState } from 'react';
+import {
+  Button,
+  Card,
+  Col,
+  Descriptions,
+  Drawer,
+  Empty,
+  Input,
+  Row,
+  Select,
+  Skeleton,
+  Space,
+  Table,
+  Tabs,
+  Tag,
+  Typography,
+} from 'antd';
+import {
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  EyeOutlined,
+  FileExcelOutlined,
+  FolderOpenOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  WarningOutlined,
+} from '@ant-design/icons';
+import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
+import { dossiersService } from '@/services/dossiers.service';
+import { DossierItem } from '@/types/dossier';
+import { DossierComments } from './components/DossierComments';
+
+const { Title, Text } = Typography;
+
+const statusOptions = [
+  { label: 'Tất cả', value: '' },
+  { label: 'Mới nhập', value: 'DRAFT' },
+  { label: 'Đã gửi', value: 'SUBMITTED' },
+  { label: 'Đang xử lý', value: 'IN_REVIEW' },
+  { label: 'Đã duyệt', value: 'APPROVED' },
+  { label: 'Thành công', value: 'COMPLETED' },
+  { label: 'Đã hủy', value: 'CANCELLED' },
+];
+
+const priorityOptions = [
+  { label: 'Tất cả', value: '' },
+  { label: 'Cao', value: 'HIGH' },
+  { label: 'Trung bình', value: 'MEDIUM' },
+  { label: 'Thấp', value: 'LOW' },
+];
+
+const statusConfig: Record<string, { label: string; className: string }> = {
+  DRAFT: { label: 'Mới nhập', className: 'skylux-status-info' },
+  SUBMITTED: { label: 'Đã gửi', className: 'skylux-status-purple' },
+  IN_REVIEW: { label: 'Đang xử lý', className: 'skylux-status-warning' },
+  APPROVED: { label: 'Đã duyệt', className: 'skylux-status-valid' },
+  COMPLETED: { label: 'Thành công', className: 'skylux-status-valid' },
+  CANCELLED: { label: 'Đã hủy', className: 'skylux-status-danger' },
+};
+
+function formatDate(value?: string) {
+  if (!value) return '-';
+  return new Date(value).toLocaleString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function compactDate(value?: string) {
+  if (!value) return '-';
+  return new Date(value).toLocaleDateString('vi-VN');
+}
+
+function getStatus(status?: string) {
+  return statusConfig[status || ''] || {
+    label: status || 'Chưa rõ',
+    className: 'skylux-status-info',
+  };
+}
+
+export default function DossiersPage() {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState<string>();
+  const [priority, setPriority] = useState<string>();
+  const [selectedDossierId, setSelectedDossierId] = useState<string | null>(null);
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['dossiers', page, pageSize, search, status, priority],
+    queryFn: () =>
+      dossiersService.getDossiers({
+        page,
+        limit: pageSize,
+        search: search || undefined,
+        status: status || undefined,
+        priority: priority || undefined,
+      }),
+  });
+
+  const { data: selectedDossier, isLoading: isLoadingDetail } = useQuery({
+    queryKey: ['dossier-detail', selectedDossierId],
+    queryFn: () => dossiersService.getDossier(selectedDossierId!),
+    enabled: !!selectedDossierId,
+  });
+
+  const summary = useMemo(() => {
+    const items = data?.items || [];
+    return {
+      total: data?.total || 0,
+      waiting: items.filter((item) => ['DRAFT', 'SUBMITTED', 'IN_REVIEW'].includes(item.status)).length,
+      approved: items.filter((item) => ['APPROVED', 'COMPLETED'].includes(item.status)).length,
+      needsCare: items.filter((item) => item.priority === 'HIGH').length,
+    };
+  }, [data]);
+
+  const columns = [
+    {
+      title: 'Mã hồ sơ',
+      dataIndex: 'code',
+      key: 'code',
+      width: 120,
+      render: (code: string) => (
+        <Space>
+          <FileExcelOutlined className="text-[var(--color-primary-700)]" />
+          <Text strong>{code}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Khách hàng',
+      key: 'customer',
+      width: 220,
+      render: (_: unknown, record: DossierItem) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.customer?.displayName || '-'}</Text>
+          <Text type="secondary" className="text-xs">
+            {record.customer?.code || record.customerId || '-'}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Tuyến/Chương trình',
+      key: 'route',
+      render: (_: unknown, record: DossierItem) => (
+        <Space direction="vertical" size={0}>
+          <Text>{record.route || record.name}</Text>
+          <Text type="secondary" className="text-xs">
+            {record.name}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Ngày đi',
+      dataIndex: 'startDate',
+      key: 'startDate',
+      width: 125,
+      render: compactDate,
+    },
+    {
+      title: 'Trạng thái',
+      dataIndex: 'status',
+      key: 'status',
+      width: 130,
+      render: (value: string) => {
+        const config = getStatus(value);
+        return <Tag className={config.className}>{config.label}</Tag>;
+      },
+    },
+    {
+      title: 'Độ ưu tiên',
+      dataIndex: 'priority',
+      key: 'priority',
+      width: 120,
+      render: (value?: string) => {
+        const map: Record<string, { label: string; className: string }> = {
+          HIGH: { label: 'Cao', className: 'skylux-status-danger' },
+          MEDIUM: { label: 'Trung bình', className: 'skylux-status-warning' },
+          LOW: { label: 'Thấp', className: 'skylux-status-valid' },
+        };
+        const config = map[value || ''] || { label: value || '-', className: 'skylux-status-info' };
+        return <Tag className={config.className}>{config.label}</Tag>;
+      },
+    },
+    {
+      title: 'Điều hành phụ trách',
+      key: 'operator',
+      width: 180,
+      render: (_: unknown, record: DossierItem) => record.operatorUser?.fullName || '-',
+    },
+    {
+      title: 'Cập nhật cuối',
+      dataIndex: 'updatedAt',
+      key: 'updatedAt',
+      width: 155,
+      render: formatDate,
+    },
+    {
+      title: 'Thao tác',
+      key: 'actions',
+      width: 170,
+      render: (_: unknown, record: DossierItem) => (
+        <Button
+          icon={<EyeOutlined />}
+          className="skylux-outline-button"
+          onClick={() => setSelectedDossierId(record.id)}
+        >
+          Xem chi tiết
+        </Button>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <Title level={1} className="skylux-page-title">
+            Hồ sơ của tôi
+          </Title>
+          <div className="skylux-subtitle mt-1">Danh sách hồ sơ và dự toán của bạn</div>
+        </div>
+        <Link href="/main/imports">
+          <Button icon={<FileExcelOutlined />} className="skylux-primary-button">
+            Import dự toán Excel
+          </Button>
+        </Link>
+      </div>
+
+      <Card className="skylux-card">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(260px,1.4fr)_180px_180px_auto]">
+          <Input
+            placeholder="Tìm kiếm hồ sơ, khách hàng, chương trình..."
+            prefix={<SearchOutlined />}
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
+            allowClear
+          />
+          <Select
+            placeholder="Trạng thái"
+            value={status}
+            onChange={(value) => {
+              setStatus(value || undefined);
+              setPage(1);
+            }}
+            options={statusOptions}
+          />
+          <Select
+            placeholder="Độ ưu tiên"
+            value={priority}
+            onChange={(value) => {
+              setPriority(value || undefined);
+              setPage(1);
+            }}
+            options={priorityOptions}
+          />
+          <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
+            Đặt lại
+          </Button>
+        </div>
+      </Card>
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={12} xl={6}>
+          <Card className="skylux-card skylux-kpi">
+            <div className="flex items-center gap-5">
+              <span className="skylux-icon-bubble bg-[var(--color-primary-soft)] text-[var(--color-primary-600)]">
+                <FolderOpenOutlined />
+              </span>
+              <div>
+                <Text className="text-sm text-slate-500">Tổng hồ sơ</Text>
+                <div className="mt-1 text-[30px] font-bold text-[var(--color-primary-900)]">
+                  {isLoading ? <Skeleton.Input active size="small" /> : summary.total}
+                </div>
+              </div>
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} xl={6}>
+          <Card className="skylux-card skylux-kpi">
+            <div className="flex items-center gap-5">
+              <span className="skylux-icon-bubble bg-[var(--color-gold-soft)] text-[var(--color-gold)]">
+                <ClockCircleOutlined />
+              </span>
+              <div>
+                <Text className="text-sm text-slate-500">Chờ xử lý</Text>
+                <div className="mt-1 text-[30px] font-bold text-[var(--color-primary-900)]">
+                  {isLoading ? <Skeleton.Input active size="small" /> : summary.waiting}
+                </div>
+              </div>
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} xl={6}>
+          <Card className="skylux-card skylux-kpi">
+            <div className="flex items-center gap-5">
+              <span className="skylux-icon-bubble bg-[var(--color-warning-soft)] text-[var(--color-warning)]">
+                <WarningOutlined />
+              </span>
+              <div>
+                <Text className="text-sm text-slate-500">Ưu tiên cao</Text>
+                <div className="mt-1 text-[30px] font-bold text-[var(--color-primary-900)]">
+                  {isLoading ? <Skeleton.Input active size="small" /> : summary.needsCare}
+                </div>
+              </div>
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} xl={6}>
+          <Card className="skylux-card skylux-kpi">
+            <div className="flex items-center gap-5">
+              <span className="skylux-icon-bubble bg-[var(--color-primary-soft)] text-[var(--color-primary-600)]">
+                <CheckCircleOutlined />
+              </span>
+              <div>
+                <Text className="text-sm text-slate-500">Đã duyệt</Text>
+                <div className="mt-1 text-[30px] font-bold text-[var(--color-primary-900)]">
+                  {isLoading ? <Skeleton.Input active size="small" /> : summary.approved}
+                </div>
+              </div>
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
+      <Card className="skylux-card">
+        <Table
+          dataSource={data?.items || []}
+          columns={columns}
+          rowKey="id"
+          loading={isLoading}
+          className="skylux-table"
+          locale={{ emptyText: <Empty description="Chưa có hồ sơ từ API" /> }}
+          scroll={{ x: 1220 }}
+          pagination={{
+            current: page,
+            pageSize,
+            total: data?.total || 0,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50'],
+            showTotal: (total) => `Hiển thị ${data?.items?.length || 0} trong tổng số ${total} hồ sơ`,
+            onChange: (nextPage, nextPageSize) => {
+              setPage(nextPage);
+              setPageSize(nextPageSize);
+            },
+          }}
+        />
+      </Card>
+
+      <Drawer
+        title={
+          <Space>
+            <FolderOpenOutlined />
+            <span>{selectedDossier?.code || 'Chi tiết hồ sơ'}</span>
+          </Space>
+        }
+        styles={{ wrapper: { width: 860, maxWidth: '100vw' } }}
+        open={!!selectedDossierId}
+        onClose={() => setSelectedDossierId(null)}
+        loading={isLoadingDetail}
+      >
+        {selectedDossier ? (
+          <div className="space-y-4">
+            <Card className="skylux-card">
+              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <Title level={3} style={{ margin: 0 }}>
+                    {selectedDossier.name}
+                  </Title>
+                  <Text type="secondary">{selectedDossier.route || '-'}</Text>
+                </div>
+                <Tag className={getStatus(selectedDossier.status).className}>
+                  {getStatus(selectedDossier.status).label}
+                </Tag>
+              </div>
+            </Card>
+
+            <Tabs
+              defaultActiveKey="info"
+              items={[
+                {
+                  key: 'info',
+                  label: 'Thông tin chung',
+                  children: (
+                    <Descriptions bordered column={2} size="small">
+                      <Descriptions.Item label="Mã hồ sơ">
+                        {selectedDossier.code}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Khách hàng">
+                        {selectedDossier.customer?.displayName || selectedDossier.customerId || '-'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Ngày bắt đầu">
+                        {compactDate(selectedDossier.startDate)}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Ngày kết thúc">
+                        {compactDate(selectedDossier.endDate)}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Sales phụ trách">
+                        {selectedDossier.salesUser?.fullName || '-'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Điều hành phụ trách">
+                        {selectedDossier.operatorUser?.fullName || '-'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Độ ưu tiên">
+                        {selectedDossier.priority || '-'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Cập nhật cuối">
+                        {formatDate(selectedDossier.updatedAt)}
+                      </Descriptions.Item>
+                    </Descriptions>
+                  ),
+                },
+                {
+                  key: 'comments',
+                  label: 'Trao đổi',
+                  children: <DossierComments dossierId={selectedDossier.id} />,
+                },
+              ]}
+            />
+          </div>
+        ) : (
+          <Empty description="Chưa có dữ liệu chi tiết hồ sơ" />
+        )}
+      </Drawer>
+    </div>
+  );
+}

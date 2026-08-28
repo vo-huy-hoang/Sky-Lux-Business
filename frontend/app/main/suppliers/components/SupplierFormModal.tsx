@@ -117,7 +117,8 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
       onCancel={onCancel}
       onOk={() => form.submit()}
       confirmLoading={isSubmitting}
-      destroyOnClose
+      forceRender
+      destroyOnHidden
       width={720}
       okText={isEdit ? 'Lưu thay đổi' : 'Tạo mới'}
       cancelText="Hủy"

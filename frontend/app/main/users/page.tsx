@@ -375,7 +375,7 @@ export default function UsersAndRbacPage() {
       dataIndex: 'description',
       key: 'description',
       render: (desc: string) => (
-        <span className="text-slate-500 text-xs">{desc || '—'}</span>
+        <span className="text-slate-500 text-xs">{desc || '-'}</span>
       ),
     },
     {
@@ -508,9 +508,9 @@ export default function UsersAndRbacPage() {
                         className="w-40"
                         options={[
                           { label: 'Tất cả trạng thái', value: '' },
-                          { label: '🟢 Hoạt động', value: 'ACTIVE' },
-                          { label: '🔴 Bị khóa', value: 'LOCKED' },
-                          { label: '⚪ Chưa kích hoạt', value: 'INACTIVE' },
+                          { label: 'Hoạt động', value: 'ACTIVE' },
+                          { label: 'Bị khóa', value: 'LOCKED' },
+                          { label: 'Chưa kích hoạt', value: 'INACTIVE' },
                         ]}
                       />
 

@@ -74,7 +74,7 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
         </Space>
       }
       placement="right"
-      width={640}
+      styles={{ wrapper: { width: 640, maxWidth: '100vw' } }}
       onClose={onClose}
       open={visible}
       extra={
@@ -100,7 +100,7 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
       ) : error ? (
         <Alert
           type="error"
-          message="Không thể tải thông tin nhà cung cấp"
+          title="Không thể tải thông tin nhà cung cấp"
           description={(error as Error).message}
           showIcon
         />
