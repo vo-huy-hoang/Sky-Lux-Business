@@ -7,7 +7,7 @@ import {
 import { Subject, Observable } from 'rxjs';
 import { filter, map, mergeMap } from 'rxjs/operators';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Not, MoreThan } from 'typeorm';
 import { Conversation } from './entities/conversation.entity';
 import { ConversationMember } from './entities/conversation-member.entity';
 import { Message } from './entities/message.entity';
@@ -25,7 +25,11 @@ export class ChatService {
       | 'message.deleted'
       | 'message.read'
       | 'member.joined'
-      | 'member.left';
+      | 'member.left'
+      | 'typing.start'
+      | 'typing.stop'
+      | 'unread_count'
+      | 'conversation.updated';
     organizationId: string;
     conversationId: string;
     data: any;
@@ -81,7 +85,8 @@ export class ChatService {
       throw new NotFoundException('Không tìm thấy cuộc hội thoại');
     }
 
-    const isMember = conversation.members.some((m) => m.userId === user.id);
+    const isMember =
+      conversation.members?.some((m) => m.userId === user.id) || false;
     if (!isMember) {
       throw new ForbiddenException(
         'Bạn không phải thành viên cuộc hội thoại này',
@@ -188,8 +193,8 @@ export class ChatService {
     conversationId: string,
     content: string,
   ): Promise<Message> {
-    // Xác thực quyền truy cập hội thoại trước
-    await this.findConversation(user, conversationId);
+    // Xác thực quyền truy cập hội thoại trước và lấy danh sách thành viên
+    const conversation = await this.findConversation(user, conversationId);
 
     const message = this.messageRepository.create({
       organizationId: user.organizationId,
@@ -222,6 +227,17 @@ export class ChatService {
       data: fullMessage,
     });
 
+    // Phát unread_count cho các thành viên khác trong cuộc hội thoại
+    if (conversation && conversation.members) {
+      for (const member of conversation.members) {
+        if (member.userId !== user.id) {
+          this.broadcastUnreadCount(member.userId, user.organizationId).catch(
+            (err) => console.error('Lỗi khi gửi unread_count:', err),
+          );
+        }
+      }
+    }
+
     return fullMessage;
   }
 
@@ -252,7 +268,6 @@ export class ChatService {
       data: { id: message.id, conversationId: message.conversationId },
     });
   }
-
   /**
    * Đăng ký luồng tin nhắn thời gian thực cho một User cụ thể
    */
@@ -260,10 +275,15 @@ export class ChatService {
     return this.chatEvent$.asObservable().pipe(
       filter((evt) => evt.organizationId === user.organizationId),
       mergeMap(async (evt) => {
+        // Cho phép nhận unread_count nếu đúng là cho user này
+        if (evt.type === 'unread_count' && evt.data?.userId === user.id) {
+          return { evt, isAllowed: true };
+        }
+        // Kiểm tra xem có phải thành viên cuộc hội thoại không
         const isMember = await this.isMember(user.id, evt.conversationId);
-        return { evt, isMember };
+        return { evt, isAllowed: isMember };
       }),
-      filter(({ isMember }) => isMember),
+      filter(({ isAllowed }) => isAllowed),
       map(({ evt }) => ({
         data: {
           type: evt.type,
@@ -272,7 +292,6 @@ export class ChatService {
       })),
     );
   }
-
   /**
    * Đánh dấu đã đọc tin nhắn
    */
@@ -320,6 +339,11 @@ export class ChatService {
         },
       });
     }
+
+    // Đẩy unread_count mới của user
+    this.broadcastUnreadCount(user.id, user.organizationId).catch((err) =>
+      console.error('Lỗi khi gửi unread_count:', err),
+    );
 
     return { success: true };
   }
@@ -480,5 +504,86 @@ export class ChatService {
       where: { userId, conversationId },
     });
     return !!member;
+  }
+
+  /**
+   * Phát đi trạng thái đang gõ phím
+   */
+  async sendTypingStatus(
+    user: CurrentUserPayload,
+    conversationId: string,
+    status: 'start' | 'stop',
+  ): Promise<void> {
+    // 1. Xác thực quyền truy cập hội thoại trước
+    await this.findConversation(user, conversationId);
+
+    // 2. Phát sự kiện vào luồng SSE
+    this.chatEvent$.next({
+      type: status === 'start' ? 'typing.start' : 'typing.stop',
+      organizationId: user.organizationId,
+      conversationId,
+      data: {
+        userId: user.id,
+        fullName: user.fullName,
+        conversationId,
+      },
+    });
+  }
+
+  /**
+   * Lấy số lượng cuộc hội thoại chưa đọc của người dùng
+   */
+  async getUnreadCount(
+    userId: string,
+    organizationId: string,
+  ): Promise<number> {
+    const memberships = await this.memberRepository.find({
+      where: { userId, organizationId },
+    });
+    if (!memberships || memberships.length === 0) {
+      return 0;
+    }
+    let unreadCount = 0;
+    for (const member of memberships) {
+      const whereCondition: any = {
+        conversationId: member.conversationId,
+        organizationId,
+        senderId: Not(userId),
+      };
+
+      if (member.lastReadAt) {
+        whereCondition.createdAt = MoreThan(member.lastReadAt);
+      }
+
+      const unreadMessage = await this.messageRepository.findOne({
+        where: whereCondition,
+      });
+
+      if (unreadMessage) {
+        unreadCount++;
+      }
+    }
+
+    return unreadCount;
+  }
+
+  /**
+   * Đẩy số lượng tin nhắn chưa đọc của người dùng qua luồng SSE
+   */
+  async broadcastUnreadCount(
+    userId: string,
+    organizationId: string,
+  ): Promise<void> {
+    const unreadCount = await this.getUnreadCount(userId, organizationId);
+
+    this.chatEvent$.next({
+      type: 'unread_count',
+      organizationId,
+      conversationId: 'global',
+      data: {
+        userId,
+        unreadCount,
+      },
+    });
   }
 }
