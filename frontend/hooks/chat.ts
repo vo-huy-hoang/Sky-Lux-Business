@@ -134,9 +134,6 @@ export const useChatRealtime = (conversationId?: string) => {
   useEffect(() => {
     if (!conversationId) return;
 
-    // Reset typing status on switching conversation
-    setTypingUsers([]);
-
     const token = Cookies.get('access_token');
     if (!token) return;
 
@@ -159,7 +156,10 @@ export const useChatRealtime = (conversationId?: string) => {
             );
           }
         } else if (chatEvent.type === 'message.deleted') {
-          const { id, conversationId: msgConversationId } = chatEvent.payload;
+          const { id, conversationId: msgConversationId } = chatEvent.payload as {
+            id: string;
+            conversationId: string;
+          };
           // Xóa tin nhắn khỏi cache nếu thuộc cuộc hội thoại hiện tại đang xem
           if (msgConversationId === conversationId) {
             queryClient.setQueryData<Message[]>(
@@ -168,7 +168,10 @@ export const useChatRealtime = (conversationId?: string) => {
             );
           }
         } else if (chatEvent.type === 'member.joined') {
-          const { conversationId: joinedConvId, member } = chatEvent.payload;
+          const { conversationId: joinedConvId, member } = chatEvent.payload as {
+            conversationId: string;
+            member: ConversationMember;
+          };
           // Thêm thành viên mới vào danh sách cache nếu thuộc cuộc hội thoại đang xem
           if (joinedConvId === conversationId) {
             queryClient.setQueryData<ConversationMember[]>(
@@ -181,7 +184,10 @@ export const useChatRealtime = (conversationId?: string) => {
             );
           }
         } else if (chatEvent.type === 'member.left') {
-          const { conversationId: leftConvId, userId } = chatEvent.payload;
+          const { conversationId: leftConvId, userId } = chatEvent.payload as {
+            conversationId: string;
+            userId: string;
+          };
           // Xóa thành viên khỏi danh sách cache nếu thuộc cuộc hội thoại đang xem
           if (leftConvId === conversationId) {
             queryClient.setQueryData<ConversationMember[]>(
@@ -193,7 +199,12 @@ export const useChatRealtime = (conversationId?: string) => {
             );
           }
         } else if (chatEvent.type === 'message.read') {
-          const { conversationId: readConvId, userId, messageId, readAt } = chatEvent.payload;
+          const { conversationId: readConvId, userId, messageId, readAt } = chatEvent.payload as {
+            conversationId: string;
+            userId: string;
+            messageId: string;
+            readAt: string;
+          };
           // Cập nhật trạng thái đã đọc của thành viên trong cache nếu thuộc cuộc hội thoại đang xem
           if (readConvId === conversationId) {
             queryClient.setQueryData<ConversationMember[]>(
@@ -209,7 +220,11 @@ export const useChatRealtime = (conversationId?: string) => {
             );
           }
         } else if (chatEvent.type === 'typing.start') {
-          const { conversationId: typingConvId, userId, fullName } = chatEvent.payload;
+          const { conversationId: typingConvId, userId, fullName } = chatEvent.payload as {
+            conversationId: string;
+            userId: string;
+            fullName: string;
+          };
           if (typingConvId === conversationId) {
             setTypingUsers((prev) => {
               const expiresAt = Date.now() + 6000; // Keep active for 6 seconds
@@ -218,7 +233,10 @@ export const useChatRealtime = (conversationId?: string) => {
             });
           }
         } else if (chatEvent.type === 'typing.stop') {
-          const { conversationId: typingConvId, userId } = chatEvent.payload;
+          const { conversationId: typingConvId, userId } = chatEvent.payload as {
+            conversationId: string;
+            userId: string;
+          };
           if (typingConvId === conversationId) {
             setTypingUsers((prev) => prev.filter((u) => u.userId !== userId));
           }
@@ -227,7 +245,7 @@ export const useChatRealtime = (conversationId?: string) => {
           queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
         } else if (chatEvent.type === 'conversation.updated') {
           queryClient.invalidateQueries({ queryKey: ['conversations'] });
-          if (chatEvent.payload?.conversationId === conversationId) {
+          if ((chatEvent.payload as { conversationId: string })?.conversationId === conversationId) {
             queryClient.invalidateQueries({ queryKey: ['conversation-detail', conversationId] });
           }
         }
@@ -250,6 +268,7 @@ export const useChatRealtime = (conversationId?: string) => {
 
     return () => {
       eventSource.close();
+      setTypingUsers([]); // Reset typing status on switching conversation or unmounting
     };
   }, [conversationId, queryClient, tokenTrigger]);
 
