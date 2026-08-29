@@ -155,6 +155,8 @@ export const useChatRealtime = (conversationId?: string) => {
               appendMessageToCache(newMessage),
             );
           }
+          // Float hội thoại có hoạt động mới lên trên cùng
+          queryClient.invalidateQueries({ queryKey: ['conversations'] });
         } else if (chatEvent.type === 'message.deleted') {
           const { id, conversationId: msgConversationId } = chatEvent.payload as {
             id: string;
@@ -167,6 +169,8 @@ export const useChatRealtime = (conversationId?: string) => {
               removeMessageFromCache(id),
             );
           }
+          // Cập nhật danh sách cuộc hội thoại để thay đổi preview tin nhắn cuối
+          queryClient.invalidateQueries({ queryKey: ['conversations'] });
         } else if (chatEvent.type === 'member.joined') {
           const { conversationId: joinedConvId, member } = chatEvent.payload as {
             conversationId: string;
@@ -249,9 +253,6 @@ export const useChatRealtime = (conversationId?: string) => {
             queryClient.invalidateQueries({ queryKey: ['conversation-detail', conversationId] });
           }
         }
-
-        // Invalidate danh sách để float hội thoại có hoạt động mới lên trên cùng
-        queryClient.invalidateQueries({ queryKey: ['conversations'] });
       } catch (err) {
         console.error('Lỗi phân giải tin nhắn SSE:', err);
       }
