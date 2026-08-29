@@ -35,9 +35,61 @@ describe('MasterData Module (Integration)', () => {
     },
   ];
 
-  const mockUnits: Partial<Unit>[] = [
+  const mockMarketTypes: Partial<MarketType>[] = [
     {
       id: '33333333-3333-3333-3333-333333333333',
+      code: 'DOMESTIC',
+      name: 'Nội địa',
+      description: 'Thị trường nội địa',
+      status: 'ACTIVE',
+      sortOrder: 1,
+      createdAt: new Date('2026-08-24T00:00:00.000Z'),
+      updatedAt: new Date('2026-08-24T00:00:00.000Z'),
+    },
+  ];
+
+  const mockServiceCategories: Partial<ServiceCategory>[] = [
+    {
+      id: '44444444-4444-4444-4444-444444444444',
+      code: 'HOTEL',
+      name: 'Khách sạn / Lưu trú',
+      description: 'Dịch vụ lưu trú',
+      status: 'ACTIVE',
+      sortOrder: 1,
+      createdAt: new Date('2026-08-24T00:00:00.000Z'),
+      updatedAt: new Date('2026-08-24T00:00:00.000Z'),
+    },
+  ];
+
+  const mockPassengerTypes: Partial<PassengerType>[] = [
+    {
+      id: '55555555-5555-5555-5555-555555555555',
+      code: 'ADULT',
+      name: 'Người lớn (>= 12 tuổi)',
+      description: 'Vé người lớn',
+      status: 'ACTIVE',
+      sortOrder: 1,
+      createdAt: new Date('2026-08-24T00:00:00.000Z'),
+      updatedAt: new Date('2026-08-24T00:00:00.000Z'),
+    },
+  ];
+
+  const mockSupplierTypes: Partial<SupplierType>[] = [
+    {
+      id: '66666666-6666-6666-6666-666666666666',
+      code: 'HOTEL',
+      name: 'Khách sạn / Resort',
+      description: 'Nhà cung cấp lưu trú',
+      status: 'ACTIVE',
+      sortOrder: 1,
+      createdAt: new Date('2026-08-24T00:00:00.000Z'),
+      updatedAt: new Date('2026-08-24T00:00:00.000Z'),
+    },
+  ];
+
+  const mockUnits: Partial<Unit>[] = [
+    {
+      id: '77777777-7777-7777-7777-777777777777',
       code: 'PAX',
       name: 'Khách',
       symbol: 'Pax',
@@ -74,15 +126,15 @@ describe('MasterData Module (Integration)', () => {
         },
         {
           provide: getRepositoryToken(MarketType),
-          useValue: createMockRepo([]),
+          useValue: createMockRepo(mockMarketTypes),
         },
         {
           provide: getRepositoryToken(ServiceCategory),
-          useValue: createMockRepo([]),
+          useValue: createMockRepo(mockServiceCategories),
         },
         {
           provide: getRepositoryToken(PassengerType),
-          useValue: createMockRepo([]),
+          useValue: createMockRepo(mockPassengerTypes),
         },
         {
           provide: getRepositoryToken(Unit),
@@ -90,7 +142,7 @@ describe('MasterData Module (Integration)', () => {
         },
         {
           provide: getRepositoryToken(SupplierType),
-          useValue: createMockRepo([]),
+          useValue: createMockRepo(mockSupplierTypes),
         },
       ],
     }).compile();
@@ -112,6 +164,70 @@ describe('MasterData Module (Integration)', () => {
       page: 1,
       pageSize: 20,
       total: 2,
+    });
+  });
+
+  it('API-MASTER-002: should return paginated list of market types with { data, meta }', async () => {
+    const response = await controller.getMarketTypes({
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(response).toBeDefined();
+    expect(response.data).toHaveLength(1);
+    expect(response.data[0].code).toBe('DOMESTIC');
+    expect(response.meta).toEqual({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+    });
+  });
+
+  it('API-MASTER-003: should return paginated list of service categories with { data, meta }', async () => {
+    const response = await controller.getServiceCategories({
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(response).toBeDefined();
+    expect(response.data).toHaveLength(1);
+    expect(response.data[0].code).toBe('HOTEL');
+    expect(response.meta).toEqual({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+    });
+  });
+
+  it('API-MASTER-004: should return paginated list of passenger types with { data, meta }', async () => {
+    const response = await controller.getPassengerTypes({
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(response).toBeDefined();
+    expect(response.data).toHaveLength(1);
+    expect(response.data[0].code).toBe('ADULT');
+    expect(response.meta).toEqual({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+    });
+  });
+
+  it('API-MASTER-005: should return paginated list of supplier types with { data, meta }', async () => {
+    const response = await controller.getSupplierTypes({
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(response).toBeDefined();
+    expect(response.data).toHaveLength(1);
+    expect(response.data[0].code).toBe('HOTEL');
+    expect(response.meta).toEqual({
+      page: 1,
+      pageSize: 20,
+      total: 1,
     });
   });
 
