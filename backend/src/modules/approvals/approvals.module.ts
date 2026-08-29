@@ -4,11 +4,21 @@ import { ApprovalsService } from './approvals.service';
 import { ApprovalsController } from './approvals.controller';
 import { ApprovalRequest } from './entities/approval-request.entity';
 import { WorkflowHistory } from './entities/workflow-history.entity';
+import { Dossier } from '../dossiers/entities/dossier.entity';
+import { Estimate } from '../estimates/entities/estimate.entity';
+import { DossierWorkflowService } from './dossier-workflow.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ApprovalRequest, WorkflowHistory])],
+  imports: [
+    TypeOrmModule.forFeature([
+      ApprovalRequest,
+      WorkflowHistory,
+      Dossier,
+      Estimate,
+    ]),
+  ],
   controllers: [ApprovalsController],
-  providers: [ApprovalsService],
-  exports: [ApprovalsService, TypeOrmModule],
+  providers: [ApprovalsService, DossierWorkflowService],
+  exports: [ApprovalsService, DossierWorkflowService, TypeOrmModule],
 })
 export class ApprovalsModule {}

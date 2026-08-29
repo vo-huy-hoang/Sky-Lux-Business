@@ -26,12 +26,18 @@ import { UpdateDossierDto } from './dto/update-dossier.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { DossierWorkflowService } from '../approvals/dossier-workflow.service';
+import { WorkflowActionDto } from '../approvals/dto/workflow-action.dto';
+import { WorkflowListQueryDto } from '../approvals/dto/workflow-list-query.dto';
 
 @ApiTags('Dossiers')
 @ApiBearerAuth('JWT-auth')
 @Controller('dossiers')
 export class DossiersController {
-  constructor(private readonly dossiersService: DossiersService) {}
+  constructor(
+    private readonly dossiersService: DossiersService,
+    private readonly dossierWorkflowService: DossierWorkflowService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -93,6 +99,111 @@ export class DossiersController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.dossiersService.remove(user, id);
+  }
+
+  @Post(':id/submit')
+  @RequirePermissions('dossier.update')
+  @ApiOperation({
+    summary: 'Submit hồ sơ để Điều hành xem xét (API-WORKFLOW-001)',
+  })
+  submit(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: WorkflowActionDto,
+  ) {
+    return this.dossierWorkflowService.submit(user, id, dto);
+  }
+
+  @Post(':id/start-review')
+  @RequirePermissions('dossier.update')
+  @ApiOperation({ summary: 'Bắt đầu review hồ sơ (API-WORKFLOW-002)' })
+  startReview(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: WorkflowActionDto,
+  ) {
+    return this.dossierWorkflowService.startReview(user, id, dto);
+  }
+
+  @Post(':id/request-changes')
+  @RequirePermissions('dossier.update')
+  @ApiOperation({ summary: 'Yêu cầu Sales bổ sung hồ sơ (API-WORKFLOW-003)' })
+  requestChanges(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: WorkflowActionDto,
+  ) {
+    return this.dossierWorkflowService.requestChanges(user, id, dto);
+  }
+
+  @Post(':id/resubmit')
+  @RequirePermissions('dossier.update')
+  @ApiOperation({
+    summary: 'Sales submit lại hồ sơ đã bổ sung (API-WORKFLOW-004)',
+  })
+  resubmit(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: WorkflowActionDto,
+  ) {
+    return this.dossierWorkflowService.resubmit(user, id, dto);
+  }
+
+  @Post(':id/approve')
+  @RequirePermissions('dossier.update')
+  @ApiOperation({ summary: 'Phê duyệt hồ sơ (API-WORKFLOW-005)' })
+  approve(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: WorkflowActionDto,
+  ) {
+    return this.dossierWorkflowService.approve(user, id, dto);
+  }
+
+  @Post(':id/complete')
+  @RequirePermissions('dossier.update')
+  @ApiOperation({ summary: 'Hoàn tất hồ sơ đã duyệt (API-WORKFLOW-006)' })
+  complete(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: WorkflowActionDto,
+  ) {
+    return this.dossierWorkflowService.complete(user, id, dto);
+  }
+
+  @Post(':id/lock')
+  @RequirePermissions('dossier.update')
+  @ApiOperation({ summary: 'Khóa hồ sơ đã duyệt/hoàn tất (API-WORKFLOW-007)' })
+  lock(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: WorkflowActionDto,
+  ) {
+    return this.dossierWorkflowService.lock(user, id, dto);
+  }
+
+  @Get(':id/workflow-history')
+  @ApiOperation({ summary: 'Lấy lịch sử workflow (API-WORKFLOW-008)' })
+  findWorkflowHistory(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: WorkflowListQueryDto,
+  ) {
+    this.checkViewPermission(user);
+    return this.dossierWorkflowService.findHistory(user, id, query);
+  }
+
+  @Get(':id/approvals')
+  @ApiOperation({
+    summary: 'Lấy danh sách approval của hồ sơ (API-WORKFLOW-009)',
+  })
+  findApprovals(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: WorkflowListQueryDto,
+  ) {
+    this.checkViewPermission(user);
+    return this.dossierWorkflowService.findApprovals(user, id, query);
   }
 
   @Get(':id/comments')

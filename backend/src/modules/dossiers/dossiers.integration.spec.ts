@@ -14,6 +14,7 @@ import { CurrentUserPayload } from '../../common/decorators/current-user.decorat
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
 import { DossierStatus } from '../../common/enums';
+import { DossierWorkflowService } from '../approvals/dossier-workflow.service';
 
 describe('Dossiers Module (Integration)', () => {
   let controller: DossiersController;
@@ -78,6 +79,10 @@ describe('Dossiers Module (Integration)', () => {
         {
           provide: getRepositoryToken(Comment),
           useValue: mockCommentRepository,
+        },
+        {
+          provide: DossierWorkflowService,
+          useValue: {},
         },
       ],
     }).compile();

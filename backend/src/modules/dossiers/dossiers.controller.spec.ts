@@ -6,6 +6,7 @@ import { QueryDossierDto } from './dto/query-dossier.dto';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { DossierWorkflowService } from '../approvals/dossier-workflow.service';
 
 describe('DossiersController', () => {
   let controller: DossiersController;
@@ -27,6 +28,8 @@ describe('DossiersController', () => {
     findComments: jest.fn(),
   };
 
+  const mockWorkflowService = {};
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [DossiersController],
@@ -34,6 +37,10 @@ describe('DossiersController', () => {
         {
           provide: DossiersService,
           useValue: mockDossiersService,
+        },
+        {
+          provide: DossierWorkflowService,
+          useValue: mockWorkflowService,
         },
       ],
     }).compile();
