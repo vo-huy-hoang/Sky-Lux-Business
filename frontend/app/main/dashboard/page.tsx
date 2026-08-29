@@ -42,6 +42,16 @@ import { dossiersService } from '@/services/dossiers.service';
 import { DossierItem } from '@/types/dossier';
 import { useOperatorDashboard, useSalesDashboard } from '@/hooks/dashboards';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import dynamic from 'next/dynamic';
+
+const CeoDashboard = dynamic(() => import('@/components/ceo/CeoDashboard'), {
+  ssr: false,
+  loading: () => <Skeleton active paragraph={{ rows: 8 }} />,
+});
+const OperatorDashboard = dynamic(() => import('@/components/operator/OperatorDashboard'), {
+  ssr: false,
+  loading: () => <Skeleton active paragraph={{ rows: 8 }} />,
+});
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend, LineElement, PointElement);
 
@@ -94,7 +104,30 @@ const taskStatusLabels: Record<string, string> = {
   CANCELLED: 'Đã hủy',
 };
 
-export default function DashboardPage() {
+const subscribe = () => () => {};
+const useIsClient = () => React.useSyncExternalStore(subscribe, () => true, () => false);
+
+function RoleDashboard() {
+  const isClient = useIsClient();
+  const { hasRole } = useAuthStore();
+
+  if (!isClient) {
+    return (
+      <div className="space-y-6 p-6">
+        <Skeleton active paragraph={{ rows: 8 }} />
+      </div>
+    );
+  }
+
+  const isCeoAdmin = hasRole('CEO_ADMIN') || hasRole('SUPER_ADMIN');
+  const isOperator = hasRole('OPERATOR');
+
+  if (isCeoAdmin) return <CeoDashboard />;
+  if (isOperator) return <OperatorDashboard />;
+  return <OperationalDashboard />;
+}
+
+function OperationalDashboard() {
   const { hasRole } = useAuthStore();
   const isOperator = hasRole('OPERATOR');
   const isSales = hasRole('SALES');
@@ -494,3 +527,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+export default RoleDashboard;

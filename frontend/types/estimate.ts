@@ -25,6 +25,8 @@ export interface EstimateRevenueLine {
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
+  unit?: { id?: string; code?: string; name?: string };
+  passengerType?: { id?: string; code?: string; name?: string };
 }
 
 export interface EstimateCostLine {
@@ -45,6 +47,9 @@ export interface EstimateCostLine {
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
+  unit?: { id?: string; code?: string; name?: string };
+  serviceCategory?: { id?: string; code?: string; name?: string };
+  supplier?: { id?: string; code?: string; name?: string; displayName?: string };
 }
 
 export interface EstimateItem {
@@ -66,4 +71,19 @@ export interface EstimateItem {
   updatedAt: string;
   revenueLines?: EstimateRevenueLine[];
   costLines?: EstimateCostLine[];
+  dossier?: {
+    id: string;
+    code?: string;
+    name?: string;
+    route?: string;
+    customer?: { id: string; code?: string; displayName?: string };
+  };
+}
+
+export interface PaginatedEstimatesResponse {
+  items: EstimateItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }

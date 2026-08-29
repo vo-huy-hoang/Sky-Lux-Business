@@ -44,12 +44,13 @@ function DisabledIconButton({
 
 export default function MessagesPage() {
   const user = useAuthStore((state) => state.user);
+  const isOperator = user?.roles?.includes('OPERATOR');
 
   return (
-    <div className="skylux-message-workspace">
+    <div className={`skylux-message-workspace ${isOperator ? 'op-messages-page' : ''}`}>
       <section className="skylux-message-list" aria-label="Danh sách cuộc trò chuyện">
         <div className="px-5 pb-4 pt-5">
-          <Text strong className="text-[26px] leading-none text-slate-900">Tin nhắn</Text>
+          <Text strong className={`text-[26px] leading-none text-slate-900 ${isOperator ? 'op-message-list-title' : ''}`}>Tin nhắn</Text>
           <div className="mt-4 flex gap-2">
             <Input
               prefix={<SearchOutlined className="text-slate-400" />}

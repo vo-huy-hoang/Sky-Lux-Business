@@ -58,7 +58,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ conversationId, onClose }) => 
       const latestMsg = messages[messages.length - 1];
       markReadMutation.mutate({ messageId: latestMsg.id });
     }
-  }, [messages.length, conversationId]);
+  }, [messages, conversationId, markReadMutation]);
 
   // 5. Handle Typing Status Broadcasts
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -113,7 +113,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ conversationId, onClose }) => 
         stopTypingMutation.mutate();
       }
     };
-  }, [conversationId]);
+  }, [conversationId, stopTypingMutation]);
 
   return (
     <Card

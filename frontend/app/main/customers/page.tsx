@@ -11,6 +11,7 @@ import {
   Popconfirm,
   Row,
   Select,
+  Segmented,
   Skeleton,
   Space,
   Table,
@@ -35,6 +36,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { customersService } from '@/services/customers.service';
 import { CustomerItem, CustomerType } from '@/types/customer';
 import { CustomerDetailDrawer } from './components/CustomerDetailDrawer';
+import { useAuthStore } from '@/lib/stores/auth-store';
+import { useRouter } from 'next/navigation';
 
 const { Title, Text } = Typography;
 
@@ -50,6 +53,9 @@ function initials(name?: string) {
 }
 
 export default function CustomersPage() {
+  const router = useRouter();
+  const { hasRole } = useAuthStore();
+  const isCeoAdmin = hasRole('CEO_ADMIN') || hasRole('SUPER_ADMIN');
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -260,12 +266,21 @@ export default function CustomersPage() {
 
   return (
     <div className="space-y-5">
+      {isCeoAdmin && (
+        <Segmented
+          block
+          value="customers"
+          onChange={(value) => value === 'suppliers' && router.push('/main/suppliers')}
+          options={[{ label: 'Khách hàng', value: 'customers' }, { label: 'Nhà cung cấp', value: 'suppliers' }]}
+          className="max-w-[420px]"
+        />
+      )}
       <div>
         <Title level={1} className="skylux-page-title">
-          Khách hàng của tôi
+          {isCeoAdmin ? 'Khách hàng & nhà cung cấp' : 'Khách hàng của tôi'}
         </Title>
         <div className="skylux-subtitle mt-1">
-          Danh sách khách hàng cá nhân và doanh nghiệp bạn đang quản lý
+          {isCeoAdmin ? 'Quản lý dữ liệu khách hàng và đối tác trên toàn công ty' : 'Danh sách khách hàng cá nhân và doanh nghiệp bạn đang quản lý'}
         </div>
       </div>
 

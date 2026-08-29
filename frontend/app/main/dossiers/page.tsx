@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import {
+  Avatar,
   Button,
   Card,
   Col,
@@ -33,6 +34,7 @@ import { useQuery } from '@tanstack/react-query';
 import { dossiersService } from '@/services/dossiers.service';
 import { DossierItem } from '@/types/dossier';
 import { DossierComments } from './components/DossierComments';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 const { Title, Text } = Typography;
 
@@ -60,6 +62,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   APPROVED: { label: 'Đã duyệt', className: 'skylux-status-valid' },
   COMPLETED: { label: 'Thành công', className: 'skylux-status-valid' },
   CANCELLED: { label: 'Đã hủy', className: 'skylux-status-danger' },
+  NEED_CHANGES: { label: 'Cần bổ sung', className: 'skylux-status-purple' },
 };
 
 function formatDate(value?: string) {
@@ -86,6 +89,9 @@ function getStatus(status?: string) {
 }
 
 export default function DossiersPage() {
+  const { hasRole } = useAuthStore();
+  const isCeoAdmin = hasRole('CEO_ADMIN') || hasRole('SUPER_ADMIN');
+  const isOperator = hasRole('OPERATOR');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState('');
@@ -117,7 +123,7 @@ export default function DossiersPage() {
       total: data?.total || 0,
       waiting: items.filter((item) => ['DRAFT', 'SUBMITTED', 'IN_REVIEW'].includes(item.status)).length,
       approved: items.filter((item) => ['APPROVED', 'COMPLETED'].includes(item.status)).length,
-      needsCare: items.filter((item) => item.priority === 'HIGH').length,
+      needsCare: items.filter((item) => item.status === 'NEED_CHANGES').length,
     };
   }, [data]);
 
@@ -131,6 +137,17 @@ export default function DossiersPage() {
         <Space>
           <FileExcelOutlined className="text-[var(--color-primary-700)]" />
           <Text strong>{code}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Sales phụ trách',
+      key: 'sales',
+      width: 188,
+      render: (_: unknown, record: DossierItem) => (
+        <Space size={8}>
+          <Avatar size={28}>{record.salesUser?.fullName?.charAt(0)}</Avatar>
+          <Text className="max-w-[124px] truncate">{record.salesUser?.fullName || '-'}</Text>
         </Space>
       ),
     },
@@ -209,35 +226,39 @@ export default function DossiersPage() {
       key: 'actions',
       width: 170,
       render: (_: unknown, record: DossierItem) => (
-        <Button
-          icon={<EyeOutlined />}
-          className="skylux-outline-button"
-          onClick={() => setSelectedDossierId(record.id)}
-        >
-          Xem chi tiết
-        </Button>
+        isCeoAdmin || isOperator ? (
+          <Link href={`/main/dossiers/${record.id}`}>
+            <Button icon={<EyeOutlined />} className="skylux-outline-button">Xem chi tiết</Button>
+          </Link>
+        ) : (
+          <Button icon={<EyeOutlined />} className="skylux-outline-button" onClick={() => setSelectedDossierId(record.id)}>Xem chi tiết</Button>
+        )
       ),
     },
   ];
 
+  const visibleColumns = isOperator
+    ? columns.filter((column) => !['priority', 'operator'].includes(column.key as string))
+    : columns;
+
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <div className={`space-y-5 ${isOperator ? 'op-page op-dossiers-page' : ''}`}>
+      <div className={`flex flex-col gap-3 md:flex-row md:items-end md:justify-between ${isOperator ? 'op-page-heading' : ''}`}>
         <div>
           <Title level={1} className="skylux-page-title">
-            Hồ sơ của tôi
+            {isCeoAdmin ? 'Hồ sơ toàn hệ thống' : isOperator ? 'Hồ sơ chờ xử lý' : 'Hồ sơ của tôi'}
           </Title>
-          <div className="skylux-subtitle mt-1">Danh sách hồ sơ và dự toán của bạn</div>
+          <div className="skylux-subtitle mt-1">{isCeoAdmin ? 'Theo dõi toàn bộ hồ sơ và tiến độ xử lý trong công ty' : isOperator ? 'Danh sách hồ sơ và dự toán cần kiểm tra điều hành' : 'Danh sách hồ sơ và dự toán của bạn'}</div>
         </div>
         <Link href="/main/imports">
           <Button icon={<FileExcelOutlined />} className="skylux-primary-button">
-            Import dự toán Excel
+            {isCeoAdmin || isOperator ? 'Kiểm tra dữ liệu Excel' : 'Import dự toán Excel'}
           </Button>
         </Link>
       </div>
 
-      <Card className="skylux-card">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(260px,1.4fr)_180px_180px_auto]">
+      <Card className={isOperator ? 'op-card op-filter-card' : 'skylux-card'}>
+        <div className={`grid grid-cols-1 gap-4 ${isOperator ? 'xl:grid-cols-[minmax(280px,1.65fr)_180px_180px_auto]' : 'md:grid-cols-[minmax(260px,1.4fr)_180px_180px_auto]'}`}>
           <Input
             placeholder="Tìm kiếm hồ sơ, khách hàng, chương trình..."
             prefix={<SearchOutlined />}
@@ -272,9 +293,9 @@ export default function DossiersPage() {
         </div>
       </Card>
 
-      <Row gutter={[16, 16]}>
+      <Row gutter={[16, 16]} className={isOperator ? 'op-kpi-row' : undefined}>
         <Col xs={24} sm={12} xl={6}>
-          <Card className="skylux-card skylux-kpi">
+          <Card className={isOperator ? 'op-card op-kpi-card' : 'skylux-card skylux-kpi'}>
             <div className="flex items-center gap-5">
               <span className="skylux-icon-bubble bg-[var(--color-primary-soft)] text-[var(--color-primary-600)]">
                 <FolderOpenOutlined />
@@ -289,7 +310,7 @@ export default function DossiersPage() {
           </Card>
         </Col>
         <Col xs={24} sm={12} xl={6}>
-          <Card className="skylux-card skylux-kpi">
+          <Card className={isOperator ? 'op-card op-kpi-card' : 'skylux-card skylux-kpi'}>
             <div className="flex items-center gap-5">
               <span className="skylux-icon-bubble bg-[var(--color-gold-soft)] text-[var(--color-gold)]">
                 <ClockCircleOutlined />
@@ -304,13 +325,13 @@ export default function DossiersPage() {
           </Card>
         </Col>
         <Col xs={24} sm={12} xl={6}>
-          <Card className="skylux-card skylux-kpi">
+          <Card className={isOperator ? 'op-card op-kpi-card' : 'skylux-card skylux-kpi'}>
             <div className="flex items-center gap-5">
               <span className="skylux-icon-bubble bg-[var(--color-warning-soft)] text-[var(--color-warning)]">
                 <WarningOutlined />
               </span>
               <div>
-                <Text className="text-sm text-slate-500">Ưu tiên cao</Text>
+              <Text className="text-sm text-slate-500">Cần bổ sung</Text>
                 <div className="mt-1 text-[30px] font-bold text-[var(--color-primary-900)]">
                   {isLoading ? <Skeleton.Input active size="small" /> : summary.needsCare}
                 </div>
@@ -319,7 +340,7 @@ export default function DossiersPage() {
           </Card>
         </Col>
         <Col xs={24} sm={12} xl={6}>
-          <Card className="skylux-card skylux-kpi">
+          <Card className={isOperator ? 'op-card op-kpi-card' : 'skylux-card skylux-kpi'}>
             <div className="flex items-center gap-5">
               <span className="skylux-icon-bubble bg-[var(--color-primary-soft)] text-[var(--color-primary-600)]">
                 <CheckCircleOutlined />
@@ -335,13 +356,13 @@ export default function DossiersPage() {
         </Col>
       </Row>
 
-      <Card className="skylux-card">
+      <Card className={isOperator ? 'op-card op-dossier-table' : 'skylux-card'}>
         <Table
           dataSource={data?.items || []}
-          columns={columns}
+          columns={visibleColumns}
           rowKey="id"
           loading={isLoading}
-          className="skylux-table"
+          className={isOperator ? 'op-table' : 'skylux-table'}
           locale={{ emptyText: <Empty description="Chưa có hồ sơ từ API" /> }}
           scroll={{ x: 1220 }}
           pagination={{
