@@ -48,7 +48,7 @@ describe('ChatService', () => {
     create: jest.fn().mockImplementation((dto) => dto),
     save: jest.fn().mockImplementation((entity) => Promise.resolve(entity)),
     findOne: jest.fn(),
-    find: jest.fn(),
+    find: jest.fn().mockResolvedValue([]),
     remove: jest.fn(),
   };
 
@@ -365,6 +365,56 @@ describe('ChatService', () => {
       const res = await service.removeParticipant('conv-1', 'user-1', mockUser);
       expect(res).toEqual({ success: true });
       expect(mockMemberRepo.remove).toHaveBeenCalledWith(mockMember);
+    });
+  });
+
+  describe('sendTypingStatus', () => {
+    it('should throw ForbiddenException if requester is not a member', async () => {
+      mockConversationRepo.findOne.mockResolvedValueOnce({ id: 'conv-1' });
+      mockMemberRepo.findOne.mockResolvedValueOnce(null); // not member
+      await expect(
+        service.sendTypingStatus(mockUser, 'conv-1', 'start'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should trigger typing event successfully', async () => {
+      mockConversationRepo.findOne.mockResolvedValueOnce({
+        id: 'conv-1',
+        members: [{ userId: 'user-1' }],
+      });
+      mockMemberRepo.findOne.mockResolvedValueOnce({ userId: 'user-1' });
+
+      const nextSpy = jest.spyOn((service as any).chatEvent$, 'next');
+      await service.sendTypingStatus(mockUser, 'conv-1', 'start');
+      expect(nextSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'typing.start',
+          conversationId: 'conv-1',
+          data: expect.objectContaining({
+            userId: 'user-1',
+            fullName: 'Test User',
+          }),
+        }),
+      );
+      nextSpy.mockRestore();
+    });
+  });
+
+  describe('getUnreadCount', () => {
+    it('should return 0 if user has no conversation memberships', async () => {
+      mockMemberRepo.find.mockResolvedValueOnce([]);
+      const count = await service.getUnreadCount('user-1', 'org-1');
+      expect(count).toBe(0);
+    });
+
+    it('should calculate unread count correctly', async () => {
+      mockMemberRepo.find.mockResolvedValueOnce([
+        { conversationId: 'conv-1', lastReadAt: new Date('2026-08-28') },
+      ]);
+      mockMessageRepo.findOne.mockResolvedValueOnce({ id: 'msg-2' }); // unread message exists
+
+      const count = await service.getUnreadCount('user-1', 'org-1');
+      expect(count).toBe(1);
     });
   });
 });

@@ -179,6 +179,28 @@ export class ChatController {
     return this.chatService.removeParticipant(id, userId, user);
   }
 
+  @Post('conversations/:id/typing/start')
+  @ApiOperation({ summary: 'Báo hiệu bắt đầu gõ phím (API-CHAT-005)' })
+  @ApiParam({ name: 'id', description: 'ID cuộc hội thoại (UUID)' })
+  @ApiResponse({ status: 200, description: 'Đã phát sự kiện bắt đầu gõ' })
+  startTyping(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    return this.chatService.sendTypingStatus(user, id, 'start');
+  }
+
+  @Post('conversations/:id/typing/stop')
+  @ApiOperation({ summary: 'Báo hiệu dừng gõ phím (API-CHAT-006)' })
+  @ApiParam({ name: 'id', description: 'ID cuộc hội thoại (UUID)' })
+  @ApiResponse({ status: 200, description: 'Đã phát sự kiện dừng gõ' })
+  stopTyping(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    return this.chatService.sendTypingStatus(user, id, 'stop');
+  }
+
   @Sse('conversations/stream')
   @Public()
   @UseGuards(JwtQueryAuthGuard)

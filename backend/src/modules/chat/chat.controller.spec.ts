@@ -30,6 +30,7 @@ describe('ChatController', () => {
     deleteMessage: jest.fn().mockResolvedValue(undefined),
     findDossierConversation: jest.fn().mockResolvedValue(null),
     getMessagesStream: jest.fn().mockReturnValue({ pipe: jest.fn() }),
+    sendTypingStatus: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockJwtService = {};
@@ -124,6 +125,28 @@ describe('ChatController', () => {
     it('should call chatService.getMessagesStream', () => {
       controller.streamMessages(mockUser);
       expect(service.getMessagesStream).toHaveBeenCalledWith(mockUser);
+    });
+  });
+
+  describe('startTyping', () => {
+    it('should call chatService.sendTypingStatus with start', async () => {
+      await controller.startTyping(mockUser, 'conv-1');
+      expect(service.sendTypingStatus).toHaveBeenCalledWith(
+        mockUser,
+        'conv-1',
+        'start',
+      );
+    });
+  });
+
+  describe('stopTyping', () => {
+    it('should call chatService.sendTypingStatus with stop', async () => {
+      await controller.stopTyping(mockUser, 'conv-1');
+      expect(service.sendTypingStatus).toHaveBeenCalledWith(
+        mockUser,
+        'conv-1',
+        'stop',
+      );
     });
   });
 });

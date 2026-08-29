@@ -62,6 +62,10 @@ export interface ChatEvent {
     | 'message.deleted'
     | 'message.read'
     | 'member.joined'
-    | 'member.left';
+    | 'member.left'
+    | 'typing.start'
+    | 'typing.stop'
+    | 'unread_count'
+    | 'conversation.updated';
   payload: any;
 }

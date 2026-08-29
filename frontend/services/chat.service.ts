@@ -85,4 +85,18 @@ export const chatService = {
   removeParticipant: (conversationId: string, userId: string) => {
     return apiClient.delete<any, any>(`/conversations/${conversationId}/participants/${userId}`);
   },
+
+  /**
+   * Báo hiệu bắt đầu gõ phím (API-CHAT-005)
+   */
+  startTyping: (conversationId: string) => {
+    return apiClient.post<any, void>(`/conversations/${conversationId}/typing/start`);
+  },
+
+  /**
+   * Báo hiệu dừng gõ phím (API-CHAT-006)
+   */
+  stopTyping: (conversationId: string) => {
+    return apiClient.post<any, void>(`/conversations/${conversationId}/typing/stop`);
+  },
 };
