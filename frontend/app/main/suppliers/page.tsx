@@ -13,6 +13,7 @@ import {
   Popconfirm,
   message,
   Tooltip,
+  Segmented,
 } from 'antd';
 import {
   SearchOutlined,
@@ -29,11 +30,16 @@ import { SupplierItem, SupplierStatus } from '@/types/supplier';
 import { SupplierFormModal } from './components/SupplierFormModal';
 import { SupplierDetailDrawer } from './components/SupplierDetailDrawer';
 import dayjs from 'dayjs';
+import { useAuthStore } from '@/lib/stores/auth-store';
+import { useRouter } from 'next/navigation';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
 export default function SuppliersPage() {
+  const router = useRouter();
+  const { hasRole } = useAuthStore();
+  const isCeoAdmin = hasRole('CEO_ADMIN') || hasRole('SUPER_ADMIN');
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -220,7 +226,16 @@ export default function SuppliersPage() {
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div className={isCeoAdmin ? 'space-y-5' : ''} style={isCeoAdmin ? undefined : { padding: '24px' }}>
+      {isCeoAdmin && (
+        <Segmented
+          block
+          value="suppliers"
+          onChange={(value) => value === 'customers' && router.push('/main/customers')}
+          options={[{ label: 'Khách hàng', value: 'customers' }, { label: 'Nhà cung cấp', value: 'suppliers' }]}
+          className="max-w-[420px]"
+        />
+      )}
       {/* Header */}
       <div
         style={{

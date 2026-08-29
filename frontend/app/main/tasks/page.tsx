@@ -33,6 +33,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { dossiersService } from '@/services/dossiers.service';
 import { tasksService } from '@/services/tasks.service';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import {
   CreateTaskInput,
   TaskChecklistItem,
@@ -370,6 +371,8 @@ function TaskDetailDrawer({
 
 export default function TasksPage() {
   const { message } = App.useApp();
+  const { hasRole } = useAuthStore();
+  const isOperator = hasRole('OPERATOR');
   const queryClient = useQueryClient();
   const [timeRange, setTimeRange] = useState<TimeRange>('TODAY');
   const [search, setSearch] = useState('');
@@ -451,6 +454,9 @@ export default function TasksPage() {
     () => allTasks.filter((task) => task.dossierId).slice(0, 5),
     [allTasks],
   );
+  const activeBoardColumns = isOperator
+    ? [...boardColumns.slice(0, 2), { status: 'WAITING' as TaskStatus, title: 'Chờ phản hồi' }, boardColumns[2]]
+    : boardColumns;
 
   const openCreate = (status: TaskStatus) => {
     setCreateStatus(status);
@@ -471,10 +477,10 @@ export default function TasksPage() {
   }
 
   return (
-    <div className="skylux-tasks-page space-y-5 pb-3">
-      <div>
-        <Title level={1} className="skylux-page-title">Công việc của tôi</Title>
-        <div className="skylux-subtitle mt-1">Theo dõi và quản lý công việc được giao cho bạn</div>
+    <div className={`skylux-tasks-page space-y-5 pb-3 ${isOperator ? 'op-page' : ''}`}>
+      <div className={isOperator ? 'op-page-heading' : undefined}>
+        <Title level={1} className="skylux-page-title">{isOperator ? 'Công việc điều hành' : 'Công việc của tôi'}</Title>
+        <div className="skylux-subtitle mt-1">{isOperator ? 'Theo dõi và quản lý công việc xử lý hồ sơ' : 'Theo dõi và quản lý công việc được giao cho bạn'}</div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
@@ -511,9 +517,9 @@ export default function TasksPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-            {isLoading ? [0, 1, 2].map((column) => <div key={column} className="skylux-task-column"><Skeleton active paragraph={{ rows: 8 }} /></div>) : boardColumns.map((column) => (
-              <TaskColumn key={column.status} {...column} tasks={visibleTasks.filter((task) => getBoardStatus(task.status) === column.status)} onOpen={setSelectedTaskId} onCreate={openCreate} />
+          <div className={`grid grid-cols-1 gap-4 ${isOperator ? 'xl:grid-cols-4' : 'xl:grid-cols-3'}`}>
+            {isLoading ? activeBoardColumns.map((column) => <div key={column.status} className="skylux-task-column"><Skeleton active paragraph={{ rows: 8 }} /></div>) : activeBoardColumns.map((column) => (
+              <TaskColumn key={column.status} {...column} tasks={visibleTasks.filter((task) => (isOperator ? task.status : getBoardStatus(task.status)) === column.status)} onOpen={setSelectedTaskId} onCreate={openCreate} />
             ))}
           </div>
         </div>

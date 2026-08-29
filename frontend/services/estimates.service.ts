@@ -1,13 +1,23 @@
 import { apiClient } from '@/lib/api-client';
-import { EstimateItem } from '@/types/estimate';
+import { EstimateItem, EstimateStatus, PaginatedEstimatesResponse } from '@/types/estimate';
 
 export const estimatesService = {
   /**
    * API-ESTIMATE-001: Lấy danh sách báo giá/dự toán của hồ sơ vụ việc
    */
   getDossierEstimates: (dossierId: string) => {
-    return apiClient.get<any, EstimateItem[]>(`/dossiers/${dossierId}/estimates`);
+    return apiClient.get<any, PaginatedEstimatesResponse>('/estimates', {
+      params: { dossierId, page: 1, limit: 100 },
+    });
   },
+
+  getEstimates: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    dossierId?: string;
+    status?: EstimateStatus;
+  }) => apiClient.get<any, PaginatedEstimatesResponse>('/estimates', { params }),
 
   /**
    * API-ESTIMATE-002: Lấy chi tiết một báo giá/dự toán

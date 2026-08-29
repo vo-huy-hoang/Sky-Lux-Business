@@ -29,6 +29,11 @@ import {
   CustomerServiceOutlined,
   TeamOutlined,
   CalendarOutlined,
+  AuditOutlined,
+  BarChartOutlined,
+  RiseOutlined,
+  SettingOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useAuthStore } from '@/lib/stores/auth-store';
@@ -89,8 +94,59 @@ export default function MainLayout({
 
   const isOperator = user?.roles?.includes('OPERATOR');
   const isSales = user?.roles?.includes('SALES');
+  const isCeoAdmin = user?.roles?.some((role) => ['SUPER_ADMIN', 'CEO_ADMIN'].includes(role));
 
   const routeMeta = useMemo(() => {
+    if (isCeoAdmin) {
+      if (pathname?.startsWith('/main/approvals')) {
+        return { title: 'Hồ sơ chờ duyệt', subtitle: 'Danh sách hồ sơ đang chờ CEO/Admin xem xét và phê duyệt' };
+      }
+      if (pathname?.startsWith('/main/revenue')) {
+        return { title: 'Doanh thu & thống kê', subtitle: 'Phân tích doanh thu, lợi nhuận và cơ cấu hoạt động' };
+      }
+      if (pathname?.startsWith('/main/kpi')) {
+        return { title: 'KPI Sales', subtitle: 'Theo dõi hiệu suất đội ngũ kinh doanh toàn công ty' };
+      }
+      if (pathname?.startsWith('/main/users')) {
+        return { title: 'Người dùng & phân quyền', subtitle: 'Quản trị tài khoản, phòng ban và vai trò truy cập' };
+      }
+      if (pathname?.startsWith('/main/settings')) {
+        return { title: 'Cấu hình hệ thống', subtitle: 'Thiết lập danh mục và thông số vận hành dùng chung' };
+      }
+      if (pathname?.startsWith('/main/reports')) {
+        return { title: 'Báo cáo', subtitle: 'Tạo và xuất các báo cáo quản trị dành cho CEO/Admin' };
+      }
+      if (pathname?.startsWith('/main/dossiers/')) {
+        return { title: 'Chi tiết hồ sơ', subtitle: 'Xem dự toán và quy trình phê duyệt hồ sơ' };
+      }
+      if (pathname?.startsWith('/main/dossiers')) {
+        return { title: 'Hồ sơ toàn hệ thống', subtitle: 'Theo dõi toàn bộ hồ sơ và tiến độ xử lý trong công ty' };
+      }
+      if (pathname?.startsWith('/main/imports')) {
+        return { title: 'Kiểm tra & chỉnh sửa dữ liệu nhập', subtitle: 'Khung dữ liệu Excel dùng chung với giao diện SALES' };
+      }
+      if (pathname?.startsWith('/main/customers') || pathname?.startsWith('/main/suppliers')) {
+        return { title: 'Khách hàng & nhà cung cấp', subtitle: 'Quản lý dữ liệu đối tác trên toàn công ty' };
+      }
+      if (pathname?.startsWith('/main/messages')) {
+        return { title: 'Tin nhắn', subtitle: 'Trao đổi và phối hợp công việc' };
+      }
+      if (pathname?.startsWith('/main/profile')) {
+        return { title: 'Hồ sơ cá nhân', subtitle: 'Quản lý thông tin tài khoản và cài đặt' };
+      }
+      return { title: 'Bảng điều khiển CEO', subtitle: 'Tổng quan hoạt động toàn công ty' };
+    }
+    if (isOperator) {
+      if (pathname?.startsWith('/main/sales')) {
+        return { title: 'Quản lý Sales', subtitle: 'Theo dõi hồ sơ phụ trách và năng lực xử lý của đội ngũ Sales' };
+      }
+      if (pathname?.startsWith('/main/revenue')) {
+        return { title: 'Doanh thu & thống kê', subtitle: 'Theo dõi số liệu vận hành theo hồ sơ và Sales' };
+      }
+      if (pathname?.startsWith('/main/dossiers/')) {
+        return { title: 'Chi tiết hồ sơ', subtitle: 'Kiểm tra dự toán, lịch sử xử lý và yêu cầu bổ sung' };
+      }
+    }
     if (pathname?.startsWith('/main/dossiers')) {
       return {
         title: isOperator ? 'Hồ sơ chờ xử lý' : 'Hồ sơ của tôi',
@@ -125,9 +181,9 @@ export default function MainLayout({
       title: 'Bảng điều khiển',
       subtitle: isOperator ? 'Tổng quan hoạt động điều hành' : isSales ? 'Tổng quan hoạt động kinh doanh của bạn' : 'Tổng quan hoạt động hệ thống',
     };
-  }, [pathname, isOperator, isSales]);
+  }, [pathname, isOperator, isSales, isCeoAdmin]);
 
-  const menuItems: MenuProps['items'] = [
+  const standardMenuItems: MenuProps['items'] = [
     {
       key: '/main/dashboard',
       icon: <DashboardOutlined />,
@@ -164,6 +220,33 @@ export default function MainLayout({
       label: <Link href="/main/profile">Hồ sơ cá nhân</Link>,
     },
   ];
+
+  const ceoMenuItems: MenuProps['items'] = [
+    { key: '/main/dashboard', icon: <DashboardOutlined />, label: <Link href="/main/dashboard">Bảng điều khiển</Link> },
+    { key: '/main/dossiers', icon: <FolderOpenOutlined />, label: <Link href="/main/dossiers">Hồ sơ toàn hệ thống</Link> },
+    { key: '/main/approvals', icon: <AuditOutlined />, label: <Link href="/main/approvals">Hồ sơ chờ duyệt</Link> },
+    { key: '/main/revenue', icon: <BarChartOutlined />, label: <Link href="/main/revenue">Doanh thu & thống kê</Link> },
+    { key: '/main/kpi', icon: <RiseOutlined />, label: <Link href="/main/kpi">KPI Sales</Link> },
+    { key: '/main/customers', icon: <UsergroupAddOutlined />, label: <Link href="/main/customers">Khách hàng & nhà cung cấp</Link> },
+    { key: '/main/users', icon: <TeamOutlined />, label: <Link href="/main/users">Người dùng & phân quyền</Link> },
+    { key: '/main/settings', icon: <SettingOutlined />, label: <Link href="/main/settings">Cấu hình hệ thống</Link> },
+    { key: '/main/reports', icon: <FileTextOutlined />, label: <Link href="/main/reports">Báo cáo</Link> },
+    { key: '/main/messages', icon: <MessageOutlined />, label: <Link href="/main/messages">Tin nhắn</Link> },
+    { key: '/main/profile', icon: <UserOutlined />, label: <Link href="/main/profile">Hồ sơ cá nhân</Link> },
+  ];
+
+  const operatorMenuItems: MenuProps['items'] = [
+    { key: '/main/dashboard', icon: <DashboardOutlined />, label: <Link href="/main/dashboard">Bảng điều khiển</Link> },
+    { key: '/main/dossiers', icon: <FolderOpenOutlined />, label: <Link href="/main/dossiers">Hồ sơ chờ xử lý</Link> },
+    { key: '/main/imports', icon: <FileExcelOutlined />, label: <Link href="/main/imports">Kiểm tra dữ liệu nhập</Link> },
+    { key: '/main/sales', icon: <TeamOutlined />, label: <Link href="/main/sales">Quản lý Sales</Link> },
+    { key: '/main/revenue', icon: <BarChartOutlined />, label: <Link href="/main/revenue">Doanh thu & thống kê</Link> },
+    { key: '/main/tasks', icon: <CheckSquareOutlined />, label: <Link href="/main/tasks">Công việc điều hành</Link> },
+    { key: '/main/messages', icon: <MessageOutlined />, label: <Link href="/main/messages">Tin nhắn</Link> },
+    { key: '/main/profile', icon: <UserOutlined />, label: <Link href="/main/profile">Hồ sơ cá nhân</Link> },
+  ];
+
+  const menuItems = isCeoAdmin ? ceoMenuItems : isOperator ? operatorMenuItems : standardMenuItems;
 
   const userDropdownItems: MenuProps['items'] = [
     {
@@ -218,16 +301,32 @@ export default function MainLayout({
     ? '/main/tasks'
     : pathname?.startsWith('/main/messages')
     ? '/main/messages'
+    : pathname?.startsWith('/main/sales')
+    ? '/main/sales'
     : pathname?.startsWith('/main/dossiers')
     ? '/main/dossiers'
     : pathname?.startsWith('/main/imports')
       ? '/main/imports'
-      : pathname?.startsWith('/main/customers')
+    : pathname?.startsWith('/main/customers')
       ? '/main/customers'
+      : pathname?.startsWith('/main/suppliers')
+      ? '/main/customers'
+      : pathname?.startsWith('/main/approvals')
+      ? '/main/approvals'
+      : pathname?.startsWith('/main/revenue')
+      ? '/main/revenue'
+      : pathname?.startsWith('/main/kpi')
+      ? '/main/kpi'
+      : pathname?.startsWith('/main/users')
+      ? '/main/users'
+      : pathname?.startsWith('/main/settings')
+      ? '/main/settings'
+      : pathname?.startsWith('/main/reports')
+      ? '/main/reports'
       : pathname || '/main/dashboard';
 
   return (
-    <Layout className="min-h-[100dvh] bg-[var(--color-bg)]">
+    <Layout className={`min-h-[100dvh] bg-[var(--color-bg)] ${isCeoAdmin ? 'ceo-shell' : ''} ${isOperator ? 'operator-shell' : ''}`}>
       <Sider
         trigger={null}
         collapsible
@@ -265,17 +364,30 @@ export default function MainLayout({
 
         <div className="absolute bottom-0 left-0 right-0 px-4 pb-5">
           <div className="skylux-sidebar-support px-4 py-4 text-[#D3A11B]">
-            <div className="flex items-center gap-3">
-              <CustomerServiceOutlined className="text-lg text-white" />
-              {!collapsed && (
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Hỗ trợ & hướng dẫn</div>
-                  <div className="mt-1 text-sm font-semibold text-white">
-                    Gọi trợ giúp nội bộ
+            {isCeoAdmin ? (
+              !collapsed && <div>
+                <div className="text-xs font-medium text-white/75">Gói hệ thống</div>
+                <div className="mt-1 text-sm font-semibold text-white">Chưa có dữ liệu gói từ API</div>
+                <div className="mt-3 border-t border-white/10 pt-3 text-xs font-semibold text-[#E8C85D]">Quản lý gói & thanh toán</div>
+              </div>
+            ) : isOperator ? (
+              !collapsed && <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Lộ trình phát triển</div>
+                <div className="mt-3 flex items-center justify-between text-xs text-white/75"><span>Giai đoạn hiện tại</span><span className="rounded-full bg-white/15 px-2 py-0.5 font-semibold text-white">Chờ API</span></div>
+                <div className="mt-3 h-1 rounded-full bg-white/15"><div className="h-full w-[18%] rounded-full bg-[#E8C85D]" /></div>
+                <div className="mt-2 text-xs font-medium text-[#E8C85D]">Sắp tới: Phase 3–4 <span className="float-right">›</span></div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <CustomerServiceOutlined className="text-lg text-white" />
+                {!collapsed && (
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Hỗ trợ & hướng dẫn</div>
+                    <div className="mt-1 text-sm font-semibold text-white">Gọi trợ giúp nội bộ</div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </Sider>
@@ -300,19 +412,16 @@ export default function MainLayout({
           </div>
 
           <Space size={14}>
-            <Button
-              className="skylux-date-control hidden md:inline-flex"
-              icon={<CalendarOutlined />}
-              aria-label="Ngày hiện tại"
-            >
-              {new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date())}
-            </Button>
-            <Badge
-              dot
-              size="small"
-              offset={[-2, 5]}
-              color="var(--color-gold)"
-            >
+            {!isCeoAdmin && (
+              <Button
+                className="skylux-date-control hidden md:inline-flex"
+                icon={<CalendarOutlined />}
+                aria-label="Ngày hiện tại"
+              >
+                {new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date())}
+              </Button>
+            )}
+            <Badge size="small" offset={[-2, 5]} color="var(--color-gold)">
               <Button
                 type="text"
                 shape="circle"
@@ -320,6 +429,15 @@ export default function MainLayout({
                 aria-label="Thông báo"
               />
             </Badge>
+            {isCeoAdmin && (
+              <Button
+                type="text"
+                shape="circle"
+                icon={<MessageOutlined className="text-lg text-slate-600" />}
+                aria-label="Tin nhắn"
+                onClick={() => router.push('/main/messages')}
+              />
+            )}
 
             <Dropdown
               menu={{ items: userDropdownItems }}

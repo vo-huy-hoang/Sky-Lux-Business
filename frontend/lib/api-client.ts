@@ -88,6 +88,7 @@ apiClient.interceptors.response.use(
         Cookies.remove('access_token');
         Cookies.remove('refresh_token');
         if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/login')) {
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
           window.location.href = '/auth/login';
         }
         return Promise.reject(error);
@@ -117,6 +118,7 @@ apiClient.interceptors.response.use(
         Cookies.remove('access_token');
         Cookies.remove('refresh_token');
         if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/login')) {
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
           window.location.href = '/auth/login';
         }
         return Promise.reject(refreshErr);

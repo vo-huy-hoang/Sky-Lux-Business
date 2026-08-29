@@ -16,6 +16,8 @@ import {
   Tooltip,
   Popconfirm,
   message,
+  Row,
+  Col,
 } from 'antd';
 import {
   TeamOutlined,
@@ -25,7 +27,6 @@ import {
   KeyOutlined,
   SearchOutlined,
   UserOutlined,
-  ReloadOutlined,
   EyeOutlined,
   LockOutlined,
   UnlockOutlined,
@@ -42,7 +43,7 @@ import UserRoleModal from './components/UserRoleModal';
 import UserModal from './components/UserModal';
 import UserDetailDrawer from './components/UserDetailDrawer';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export default function UsersAndRbacPage() {
   const queryClient = useQueryClient();
@@ -76,7 +77,6 @@ export default function UsersAndRbacPage() {
   const {
     data: usersResponse,
     isLoading: isUsersLoading,
-    refetch: refetchUsers,
   } = useQuery({
     queryKey: [
       'users',
@@ -103,12 +103,15 @@ export default function UsersAndRbacPage() {
   const totalUsers: number = Array.isArray(usersResponse)
     ? usersResponse.length
     : usersResponse?.meta?.total || users.length;
+  const activeUsers = users.filter((user) => user.status === 'ACTIVE').length;
+  const lockedUsers = users.filter((user) => user.status === 'LOCKED').length;
+  const countRole = (code: string) => users.filter((user) => user.roles?.some((role) => role.code === code)).length;
+  const ceoAdminUsers = users.filter((user) => user.roles?.some((role) => ['CEO_ADMIN', 'SUPER_ADMIN'].includes(role.code))).length;
 
   // 2. Fetch Roles for Filter and Roles Tab
   const {
     data: rolesData,
     isLoading: isRolesLoading,
-    refetch: refetchRoles,
   } = useQuery({
     queryKey: ['roles', roleSearch],
     queryFn: () => rbacService.getRoles({ search: roleSearch }),
@@ -424,55 +427,30 @@ export default function UsersAndRbacPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
-        <div>
-          <Title level={3} style={{ marginBottom: 2, color: '#0F172A' }}>
-            Quản trị Người dùng & Phân quyền (Users & RBAC)
-          </Title>
-          <Text type="secondary" className="text-sm">
-            Quản lý tài khoản nhân viên, thiết lập vai trò và cấu hình ma trận
-            quyền hạn bảo mật hệ thống.
-          </Text>
-        </div>
-
-        <Space>
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={() => {
-              refetchUsers();
-              refetchRoles();
-            }}
-          >
-            Làm mới
-          </Button>
-
-          {activeTab === 'users' ? (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={openCreateUser}
-              className="bg-[#0A2540] hover:bg-[#133E68] border-none"
-            >
-              Thêm người dùng mới
-            </Button>
-          ) : (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={openCreateRole}
-              className="bg-[#0A2540] hover:bg-[#133E68] border-none"
-            >
-              Tạo vai trò mới
-            </Button>
-          )}
-        </Space>
-      </div>
+    <div className="space-y-4">
+      <Row gutter={[12, 12]}>
+        {[
+          { label: 'Tổng người dùng', value: totalUsers, tone: 'bg-[var(--ceo-primary-soft)] text-[var(--ceo-primary-600)]' },
+          { label: 'Đang hoạt động', value: activeUsers, tone: 'bg-[var(--ceo-primary-soft)] text-[var(--ceo-primary-600)]' },
+          { label: 'Sales', value: countRole('SALES'), tone: 'bg-[var(--ceo-info-soft)] text-[var(--ceo-info)]' },
+          { label: 'Điều hành', value: countRole('OPERATOR'), tone: 'bg-[var(--ceo-gold-soft)] text-[var(--ceo-gold-strong)]' },
+          { label: 'CEO/Admin', value: ceoAdminUsers, tone: 'bg-[var(--ceo-purple-soft)] text-[var(--ceo-purple)]' },
+          { label: 'Tài khoản tạm khóa', value: lockedUsers, tone: 'bg-[var(--ceo-danger-soft)] text-[var(--ceo-danger)]' },
+        ].map((metric) => (
+          <Col xs={24} sm={12} lg={8} xl={4} key={metric.label}>
+            <Card className="ceo-card ceo-metric-card h-full">
+              <div className="flex items-center gap-3">
+                <span className={`ceo-metric-icon ${metric.tone}`}><TeamOutlined /></span>
+                <div><Text className="text-xs text-[var(--ceo-text-muted)]">{metric.label}</Text><div className="text-[25px] font-bold">{isUsersLoading ? '-' : metric.value}</div></div>
+              </div>
+            </Card>
+          </Col>
+        ))}
+      </Row>
 
       {/* Main Tabbed Card */}
       <Card
-        className="shadow-xs border-slate-200"
+        className="ceo-card"
         styles={{ body: { padding: '20px 24px' } }}
       >
         <Tabs

@@ -89,6 +89,7 @@ export default function ProfilePage() {
   const [isPasswordEditing, setIsPasswordEditing] = useState(false);
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
+  const isOperator = user?.roles?.includes('OPERATOR');
 
   const { data: meData, isLoading: isProfileLoading } = useQuery({
     queryKey: ['auth-me'],
@@ -158,8 +159,8 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="space-y-5 pb-8">
-      <div>
+    <div className={`space-y-5 pb-8 ${isOperator ? 'op-page' : ''}`}>
+      <div className={isOperator ? 'op-page-heading' : undefined}>
         <Title level={1} className="skylux-page-title">
           Hồ sơ cá nhân
         </Title>
