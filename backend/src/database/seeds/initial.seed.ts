@@ -232,7 +232,10 @@ export async function runInitialSeed(dataSource: DataSource) {
   }
 
   // Assign specific permissions to SALES, OPERATOR, ACCOUNTANT
-  const roleSpecificPerms: Record<string, { codes: string[]; scope: RoleScope }> = {
+  const roleSpecificPerms: Record<
+    string,
+    { codes: string[]; scope: RoleScope }
+  > = {
     SALES: {
       codes: [
         'dashboard.sales',

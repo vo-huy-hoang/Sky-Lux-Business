@@ -6,10 +6,12 @@ import { Dossier } from './entities/dossier.entity';
 import { DossierPassenger } from './entities/dossier-passenger.entity';
 import { Payment } from './entities/payment.entity';
 import { Comment } from './entities/comment.entity';
+import { ApprovalsModule } from '../approvals/approvals.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Dossier, DossierPassenger, Payment, Comment]),
+    ApprovalsModule,
   ],
   controllers: [DossiersController],
   providers: [DossiersService],
