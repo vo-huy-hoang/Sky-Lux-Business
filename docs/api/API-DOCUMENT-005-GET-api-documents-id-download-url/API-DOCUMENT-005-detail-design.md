@@ -25,10 +25,10 @@
 
 ## 3. Redis Cache
 
-- Chính sách: Có thể dùng Redis cache nếu endpoint có traffic cao; mặc định ưu tiên query có phân trang.
-- Cache key đề xuất: `skylux:documents::api:documents:id:download-url:org:{organizationId}:user:{userId}:hash:{queryHash}`
-- TTL đề xuất: `60s`
-- Invalidation: Khi upload/delete/version document.
+- Chính sách: Không cache signed URL ở backend theo mặc định.
+- Cache key đề xuất: `N/A`
+- TTL đề xuất: `N/A`
+- Invalidation: `N/A`
 - Lưu ý: cache key phải bao gồm tenant, user scope và hash của query/filter để tránh rò dữ liệu giữa user/organization.
 
 ## 4. DTO & Data Models
@@ -41,11 +41,10 @@ Tên DTO: `DocumentParamsDto`
 
 ### 4.2 Query DTO
 
-Tên DTO: `DocumentQueryDto`
+Tên DTO: `DownloadUrlQueryDto`
 
-- `page?: number`
-- `pageSize?: number`
-- `search?: string`
+- `versionNo?: number`
+- `expiresIn?: number` (mặc định 3600 giây, tối thiểu 60, tối đa 86400)
 
 ### 4.3 Request Body DTO
 
@@ -55,24 +54,22 @@ Tên DTO: `N/A`
 
 ### 4.4 Response DTO
 
-Tên DTO: `PaginatedDocumentResponseDto`
+Tên DTO: `DownloadUrlResponseDto`
 
 ```json
 {
-  "data": [
-    {
-      "id": "uuid",
-      "code": "string",
-      "status": "ACTIVE",
-      "createdAt": "2026-08-24T00:00:00.000Z",
-      "updatedAt": "2026-08-24T00:00:00.000Z"
-    }
-  ],
-  "meta": {
-    "page": 1,
-    "pageSize": 20,
-    "total": 1
-  }
+  "success": true,
+  "statusCode": 200,
+  "message": "Operation successful",
+  "data": {
+    "downloadUrl": "https://files.skylux.vn/path/file.pdf?signature=...",
+    "originalName": "passport.pdf",
+    "mimeType": "application/pdf",
+    "fileSize": 1024,
+    "versionNo": 1,
+    "expiresIn": 3600
+  },
+  "timestamp": "2026-08-24T00:00:00.000Z"
 }
 ```
 
@@ -86,9 +83,8 @@ Tên DTO: `PaginatedDocumentResponseDto`
 
 - Không tin dữ liệu `organizationId` từ client; tenant lấy từ authenticated context.
 - Không trả TypeORM Entity trực tiếp sang frontend.
-- Response dùng format thống nhất `{ data, meta }`.
+- Response dùng envelope thống nhất của backend.
 - Path param phải là UUID hợp lệ hoặc slug/code hợp lệ theo business rule.
-- Giới hạn `pageSize` mặc định 20, tối đa 100.
 - Download private file phải kiểm tra tenant/permission trước khi tạo signed URL ngắn hạn.
 
 ## 6. Service Flow

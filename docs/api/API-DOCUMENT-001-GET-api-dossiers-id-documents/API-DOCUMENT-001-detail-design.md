@@ -41,19 +41,13 @@ Tên DTO: `DossierParamsDto`
 
 ### 4.2 Query DTO
 
-Tên DTO: `DossierQueryDto`
+Tên DTO: `QueryDocumentDto`
 
-- `status?: string`
-- `salesUserId?: string`
-- `operatorUserId?: string`
-- `customerId?: string`
-- `businessLineId?: string`
-- `marketTypeId?: string`
-- `fromDate?: string`
-- `toDate?: string`
 - `page?: number`
+- `limit?: number`
 - `pageSize?: number`
 - `search?: string`
+- `documentTypeId?: string`
 
 ### 4.3 Request Body DTO
 
@@ -63,30 +57,79 @@ Tên DTO: `N/A`
 
 ### 4.4 Response DTO
 
-Tên DTO: `PaginatedDossierResponseDto`
+Tên DTO: `PaginatedDocumentResponseDto`
 
 ```json
 {
-  "data": [
+  "success": true,
+  "statusCode": 200,
+  "message": "Operation successful",
+  "data": {
+    "items": [
+      {
+        "id": "uuid",
+        "organizationId": "uuid",
+        "dossierId": "uuid",
+        "estimateId": "uuid",
+        "documentTypeId": "uuid",
+        "originalName": "passport.pdf",
+        "mimeType": "application/pdf",
+        "fileSize": 1024,
+        "checksum": "md5",
+        "versionNo": 1,
+        "uploadedBy": "uuid",
+        "uploader": {
+          "id": "uuid",
+          "fullName": "Nguyen Van A",
+          "email": "a@skylux.vn",
+          "avatarUrl": null
+        },
+        "documentType": {
+          "id": "uuid",
+          "code": "PASSPORT",
+          "name": "Passport",
+          "status": "ACTIVE"
+        },
+        "createdAt": "2026-08-24T00:00:00.000Z",
+        "updatedAt": "2026-08-24T00:00:00.000Z"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 1
+  },
+  "timestamp": "2026-08-24T00:00:00.000Z"
+}
+```
+
+Không trả `objectKey`, signed URL hoặc thông tin nhạy cảm trong API danh sách.
+
+Ví dụ sau khi FE unwrap response envelope:
+
+```json
+{
+  "items": [
     {
       "id": "uuid",
-      "code": "string",
-      "status": "ACTIVE",
+      "originalName": "passport.pdf",
+      "mimeType": "application/pdf",
+      "fileSize": 1024,
+      "versionNo": 1,
       "createdAt": "2026-08-24T00:00:00.000Z",
       "updatedAt": "2026-08-24T00:00:00.000Z"
     }
   ],
-  "meta": {
-    "page": 1,
-    "pageSize": 20,
-    "total": 1
-  }
+  "total": 1,
+  "page": 1,
+  "limit": 20,
+  "totalPages": 1
 }
 ```
 
 ### 4.5 Data Model liên quan
 
-- Entity/aggregate chính: `Dossier`
+- Entity/aggregate chính: `Document`
 - Các field hệ thống nên có: `id`, `organizationId`, `createdAt`, `updatedAt`, `createdById`, `updatedById`.
 - Không expose field nhạy cảm như password hash, refresh token hash, private storage key hoặc internal cost rule nếu user không có permission.
 
@@ -94,7 +137,7 @@ Tên DTO: `PaginatedDossierResponseDto`
 
 - Không tin dữ liệu `organizationId` từ client; tenant lấy từ authenticated context.
 - Không trả TypeORM Entity trực tiếp sang frontend.
-- Response dùng format thống nhất `{ data, meta }`.
+- Response dùng envelope thống nhất của backend; payload phân trang dùng `{ items, total, page, limit, totalPages }`.
 - Path param phải là UUID hợp lệ hoặc slug/code hợp lệ theo business rule.
 - Giới hạn `pageSize` mặc định 20, tối đa 100.
 

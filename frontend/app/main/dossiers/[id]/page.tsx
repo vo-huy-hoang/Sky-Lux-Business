@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { dossiersService } from '@/services/dossiers.service';
 import { estimatesService } from '@/services/estimates.service';
 import EstimateExcelTables from '@/components/ceo/EstimateExcelTables';
+import DossierDocumentsTab from '@/components/documents/DossierDocumentsTab';
 import { EstimateStatus } from '@/types/estimate';
 import { useAuthStore } from '@/lib/stores/auth-store';
 
@@ -99,7 +100,7 @@ export default function DossierDetailPage() {
           { key: 'overview', label: 'Thông tin chung', children: <EstimateExcelTables revenueLines={estimate.revenueLines} costLines={estimate.costLines} currency={estimate.currency} /> },
           { key: 'revenue', label: 'Doanh thu', children: <EstimateExcelTables revenueLines={estimate.revenueLines} costLines={[]} currency={estimate.currency} /> },
           { key: 'cost', label: 'Chi phí', children: <EstimateExcelTables revenueLines={[]} costLines={estimate.costLines} currency={estimate.currency} /> },
-          { key: 'documents', label: 'Tài liệu', children: <div className="ceo-empty-panel"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có API tài liệu cho dự toán" /></div> },
+          { key: 'documents', label: 'Tài liệu', children: <DossierDocumentsTab dossierId={dossierId} isLocked={dossier?.status === 'LOCKED'} /> },
           { key: 'discussion', label: 'Trao đổi', children: commentsQuery.data?.length ? <div className="space-y-3">{commentsQuery.data.map((comment) => <div key={comment.id} className="rounded-md border border-[var(--ceo-divider)] p-3"><div className="flex justify-between gap-3"><Text strong>{comment.user?.fullName || 'Người dùng'}</Text><Text type="secondary" className="text-xs">{dateTime(comment.createdAt)}</Text></div><div className="mt-2 text-sm">{comment.content}</div></div>)}</div> : <div className="ceo-empty-panel"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có trao đổi từ API" /></div> },
         ]} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Hồ sơ chưa có dữ liệu dự toán" />}
       </Card>

@@ -11,13 +11,18 @@ import {
   HttpStatus,
   ForbiddenException,
   ParseUUIDPipe,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { DossiersService } from './dossiers.service';
 import { QueryDossierDto } from './dto/query-dossier.dto';
@@ -29,6 +34,9 @@ import { RequirePermissions } from '../../common/decorators/require-permissions.
 import { DossierWorkflowService } from '../approvals/dossier-workflow.service';
 import { WorkflowActionDto } from '../approvals/dto/workflow-action.dto';
 import { WorkflowListQueryDto } from '../approvals/dto/workflow-list-query.dto';
+import { DocumentsService } from '../documents/documents.service';
+import { QueryDocumentDto } from '../documents/dto/query-document.dto';
+import { CreateDocumentDto } from '../documents/dto/create-document.dto';
 
 @ApiTags('Dossiers')
 @ApiBearerAuth('JWT-auth')
@@ -37,6 +45,7 @@ export class DossiersController {
   constructor(
     private readonly dossiersService: DossiersService,
     private readonly dossierWorkflowService: DossierWorkflowService,
+    private readonly documentsService: DocumentsService,
   ) {}
 
   @Get()
@@ -221,6 +230,63 @@ export class DossiersController {
   ) {
     this.checkViewPermission(user);
     return this.dossiersService.findComments(user, id);
+  }
+
+  @Get(':id/documents')
+  @ApiOperation({
+    summary: 'Lấy danh sách tài liệu của hồ sơ (API-DOCUMENT-001)',
+  })
+  @ApiParam({ name: 'id', description: 'Dossier UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lấy danh sách tài liệu thành công',
+  })
+  findDocuments(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() queryDto: QueryDocumentDto,
+  ) {
+    this.checkViewPermission(user);
+    return this.documentsService.findByDossier(user, id, queryDto);
+  }
+
+  @Post(':id/documents')
+  @RequirePermissions('dossier.update')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Tải lên tài liệu cho hồ sơ (API-DOCUMENT-002)',
+  })
+  @ApiParam({ name: 'id', description: 'Dossier UUID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        documentTypeId: { type: 'string', format: 'uuid' },
+        estimateId: { type: 'string', format: 'uuid' },
+        changeNote: { type: 'string', example: 'Hợp đồng tour ký kết' },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Tải lên tài liệu thành công' })
+  uploadDocument(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() createDocumentDto: CreateDocumentDto,
+  ) {
+    return this.documentsService.uploadForDossier(
+      user,
+      id,
+      file,
+      createDocumentDto,
+    );
   }
 
   private checkViewPermission(user: CurrentUserPayload) {

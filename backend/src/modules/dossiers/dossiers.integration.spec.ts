@@ -1,20 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import {
-  NotFoundException,
-  ConflictException,
-  BadRequestException,
-} from '@nestjs/common';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { DossiersController } from './dossiers.controller';
 import { DossiersService } from './dossiers.service';
 import { Dossier } from './entities/dossier.entity';
 import { Comment } from './entities/comment.entity';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
-import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
 import { DossierStatus } from '../../common/enums';
 import { DossierWorkflowService } from '../approvals/dossier-workflow.service';
+import { DocumentsService } from '../documents/documents.service';
 
 describe('Dossiers Module (Integration)', () => {
   let controller: DossiersController;
@@ -83,6 +79,13 @@ describe('Dossiers Module (Integration)', () => {
         {
           provide: DossierWorkflowService,
           useValue: {},
+        },
+        {
+          provide: DocumentsService,
+          useValue: {
+            findByDossier: jest.fn(),
+            uploadForDossier: jest.fn(),
+          },
         },
       ],
     }).compile();

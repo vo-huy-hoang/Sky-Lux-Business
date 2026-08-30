@@ -1,34 +1,9 @@
-import { IsOptional, IsString, IsInt, IsEnum, Min, Max } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsOptional, IsEnum } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { DossierStatus, PriorityLevel } from '../../../common/enums';
+import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
-export class QueryDossierDto {
-  @ApiPropertyOptional({ default: 1, description: 'Số trang hiện tại' })
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  page: number = 1;
-
-  @ApiPropertyOptional({
-    default: 20,
-    description: 'Số lượng phần tử mỗi trang (tối đa 100)',
-  })
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  @IsOptional()
-  limit: number = 20;
-
-  @ApiPropertyOptional({
-    description: 'Từ khóa tìm kiếm theo mã hồ sơ, tên hồ sơ hoặc tuyến đường',
-  })
-  @IsString()
-  @IsOptional()
-  search?: string;
-
+export class QueryDossierDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description: 'Lọc theo trạng thái hồ sơ',
     enum: DossierStatus,
