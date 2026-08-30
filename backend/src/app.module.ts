@@ -5,6 +5,7 @@ import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import databaseConfig from './config/database.config';
 import appConfig from './config/app.config';
 import redisConfig from './config/redis.config';
+import storageConfig from './config/storage.config';
 import { BullModule } from '@nestjs/bullmq';
 
 import { AppController } from './app.controller';
@@ -44,7 +45,7 @@ import { ChatModule } from './modules/chat/chat.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, appConfig, redisConfig],
+      load: [databaseConfig, appConfig, redisConfig, storageConfig],
     }),
     BullModule.forRootAsync({
       inject: [ConfigService],
