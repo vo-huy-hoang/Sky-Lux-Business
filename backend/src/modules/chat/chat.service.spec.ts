@@ -5,6 +5,7 @@ import { ChatService } from './chat.service';
 import { Conversation } from './entities/conversation.entity';
 import { ConversationMember } from './entities/conversation-member.entity';
 import { Message } from './entities/message.entity';
+import { User } from '../users/entities/user.entity';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
@@ -64,6 +65,10 @@ describe('ChatService', () => {
     delete: jest.fn().mockResolvedValue({ affected: 1 }),
   };
 
+  const mockUserRepo = {
+    find: jest.fn().mockResolvedValue([{ id: 'user-2' }]),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -79,6 +84,10 @@ describe('ChatService', () => {
         {
           provide: getRepositoryToken(Message),
           useValue: mockMessageRepo,
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: mockUserRepo,
         },
       ],
     }).compile();
@@ -133,6 +142,24 @@ describe('ChatService', () => {
       mockConversationRepo.findOne.mockResolvedValueOnce(mockConv);
       const res = await service.findConversation(mockUser, 'conv-1');
       expect(res).toEqual(mockConv);
+    });
+
+    it('should remove passwordHash from member users', async () => {
+      const mockConv = {
+        id: 'conv-1',
+        organizationId: 'org-1',
+        members: [
+          {
+            userId: 'user-1',
+            user: { id: 'user-1', fullName: 'Test User', passwordHash: 'secret' },
+          },
+        ],
+      } as any;
+      mockConversationRepo.findOne.mockResolvedValueOnce(mockConv);
+
+      const result = await service.findConversation(mockUser, 'conv-1');
+
+      expect(result.members[0].user.passwordHash).toBeUndefined();
     });
   });
 
@@ -307,6 +334,20 @@ describe('ChatService', () => {
       );
       expect(res.success).toBe(true);
       expect(res.addedCount).toBe(1);
+    });
+
+    it('should reject members from another organization', async () => {
+      mockMemberRepo.findOne.mockResolvedValueOnce({ userId: 'user-1' });
+      mockConversationRepo.findOne.mockResolvedValueOnce({
+        id: 'conv-1',
+        organizationId: 'org-1',
+        isGroup: true,
+      });
+      mockUserRepo.find.mockResolvedValueOnce([]);
+
+      await expect(
+        service.addParticipants('conv-1', { userIds: ['user-2'] }, mockUser),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

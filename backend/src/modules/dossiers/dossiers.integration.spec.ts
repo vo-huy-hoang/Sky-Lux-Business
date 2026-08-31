@@ -8,6 +8,8 @@ import { Dossier } from './entities/dossier.entity';
 import { Comment } from './entities/comment.entity';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
+import { CreateCommentDto } from './dto/create-comment.dto';
+import { QueryCommentDto } from './dto/query-comment.dto';
 import { DossierStatus } from '../../common/enums';
 import { DossierWorkflowService } from '../approvals/dossier-workflow.service';
 import { DocumentsService } from '../documents/documents.service';
@@ -15,6 +17,7 @@ import { DocumentsService } from '../documents/documents.service';
 describe('Dossiers Module (Integration)', () => {
   let controller: DossiersController;
   let dossierRepository: jest.Mocked<Repository<Dossier>>;
+  let commentRepository: jest.Mocked<Repository<Comment>>;
 
   const orgA = 'org-A-uuid';
   const orgB = 'org-B-uuid';
@@ -61,6 +64,9 @@ describe('Dossiers Module (Integration)', () => {
 
   const mockCommentRepository = {
     createQueryBuilder: jest.fn(),
+    findOne: jest.fn(),
+    create: jest.fn((dto) => dto),
+    save: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -94,6 +100,9 @@ describe('Dossiers Module (Integration)', () => {
     dossierRepository = module.get<Repository<Dossier>>(
       getRepositoryToken(Dossier),
     ) as jest.Mocked<Repository<Dossier>>;
+    commentRepository = module.get<Repository<Comment>>(
+      getRepositoryToken(Comment),
+    ) as jest.Mocked<Repository<Comment>>;
   });
 
   afterEach(() => {
@@ -171,6 +180,27 @@ describe('Dossiers Module (Integration)', () => {
 
       expect(result).toEqual(colleagueDossier);
     });
+
+    it('Nhân viên có quyền view.team ĐƯỢC PHÉP xem hồ sơ cùng phòng ban', async () => {
+      const teamUser = {
+        id: 'user-team-uuid',
+        organizationId: orgA,
+        departmentId: 'dept-sales-uuid',
+        permissions: ['dossier.view.team'],
+        roles: [],
+      } as unknown as CurrentUserPayload;
+      const teamDossier = {
+        ...mockDossierOfOrgA,
+        salesUser: { departmentId: 'dept-sales-uuid' },
+        salesUserId: 'colleague-uuid',
+      } as unknown as Dossier;
+
+      dossierRepository.findOne.mockResolvedValue(teamDossier);
+
+      const result = await controller.findOne(teamUser, 'dossier-A-uuid');
+
+      expect(result).toEqual(teamDossier);
+    });
   });
 
   describe('3. Ràng buộc Máy trạng thái Hồ sơ (Dossier Status State Machine)', () => {
@@ -215,6 +245,92 @@ describe('Dossiers Module (Integration)', () => {
 
       expect(dossierRepository.save).toHaveBeenCalled();
       expect(result.status).toEqual(DossierStatus.SUBMITTED);
+    });
+  });
+
+  describe('4. Bình luận hồ sơ (Dossier Comments - API-COMMENT-001 & API-COMMENT-002)', () => {
+    it('Doanh nghiệp A KHÔNG THỂ thêm bình luận vào hồ sơ của Doanh nghiệp B (Trả về 404)', async () => {
+      dossierRepository.findOne.mockImplementation(({ where }: any) => {
+        if (where.id === 'dossier-B-uuid' && where.organizationId === orgA) {
+          return Promise.resolve(null);
+        }
+        return Promise.resolve(mockDossierOfOrgB);
+      });
+
+      const createDto: CreateCommentDto = {
+        content: 'Bình luận trái phép sang Org B',
+      };
+
+      await expect(
+        controller.createComment(mockUserOrgAAll, 'dossier-B-uuid', createDto),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('Doanh nghiệp A KHÔNG THỂ xem bình luận của hồ sơ thuộc Doanh nghiệp B (Trả về 404)', async () => {
+      dossierRepository.findOne.mockImplementation(({ where }: any) => {
+        if (where.id === 'dossier-B-uuid' && where.organizationId === orgA) {
+          return Promise.resolve(null);
+        }
+        return Promise.resolve(mockDossierOfOrgB);
+      });
+
+      await expect(
+        controller.findComments(
+          mockUserOrgAAll,
+          'dossier-B-uuid',
+          new QueryCommentDto(),
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('Chặn tạo bình luận khi hồ sơ đã bị khóa (status = LOCKED - Trả về 400)', async () => {
+      const lockedDossier = {
+        ...mockDossierOfOrgA,
+        status: DossierStatus.LOCKED,
+      };
+      dossierRepository.findOne.mockResolvedValue(lockedDossier);
+
+      const createDto: CreateCommentDto = {
+        content: 'Bình luận trên hồ sơ đã khóa',
+      };
+
+      await expect(
+        controller.createComment(mockUserOrgAAll, 'dossier-A-uuid', createDto),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('Cho phép tạo bình luận thành công trên hồ sơ hợp lệ và làm sạch thông tin nhạy cảm', async () => {
+      dossierRepository.findOne.mockResolvedValue(mockDossierOfOrgA);
+      const savedComment = {
+        id: 'new-comm-uuid',
+        content: 'Bình luận hợp lệ',
+        dossierId: 'dossier-A-uuid',
+        organizationId: orgA,
+      };
+      commentRepository.save.mockResolvedValue(savedComment as any);
+      commentRepository.findOne.mockResolvedValue({
+        ...savedComment,
+        user: {
+          id: 'user-A-all-uuid',
+          fullName: 'Admin Org A',
+          passwordHash: 'secret-hashed',
+          refreshTokenHash: 'refresh-hashed',
+        },
+      } as any);
+
+      const createDto: CreateCommentDto = {
+        content: 'Bình luận hợp lệ',
+      };
+
+      const result = await controller.createComment(
+        mockUserOrgAAll,
+        'dossier-A-uuid',
+        createDto,
+      );
+
+      expect(result.data.id).toEqual('new-comm-uuid');
+      expect((result.data.user as any).passwordHash).toBeUndefined();
+      expect((result.data.user as any).refreshTokenHash).toBeUndefined();
     });
   });
 });

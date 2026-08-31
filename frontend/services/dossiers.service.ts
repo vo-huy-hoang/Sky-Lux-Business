@@ -1,5 +1,12 @@
 import { apiClient } from '@/lib/api-client';
-import { DossierItem, DossierComment, QueryDossierParams } from '@/types/dossier';
+import {
+  DossierItem,
+  DossierComment,
+  DossierCommentsResponse,
+  QueryDossierParams,
+  CreateCommentPayload,
+  QueryCommentParams,
+} from '@/types/dossier';
 
 export const dossiersService = {
   /**
@@ -29,7 +36,17 @@ export const dossiersService = {
   /**
    * API-COMMENT-001: Lấy danh sách bình luận của hồ sơ tour
    */
-  getDossierComments: (dossierId: string) => {
-    return apiClient.get<any, DossierComment[]>(`/dossiers/${dossierId}/comments`);
+  getDossierComments: (dossierId: string, params?: QueryCommentParams) => {
+    return apiClient.get<any, DossierCommentsResponse>(
+      `/dossiers/${dossierId}/comments`,
+      { params },
+    );
+  },
+
+  /**
+   * API-COMMENT-002: Tạo bình luận cho hồ sơ tour
+   */
+  createDossierComment: (dossierId: string, payload: CreateCommentPayload) => {
+    return apiClient.post<any, DossierComment>(`/dossiers/${dossierId}/comments`, payload);
   },
 };

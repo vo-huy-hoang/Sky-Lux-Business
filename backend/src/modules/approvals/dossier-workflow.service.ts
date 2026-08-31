@@ -195,11 +195,11 @@ export class DossierWorkflowService {
     user: CurrentUserPayload,
     dossierId: string,
   ) {
-    const dossier = await this.findDossierForUpdate(
-      this.dataSource.getRepository(Dossier),
-      user,
-      dossierId,
-    );
+    const dossier = await this.dataSource.getRepository(Dossier).findOne({
+      where: { id: dossierId, organizationId: user.organizationId },
+      relations: { salesUser: true, operatorUser: true },
+    });
+    if (!dossier) throw new NotFoundException('Không tìm thấy hồ sơ');
     const canViewAll =
       this.isAdmin(user) ||
       user.permissions.includes('*') ||
@@ -209,7 +209,13 @@ export class DossierWorkflowService {
       [dossier.salesUserId, dossier.operatorUserId, dossier.createdBy].includes(
         user.id,
       );
-    if (!canViewAll && !canViewOwn)
+    const canViewTeam =
+      user.permissions.includes('dossier.view.team') &&
+      !!user.departmentId &&
+      [dossier.salesUser?.departmentId, dossier.operatorUser?.departmentId].includes(
+        user.departmentId,
+      );
+    if (!canViewAll && !canViewOwn && !canViewTeam)
       throw new ForbiddenException(
         'Bạn không có quyền xem workflow của hồ sơ này',
       );

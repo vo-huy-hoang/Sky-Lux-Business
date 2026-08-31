@@ -37,7 +37,7 @@ export default function UserModal() {
     queryKey: ['roles', ''],
     queryFn: () => rbacService.getRoles({ search: '' }),
   });
-  const roles = rolesData?.items || [];
+  const roles = rolesData || [];
 
   // Reset/Set Form Values on Open
   useEffect(() => {

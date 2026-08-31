@@ -19,3 +19,5 @@ export interface OrganizationSettingItem {
   createdAt: string;
   updatedAt: string;
 }
+
+export type OrganizationSettings = Record<string, any>;

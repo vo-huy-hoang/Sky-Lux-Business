@@ -28,6 +28,8 @@ import { DossiersService } from './dossiers.service';
 import { QueryDossierDto } from './dto/query-dossier.dto';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
+import { CreateCommentDto } from './dto/create-comment.dto';
+import { QueryCommentDto } from './dto/query-comment.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
@@ -224,12 +226,44 @@ export class DossiersController {
     status: 200,
     description: 'Lấy danh sách bình luận thành công',
   })
+  @ApiResponse({ status: 401, description: 'Chưa xác thực' })
+  @ApiResponse({ status: 403, description: 'Không có quyền truy cập hồ sơ' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy hồ sơ' })
   findComments(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', ParseUUIDPipe) id: string,
+    @Query() queryDto: QueryCommentDto,
   ) {
     this.checkViewPermission(user);
-    return this.dossiersService.findComments(user, id);
+    return this.dossiersService.findComments(user, id, queryDto);
+  }
+
+  @Post(':id/comments')
+  @RequirePermissions('dossier.update')
+  @ApiOperation({
+    summary: 'Tạo bình luận cho hồ sơ tour (API-COMMENT-002)',
+  })
+  @ApiParam({ name: 'id', description: 'Dossier UUID' })
+  @ApiResponse({
+    status: 201,
+    description: 'Tạo bình luận thành công',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Dữ liệu không hợp lệ hoặc hồ sơ đã bị khóa',
+  })
+  @ApiResponse({ status: 401, description: 'Chưa xác thực' })
+  @ApiResponse({ status: 403, description: 'Không có quyền cập nhật hồ sơ' })
+  @ApiResponse({
+    status: 404,
+    description: 'Không tìm thấy hồ sơ hoặc bình luận gốc',
+  })
+  createComment(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() createCommentDto: CreateCommentDto,
+  ) {
+    return this.dossiersService.createComment(user, id, createCommentDto);
   }
 
   @Get(':id/documents')
@@ -292,13 +326,14 @@ export class DossiersController {
   private checkViewPermission(user: CurrentUserPayload) {
     const hasViewPerm =
       user.permissions.includes('dossier.view.own') ||
+      user.permissions.includes('dossier.view.team') ||
       user.permissions.includes('dossier.view.all') ||
       user.permissions.includes('*') ||
       user.roles.includes('SUPER_ADMIN');
 
     if (!hasViewPerm) {
       throw new ForbiddenException(
-        'Access denied: Yêu cầu quyền xem hồ sơ (dossier.view.own hoặc dossier.view.all)',
+        'Access denied: Yêu cầu quyền xem hồ sơ (dossier.view.own, dossier.view.team hoặc dossier.view.all)',
       );
     }
   }

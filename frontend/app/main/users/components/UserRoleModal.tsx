@@ -22,7 +22,7 @@ export default function UserRoleModal() {
     queryKey: ['roles', ''],
     queryFn: () => rbacService.getRoles({ search: '' }),
   });
-  const roles = rolesData?.items || [];
+  const roles = rolesData || [];
 
   const assignUserRolesMutation = useMutation({
     mutationFn: async ({ userId, roleIds }: { userId: string; roleIds: string[] }) => {

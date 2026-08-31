@@ -23,9 +23,10 @@ export class JwtQueryAuthGuard implements CanActivate {
     }
 
     try {
-      const secret =
-        this.configService.get<string>('JWT_SECRET') ||
-        'CHANGE_ME_LONG_RANDOM_SECRET';
+      const secret = this.configService.get<string>('JWT_SECRET');
+      if (!secret) {
+        throw new Error('JWT_SECRET is not configured');
+      }
       const payload = await this.jwtService.verifyAsync(token, { secret });
       request.user = payload;
       return true;

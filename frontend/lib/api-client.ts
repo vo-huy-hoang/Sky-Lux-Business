@@ -62,7 +62,7 @@ apiClient.interceptors.response.use(
       _retry?: boolean;
     };
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       if (originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh')) {
         return Promise.reject(error);
       }
@@ -85,6 +85,8 @@ apiClient.interceptors.response.use(
 
       const refreshToken = Cookies.get('refresh_token');
       if (!refreshToken) {
+        processQueue(error, null);
+        isRefreshing = false;
         Cookies.remove('access_token');
         Cookies.remove('refresh_token');
         if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/login')) {

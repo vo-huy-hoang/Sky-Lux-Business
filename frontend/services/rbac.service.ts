@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client';
-import { PaginatedResponse } from '@/types/api';
+import { PaginatedUsersResponse } from '@/types/user';
 
 export interface RolePermissionItem {
   id: string;
@@ -30,14 +30,6 @@ export interface PermissionItem {
   createdAt: string;
 }
 
-export interface PermissionsResponse {
-  items: PermissionItem[];
-  modules: Record<string, PermissionItem[]>;
-  total: number;
-  page: number;
-  limit: number;
-}
-
 export interface UserItem {
   id: string;
   employeeCode: string;
@@ -51,14 +43,36 @@ export interface UserItem {
   createdAt: string;
 }
 
+type BackendRole = Omit<RoleItem, 'permissionCount' | 'permissions'> & {
+  rolePermissions?: Array<{
+    scope?: string;
+    permission?: RolePermissionItem;
+  }>;
+};
+
+const toRoleItem = (role: BackendRole): RoleItem => ({
+  ...role,
+  permissionCount: role.rolePermissions?.length || 0,
+  permissions: role.rolePermissions
+    ?.filter((rolePermission) => rolePermission.permission)
+    .map((rolePermission) => ({
+      ...rolePermission.permission!,
+      scope: rolePermission.scope,
+    })),
+});
+
 export const rbacService = {
   // Roles APIs (API-RBAC-001, 002, 003, 005)
   getRoles: (params?: { page?: number; limit?: number; search?: string }) => {
-    return apiClient.get<any, PaginatedResponse<RoleItem>>('/roles', { params });
+    return apiClient
+      .get<any, BackendRole[]>('/roles', { params })
+      .then((roles) => roles.map(toRoleItem));
   },
 
   getRole: (id: string) => {
-    return apiClient.get<any, RoleItem>(`/roles/${id}`);
+    return apiClient
+      .get<any, BackendRole>(`/roles/${id}`)
+      .then(toRoleItem);
   },
 
   createRole: (data: {
@@ -67,7 +81,7 @@ export const rbacService = {
     description?: string;
     permissionCodes?: string[];
   }) => {
-    return apiClient.post<any, RoleItem>('/roles', data);
+    return apiClient.post<any, BackendRole>('/roles', data).then(toRoleItem);
   },
 
   updateRole: (
@@ -78,12 +92,17 @@ export const rbacService = {
       permissionCodes?: string[];
     },
   ) => {
-    return apiClient.patch<any, RoleItem>(`/roles/${id}`, data);
+    return apiClient
+      .patch<any, BackendRole>(`/roles/${id}`, data)
+      .then(toRoleItem);
   },
 
-  assignRolePermissions: (id: string, permissionCodes: string[]) => {
-    return apiClient.put<any, RoleItem>(`/roles/${id}/permissions`, {
-      permissionCodes,
+  assignRolePermissions: (
+    id: string,
+    permissions: Array<{ permissionId: string; scope: 'OWN' | 'TEAM' | 'ALL' }>,
+  ) => {
+    return apiClient.put<any, { message: string }>(`/roles/${id}/permissions`, {
+      permissions,
     });
   },
 
@@ -94,12 +113,12 @@ export const rbacService = {
     search?: string;
     module?: string;
   }) => {
-    return apiClient.get<any, PermissionsResponse>('/permissions', { params });
+    return apiClient.get<any, PermissionItem[]>('/permissions', { params });
   },
 
   // Users & Role Assignment APIs (API-RBAC-006)
   getUsers: () => {
-    return apiClient.get<any, UserItem[]>('/users');
+    return apiClient.get<any, PaginatedUsersResponse>('/users');
   },
 
   assignUserRoles: (userId: string, roleIds: string[]) => {

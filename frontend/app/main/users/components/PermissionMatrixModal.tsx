@@ -3,7 +3,7 @@
 import React, { useEffect } from 'react';
 import { Modal, Card, Checkbox, Row, Col, Space, Button, message } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { rbacService } from '@/services/rbac.service';
+import { PermissionItem, rbacService } from '@/services/rbac.service';
 import { useRbacStore } from '../store';
 
 export default function PermissionMatrixModal() {
@@ -22,7 +22,14 @@ export default function PermissionMatrixModal() {
     queryKey: ['permissions'],
     queryFn: () => rbacService.getPermissions({ limit: 150 }),
   });
-  const permissionsByModule = permsData?.modules || {};
+  const permissionsByModule = (permsData || []).reduce<Record<string, PermissionItem[]>>(
+    (groups, permission) => {
+      const moduleName = permission.module || 'OTHER';
+      groups[moduleName] = [...(groups[moduleName] || []), permission];
+      return groups;
+    },
+    {},
+  );
 
   // 2. Fetch Detailed Role Permissions
   const selectedRoleId = selectedRoleForPerms?.id;
@@ -42,7 +49,18 @@ export default function PermissionMatrixModal() {
 
   const assignPermsMutation = useMutation({
     mutationFn: async ({ roleId, codes }: { roleId: string; codes: string[] }) => {
-      return rbacService.assignRolePermissions(roleId, codes);
+      const permissionsByCode = new Map(
+        (permsData || []).map((permission) => [permission.code, permission]),
+      );
+      return rbacService.assignRolePermissions(
+        roleId,
+        codes.flatMap((code) => {
+          const permission = permissionsByCode.get(code);
+          return permission
+            ? [{ permissionId: permission.id, scope: 'ALL' as const }]
+            : [];
+        }),
+      );
     },
     onSuccess: () => {
       message.success('Cập nhật quyền cho vai trò thành công');
