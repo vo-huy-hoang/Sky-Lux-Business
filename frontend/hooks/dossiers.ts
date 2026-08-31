@@ -1,6 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { dossiersService } from '@/services/dossiers.service';
-import { DossierItem, QueryDossierParams } from '@/types/dossier';
+import {
+  DossierItem,
+  QueryDossierParams,
+  CreateCommentPayload,
+  QueryCommentParams,
+} from '@/types/dossier';
 
 /**
  * Hook lấy danh sách hồ sơ phân trang và tìm kiếm
@@ -37,6 +42,39 @@ export function useUpdateDossierMetadata() {
       queryClient.invalidateQueries({ queryKey: ['dossier-detail', data.id] });
       // Invalidate danh sách hồ sơ
       queryClient.invalidateQueries({ queryKey: ['dossiers-list'] });
+    },
+  });
+}
+
+/**
+ * Hook lấy danh sách bình luận của hồ sơ tour (API-COMMENT-001)
+ */
+export function useDossierComments(dossierId: string, params?: QueryCommentParams) {
+  return useQuery({
+    queryKey: ['dossier-comments', dossierId, params],
+    queryFn: () => dossiersService.getDossierComments(dossierId, params),
+    enabled: !!dossierId,
+  });
+}
+
+/**
+ * Hook tạo bình luận cho hồ sơ tour (API-COMMENT-002)
+ */
+export function useCreateDossierComment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      dossierId,
+      payload,
+    }: {
+      dossierId: string;
+      payload: CreateCommentPayload;
+    }) => dossiersService.createDossierComment(dossierId, payload),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ['dossier-comments', variables.dossierId],
+      });
     },
   });
 }

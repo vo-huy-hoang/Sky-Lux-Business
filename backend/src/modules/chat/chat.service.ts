@@ -7,7 +7,7 @@ import {
 import { Subject, Observable } from 'rxjs';
 import { filter, map, mergeMap } from 'rxjs/operators';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, MoreThan } from 'typeorm';
+import { In, Repository, Not, MoreThan } from 'typeorm';
 import { Conversation } from './entities/conversation.entity';
 import { ConversationMember } from './entities/conversation-member.entity';
 import { Message } from './entities/message.entity';
@@ -16,6 +16,8 @@ import { CurrentUserPayload } from '../../common/decorators/current-user.decorat
 
 import { AddParticipantsDto } from './dto/add-participants.dto';
 import { MarkReadDto } from './dto/mark-read.dto';
+import { User } from '../users/entities/user.entity';
+import { toPublicUser } from '../../common/utils/public-user';
 
 @Injectable()
 export class ChatService {
@@ -42,13 +44,15 @@ export class ChatService {
     private readonly memberRepository: Repository<ConversationMember>,
     @InjectRepository(Message)
     private readonly messageRepository: Repository<Message>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
   /**
    * Lấy danh sách cuộc hội thoại của user
    */
   async findConversations(user: CurrentUserPayload): Promise<Conversation[]> {
-    return this.conversationRepository
+    const conversations = await this.conversationRepository
       .createQueryBuilder('conversation')
       .innerJoin(
         'conversation.members',
@@ -64,6 +68,8 @@ export class ChatService {
       })
       .orderBy('conversation.updatedAt', 'DESC')
       .getMany();
+
+    return conversations.map((conversation) => this.sanitizeConversation(conversation));
   }
 
   /**
@@ -93,7 +99,7 @@ export class ChatService {
       );
     }
 
-    return conversation;
+    return this.sanitizeConversation(conversation);
   }
 
   /**
@@ -103,6 +109,9 @@ export class ChatService {
     user: CurrentUserPayload,
     dto: CreateConversationDto,
   ): Promise<Conversation> {
+    const participantIds = [...new Set([...dto.userIds, user.id])];
+    await this.ensureUsersInOrganization(participantIds, user.organizationId);
+
     const conversation = this.conversationRepository.create({
       organizationId: user.organizationId,
       name: dto.name,
@@ -114,24 +123,13 @@ export class ChatService {
       await this.conversationRepository.save(conversation);
 
     // Thêm các thành viên vào cuộc hội thoại
-    const members = dto.userIds.map((userId) =>
+    const members = participantIds.map((userId) =>
       this.memberRepository.create({
         organizationId: user.organizationId,
         conversationId: savedConversation.id,
         userId,
       }),
     );
-
-    // Luôn thêm chính người tạo phòng vào hội thoại nếu chưa có
-    if (!dto.userIds.includes(user.id)) {
-      members.push(
-        this.memberRepository.create({
-          organizationId: user.organizationId,
-          conversationId: savedConversation.id,
-          userId: user.id,
-        }),
-      );
-    }
 
     await this.memberRepository.save(members);
 
@@ -165,7 +163,7 @@ export class ChatService {
       );
     }
 
-    return conversation;
+    return this.sanitizeConversation(conversation);
   }
 
   /**
@@ -178,11 +176,13 @@ export class ChatService {
     // Xác thực quyền truy cập hội thoại trước
     await this.findConversation(user, conversationId);
 
-    return this.messageRepository.find({
+    const messages = await this.messageRepository.find({
       where: { conversationId, organizationId: user.organizationId },
       relations: { sender: true },
       order: { createdAt: 'ASC' },
     });
+
+    return messages.map((message) => this.sanitizeMessage(message));
   }
 
   /**
@@ -218,6 +218,8 @@ export class ChatService {
     if (!fullMessage) {
       throw new NotFoundException('Không thể gửi tin nhắn');
     }
+
+    this.sanitizeMessage(fullMessage);
 
     // Đẩy sự kiện tin nhắn mới vào luồng SSE
     this.chatEvent$.next({
@@ -280,7 +282,11 @@ export class ChatService {
           return { evt, isAllowed: true };
         }
         // Kiểm tra xem có phải thành viên cuộc hội thoại không
-        const isMember = await this.isMember(user.id, evt.conversationId);
+        const isMember = await this.isMember(
+          user.id,
+          evt.conversationId,
+          user.organizationId,
+        );
         return { evt, isAllowed: isMember };
       }),
       filter(({ isAllowed }) => isAllowed),
@@ -301,7 +307,7 @@ export class ChatService {
     user: CurrentUserPayload,
   ): Promise<any> {
     const member = await this.memberRepository.findOne({
-      where: { userId: user.id, conversationId },
+      where: { userId: user.id, conversationId, organizationId: user.organizationId },
     });
     if (!member) {
       throw new ForbiddenException(
@@ -313,7 +319,7 @@ export class ChatService {
     if (!lastReadMessageId) {
       // Tìm tin nhắn mới nhất trong cuộc trò chuyện
       const latestMessage = await this.messageRepository.findOne({
-        where: { conversationId },
+        where: { conversationId, organizationId: user.organizationId },
         order: { createdAt: 'DESC' },
       });
       if (latestMessage) {
@@ -355,15 +361,20 @@ export class ChatService {
     conversationId: string,
     user: CurrentUserPayload,
   ): Promise<ConversationMember[]> {
-    const isMember = await this.isMember(user.id, conversationId);
+    const isMember = await this.isMember(user.id, conversationId, user.organizationId);
     if (!isMember) {
       throw new ForbiddenException('Bạn không có quyền truy cập hội thoại này');
     }
 
-    return this.memberRepository.find({
-      where: { conversationId },
+    const participants = await this.memberRepository.find({
+      where: { conversationId, organizationId: user.organizationId },
       relations: { user: true },
       order: { joinedAt: 'ASC' },
+    });
+
+    return participants.map((participant) => {
+      participant.user = toPublicUser(participant.user) as typeof participant.user;
+      return participant;
     });
   }
 
@@ -375,13 +386,13 @@ export class ChatService {
     payload: AddParticipantsDto,
     user: CurrentUserPayload,
   ): Promise<any> {
-    const isMember = await this.isMember(user.id, conversationId);
+    const isMember = await this.isMember(user.id, conversationId, user.organizationId);
     if (!isMember) {
       throw new ForbiddenException('Bạn không có quyền truy cập hội thoại này');
     }
 
     const conversation = await this.conversationRepository.findOne({
-      where: { id: conversationId },
+      where: { id: conversationId, organizationId: user.organizationId },
     });
     if (!conversation) {
       throw new NotFoundException('Không tìm thấy cuộc hội thoại');
@@ -393,11 +404,13 @@ export class ChatService {
       );
     }
 
+    await this.ensureUsersInOrganization(payload.userIds, user.organizationId);
+
     const addedMembers: ConversationMember[] = [];
     for (const memberId of payload.userIds) {
       // Kiểm tra xem đã là thành viên chưa
       const existing = await this.memberRepository.findOne({
-        where: { userId: memberId, conversationId },
+        where: { userId: memberId, conversationId, organizationId: user.organizationId },
       });
       if (!existing) {
         const newMember = this.memberRepository.create({
@@ -413,6 +426,7 @@ export class ChatService {
           relations: { user: true },
         });
         if (memberWithUser) {
+          memberWithUser.user = toPublicUser(memberWithUser.user) as typeof memberWithUser.user;
           addedMembers.push(memberWithUser);
         }
       }
@@ -443,7 +457,7 @@ export class ChatService {
     user: CurrentUserPayload,
   ): Promise<any> {
     const conversation = await this.conversationRepository.findOne({
-      where: { id: conversationId },
+      where: { id: conversationId, organizationId: user.organizationId },
     });
     if (!conversation) {
       throw new NotFoundException('Không tìm thấy cuộc hội thoại');
@@ -451,7 +465,7 @@ export class ChatService {
 
     // Lấy thông tin thành viên của người gửi yêu cầu
     const requesterMember = await this.memberRepository.findOne({
-      where: { userId: user.id, conversationId },
+      where: { userId: user.id, conversationId, organizationId: user.organizationId },
     });
     if (!requesterMember) {
       throw new ForbiddenException(
@@ -464,7 +478,7 @@ export class ChatService {
     const targetMember = isSelfLeaving
       ? requesterMember
       : await this.memberRepository.findOne({
-          where: { userId: participantUserId, conversationId },
+          where: { userId: participantUserId, conversationId, organizationId: user.organizationId },
         });
     if (!targetMember) {
       throw new NotFoundException(
@@ -499,11 +513,46 @@ export class ChatService {
   /**
    * Helper kiểm tra xem User có phải thành viên cuộc hội thoại không
    */
-  async isMember(userId: string, conversationId: string): Promise<boolean> {
+  async isMember(
+    userId: string,
+    conversationId: string,
+    organizationId: string,
+  ): Promise<boolean> {
     const member = await this.memberRepository.findOne({
-      where: { userId, conversationId },
+      where: { userId, conversationId, organizationId },
     });
     return !!member;
+  }
+
+  private async ensureUsersInOrganization(
+    userIds: string[],
+    organizationId: string,
+  ): Promise<void> {
+    const uniqueUserIds = [...new Set(userIds)];
+    if (uniqueUserIds.length === 0) return;
+
+    const users = await this.userRepository.find({
+      where: { id: In(uniqueUserIds), organizationId },
+      select: { id: true },
+    });
+
+    if (users.length !== uniqueUserIds.length) {
+      throw new NotFoundException(
+        'Một hoặc nhiều thành viên không tồn tại trong tổ chức của bạn',
+      );
+    }
+  }
+
+  private sanitizeConversation(conversation: Conversation): Conversation {
+    conversation.members?.forEach((member) => {
+      member.user = toPublicUser(member.user) as typeof member.user;
+    });
+    return conversation;
+  }
+
+  private sanitizeMessage(message: Message): Message {
+    message.sender = toPublicUser(message.sender) as typeof message.sender;
+    return message;
   }
 
   /**

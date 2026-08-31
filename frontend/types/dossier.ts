@@ -11,10 +11,33 @@ export interface DossierComment {
   dossierId: string;
   userId: string;
   content: string;
-  parentId?: string;
+  parentId?: string | null;
   createdAt: string;
   updatedAt: string;
   user?: DossierCommentUser;
+}
+
+export interface DossierCommentsMeta {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface DossierCommentsResponse {
+  data: DossierComment[];
+  meta: DossierCommentsMeta;
+}
+
+export interface CreateCommentPayload {
+  content: string;
+  parentId?: string;
+}
+
+export interface QueryCommentParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
 }
 
 export interface DossierItem {

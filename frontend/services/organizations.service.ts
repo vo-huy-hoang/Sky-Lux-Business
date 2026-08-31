@@ -1,5 +1,9 @@
 import { apiClient } from '@/lib/api-client';
-import { OrganizationItem, OrganizationSettingItem } from '@/types/organization';
+import {
+  OrganizationItem,
+  OrganizationSettingItem,
+  OrganizationSettings,
+} from '@/types/organization';
 
 export const organizationsService = {
   /**
@@ -20,7 +24,7 @@ export const organizationsService = {
    * API-ORG-003: Lấy danh sách thiết lập/cấu hình của tổ chức
    */
   getSettings: () => {
-    return apiClient.get<any, OrganizationSettingItem[]>('/organization/settings');
+    return apiClient.get<any, OrganizationSettings>('/organization/settings');
   },
 
   /**

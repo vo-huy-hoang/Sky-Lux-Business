@@ -15,6 +15,7 @@ import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
 import { QueryDossierDto } from '../dossiers/dto/query-dossier.dto';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
+import { toPublicUser } from '../../common/utils/public-user';
 
 @Injectable()
 export class CustomersService {
@@ -63,7 +64,10 @@ export class CustomersService {
     const totalPages = Math.ceil(total / limit);
 
     return {
-      items,
+      items: items.map((customer) => {
+        customer.assignedSales = toPublicUser(customer.assignedSales) as typeof customer.assignedSales;
+        return customer;
+      }),
       total,
       page,
       limit,
@@ -83,6 +87,7 @@ export class CustomersService {
       );
     }
 
+    customer.assignedSales = toPublicUser(customer.assignedSales) as typeof customer.assignedSales;
     return customer;
   }
 

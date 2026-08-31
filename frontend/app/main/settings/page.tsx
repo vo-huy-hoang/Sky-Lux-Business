@@ -47,7 +47,7 @@ export default function SettingsPage() {
     { title: 'Loại nhà cung cấp', icon: <BankOutlined />, query: supplierTypes },
     { title: 'Đơn vị tính', icon: <SettingOutlined />, query: units },
   ];
-  const settingMap = new Map((settings.data || []).map((item) => [item.key, item.value]));
+  const settingMap = settings.data || {};
 
   return <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_320px]">
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
@@ -55,12 +55,12 @@ export default function SettingsPage() {
       <Card className="ceo-card lg:col-span-2" title="Cấu hình Import Excel">
         <div className="grid grid-cols-1 gap-x-8 md:grid-cols-2">
           {[
-            ['Định dạng file cho phép', settingMap.get('import.allowedFormats') || '.xlsx, .xls'],
-            ['Ký tự mã hóa', settingMap.get('import.encoding') || 'UTF-8'],
-            ['Dòng tiêu đề', settingMap.get('import.headerRow') || 'Theo cấu hình mẫu'],
-            ['Bỏ qua dòng trống', settingMap.has('import.skipBlankRows') ? String(settingMap.get('import.skipBlankRows')) : 'Chưa cấu hình'],
-            ['Kiểm tra trùng dữ liệu', settingMap.has('import.detectDuplicates') ? String(settingMap.get('import.detectDuplicates')) : 'Chưa cấu hình'],
-            ['Mẫu import', settingMap.get('import.template') || 'Theo API phiên import'],
+            ['Định dạng file cho phép', settingMap['import.allowedFormats'] || '.xlsx, .xls'],
+            ['Ký tự mã hóa', settingMap['import.encoding'] || 'UTF-8'],
+            ['Dòng tiêu đề', settingMap['import.headerRow'] || 'Theo cấu hình mẫu'],
+            ['Bỏ qua dòng trống', Object.prototype.hasOwnProperty.call(settingMap, 'import.skipBlankRows') ? String(settingMap['import.skipBlankRows']) : 'Chưa cấu hình'],
+            ['Kiểm tra trùng dữ liệu', Object.prototype.hasOwnProperty.call(settingMap, 'import.detectDuplicates') ? String(settingMap['import.detectDuplicates']) : 'Chưa cấu hình'],
+            ['Mẫu import', settingMap['import.template'] || 'Theo API phiên import'],
           ].map(([label, value]) => <div key={label} className="flex items-center justify-between gap-4 border-b border-[var(--ceo-divider)] py-3"><Text className="text-sm text-[var(--ceo-text-muted)]">{label}</Text><Text strong>{value}</Text></div>)}
         </div>
         <Button block className="mt-4 skylux-outline-button" href="/main/imports">Mở màn hình Import Excel</Button>

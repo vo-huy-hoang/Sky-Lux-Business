@@ -116,7 +116,7 @@ export default function UsersAndRbacPage() {
     queryKey: ['roles', roleSearch],
     queryFn: () => rbacService.getRoles({ search: roleSearch }),
   });
-  const roles = rolesData?.items || [];
+  const roles = rolesData || [];
 
   // Mutations
   const lockMutation = useMutation({

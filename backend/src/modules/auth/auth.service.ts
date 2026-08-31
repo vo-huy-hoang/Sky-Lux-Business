@@ -78,9 +78,7 @@ export class AuthService {
       permissions,
     };
 
-    const secret =
-      this.configService.get<string>('JWT_SECRET') ||
-      'CHANGE_ME_LONG_RANDOM_SECRET';
+    const secret = this.getJwtSecret();
 
     const accessToken = await this.jwtService.signAsync(payload, {
       secret,
@@ -200,9 +198,7 @@ export class AuthService {
     userAgent?: string,
   ) {
     const { refreshToken } = refreshTokenDto;
-    const secret =
-      this.configService.get<string>('JWT_SECRET') ||
-      'CHANGE_ME_LONG_RANDOM_SECRET';
+    const secret = this.getJwtSecret();
 
     try {
       const decoded = await this.jwtService.verifyAsync(refreshToken, {
@@ -314,5 +310,13 @@ export class AuthService {
     await this.userRepository.save(user);
 
     return { message: 'Đổi mật khẩu thành công' };
+  }
+
+  private getJwtSecret(): string {
+    const secret = this.configService.get<string>('JWT_SECRET');
+    if (!secret) {
+      throw new Error('JWT_SECRET is not configured');
+    }
+    return secret;
   }
 }
