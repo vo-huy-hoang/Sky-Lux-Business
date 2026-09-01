@@ -66,7 +66,9 @@ export class DossiersService {
       }
 
       queryBuilder.andWhere(
-        visibilityClauses.length > 0 ? `(${visibilityClauses.join(' OR ')})` : '1 = 0',
+        visibilityClauses.length > 0
+          ? `(${visibilityClauses.join(' OR ')})`
+          : '1 = 0',
         visibilityParams,
       );
     }
@@ -95,8 +97,12 @@ export class DossiersService {
     const totalPages = Math.ceil(total / limit);
 
     items.forEach((dossier) => {
-      dossier.salesUser = toPublicUser(dossier.salesUser) as typeof dossier.salesUser;
-      dossier.operatorUser = toPublicUser(dossier.operatorUser) as typeof dossier.operatorUser;
+      dossier.salesUser = toPublicUser(
+        dossier.salesUser,
+      ) as typeof dossier.salesUser;
+      dossier.operatorUser = toPublicUser(
+        dossier.operatorUser,
+      ) as typeof dossier.operatorUser;
     });
 
     return {
@@ -139,9 +145,10 @@ export class DossiersService {
     ].includes(user.id);
     const isTeamDossier =
       !!user.departmentId &&
-      [dossier.salesUser?.departmentId, dossier.operatorUser?.departmentId].includes(
-        user.departmentId,
-      );
+      [
+        dossier.salesUser?.departmentId,
+        dossier.operatorUser?.departmentId,
+      ].includes(user.departmentId);
 
     if (
       !hasViewAll &&
@@ -153,8 +160,12 @@ export class DossiersService {
       throw new NotFoundException(`Không tìm thấy hồ sơ với ID "${id}"`);
     }
 
-    dossier.salesUser = toPublicUser(dossier.salesUser) as typeof dossier.salesUser;
-    dossier.operatorUser = toPublicUser(dossier.operatorUser) as typeof dossier.operatorUser;
+    dossier.salesUser = toPublicUser(
+      dossier.salesUser,
+    ) as typeof dossier.salesUser;
+    dossier.operatorUser = toPublicUser(
+      dossier.operatorUser,
+    ) as typeof dossier.operatorUser;
 
     return dossier;
   }
@@ -303,9 +314,7 @@ export class DossiersService {
 
     const content = createCommentDto.content.trim();
     if (!content) {
-      throw new BadRequestException(
-        'Nội dung bình luận không được để trống',
-      );
+      throw new BadRequestException('Nội dung bình luận không được để trống');
     }
 
     // 2. Kiểm tra parentId nếu có

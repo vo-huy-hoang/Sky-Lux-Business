@@ -13,10 +13,19 @@ export class Conversation extends BaseEntity {
   @Column({ name: 'dossier_id', type: 'uuid', nullable: true })
   dossierId?: string;
 
-  @Column({ type: 'varchar', length: 100, nullable: true })
+  @Column({ name: 'title', type: 'varchar', length: 255, nullable: true })
   name?: string;
 
-  @Column({ name: 'is_group', type: 'boolean', default: false })
+  @Column({
+    name: 'type',
+    type: 'varchar',
+    length: 30,
+    default: 'DIRECT',
+    transformer: {
+      to: (value: boolean | undefined) => (value ? 'GROUP' : 'DIRECT'),
+      from: (value: string) => value === 'GROUP',
+    },
+  })
   isGroup: boolean;
 
   @ManyToOne(() => Organization, { onDelete: 'CASCADE' })

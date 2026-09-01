@@ -10,7 +10,7 @@ import { Organization } from '../../organizations/entities/organization.entity';
 import { Conversation } from './conversation.entity';
 import { User } from '../../users/entities/user.entity';
 
-@Entity('conversation_members')
+@Entity('conversation_participants')
 export class ConversationMember {
   @PrimaryGeneratedColumn('uuid')
   id: string;

@@ -69,7 +69,9 @@ export class ChatService {
       .orderBy('conversation.updatedAt', 'DESC')
       .getMany();
 
-    return conversations.map((conversation) => this.sanitizeConversation(conversation));
+    return conversations.map((conversation) =>
+      this.sanitizeConversation(conversation),
+    );
   }
 
   /**
@@ -117,6 +119,7 @@ export class ChatService {
       name: dto.name,
       isGroup: dto.isGroup ?? false,
       dossierId: dto.dossierId,
+      createdBy: user.id,
     });
 
     const savedConversation =
@@ -307,7 +310,11 @@ export class ChatService {
     user: CurrentUserPayload,
   ): Promise<any> {
     const member = await this.memberRepository.findOne({
-      where: { userId: user.id, conversationId, organizationId: user.organizationId },
+      where: {
+        userId: user.id,
+        conversationId,
+        organizationId: user.organizationId,
+      },
     });
     if (!member) {
       throw new ForbiddenException(
@@ -361,7 +368,11 @@ export class ChatService {
     conversationId: string,
     user: CurrentUserPayload,
   ): Promise<ConversationMember[]> {
-    const isMember = await this.isMember(user.id, conversationId, user.organizationId);
+    const isMember = await this.isMember(
+      user.id,
+      conversationId,
+      user.organizationId,
+    );
     if (!isMember) {
       throw new ForbiddenException('Bạn không có quyền truy cập hội thoại này');
     }
@@ -373,7 +384,9 @@ export class ChatService {
     });
 
     return participants.map((participant) => {
-      participant.user = toPublicUser(participant.user) as typeof participant.user;
+      participant.user = toPublicUser(
+        participant.user,
+      ) as typeof participant.user;
       return participant;
     });
   }
@@ -386,7 +399,11 @@ export class ChatService {
     payload: AddParticipantsDto,
     user: CurrentUserPayload,
   ): Promise<any> {
-    const isMember = await this.isMember(user.id, conversationId, user.organizationId);
+    const isMember = await this.isMember(
+      user.id,
+      conversationId,
+      user.organizationId,
+    );
     if (!isMember) {
       throw new ForbiddenException('Bạn không có quyền truy cập hội thoại này');
     }
@@ -410,7 +427,11 @@ export class ChatService {
     for (const memberId of payload.userIds) {
       // Kiểm tra xem đã là thành viên chưa
       const existing = await this.memberRepository.findOne({
-        where: { userId: memberId, conversationId, organizationId: user.organizationId },
+        where: {
+          userId: memberId,
+          conversationId,
+          organizationId: user.organizationId,
+        },
       });
       if (!existing) {
         const newMember = this.memberRepository.create({
@@ -426,7 +447,9 @@ export class ChatService {
           relations: { user: true },
         });
         if (memberWithUser) {
-          memberWithUser.user = toPublicUser(memberWithUser.user) as typeof memberWithUser.user;
+          memberWithUser.user = toPublicUser(
+            memberWithUser.user,
+          ) as typeof memberWithUser.user;
           addedMembers.push(memberWithUser);
         }
       }
@@ -465,7 +488,11 @@ export class ChatService {
 
     // Lấy thông tin thành viên của người gửi yêu cầu
     const requesterMember = await this.memberRepository.findOne({
-      where: { userId: user.id, conversationId, organizationId: user.organizationId },
+      where: {
+        userId: user.id,
+        conversationId,
+        organizationId: user.organizationId,
+      },
     });
     if (!requesterMember) {
       throw new ForbiddenException(
@@ -478,7 +505,11 @@ export class ChatService {
     const targetMember = isSelfLeaving
       ? requesterMember
       : await this.memberRepository.findOne({
-          where: { userId: participantUserId, conversationId, organizationId: user.organizationId },
+          where: {
+            userId: participantUserId,
+            conversationId,
+            organizationId: user.organizationId,
+          },
         });
     if (!targetMember) {
       throw new NotFoundException(

@@ -114,6 +114,35 @@ describe('ChatService', () => {
     });
   });
 
+  describe('createConversation', () => {
+    it('should persist the creator so they can manage group members', async () => {
+      mockUserRepo.find.mockResolvedValueOnce([
+        { id: 'user-1' },
+        { id: 'user-2' },
+      ]);
+      mockConversationRepo.findOne.mockResolvedValueOnce({
+        id: 'conv-1',
+        createdBy: 'user-1',
+        isGroup: true,
+        members: [{ userId: 'user-1' }],
+      });
+
+      await service.createConversation(mockUser, {
+        name: 'Test group',
+        isGroup: true,
+        userIds: ['user-2'],
+      });
+
+      expect(mockConversationRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          createdBy: 'user-1',
+          name: 'Test group',
+          isGroup: true,
+        }),
+      );
+    });
+  });
+
   describe('findConversation', () => {
     it('should throw NotFoundException if conversation not found', async () => {
       mockConversationRepo.findOne.mockResolvedValueOnce(null);
@@ -151,7 +180,11 @@ describe('ChatService', () => {
         members: [
           {
             userId: 'user-1',
-            user: { id: 'user-1', fullName: 'Test User', passwordHash: 'secret' },
+            user: {
+              id: 'user-1',
+              fullName: 'Test User',
+              passwordHash: 'secret',
+            },
           },
         ],
       } as any;
