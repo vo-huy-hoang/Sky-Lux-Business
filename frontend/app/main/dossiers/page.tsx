@@ -33,6 +33,8 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { dossiersService } from '@/services/dossiers.service';
 import { DossierItem } from '@/types/dossier';
+import { queryKeys } from '@/lib/query-keys';
+
 import { DossierComments } from './components/DossierComments';
 import { useAuthStore } from '@/lib/stores/auth-store';
 
@@ -89,7 +91,7 @@ function getStatus(status?: string) {
 }
 
 export default function DossiersPage() {
-  const { hasRole } = useAuthStore();
+  const hasRole = useAuthStore((state) => state.hasRole);
   const isCeoAdmin = hasRole('CEO_ADMIN') || hasRole('SUPER_ADMIN');
   const isOperator = hasRole('OPERATOR');
   const [page, setPage] = useState(1);
@@ -100,7 +102,14 @@ export default function DossiersPage() {
   const [selectedDossierId, setSelectedDossierId] = useState<string | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['dossiers', page, pageSize, search, status, priority],
+
+    queryKey: queryKeys.dossiers.list({
+      page,
+      limit: pageSize,
+      search: search || undefined,
+      status: status || undefined,
+      priority: priority || undefined,
+    }),
     queryFn: () =>
       dossiersService.getDossiers({
         page,
@@ -112,10 +121,11 @@ export default function DossiersPage() {
   });
 
   const { data: selectedDossier, isLoading: isLoadingDetail } = useQuery({
-    queryKey: ['dossier-detail', selectedDossierId],
+    queryKey: queryKeys.dossiers.detail(selectedDossierId || undefined),
     queryFn: () => dossiersService.getDossier(selectedDossierId!),
     enabled: !!selectedDossierId,
   });
+
 
   const summary = useMemo(() => {
     const items = data?.items || [];

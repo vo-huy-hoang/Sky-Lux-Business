@@ -212,9 +212,10 @@ export class DossierWorkflowService {
     const canViewTeam =
       user.permissions.includes('dossier.view.team') &&
       !!user.departmentId &&
-      [dossier.salesUser?.departmentId, dossier.operatorUser?.departmentId].includes(
-        user.departmentId,
-      );
+      [
+        dossier.salesUser?.departmentId,
+        dossier.operatorUser?.departmentId,
+      ].includes(user.departmentId);
     if (!canViewAll && !canViewOwn && !canViewTeam)
       throw new ForbiddenException(
         'Bạn không có quyền xem workflow của hồ sơ này',

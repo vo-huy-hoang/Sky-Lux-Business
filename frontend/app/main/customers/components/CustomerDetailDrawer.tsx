@@ -31,6 +31,7 @@ import { customersService } from '@/services/customers.service';
 import { CustomerItem, CustomerContact } from '@/types/customer';
 import { DossierItem } from '@/types/dossier';
 import { ContactModal } from './ContactModal';
+import { queryKeys } from '@/lib/query-keys';
 
 const { Text } = Typography;
 
@@ -53,8 +54,9 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
   const [dossierPage, setDossierPage] = useState(1);
 
   // 1. Fetch chi tiết khách hàng (API-CUSTOMER-002)
+
   const { data: customer, isLoading: isLoadingCustomer } = useQuery<CustomerItem>({
-    queryKey: ['customer', customerId],
+    queryKey: queryKeys.customers.detail(customerId || undefined),
     queryFn: () => customersService.getCustomer(customerId!),
     enabled: !!customerId && visible,
   });
@@ -64,7 +66,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
     data: DossierItem[];
     meta: { page: number; pageSize: number; total: number; totalPages: number };
   }>({
-    queryKey: ['customer-dossiers', customerId, dossierPage],
+    queryKey: queryKeys.dossiers.list({ customerId: customerId || undefined, page: dossierPage, limit: 10 }),
     queryFn: () =>
       customersService.getCustomerDossiers(customerId!, {
         page: dossierPage,
@@ -79,8 +81,8 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
       customersService.deleteContact(customerId!, contactId),
     onSuccess: () => {
       message.success('Đã xóa người liên hệ');
-      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
-      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.detail(customerId || undefined) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.all });
     },
     onError: (err: any) => {
       message.error(
@@ -88,6 +90,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
       );
     },
   });
+
 
   const handleOpenCreateContact = () => {
     setSelectedContact(null);

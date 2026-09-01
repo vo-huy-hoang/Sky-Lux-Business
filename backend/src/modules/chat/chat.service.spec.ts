@@ -151,7 +151,11 @@ describe('ChatService', () => {
         members: [
           {
             userId: 'user-1',
-            user: { id: 'user-1', fullName: 'Test User', passwordHash: 'secret' },
+            user: {
+              id: 'user-1',
+              fullName: 'Test User',
+              passwordHash: 'secret',
+            },
           },
         ],
       } as any;

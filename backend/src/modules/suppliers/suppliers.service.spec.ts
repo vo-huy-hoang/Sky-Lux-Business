@@ -130,6 +130,7 @@ describe('SuppliersService', () => {
 
       const queryDto: QuerySupplierDto = {
         page: 2,
+        limit: 10,
         pageSize: 10,
         search: 'ABC',
         status: 'ACTIVE',

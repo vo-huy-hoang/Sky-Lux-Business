@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { organizationsService } from '@/services/organizations.service';
+import { queryKeys } from '@/lib/query-keys';
 import { OrganizationItem } from '@/types/organization';
 
 /**
@@ -7,7 +8,7 @@ import { OrganizationItem } from '@/types/organization';
  */
 export function useOrganizationProfile() {
   return useQuery({
-    queryKey: ['organization-profile'],
+    queryKey: queryKeys.organizations.profile(),
     queryFn: () => organizationsService.getProfile(),
   });
 }
@@ -22,7 +23,7 @@ export function useUpdateOrganizationProfile() {
     mutationFn: (data: Partial<OrganizationItem>) =>
       organizationsService.updateProfile(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['organization-profile'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.organizations.profile() });
     },
   });
 }
@@ -32,7 +33,7 @@ export function useUpdateOrganizationProfile() {
  */
 export function useOrganizationSettings() {
   return useQuery({
-    queryKey: ['organization-settings'],
+    queryKey: queryKeys.organizations.settings(),
     queryFn: () => organizationsService.getSettings(),
   });
 }
@@ -47,7 +48,8 @@ export function useUpdateOrganizationSetting() {
     mutationFn: ({ key, value }: { key: string; value: any }) =>
       organizationsService.updateSetting(key, value),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['organization-settings'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.organizations.settings() });
     },
   });
 }
+

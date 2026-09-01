@@ -5,21 +5,31 @@ import { Modal, Card, Checkbox, Row, Col, Space, Button, message } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PermissionItem, rbacService } from '@/services/rbac.service';
 import { useRbacStore } from '../store';
+import { useShallow } from 'zustand/react/shallow';
+import { queryKeys } from '@/lib/query-keys';
 
 export default function PermissionMatrixModal() {
   const queryClient = useQueryClient();
-
   const {
     isPermModalOpen,
     selectedRoleForPerms,
     selectedPermCodes,
     setSelectedPermCodes,
     closePermModal,
-  } = useRbacStore();
+  } = useRbacStore(
+    useShallow((s) => ({
+      isPermModalOpen: s.isPermModalOpen,
+      selectedRoleForPerms: s.selectedRoleForPerms,
+      selectedPermCodes: s.selectedPermCodes,
+      setSelectedPermCodes: s.setSelectedPermCodes,
+      closePermModal: s.closePermModal,
+    })),
+  );
+
 
   // 1. Fetch All Permissions
   const { data: permsData } = useQuery({
-    queryKey: ['permissions'],
+    queryKey: queryKeys.users.permissions(),
     queryFn: () => rbacService.getPermissions({ limit: 150 }),
   });
   const permissionsByModule = (permsData || []).reduce<Record<string, PermissionItem[]>>(
@@ -34,7 +44,7 @@ export default function PermissionMatrixModal() {
   // 2. Fetch Detailed Role Permissions
   const selectedRoleId = selectedRoleForPerms?.id;
   const { data: detailedRole } = useQuery({
-    queryKey: ['role-details', selectedRoleId],
+    queryKey: queryKeys.users.roleDetail(selectedRoleId || undefined),
     queryFn: () => rbacService.getRole(selectedRoleId!),
     enabled: !!selectedRoleId,
   });
@@ -65,12 +75,13 @@ export default function PermissionMatrixModal() {
     onSuccess: () => {
       message.success('Cập nhật quyền cho vai trò thành công');
       closePermModal();
-      queryClient.invalidateQueries({ queryKey: ['roles'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.roles() });
     },
     onError: (err: any) => {
       message.error(err.message || 'Lỗi khi gán quyền');
     },
   });
+
 
   return (
     <Modal

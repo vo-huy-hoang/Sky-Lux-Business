@@ -13,9 +13,7 @@ export class CreateCommentDto {
     description: 'Nội dung bình luận',
     example: 'Khách hàng yêu cầu đổi lịch bay sang ngày mai',
   })
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsNotEmpty({ message: 'Nội dung bình luận không được để trống' })
   @IsString({ message: 'Nội dung bình luận phải là chuỗi ký tự' })
   @MaxLength(5000, { message: 'Nội dung bình luận không vượt quá 5000 ký tự' })

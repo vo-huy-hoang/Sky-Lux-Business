@@ -23,7 +23,9 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { suppliersService } from '@/services/suppliers.service';
 import { SupplierItem, SupplierStatus } from '@/types/supplier';
+import { queryKeys } from '@/lib/query-keys';
 import dayjs from 'dayjs';
+
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -45,10 +47,11 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['supplier', supplierId],
+    queryKey: queryKeys.suppliers.detail(supplierId || undefined),
     queryFn: () => (supplierId ? suppliersService.getSupplier(supplierId) : null),
     enabled: Boolean(visible && supplierId),
   });
+
 
   const getStatusTag = (status?: SupplierStatus) => {
     switch (status) {

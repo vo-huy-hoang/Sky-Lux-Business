@@ -26,3 +26,26 @@ export interface CeoDashboardData {
   costBreakdown: { categoryName: string; amount: number }[];
   avgDossierClosingDays: number;
 }
+
+export interface OperatorSalesSummaryItem {
+  salesUserId: string;
+  salesUserName: string;
+  salesUserEmail?: string;
+  employeeCode?: string;
+  totalDossiers: number;
+  approvedDossiers: number;
+  completedDossiers: number;
+  completionRate: number;
+  totalRevenue: number;
+  totalCost: number;
+  totalProfit: number;
+}
+
+export interface OperatorMonthlyTrendItem {
+  monthKey: string;
+  label: string;
+  totalDossiers: number;
+  approvedDossiers: number;
+  totalRevenue: number;
+}
+

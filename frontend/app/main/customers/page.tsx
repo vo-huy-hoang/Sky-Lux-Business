@@ -36,6 +36,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { customersService } from '@/services/customers.service';
 import { CustomerItem, CustomerType } from '@/types/customer';
 import { CustomerDetailDrawer } from './components/CustomerDetailDrawer';
+import { queryKeys } from '@/lib/query-keys';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useRouter } from 'next/navigation';
 
@@ -54,7 +55,7 @@ function initials(name?: string) {
 
 export default function CustomersPage() {
   const router = useRouter();
-  const { hasRole } = useAuthStore();
+  const hasRole = useAuthStore((state) => state.hasRole);
   const isCeoAdmin = hasRole('CEO_ADMIN') || hasRole('SUPER_ADMIN');
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -66,7 +67,13 @@ export default function CustomersPage() {
   const [drawerVisible, setDrawerVisible] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['customers', page, pageSize, search, customerType, status],
+    queryKey: queryKeys.customers.list({
+      page,
+      limit: pageSize,
+      search: search || undefined,
+      customerType,
+      status,
+    }),
     queryFn: () =>
       customersService.getCustomers({
         page,
@@ -78,7 +85,7 @@ export default function CustomersPage() {
   });
 
   const { data: summaryData, isLoading: isLoadingSummary } = useQuery({
-    queryKey: ['customers-summary'],
+    queryKey: queryKeys.customers.summary(),
     queryFn: () => customersService.getCustomers({ page: 1, limit: 100 }),
   });
 
@@ -86,13 +93,13 @@ export default function CustomersPage() {
     mutationFn: (id: string) => customersService.deleteCustomer(id),
     onSuccess: () => {
       message.success('Đã xóa khách hàng');
-      queryClient.invalidateQueries({ queryKey: ['customers'] });
-      queryClient.invalidateQueries({ queryKey: ['customers-summary'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.all });
     },
     onError: (err: any) => {
       message.error(err?.response?.data?.message || 'Không thể xóa khách hàng');
     },
   });
+
 
   const handleViewDetail = (id: string) => {
     setSelectedCustomerId(id);

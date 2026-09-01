@@ -14,6 +14,8 @@ import {
   useLockDossier,
 } from '@/hooks/workflow';
 import { workflowService } from '@/services/workflow.service';
+import { queryKeys } from '@/lib/query-keys';
+
 
 jest.mock('@/services/workflow.service', () => ({
   workflowService: {
@@ -61,18 +63,12 @@ describe('useWorkflow hooks', () => {
 
   it('should generate correct query keys', () => {
     expect(workflowKeys.all).toEqual(['workflow']);
-    expect(workflowKeys.history(dossierId, { page: 1 })).toEqual([
-      'workflow',
-      'history',
-      dossierId,
-      { page: 1 },
-    ]);
-    expect(workflowKeys.approvals(dossierId, { page: 1 })).toEqual([
-      'workflow',
-      'approvals',
-      dossierId,
-      { page: 1 },
-    ]);
+    expect(workflowKeys.history(dossierId, { page: 1 })).toEqual(
+      queryKeys.approvals.history(dossierId, { page: 1 }),
+    );
+    expect(workflowKeys.approvals(dossierId, { page: 1 })).toEqual(
+      queryKeys.approvals.approvalsList(dossierId, { page: 1 }),
+    );
   });
 
   it('useWorkflowHistory fetches history', async () => {
@@ -124,7 +120,8 @@ describe('useWorkflow hooks', () => {
     });
 
     expect(workflowService.submit).toHaveBeenCalledWith(dossierId, { note: 'Submit' });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['dossier-detail', dossierId] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: queryKeys.dossiers.detail(dossierId) });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: queryKeys.dossiers.all });
   });
 
   it('useStartReviewDossier executes startReview', async () => {

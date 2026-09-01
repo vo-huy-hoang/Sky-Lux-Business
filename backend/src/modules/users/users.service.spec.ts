@@ -96,6 +96,7 @@ describe('UsersService', () => {
 
       const queryDto: QueryUserDto = {
         page: 1,
+        limit: 20,
         pageSize: 20,
         search: 'User',
         status: UserStatus.ACTIVE,

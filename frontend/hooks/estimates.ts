@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { estimatesService } from '@/services/estimates.service';
+import { queryKeys } from '@/lib/query-keys';
 import { EstimateItem } from '@/types/estimate';
 
 /**
@@ -7,7 +8,7 @@ import { EstimateItem } from '@/types/estimate';
  */
 export function useDossierEstimates(dossierId: string) {
   return useQuery({
-    queryKey: ['dossier-estimates', dossierId],
+    queryKey: queryKeys.estimates.dossierList(dossierId),
     queryFn: () => estimatesService.getDossierEstimates(dossierId),
     enabled: !!dossierId,
   });
@@ -18,7 +19,7 @@ export function useDossierEstimates(dossierId: string) {
  */
 export function useEstimateDetail(id: string) {
   return useQuery({
-    queryKey: ['estimate', id],
+    queryKey: queryKeys.estimates.detail(id),
     queryFn: () => estimatesService.getEstimate(id),
     enabled: !!id,
   });
@@ -35,9 +36,12 @@ export function useUpdateEstimate() {
       estimatesService.updateEstimate(id, data),
     onSuccess: (data) => {
       // Invalidate chi tiết báo giá
-      queryClient.invalidateQueries({ queryKey: ['estimate', data.id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.estimates.detail(data.id) });
       // Invalidate danh sách báo giá của hồ sơ
-      queryClient.invalidateQueries({ queryKey: ['dossier-estimates', data.dossierId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.estimates.dossierList(data.dossierId) });
+      // Invalidate toàn bộ dashboards
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboards.all });
     },
   });
 }
+

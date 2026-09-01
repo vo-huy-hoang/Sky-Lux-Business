@@ -56,7 +56,8 @@ describe('MasterDataController', () => {
   });
 
   it('should delegate getBusinessLines to MasterDataService', async () => {
-    const query: MasterDataQueryDto = { page: 1, pageSize: 20 };
+    const query: MasterDataQueryDto = { page: 1, limit: 20, pageSize: 20 };
+
     const res = await controller.getBusinessLines(query);
 
     expect(service.getBusinessLines).toHaveBeenCalledWith(query);
@@ -64,7 +65,8 @@ describe('MasterDataController', () => {
   });
 
   it('should delegate getMarketTypes to MasterDataService', async () => {
-    const query: MasterDataQueryDto = { page: 1, pageSize: 20 };
+    const query: MasterDataQueryDto = { page: 1, limit: 20, pageSize: 20 };
+
     const res = await controller.getMarketTypes(query);
 
     expect(service.getMarketTypes).toHaveBeenCalledWith(query);
@@ -72,7 +74,8 @@ describe('MasterDataController', () => {
   });
 
   it('should delegate getServiceCategories to MasterDataService', async () => {
-    const query: MasterDataQueryDto = { page: 1, pageSize: 20 };
+    const query: MasterDataQueryDto = { page: 1, limit: 20, pageSize: 20 };
+
     const res = await controller.getServiceCategories(query);
 
     expect(service.getServiceCategories).toHaveBeenCalledWith(query);
@@ -80,7 +83,8 @@ describe('MasterDataController', () => {
   });
 
   it('should delegate getPassengerTypes to MasterDataService', async () => {
-    const query: MasterDataQueryDto = { page: 1, pageSize: 20 };
+    const query: MasterDataQueryDto = { page: 1, limit: 20, pageSize: 20 };
+
     const res = await controller.getPassengerTypes(query);
 
     expect(service.getPassengerTypes).toHaveBeenCalledWith(query);
@@ -88,7 +92,8 @@ describe('MasterDataController', () => {
   });
 
   it('should delegate getSupplierTypes to MasterDataService', async () => {
-    const query: MasterDataQueryDto = { page: 1, pageSize: 20 };
+    const query: MasterDataQueryDto = { page: 1, limit: 20, pageSize: 20 };
+
     const res = await controller.getSupplierTypes(query);
 
     expect(service.getSupplierTypes).toHaveBeenCalledWith(query);
@@ -96,7 +101,8 @@ describe('MasterDataController', () => {
   });
 
   it('should delegate getUnits to MasterDataService', async () => {
-    const query: MasterDataQueryDto = { page: 1, pageSize: 20 };
+    const query: MasterDataQueryDto = { page: 1, limit: 20, pageSize: 20 };
+
     const res = await controller.getUnits(query);
 
     expect(service.getUnits).toHaveBeenCalledWith(query);

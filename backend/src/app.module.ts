@@ -40,9 +40,11 @@ import { ImportsModule } from './modules/imports/imports.module';
 import { DashboardsModule } from './modules/dashboards/dashboards.module';
 import { HealthModule } from './modules/health/health.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { RedisModule } from './common/redis/redis.module';
 
 @Module({
   imports: [
+    RedisModule,
     ConfigModule.forRoot({
       isGlobal: true,
       load: [databaseConfig, appConfig, redisConfig, storageConfig],

@@ -4,7 +4,10 @@ import {
   SalesDashboardData,
   OperatorDashboardData,
   CeoDashboardData,
+  OperatorSalesSummaryItem,
+  OperatorMonthlyTrendItem,
 } from '@/types/dashboard';
+
 
 export const dashboardsService = {
   /**
@@ -27,4 +30,21 @@ export const dashboardsService = {
   getCeoDashboard: (params?: QueryDashboardParams) => {
     return apiClient.get<any, CeoDashboardData>('/dashboard/ceo', { params });
   },
+
+  /**
+   * API-DASHBOARD-004: Tổng hợp hiệu suất và doanh thu theo Sales
+   */
+  getOperatorSalesSummary: () => {
+    return apiClient.get<any, OperatorSalesSummaryItem[]>('/dashboard/operator/sales-summary');
+  },
+
+  /**
+   * API-DASHBOARD-005: Xu hướng tạo hồ sơ và doanh thu theo tháng
+   */
+  getOperatorMonthlyTrend: (months = 6) => {
+    return apiClient.get<any, OperatorMonthlyTrendItem[]>('/dashboard/operator/monthly-trend', {
+      params: { months },
+    });
+  },
 };
+

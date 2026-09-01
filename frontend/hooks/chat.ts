@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Cookies from 'js-cookie';
 import { chatService } from '@/services/chat.service';
 import { API_BASE_URL } from '@/lib/api-client';
+import { queryKeys } from '@/lib/query-keys';
 import {
   CreateConversationPayload,
   Message,
@@ -25,14 +26,14 @@ const removeMessageFromCache = (messageId: string) => (old?: Message[]) => {
 
 export const useConversations = () => {
   return useQuery({
-    queryKey: ['conversations'],
+    queryKey: queryKeys.chat.conversations(),
     queryFn: () => chatService.getConversations(),
   });
 };
 
 export const useConversationDetail = (id: string) => {
   return useQuery({
-    queryKey: ['conversation-detail', id],
+    queryKey: queryKeys.chat.conversation(id),
     queryFn: () => chatService.getConversationDetail(id),
     enabled: !!id,
   });
@@ -40,7 +41,7 @@ export const useConversationDetail = (id: string) => {
 
 export const useConversationMessages = (id: string) => {
   return useQuery({
-    queryKey: ['conversation-messages', id],
+    queryKey: queryKeys.chat.messages(id),
     queryFn: () => chatService.getConversationMessages(id),
     enabled: !!id,
   });
@@ -52,7 +53,7 @@ export const useCreateConversation = () => {
     mutationFn: (data: CreateConversationPayload) =>
       chatService.createConversation(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
     },
   });
 };
@@ -65,11 +66,11 @@ export const useSendMessage = (conversationId: string) => {
     onSuccess: (newMessage) => {
       // Cập nhật nóng tin nhắn mới vào lịch sử chat trong cache
       queryClient.setQueryData<Message[]>(
-        ['conversation-messages', conversationId],
+        queryKeys.chat.messages(conversationId),
         appendMessageToCache(newMessage),
       );
       // Invalidate danh sách hội thoại để sắp xếp lại theo tin nhắn mới nhất
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
     },
   });
 };
@@ -89,11 +90,11 @@ export const useDeleteMessage = (conversationId: string) => {
     onSuccess: (_, messageId) => {
       // Cập nhật nóng: Xóa tin nhắn khỏi lịch sử chat trong cache
       queryClient.setQueryData<Message[]>(
-        ['conversation-messages', conversationId],
+        queryKeys.chat.messages(conversationId),
         removeMessageFromCache(messageId),
       );
       // Invalidate danh sách để cập nhật tin nhắn cuối cùng (nếu tin bị xóa là tin mới nhất)
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
     },
   });
 };
@@ -248,9 +249,9 @@ export const useChatRealtime = (conversationId?: string) => {
           // Invalidate cache thông báo tin nhắn chưa đọc
           queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
         } else if (chatEvent.type === 'conversation.updated') {
-          queryClient.invalidateQueries({ queryKey: ['conversations'] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
           if ((chatEvent.payload as { conversationId: string })?.conversationId === conversationId) {
-            queryClient.invalidateQueries({ queryKey: ['conversation-detail', conversationId] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversation(conversationId) });
           }
         }
       } catch (err) {
@@ -281,7 +282,7 @@ export const useChatRealtime = (conversationId?: string) => {
  */
 export const useConversationParticipants = (conversationId: string) => {
   return useQuery({
-    queryKey: ['conversation-participants', conversationId],
+    queryKey: queryKeys.chat.participants(conversationId),
     queryFn: () => chatService.getParticipants(conversationId),
     enabled: !!conversationId,
   });
@@ -297,7 +298,7 @@ export const useMarkMessageRead = (conversationId: string) => {
       chatService.markAsRead(conversationId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ['conversation-participants', conversationId],
+        queryKey: queryKeys.chat.participants(conversationId),
       });
     },
   });
@@ -313,7 +314,7 @@ export const useAddParticipants = (conversationId: string) => {
       chatService.addParticipants(conversationId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ['conversation-participants', conversationId],
+        queryKey: queryKeys.chat.participants(conversationId),
       });
     },
   });
@@ -329,7 +330,7 @@ export const useRemoveParticipant = (conversationId: string) => {
       chatService.removeParticipant(conversationId, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ['conversation-participants', conversationId],
+        queryKey: queryKeys.chat.participants(conversationId),
       });
     },
   });

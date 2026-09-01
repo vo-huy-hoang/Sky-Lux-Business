@@ -6,6 +6,7 @@ import { DownloadOutlined, QuestionCircleOutlined, RiseOutlined, StarOutlined, T
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { usersService } from '@/services/users.service';
+import { queryKeys } from '@/lib/query-keys';
 import { UserItem } from '@/types/user';
 
 const { Text } = Typography;
@@ -18,9 +19,10 @@ function Metric({ label, value, hint, icon, tone = 'green', loading }: { label: 
 export default function KpiPage() {
   const [period, setPeriod] = useState(dayjs());
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['ceo-kpi-users'],
+    queryKey: queryKeys.users.list({ page: 1, pageSize: 100 }),
     queryFn: () => usersService.getUsers({ page: 1, pageSize: 100 }),
   });
+
   const sales = useMemo(() => {
     const users: UserItem[] = Array.isArray(data) ? data : data?.data || [];
     return users.filter((user) => user.roles?.some((role) => role.code === 'SALES'));

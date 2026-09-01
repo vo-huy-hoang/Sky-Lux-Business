@@ -153,6 +153,7 @@ describe('MasterData Module (Integration)', () => {
   it('API-MASTER-001: should return paginated list of business lines with { data, meta }', async () => {
     const response = await controller.getBusinessLines({
       page: 1,
+      limit: 20,
       pageSize: 20,
     });
 
@@ -170,6 +171,7 @@ describe('MasterData Module (Integration)', () => {
   it('API-MASTER-002: should return paginated list of market types with { data, meta }', async () => {
     const response = await controller.getMarketTypes({
       page: 1,
+      limit: 20,
       pageSize: 20,
     });
 
@@ -186,6 +188,7 @@ describe('MasterData Module (Integration)', () => {
   it('API-MASTER-003: should return paginated list of service categories with { data, meta }', async () => {
     const response = await controller.getServiceCategories({
       page: 1,
+      limit: 20,
       pageSize: 20,
     });
 
@@ -202,6 +205,7 @@ describe('MasterData Module (Integration)', () => {
   it('API-MASTER-004: should return paginated list of passenger types with { data, meta }', async () => {
     const response = await controller.getPassengerTypes({
       page: 1,
+      limit: 20,
       pageSize: 20,
     });
 
@@ -218,6 +222,7 @@ describe('MasterData Module (Integration)', () => {
   it('API-MASTER-005: should return paginated list of supplier types with { data, meta }', async () => {
     const response = await controller.getSupplierTypes({
       page: 1,
+      limit: 20,
       pageSize: 20,
     });
 
@@ -232,7 +237,11 @@ describe('MasterData Module (Integration)', () => {
   });
 
   it('API-MASTER-006: should return paginated units including symbol field', async () => {
-    const response = await controller.getUnits({ page: 1, pageSize: 20 });
+    const response = await controller.getUnits({
+      page: 1,
+      limit: 20,
+      pageSize: 20,
+    });
 
     expect(response).toBeDefined();
     expect(response.data).toHaveLength(1);

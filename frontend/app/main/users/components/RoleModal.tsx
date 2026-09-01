@@ -5,12 +5,20 @@ import { Modal, Form, Input, message } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { rbacService } from '@/services/rbac.service';
 import { useRbacStore } from '../store';
+import { useShallow } from 'zustand/react/shallow';
+import { queryKeys } from '@/lib/query-keys';
 
 export default function RoleModal() {
   const queryClient = useQueryClient();
   const [form] = Form.useForm();
 
-  const { isRoleModalOpen, editingRole, closeRoleModal } = useRbacStore();
+  const { isRoleModalOpen, editingRole, closeRoleModal } = useRbacStore(
+    useShallow((s) => ({
+      isRoleModalOpen: s.isRoleModalOpen,
+      editingRole: s.editingRole,
+      closeRoleModal: s.closeRoleModal,
+    })),
+  );
 
   useEffect(() => {
     if (isRoleModalOpen) {
@@ -42,8 +50,9 @@ export default function RoleModal() {
       );
       closeRoleModal();
       form.resetFields();
-      queryClient.invalidateQueries({ queryKey: ['roles'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.roles() });
     },
+
     onError: (err: any) => {
       message.error(err.message || 'Thao tác thất bại');
     },

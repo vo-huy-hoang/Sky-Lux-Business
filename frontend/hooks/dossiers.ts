@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { dossiersService } from '@/services/dossiers.service';
+import { queryKeys } from '@/lib/query-keys';
 import {
   DossierItem,
   QueryDossierParams,
@@ -12,7 +13,7 @@ import {
  */
 export function useDossiersList(params?: QueryDossierParams) {
   return useQuery({
-    queryKey: ['dossiers-list', params],
+    queryKey: queryKeys.dossiers.list(params),
     queryFn: () => dossiersService.getDossiers(params),
   });
 }
@@ -22,7 +23,7 @@ export function useDossiersList(params?: QueryDossierParams) {
  */
 export function useDossierDetail(id: string) {
   return useQuery({
-    queryKey: ['dossier-detail', id],
+    queryKey: queryKeys.dossiers.detail(id),
     queryFn: () => dossiersService.getDossier(id),
     enabled: !!id,
   });
@@ -39,9 +40,10 @@ export function useUpdateDossierMetadata() {
       dossiersService.updateDossier(id, data),
     onSuccess: (data) => {
       // Invalidate chi tiết hồ sơ
-      queryClient.invalidateQueries({ queryKey: ['dossier-detail', data.id] });
-      // Invalidate danh sách hồ sơ
-      queryClient.invalidateQueries({ queryKey: ['dossiers-list'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dossiers.detail(data.id) });
+      // Invalidate toàn bộ danh sách và dashboards
+      queryClient.invalidateQueries({ queryKey: queryKeys.dossiers.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboards.all });
     },
   });
 }
@@ -51,7 +53,7 @@ export function useUpdateDossierMetadata() {
  */
 export function useDossierComments(dossierId: string, params?: QueryCommentParams) {
   return useQuery({
-    queryKey: ['dossier-comments', dossierId, params],
+    queryKey: queryKeys.dossiers.comments(dossierId, params),
     queryFn: () => dossiersService.getDossierComments(dossierId, params),
     enabled: !!dossierId,
   });
@@ -73,8 +75,9 @@ export function useCreateDossierComment() {
     }) => dossiersService.createDossierComment(dossierId, payload),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ['dossier-comments', variables.dossierId],
+        queryKey: queryKeys.dossiers.comments(variables.dossierId),
       });
     },
   });
 }
+

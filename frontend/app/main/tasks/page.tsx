@@ -33,6 +33,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { dossiersService } from '@/services/dossiers.service';
 import { tasksService } from '@/services/tasks.service';
+import { usersService } from '@/services/users.service';
+import { queryKeys } from '@/lib/query-keys';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import {
   CreateTaskInput,
@@ -261,7 +263,7 @@ function TaskDetailDrawer({
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const { data: task, isLoading } = useQuery({
-    queryKey: ['task', taskId],
+    queryKey: queryKeys.tasks.detail(taskId || undefined),
     queryFn: () => tasksService.getTask(taskId!),
     enabled: !!taskId,
   });
@@ -269,8 +271,9 @@ function TaskDetailDrawer({
     mutationFn: ({ id, data }: { id: string; data: UpdateTaskInput }) =>
       tasksService.updateTask(id, data),
     onSuccess: (updated) => {
-      queryClient.setQueryData(['task', updated.id], updated);
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.setQueryData(queryKeys.tasks.detail(updated.id), updated);
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboards.all });
       message.success('Đã cập nhật công việc');
     },
     onError: (error: Error) => message.error(error.message || 'Không thể cập nhật công việc'),
@@ -371,8 +374,9 @@ function TaskDetailDrawer({
 
 export default function TasksPage() {
   const { message } = App.useApp();
-  const { hasRole } = useAuthStore();
+  const hasRole = useAuthStore((state) => state.hasRole);
   const isOperator = hasRole('OPERATOR');
+
   const queryClient = useQueryClient();
   const [timeRange, setTimeRange] = useState<TimeRange>('TODAY');
   const [search, setSearch] = useState('');
@@ -383,11 +387,11 @@ export default function TasksPage() {
   const [form] = Form.useForm<CreateTaskFormValues>();
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['tasks'],
+    queryKey: queryKeys.tasks.list({ page: 1, limit: 100 }),
     queryFn: () => tasksService.getTasks({ page: 1, limit: 100 }),
   });
   const { data: dossiersData } = useQuery({
-    queryKey: ['task-dossier-options'],
+    queryKey: queryKeys.dossiers.list({ page: 1, limit: 100 }),
     queryFn: () => dossiersService.getDossiers({ page: 1, limit: 100 }),
   });
 
@@ -407,7 +411,8 @@ export default function TasksPage() {
       return created;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboards.all });
       message.success('Đã tạo công việc');
       form.resetFields();
       setCreateOpen(false);

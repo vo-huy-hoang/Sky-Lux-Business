@@ -13,8 +13,10 @@ import DossierDocumentsTab from '@/components/documents/DossierDocumentsTab';
 import { DossierComments } from '../components/DossierComments';
 import { EstimateStatus } from '@/types/estimate';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { queryKeys } from '@/lib/query-keys';
 
 const { Text } = Typography;
+
 
 function money(value?: number, currency = 'VND') {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value || 0);
@@ -44,17 +46,19 @@ function SummaryCard({ label, value, sub, icon, tone = 'green' }: { label: strin
 }
 
 export default function DossierDetailPage() {
-  const { hasRole } = useAuthStore();
+
+  const hasRole = useAuthStore((state) => state.hasRole);
   const isOperator = hasRole('OPERATOR');
   const params = useParams<{ id: string }>();
   const dossierId = params.id;
-  const dossierQuery = useQuery({ queryKey: ['dossier', dossierId], queryFn: () => dossiersService.getDossier(dossierId), enabled: !!dossierId });
-  const estimatesQuery = useQuery({ queryKey: ['dossier-estimates', dossierId], queryFn: () => estimatesService.getDossierEstimates(dossierId), enabled: !!dossierId });
+  const dossierQuery = useQuery({ queryKey: queryKeys.dossiers.detail(dossierId), queryFn: () => dossiersService.getDossier(dossierId), enabled: !!dossierId });
+  const estimatesQuery = useQuery({ queryKey: queryKeys.estimates.dossierList(dossierId), queryFn: () => estimatesService.getDossierEstimates(dossierId), enabled: !!dossierId });
   const currentEstimate = useMemo(() => {
     const estimateList = estimatesQuery.data?.items || [];
     return [...estimateList].sort((a, b) => b.versionNo - a.versionNo)[0];
   }, [estimatesQuery.data?.items]);
-  const estimateQuery = useQuery({ queryKey: ['estimate', currentEstimate?.id], queryFn: () => estimatesService.getEstimate(currentEstimate!.id), enabled: !!currentEstimate?.id });
+  const estimateQuery = useQuery({ queryKey: queryKeys.estimates.detail(currentEstimate?.id), queryFn: () => estimatesService.getEstimate(currentEstimate!.id), enabled: !!currentEstimate?.id });
+
 
   const dossier = dossierQuery.data;
   const estimate = estimateQuery.data;

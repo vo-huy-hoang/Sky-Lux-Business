@@ -9,6 +9,8 @@ import {
   useUpdateDossierMetadata,
 } from '@/hooks/dossiers';
 import { dossiersService } from '@/services/dossiers.service';
+import { queryKeys } from '@/lib/query-keys';
+
 
 jest.mock('@/services/dossiers.service', () => ({
   dossiersService: {
@@ -95,7 +97,7 @@ describe('useDossiers hooks', () => {
       { content: 'Trao đổi thử nghiệm' },
     );
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: ['dossier-comments', dossierId],
+      queryKey: queryKeys.dossiers.comments(dossierId),
     });
   });
 
@@ -147,10 +149,11 @@ describe('useDossiers hooks', () => {
       name: 'New Name',
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: ['dossier-detail', dossierId],
+      queryKey: queryKeys.dossiers.detail(dossierId),
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: ['dossiers-list'],
+      queryKey: queryKeys.dossiers.all,
     });
   });
 });
+

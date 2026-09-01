@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { workflowService } from '@/services/workflow.service';
+import { queryKeys } from '@/lib/query-keys';
 import {
   WorkflowActionInput,
   WorkflowActionResult,
@@ -9,9 +10,9 @@ import {
 export const workflowKeys = {
   all: ['workflow'] as const,
   history: (dossierId: string, params?: QueryWorkflowParams) =>
-    [...workflowKeys.all, 'history', dossierId, params] as const,
+    queryKeys.approvals.history(dossierId, params),
   approvals: (dossierId: string, params?: QueryWorkflowParams) =>
-    [...workflowKeys.all, 'approvals', dossierId, params] as const,
+    queryKeys.approvals.approvalsList(dossierId, params),
 };
 
 /**
@@ -23,7 +24,7 @@ export function useWorkflowHistory(
   options?: { enabled?: boolean },
 ) {
   return useQuery({
-    queryKey: workflowKeys.history(dossierId, params),
+    queryKey: queryKeys.approvals.history(dossierId, params),
     queryFn: () => workflowService.getWorkflowHistory(dossierId, params),
     enabled: Boolean(dossierId) && (options?.enabled ?? true),
   });
@@ -38,7 +39,7 @@ export function useApprovals(
   options?: { enabled?: boolean },
 ) {
   return useQuery({
-    queryKey: workflowKeys.approvals(dossierId, params),
+    queryKey: queryKeys.approvals.approvalsList(dossierId, params),
     queryFn: () => workflowService.getApprovals(dossierId, params),
     enabled: Boolean(dossierId) && (options?.enabled ?? true),
   });
@@ -57,14 +58,14 @@ const useWorkflowMutation = (
     mutationFn,
     onSuccess: (_, variables) => {
       const { dossierId } = variables;
-      queryClient.invalidateQueries({ queryKey: ['dossier-detail', dossierId] });
-      queryClient.invalidateQueries({ queryKey: ['dossiers-list'] });
-      queryClient.invalidateQueries({ queryKey: ['dossiers'] });
-      queryClient.invalidateQueries({ queryKey: workflowKeys.history(dossierId) });
-      queryClient.invalidateQueries({ queryKey: workflowKeys.approvals(dossierId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dossiers.detail(dossierId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dossiers.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboards.all });
     },
   });
 };
+
 
 /**
  * API-WORKFLOW-001: Submit hồ sơ để Điều hành xem xét

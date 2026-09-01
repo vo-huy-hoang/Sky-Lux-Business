@@ -5,6 +5,8 @@ import { Modal, Checkbox, message } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { rbacService } from '@/services/rbac.service';
 import { useRbacStore } from '../store';
+import { useShallow } from 'zustand/react/shallow';
+import { queryKeys } from '@/lib/query-keys';
 
 export default function UserRoleModal() {
   const queryClient = useQueryClient();
@@ -15,11 +17,20 @@ export default function UserRoleModal() {
     selectedUserRoleIds,
     setSelectedUserRoleIds,
     closeUserRoleModal,
-  } = useRbacStore();
+  } = useRbacStore(
+    useShallow((s) => ({
+      isUserRoleModalOpen: s.isUserRoleModalOpen,
+      selectedUserForRoles: s.selectedUserForRoles,
+      selectedUserRoleIds: s.selectedUserRoleIds,
+      setSelectedUserRoleIds: s.setSelectedUserRoleIds,
+      closeUserRoleModal: s.closeUserRoleModal,
+    })),
+  );
+
 
   // 1. Fetch All Roles
   const { data: rolesData } = useQuery({
-    queryKey: ['roles', ''],
+    queryKey: queryKeys.users.roles(),
     queryFn: () => rbacService.getRoles({ search: '' }),
   });
   const roles = rolesData || [];
@@ -31,7 +42,7 @@ export default function UserRoleModal() {
     onSuccess: () => {
       message.success('Cập nhật vai trò cho người dùng thành công');
       closeUserRoleModal();
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
     },
     onError: (err: any) => {
       message.error(err.message || 'Lỗi khi gán vai trò');

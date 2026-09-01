@@ -65,7 +65,9 @@ export class CustomersService {
 
     return {
       items: items.map((customer) => {
-        customer.assignedSales = toPublicUser(customer.assignedSales) as typeof customer.assignedSales;
+        customer.assignedSales = toPublicUser(
+          customer.assignedSales,
+        ) as typeof customer.assignedSales;
         return customer;
       }),
       total,
@@ -87,7 +89,9 @@ export class CustomersService {
       );
     }
 
-    customer.assignedSales = toPublicUser(customer.assignedSales) as typeof customer.assignedSales;
+    customer.assignedSales = toPublicUser(
+      customer.assignedSales,
+    ) as typeof customer.assignedSales;
     return customer;
   }
 

@@ -158,8 +158,16 @@ describe('DossiersService', () => {
     it('should remove passwordHash from assigned users in the response', async () => {
       const dossierWithUsers = {
         ...mockDossier,
-        salesUser: { id: 'sales-id', fullName: 'Sales', passwordHash: 'secret' },
-        operatorUser: { id: 'operator-id', fullName: 'Operator', passwordHash: 'secret' },
+        salesUser: {
+          id: 'sales-id',
+          fullName: 'Sales',
+          passwordHash: 'secret',
+        },
+        operatorUser: {
+          id: 'operator-id',
+          fullName: 'Operator',
+          passwordHash: 'secret',
+        },
       } as unknown as Dossier;
       repository.findOne.mockResolvedValue(dossierWithUsers);
 
@@ -174,7 +182,7 @@ describe('DossiersService', () => {
       const updateOnlyUser = {
         ...mockUserPayload,
         permissions: ['dossier.update'],
-      } as CurrentUserPayload;
+      };
 
       await expect(
         service.findOne(updateOnlyUser, 'dossier-uuid'),

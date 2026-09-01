@@ -6,6 +6,7 @@ import { BarChartOutlined, CustomerServiceOutlined, EyeOutlined, FileExcelOutlin
 import { useQuery } from '@tanstack/react-query';
 import dayjs, { Dayjs } from 'dayjs';
 import { dashboardsService } from '@/services/dashboards.service';
+import { queryKeys } from '@/lib/query-keys';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -27,9 +28,10 @@ export default function ReportsPage() {
   const [reportType, setReportType] = useState('REVENUE');
   const [dates, setDates] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')]);
   const dashboard = useQuery({
-    queryKey: ['ceo-report-preview', reportType, dates[0].format('YYYY-MM-DD')],
+    queryKey: queryKeys.reports.dashboard({ reportType, date: dates[0].format('YYYY-MM-DD') }),
     queryFn: () => dashboardsService.getCeoDashboard({ periodType: 'MONTHLY', date: dates[0].format('YYYY-MM-DD') }),
   });
+
 
   const preview = dashboard.data?.costBreakdown?.map((item, index) => ({
     key: `${item.categoryName}-${index}`,

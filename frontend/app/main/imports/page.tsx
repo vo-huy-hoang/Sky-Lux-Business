@@ -41,6 +41,8 @@ import * as XLSX from 'xlsx';
 import { importsService } from '@/services/imports.service';
 import { ImportError, ImportRow, ImportSession } from '@/types/import';
 import { RowEditModal } from './components/RowEditModal';
+import { queryKeys } from '@/lib/query-keys';
+
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -61,10 +63,11 @@ export default function ImportsPage() {
 
   const {
     data: session,
+
     isLoading: isLoadingSession,
     refetch: refetchSession,
   } = useQuery<ImportSession>({
-    queryKey: ['import-session', currentSessionId],
+    queryKey: queryKeys.imports.sessions({ sessionId: currentSessionId || undefined }),
     queryFn: () => importsService.getSession(currentSessionId!),
     enabled: !!currentSessionId,
     refetchInterval: (query) => {
@@ -79,7 +82,7 @@ export default function ImportsPage() {
     isLoading: isLoadingPreview,
     refetch: refetchPreview,
   } = useQuery({
-    queryKey: ['import-preview', currentSessionId, activeTab, page, pageSize],
+    queryKey: queryKeys.imports.sessions({ currentSessionId, activeTab, page, pageSize }),
     queryFn: () =>
       importsService.getPreview(currentSessionId!, {
         page,
@@ -90,10 +93,11 @@ export default function ImportsPage() {
   });
 
   const { data: errorsData } = useQuery({
-    queryKey: ['import-errors', currentSessionId],
+    queryKey: queryKeys.imports.errors(currentSessionId || undefined),
     queryFn: () => importsService.getErrors(currentSessionId!, { page: 1, limit: 100 }),
     enabled: !!currentSessionId && (session?.errorRows || 0) > 0,
   });
+
 
   const uploadMutation = useMutation({
     mutationFn: (file: File) => importsService.upload(file, 'ESTIMATE'),
