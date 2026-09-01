@@ -1,20 +1,20 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import { Button, Card, Col, DatePicker, Empty, Row, Select, Skeleton, Table, Typography } from 'antd';
+
 import { DownloadOutlined, FileExcelOutlined, LineChartOutlined, PercentageOutlined, WalletOutlined } from '@ant-design/icons';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import {
   ArcElement, BarElement, CategoryScale, Chart as ChartJS, ChartOptions, Legend, LineElement, LinearScale, PointElement, Tooltip,
 } from 'chart.js';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import { dashboardsService } from '@/services/dashboards.service';
-import { CeoDashboardData } from '@/types/dashboard';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useFilterStore } from '@/lib/stores/filter-store';
 import OperatorRevenue from '@/components/operator/OperatorRevenue';
 import { queryKeys } from '@/lib/query-keys';
-
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, Legend, LineElement, LinearScale, PointElement, Tooltip);
 const { Text } = Typography;
@@ -35,9 +35,11 @@ function Metric({ label, value, icon, hint, loading }: { label: string; value: R
 }
 
 function CeoRevenuePage() {
-  const [anchorDate, setAnchorDate] = useState(dayjs());
+  const dateString = useFilterStore((state) => state.dateString);
+  const setDateString = useFilterStore((state) => state.setDateString);
+  const anchorDate = dayjs(dateString);
   const year = anchorDate.year();
-  const months = useMemo(() => Array.from({ length: 12 }, (_, index) => ({ date: `${year}-${String(index + 1).padStart(2, '0')}-01`, label: `T${String(index + 1).padStart(2, '0')}` })), [year]);
+
 
   const currentMonth = useQuery({
     queryKey: queryKeys.dashboards.ceo({ periodType: 'MONTHLY', date: anchorDate.format('YYYY-MM-DD') }),
@@ -51,31 +53,28 @@ function CeoRevenuePage() {
     queryKey: queryKeys.dashboards.ceo({ periodType: 'YEARLY', date: `${year}-01-01` }),
     queryFn: () => dashboardsService.getCeoDashboard({ periodType: 'YEARLY', date: `${year}-01-01` }),
   });
-  const monthlyQueries = useQueries({
-    queries: months.map((month) => ({
-      queryKey: queryKeys.dashboards.ceo({ periodType: 'MONTHLY', date: month.date }),
-      queryFn: () => dashboardsService.getCeoDashboard({ periodType: 'MONTHLY', date: month.date }),
-      staleTime: 5 * 60 * 1000,
-    })),
+  const monthlyTrendQuery = useQuery({
+    queryKey: queryKeys.dashboards.ceoMonthlyTrend(year),
+    queryFn: () => dashboardsService.getCeoMonthlyTrend(year),
   });
 
-
-  const monthly = monthlyQueries.map((query) => query.data as CeoDashboardData | undefined);
+  const monthlyTrend = monthlyTrendQuery.data || [];
   const monthData = currentMonth.data;
   const quarterData = currentQuarter.data;
   const yearData = currentYear.data;
   const monthCost = (monthData?.totalRevenue || 0) - (monthData?.totalProfit || 0);
   const margin = monthData?.totalRevenue ? ((monthData.totalProfit / monthData.totalRevenue) * 100).toFixed(1) : '0.0';
-  const isLoading = currentMonth.isLoading || currentQuarter.isLoading || currentYear.isLoading;
+  const isLoading = currentMonth.isLoading || currentQuarter.isLoading || currentYear.isLoading || monthlyTrendQuery.isLoading;
 
   const trendData = {
-    labels: months.map((month) => month.label),
+    labels: monthlyTrend.map((item) => item.label),
     datasets: [
-      { label: 'Doanh thu', data: monthly.map((item) => item?.totalRevenue || 0), borderColor: '#0F3D2E', backgroundColor: '#0F3D2E', tension: 0.35, pointRadius: 3 },
-      { label: 'Lợi nhuận', data: monthly.map((item) => item?.totalProfit || 0), borderColor: '#D4AF37', backgroundColor: '#D4AF37', tension: 0.35, pointRadius: 3 },
+      { label: 'Doanh thu', data: monthlyTrend.map((item) => item.totalRevenue), borderColor: '#0F3D2E', backgroundColor: '#0F3D2E', tension: 0.35, pointRadius: 3 },
+      { label: 'Lợi nhuận', data: monthlyTrend.map((item) => item.totalProfit), borderColor: '#D4AF37', backgroundColor: '#D4AF37', tension: 0.35, pointRadius: 3 },
     ],
   };
   const baseOptions: ChartOptions<'line'> = { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: 'index' }, plugins: { legend: { align: 'start', labels: { usePointStyle: true, boxWidth: 8 } }, tooltip: { callbacks: { label: (context) => `${context.dataset.label}: ${money(context.parsed.y)}` } } }, scales: { x: { grid: { display: false }, border: { display: false } }, y: { beginAtZero: true, border: { display: false }, grid: { color: '#EEF1EF' }, ticks: { callback: (value) => compact(Number(value)) } } } };
+
 
   const vip = yearData?.vipCustomers || [];
   const vipData = { labels: vip.map((item) => item.customerName), datasets: [{ label: 'Doanh thu', data: vip.map((item) => item.spend), backgroundColor: '#0F3D2E', borderRadius: 3, barThickness: 24 }] };
@@ -93,8 +92,9 @@ function CeoRevenuePage() {
 
   return <div className="space-y-4">
     <div className="ceo-toolbar grid-cols-1 md:grid-cols-[220px_220px_1fr_auto_auto]">
-      <DatePicker picker="month" value={anchorDate} onChange={(value) => value && setAnchorDate(value)} format="MM/YYYY" allowClear={false} aria-label="Kỳ báo cáo" />
+      <DatePicker picker="month" value={anchorDate} onChange={(value) => value && setDateString(value.format('YYYY-MM-DD'))} format="MM/YYYY" allowClear={false} aria-label="Kỳ báo cáo" />
       <Select value="ALL" options={[{ label: 'Tất cả mảng', value: 'ALL' }]} disabled aria-label="Mảng kinh doanh" />
+
       <div className="hidden md:block" />
       <Button icon={<DownloadOutlined />} disabled title="Chưa có API xuất PDF">Xuất PDF</Button>
       <Button icon={<FileExcelOutlined />} className="skylux-primary-button" disabled title="Chưa có API xuất Excel">Xuất Excel</Button>
@@ -110,8 +110,9 @@ function CeoRevenuePage() {
     </Row>
 
     <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[1.35fr_.9fr_.9fr]">
-      <Card className="ceo-card" title="Doanh thu & lợi nhuận theo tháng"><div className="h-[300px]">{monthlyQueries.some((query) => query.isLoading) ? <Skeleton active /> : <Line data={trendData} options={baseOptions} />}</div></Card>
+      <Card className="ceo-card" title="Doanh thu & lợi nhuận theo tháng"><div className="h-[300px]">{monthlyTrendQuery.isLoading ? <Skeleton active /> : <Line data={trendData} options={baseOptions} />}</div></Card>
       <Card className="ceo-card" title="Top khách hàng theo doanh thu"><div className="h-[300px]">{vip.length ? <Bar data={vipData} options={barOptions} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu khách hàng" />}</div></Card>
+
       <Card className="ceo-card" title="Cơ cấu chi phí theo mảng"><div className="h-[300px]">{cost.length ? <Doughnut data={costData} options={donutOptions} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu chi phí" />}</div></Card>
     </div>
 

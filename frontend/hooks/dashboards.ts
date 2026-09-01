@@ -58,4 +58,16 @@ export function useOperatorMonthlyTrend(months = 6, options?: { enabled?: boolea
   });
 }
 
+/**
+ * Hook lấy xu hướng doanh thu, chi phí, lợi nhuận 12 tháng cho CEO (API-DASHBOARD-006)
+ */
+export function useCeoMonthlyTrend(year = new Date().getFullYear(), options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.dashboards.ceoMonthlyTrend(year),
+    queryFn: () => dashboardsService.getCeoMonthlyTrend(year),
+    ...options,
+  });
+}
+
+
 

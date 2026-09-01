@@ -69,6 +69,13 @@ describe('EstimatesService', () => {
         {
           provide: getRepositoryToken(EstimateRevenueLine),
           useValue: {
+            createQueryBuilder: jest.fn(() => ({
+              select: jest.fn().mockReturnThis(),
+              addSelect: jest.fn().mockReturnThis(),
+              where: jest.fn().mockReturnThis(),
+              groupBy: jest.fn().mockReturnThis(),
+              getRawMany: jest.fn().mockResolvedValue([]),
+            })),
             create: jest.fn((dto) => dto),
             delete: jest.fn(),
           },
@@ -76,10 +83,18 @@ describe('EstimatesService', () => {
         {
           provide: getRepositoryToken(EstimateCostLine),
           useValue: {
+            createQueryBuilder: jest.fn(() => ({
+              select: jest.fn().mockReturnThis(),
+              addSelect: jest.fn().mockReturnThis(),
+              where: jest.fn().mockReturnThis(),
+              groupBy: jest.fn().mockReturnThis(),
+              getRawMany: jest.fn().mockResolvedValue([]),
+            })),
             create: jest.fn((dto) => dto),
             delete: jest.fn(),
           },
         },
+
         {
           provide: DossiersService,
           useValue: mockDossiersService,

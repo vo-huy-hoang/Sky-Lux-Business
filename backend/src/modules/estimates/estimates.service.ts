@@ -63,6 +63,43 @@ export class EstimatesService {
     const [items, total] = await queryBuilder.getManyAndCount();
     const totalPages = Math.ceil(total / limit);
 
+    if (items.length > 0) {
+      const estimateIds = items.map((e) => e.id);
+
+      const [revenueAgg, costAgg] = await Promise.all([
+        this.revenueLineRepository
+          .createQueryBuilder('line')
+          .select('line.estimateId', 'estimateId')
+          .addSelect('COALESCE(SUM(line.netAmount), 0)', 'totalRevenue')
+          .where('line.estimateId IN (:...estimateIds)', { estimateIds })
+          .groupBy('line.estimateId')
+          .getRawMany(),
+        this.costLineRepository
+          .createQueryBuilder('line')
+          .select('line.estimateId', 'estimateId')
+          .addSelect('COALESCE(SUM(line.netAmount), 0)', 'totalCost')
+          .where('line.estimateId IN (:...estimateIds)', { estimateIds })
+          .groupBy('line.estimateId')
+          .getRawMany(),
+      ]);
+
+      const revMap = new Map(
+        revenueAgg.map((r) => [r.estimateId, Number(r.totalRevenue)]),
+      );
+      const costMap = new Map(
+        costAgg.map((c) => [c.estimateId, Number(c.totalCost)]),
+      );
+
+      items.forEach((item) => {
+        const totalRevenue = revMap.get(item.id) || 0;
+        const totalCost = costMap.get(item.id) || 0;
+        const totalProfit = totalRevenue - totalCost;
+        (item as any).totalRevenue = totalRevenue;
+        (item as any).totalCost = totalCost;
+        (item as any).totalProfit = totalProfit;
+      });
+    }
+
     return {
       items,
       total,

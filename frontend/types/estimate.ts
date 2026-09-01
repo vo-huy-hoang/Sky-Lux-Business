@@ -71,7 +71,11 @@ export interface EstimateItem {
   updatedAt: string;
   revenueLines?: EstimateRevenueLine[];
   costLines?: EstimateCostLine[];
+  totalRevenue?: number;
+  totalCost?: number;
+  totalProfit?: number;
   dossier?: {
+
     id: string;
     code?: string;
     name?: string;
@@ -79,6 +83,7 @@ export interface EstimateItem {
     customer?: { id: string; code?: string; displayName?: string };
   };
 }
+
 
 export interface PaginatedEstimatesResponse {
   items: EstimateItem[];

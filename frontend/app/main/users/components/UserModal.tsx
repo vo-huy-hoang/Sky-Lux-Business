@@ -24,8 +24,8 @@ import { usersService } from '@/services/users.service';
 import { rbacService } from '@/services/rbac.service';
 import { useRbacStore } from '../store';
 import { useShallow } from 'zustand/react/shallow';
-import { UserStatus } from '@/types/user';
 import { queryKeys } from '@/lib/query-keys';
+
 
 export default function UserModal() {
   const [form] = Form.useForm();

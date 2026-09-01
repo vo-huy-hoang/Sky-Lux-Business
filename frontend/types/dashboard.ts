@@ -49,3 +49,13 @@ export interface OperatorMonthlyTrendItem {
   totalRevenue: number;
 }
 
+export interface CeoMonthlyTrendItem {
+  monthKey: string;
+  label: string;
+  totalRevenue: number;
+  totalCost: number;
+  totalProfit: number;
+  approvedDossiers: number;
+}
+
+
