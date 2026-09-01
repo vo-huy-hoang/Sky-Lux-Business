@@ -146,6 +146,7 @@ export async function runInitialSeed(dataSource: DataSource) {
     { code: 'finance.manage', name: 'Quản lý thanh toán', module: 'FINANCE' },
     { code: 'report.view', name: 'Xem báo cáo', module: 'REPORT' },
     { code: 'report.export', name: 'Xuất file báo cáo', module: 'REPORT' },
+    { code: 'audit.view', name: 'Xem nhật ký kiểm toán', module: 'AUDIT' },
 
     // Tasks & Chat
     { code: 'task.manage', name: 'Quản lý công việc', module: 'TASK' },

@@ -10,7 +10,7 @@ import { Organization } from '../../organizations/entities/organization.entity';
 import { Conversation } from './conversation.entity';
 import { User } from '../../users/entities/user.entity';
 
-@Entity('chat_messages')
+@Entity('messages')
 export class Message {
   @PrimaryGeneratedColumn('uuid')
   id: string;

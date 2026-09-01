@@ -34,6 +34,7 @@ import {
   RiseOutlined,
   SettingOutlined,
   FileTextOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useAuthStore } from '@/lib/stores/auth-store';
@@ -112,6 +113,9 @@ export default function MainLayout({
       }
       if (pathname?.startsWith('/main/settings')) {
         return { title: 'Cấu hình hệ thống', subtitle: 'Thiết lập danh mục và thông số vận hành dùng chung' };
+      }
+      if (pathname?.startsWith('/main/audit-logs')) {
+        return { title: 'Nhật ký kiểm toán', subtitle: 'Theo dõi và kiểm tra toàn bộ lịch sử thao tác trong hệ thống' };
       }
       if (pathname?.startsWith('/main/reports')) {
         return { title: 'Báo cáo', subtitle: 'Tạo và xuất các báo cáo quản trị dành cho CEO/Admin' };
@@ -230,6 +234,7 @@ export default function MainLayout({
     { key: '/main/customers', icon: <UsergroupAddOutlined />, label: <Link href="/main/customers">Khách hàng & nhà cung cấp</Link> },
     { key: '/main/users', icon: <TeamOutlined />, label: <Link href="/main/users">Người dùng & phân quyền</Link> },
     { key: '/main/settings', icon: <SettingOutlined />, label: <Link href="/main/settings">Cấu hình hệ thống</Link> },
+    { key: '/main/audit-logs', icon: <HistoryOutlined />, label: <Link href="/main/audit-logs">Nhật ký kiểm toán</Link> },
     { key: '/main/reports', icon: <FileTextOutlined />, label: <Link href="/main/reports">Báo cáo</Link> },
     { key: '/main/messages', icon: <MessageOutlined />, label: <Link href="/main/messages">Tin nhắn</Link> },
     { key: '/main/profile', icon: <UserOutlined />, label: <Link href="/main/profile">Hồ sơ cá nhân</Link> },

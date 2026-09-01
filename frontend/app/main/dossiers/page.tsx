@@ -446,7 +446,12 @@ export default function DossiersPage() {
                 {
                   key: 'comments',
                   label: 'Trao đổi',
-                  children: <DossierComments dossierId={selectedDossier.id} />,
+                  children: (
+                    <DossierComments
+                      dossierId={selectedDossier.id}
+                      isLocked={selectedDossier.status === 'LOCKED'}
+                    />
+                  ),
                 },
               ]}
             />

@@ -50,7 +50,10 @@ export const DossierComments: React.FC<DossierCommentsProps> = ({
     isFetching,
   } = useDossierComments(dossierId);
 
-  const comments = commentsResponse?.data ?? [];
+  const comments = useMemo(
+    () => commentsResponse?.data ?? [],
+    [commentsResponse?.data],
+  );
 
   const createCommentMutation = useCreateDossierComment();
 
