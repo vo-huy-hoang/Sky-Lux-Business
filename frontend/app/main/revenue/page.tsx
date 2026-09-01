@@ -13,6 +13,8 @@ import { dashboardsService } from '@/services/dashboards.service';
 import { CeoDashboardData } from '@/types/dashboard';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import OperatorRevenue from '@/components/operator/OperatorRevenue';
+import { queryKeys } from '@/lib/query-keys';
+
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, Legend, LineElement, LinearScale, PointElement, Tooltip);
 const { Text } = Typography;
@@ -38,24 +40,25 @@ function CeoRevenuePage() {
   const months = useMemo(() => Array.from({ length: 12 }, (_, index) => ({ date: `${year}-${String(index + 1).padStart(2, '0')}-01`, label: `T${String(index + 1).padStart(2, '0')}` })), [year]);
 
   const currentMonth = useQuery({
-    queryKey: ['ceo-revenue', 'month', anchorDate.format('YYYY-MM-DD')],
+    queryKey: queryKeys.dashboards.ceo({ periodType: 'MONTHLY', date: anchorDate.format('YYYY-MM-DD') }),
     queryFn: () => dashboardsService.getCeoDashboard({ periodType: 'MONTHLY', date: anchorDate.format('YYYY-MM-DD') }),
   });
   const currentQuarter = useQuery({
-    queryKey: ['ceo-revenue', 'quarter', anchorDate.format('YYYY-MM-DD')],
+    queryKey: queryKeys.dashboards.ceo({ periodType: 'QUARTERLY', date: anchorDate.format('YYYY-MM-DD') }),
     queryFn: () => dashboardsService.getCeoDashboard({ periodType: 'QUARTERLY', date: anchorDate.format('YYYY-MM-DD') }),
   });
   const currentYear = useQuery({
-    queryKey: ['ceo-revenue', 'year', year],
+    queryKey: queryKeys.dashboards.ceo({ periodType: 'YEARLY', date: `${year}-01-01` }),
     queryFn: () => dashboardsService.getCeoDashboard({ periodType: 'YEARLY', date: `${year}-01-01` }),
   });
   const monthlyQueries = useQueries({
     queries: months.map((month) => ({
-      queryKey: ['dashboard-ceo', 'revenue-month', month.date],
+      queryKey: queryKeys.dashboards.ceo({ periodType: 'MONTHLY', date: month.date }),
       queryFn: () => dashboardsService.getCeoDashboard({ periodType: 'MONTHLY', date: month.date }),
       staleTime: 5 * 60 * 1000,
     })),
   });
+
 
   const monthly = monthlyQueries.map((query) => query.data as CeoDashboardData | undefined);
   const monthData = currentMonth.data;
@@ -126,6 +129,7 @@ function CeoRevenuePage() {
 }
 
 export default function RevenuePage() {
-  const { hasRole } = useAuthStore();
+  const hasRole = useAuthStore((state) => state.hasRole);
   return hasRole('OPERATOR') ? <OperatorRevenue /> : <CeoRevenuePage />;
 }
+

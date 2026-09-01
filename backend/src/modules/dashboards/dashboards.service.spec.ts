@@ -202,4 +202,107 @@ describe('DashboardsService', () => {
       ]);
     });
   });
+
+  describe('getOperatorSalesSummary', () => {
+    it('should aggregate dossiers, revenue and profit by sales user', async () => {
+      const mockDossierQB = {
+        leftJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        addGroupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([
+          {
+            salesUserId: 'user-1',
+            salesUserName: 'Harry River',
+            salesUserEmail: 'harry@skylux.vn',
+            employeeCode: 'NV001',
+            totalDossiers: '5',
+            approvedDossiers: '4',
+            completedDossiers: '3',
+          },
+        ]),
+      };
+      dossierRepository.createQueryBuilder.mockReturnValue(mockDossierQB);
+
+      const mockRevenueQB = {
+        innerJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest
+          .fn()
+          .mockResolvedValue([{ salesUserId: 'user-1', revenue: '50000000' }]),
+      };
+      revenueLineRepository.createQueryBuilder.mockReturnValue(mockRevenueQB);
+
+      const mockCostQB = {
+        innerJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest
+          .fn()
+          .mockResolvedValue([{ salesUserId: 'user-1', cost: '30000000' }]),
+      };
+      costLineRepository.createQueryBuilder.mockReturnValue(mockCostQB);
+
+      const result = await service.getOperatorSalesSummary('org-id');
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        salesUserId: 'user-1',
+        salesUserName: 'Harry River',
+        salesUserEmail: 'harry@skylux.vn',
+        employeeCode: 'NV001',
+        totalDossiers: 5,
+        approvedDossiers: 4,
+        completedDossiers: 3,
+        completionRate: 80,
+        totalRevenue: 50000000,
+        totalCost: 30000000,
+        totalProfit: 20000000,
+      });
+    });
+  });
+
+  describe('getOperatorMonthlyTrend', () => {
+    it('should aggregate dossiers and revenue by month', async () => {
+      const mockDossierQB = {
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+      };
+      dossierRepository.createQueryBuilder.mockReturnValue(mockDossierQB);
+
+      const mockRevenueQB = {
+        innerJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+      };
+      revenueLineRepository.createQueryBuilder.mockReturnValue(mockRevenueQB);
+
+      const result = await service.getOperatorMonthlyTrend('org-id', 6);
+
+      expect(result).toHaveLength(6);
+      expect(result[0]).toHaveProperty('monthKey');
+      expect(result[0]).toHaveProperty('label');
+      expect(result[0]).toHaveProperty('totalDossiers');
+      expect(result[0]).toHaveProperty('totalRevenue');
+    });
+  });
 });

@@ -12,6 +12,8 @@ describe('DashboardsController', () => {
       getSalesDashboard: jest.fn(),
       getOperatorDashboard: jest.fn(),
       getCeoDashboard: jest.fn(),
+      getOperatorSalesSummary: jest.fn(),
+      getOperatorMonthlyTrend: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -51,6 +53,30 @@ describe('DashboardsController', () => {
           periodType: KpiPeriodType.MONTHLY,
         },
       );
+    });
+  });
+
+  describe('getOperatorSalesSummary', () => {
+    it('should delegate to service.getOperatorSalesSummary', async () => {
+      const mockResult = [{ salesUserId: 'u1', totalDossiers: 5 }] as any;
+      service.getOperatorSalesSummary.mockResolvedValue(mockResult);
+
+      const result = await controller.getOperatorSalesSummary('org-id');
+
+      expect(result).toBe(mockResult);
+      expect(service.getOperatorSalesSummary).toHaveBeenCalledWith('org-id');
+    });
+  });
+
+  describe('getOperatorMonthlyTrend', () => {
+    it('should delegate to service.getOperatorMonthlyTrend', async () => {
+      const mockResult = [{ monthKey: '2026-03', totalDossiers: 5 }] as any;
+      service.getOperatorMonthlyTrend.mockResolvedValue(mockResult);
+
+      const result = await controller.getOperatorMonthlyTrend('org-id', 6);
+
+      expect(result).toBe(mockResult);
+      expect(service.getOperatorMonthlyTrend).toHaveBeenCalledWith('org-id', 6);
     });
   });
 });

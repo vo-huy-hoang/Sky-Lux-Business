@@ -47,7 +47,8 @@ describe('UsersController', () => {
   describe('findAll (API-USERS-001)', () => {
     it('should call service.findAll with organizationId and queryDto', async () => {
       const orgId = 'org-uuid';
-      const queryDto: QueryUserDto = { page: 1, pageSize: 20 };
+      const queryDto: QueryUserDto = { page: 1, limit: 20, pageSize: 20 };
+
       const expectedResult = {
         data: [],
         meta: { page: 1, pageSize: 20, total: 0, totalPages: 0 },

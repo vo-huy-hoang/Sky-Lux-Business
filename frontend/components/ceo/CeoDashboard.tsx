@@ -42,6 +42,8 @@ import { usersService } from '@/services/users.service';
 import { DossierItem } from '@/types/dossier';
 import { CeoDashboardData } from '@/types/dashboard';
 import { UserItem } from '@/types/user';
+import { queryKeys } from '@/lib/query-keys';
+
 
 ChartJS.register(
   ArcElement,
@@ -150,28 +152,33 @@ export default function CeoDashboard() {
       };
     });
   }, []);
+
   const {
     data: overview,
     isLoading: isLoadingOverview,
     isError: isOverviewError,
   } = useQuery({
-    queryKey: ['dashboard-ceo', 'current-month'],
+    queryKey: queryKeys.dashboards.ceo({ periodType: 'MONTHLY' }),
     queryFn: () => dashboardsService.getCeoDashboard({ periodType: 'MONTHLY' }),
   });
 
+
   const { data: dossierResponse, isLoading: isLoadingDossiers } = useQuery({
-    queryKey: ['ceo-dashboard-dossiers'],
+    queryKey: queryKeys.dossiers.list({ page: 1, limit: 100 }),
     queryFn: () => dossiersService.getDossiers({ page: 1, limit: 100 }),
   });
 
   const { data: userResponse, isLoading: isLoadingUsers } = useQuery({
-    queryKey: ['ceo-dashboard-users'],
+    queryKey: queryKeys.users.list({ page: 1, pageSize: 100 }),
     queryFn: () => usersService.getUsers({ page: 1, pageSize: 100 }),
   });
 
   const monthlyQueries = useQueries({
     queries: months.map((month) => ({
-      queryKey: ['dashboard-ceo', 'month', month.date],
+      queryKey: queryKeys.dashboards.ceo({
+        periodType: 'MONTHLY',
+        date: month.date,
+      }),
       queryFn: () =>
         dashboardsService.getCeoDashboard({
           periodType: 'MONTHLY',
@@ -180,6 +187,7 @@ export default function CeoDashboard() {
       staleTime: 5 * 60 * 1000,
     })),
   });
+
 
   const dossiers = dossierResponse?.items || [];
   const users: UserItem[] = Array.isArray(userResponse)

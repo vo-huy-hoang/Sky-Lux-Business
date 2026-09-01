@@ -87,7 +87,11 @@ describe('MasterDataService', () => {
       ];
       mockQueryBuilder.getManyAndCount.mockResolvedValue([mockItems, 1]);
 
-      const result = await service.getBusinessLines({ page: 1, pageSize: 20 });
+      const result = await service.getBusinessLines({
+        page: 1,
+        limit: 20,
+        pageSize: 20,
+      });
 
       expect(mockBusinessLineRepo.createQueryBuilder).toHaveBeenCalledWith(
         'businessLine',
@@ -117,6 +121,7 @@ describe('MasterDataService', () => {
 
       await service.getBusinessLines({
         page: 2,
+        limit: 10,
         pageSize: 10,
         status: 'ACTIVE',
         search: 'INBOUND',
@@ -137,7 +142,11 @@ describe('MasterDataService', () => {
     it('should cap pageSize at 100 and default page <= 0 to 1', async () => {
       mockQueryBuilder.getManyAndCount.mockResolvedValue([[], 0]);
 
-      const result = await service.getBusinessLines({ page: 0, pageSize: 500 });
+      const result = await service.getBusinessLines({
+        page: 0,
+        limit: 500,
+        pageSize: 500,
+      });
 
       expect(mockQueryBuilder.skip).toHaveBeenCalledWith(0);
       expect(mockQueryBuilder.take).toHaveBeenCalledWith(100);
@@ -161,7 +170,11 @@ describe('MasterDataService', () => {
       ];
       mockQueryBuilder.getManyAndCount.mockResolvedValue([mockItems, 1]);
 
-      const result = await service.getMarketTypes({ page: 1, pageSize: 20 });
+      const result = await service.getMarketTypes({
+        page: 1,
+        limit: 20,
+        pageSize: 20,
+      });
 
       expect(mockMarketTypeRepo.createQueryBuilder).toHaveBeenCalledWith(
         'marketType',
@@ -188,6 +201,7 @@ describe('MasterDataService', () => {
 
       const result = await service.getServiceCategories({
         page: 1,
+        limit: 20,
         pageSize: 20,
       });
 
@@ -213,7 +227,11 @@ describe('MasterDataService', () => {
       ];
       mockQueryBuilder.getManyAndCount.mockResolvedValue([mockItems, 1]);
 
-      const result = await service.getPassengerTypes({ page: 1, pageSize: 20 });
+      const result = await service.getPassengerTypes({
+        page: 1,
+        limit: 20,
+        pageSize: 20,
+      });
 
       expect(mockPassengerTypeRepo.createQueryBuilder).toHaveBeenCalledWith(
         'passengerType',
@@ -237,7 +255,11 @@ describe('MasterDataService', () => {
       ];
       mockQueryBuilder.getManyAndCount.mockResolvedValue([mockItems, 1]);
 
-      const result = await service.getSupplierTypes({ page: 1, pageSize: 20 });
+      const result = await service.getSupplierTypes({
+        page: 1,
+        limit: 20,
+        pageSize: 20,
+      });
 
       expect(mockSupplierTypeRepo.createQueryBuilder).toHaveBeenCalledWith(
         'supplierType',
@@ -261,7 +283,11 @@ describe('MasterDataService', () => {
       ];
       mockQueryBuilder.getManyAndCount.mockResolvedValue([mockItems, 1]);
 
-      const result = await service.getUnits({ page: 1, pageSize: 20 });
+      const result = await service.getUnits({
+        page: 1,
+        limit: 20,
+        pageSize: 20,
+      });
 
       expect(mockUnitRepo.createQueryBuilder).toHaveBeenCalledWith('unit');
       expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith('unit.name', 'ASC');

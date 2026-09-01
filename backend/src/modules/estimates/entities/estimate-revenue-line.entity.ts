@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Organization } from '../../organizations/entities/organization.entity';
 import { Estimate } from './estimate.entity';
@@ -6,6 +6,7 @@ import { PassengerType } from '../../master-data/entities/passenger-type.entity'
 import { Unit } from '../../master-data/entities/unit.entity';
 
 @Entity('estimate_revenue_lines')
+@Index('idx_rev_lines_estimate_id', ['estimateId'])
 export class EstimateRevenueLine extends BaseEntity {
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;

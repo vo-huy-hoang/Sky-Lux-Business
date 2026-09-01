@@ -8,6 +8,7 @@ import { CheckCircleOutlined, ExclamationCircleOutlined, FolderOpenOutlined, Tea
 import { useQuery } from '@tanstack/react-query';
 import { usersService } from '@/services/users.service';
 import { dossiersService } from '@/services/dossiers.service';
+import { queryKeys } from '@/lib/query-keys';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 const { Text } = Typography;
@@ -17,8 +18,9 @@ function Metric({ label, value, icon, tone }: { label: string; value: number; ic
 }
 
 export default function OperatorSalesPage() {
-  const usersQuery = useQuery({ queryKey: ['operator-sales-users'], queryFn: () => usersService.getUsers({ page: 1, pageSize: 100 }) });
-  const dossiersQuery = useQuery({ queryKey: ['operator-sales-dossiers'], queryFn: () => dossiersService.getDossiers({ page: 1, limit: 100 }) });
+  const usersQuery = useQuery({ queryKey: queryKeys.users.list({ page: 1, pageSize: 100 }), queryFn: () => usersService.getUsers({ page: 1, pageSize: 100 }) });
+  const dossiersQuery = useQuery({ queryKey: queryKeys.dossiers.list({ page: 1, limit: 100 }), queryFn: () => dossiersService.getDossiers({ page: 1, limit: 100 }) });
+
   const users = useMemo(() => usersQuery.data?.data || [], [usersQuery.data?.data]);
   const dossiers = useMemo(() => dossiersQuery.data?.items || [], [dossiersQuery.data?.items]);
   const sales = useMemo(() => users.filter((user) => user.roles?.some((role) => role.code === 'SALES')), [users]);

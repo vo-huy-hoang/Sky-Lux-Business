@@ -35,6 +35,7 @@ import { dossiersService } from '@/services/dossiers.service';
 import { DossierItem } from '@/types/dossier';
 import { UserProfile } from '@/types/auth';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { queryKeys } from '@/lib/query-keys';
 
 const { Title, Text } = Typography;
 
@@ -107,16 +108,17 @@ export default function ProfilePage() {
   }, [meData, setUser]);
 
   const { data: kpiData } = useQuery({
-    queryKey: ['my-kpi', 'MONTHLY'],
+    queryKey: queryKeys.kpis.myResults({ periodType: 'MONTHLY' }),
     queryFn: () => kpiService.getMyKpi({ periodType: 'MONTHLY' }),
     enabled: !!profile?.id,
   });
 
   const { data: dossierData } = useQuery({
-    queryKey: ['profile-activity', profile?.id],
+    queryKey: queryKeys.dossiers.list({ page: 1, limit: 4 }),
     queryFn: () => dossiersService.getDossiers({ page: 1, limit: 4 }),
     enabled: !!profile?.id,
   });
+
 
   const changePasswordMutation = useMutation({
     mutationFn: authService.changePassword,

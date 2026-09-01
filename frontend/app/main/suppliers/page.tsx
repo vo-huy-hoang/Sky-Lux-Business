@@ -31,15 +31,18 @@ import { SupplierFormModal } from './components/SupplierFormModal';
 import { SupplierDetailDrawer } from './components/SupplierDetailDrawer';
 import dayjs from 'dayjs';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { queryKeys } from '@/lib/query-keys';
 import { useRouter } from 'next/navigation';
+
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
 export default function SuppliersPage() {
   const router = useRouter();
-  const { hasRole } = useAuthStore();
+  const hasRole = useAuthStore((state) => state.hasRole);
   const isCeoAdmin = hasRole('CEO_ADMIN') || hasRole('SUPER_ADMIN');
+
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -57,7 +60,13 @@ export default function SuppliersPage() {
   );
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['suppliers', page, pageSize, search, status],
+
+    queryKey: queryKeys.suppliers.list({
+      page,
+      limit: pageSize,
+      search: search || undefined,
+      status,
+    }),
     queryFn: () =>
       suppliersService.getSuppliers({
         page,
@@ -71,13 +80,14 @@ export default function SuppliersPage() {
     mutationFn: (id: string) => suppliersService.deleteSupplier(id),
     onSuccess: () => {
       message.success('Đã xóa nhà cung cấp');
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.suppliers.all });
     },
     onError: (err: any) => {
       const msg =
         err?.response?.data?.message ||
         err?.message ||
         'Không thể xóa nhà cung cấp';
+
       message.error(msg);
     },
   });

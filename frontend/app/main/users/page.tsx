@@ -37,18 +37,21 @@ import { rbacService, RoleItem } from '@/services/rbac.service';
 import { usersService } from '@/services/users.service';
 import { UserItem, UserStatus } from '@/types/user';
 import { useRbacStore } from './store';
+
+import { useShallow } from 'zustand/react/shallow';
 import RoleModal from './components/RoleModal';
 import PermissionMatrixModal from './components/PermissionMatrixModal';
 import UserRoleModal from './components/UserRoleModal';
 import UserModal from './components/UserModal';
 import UserDetailDrawer from './components/UserDetailDrawer';
+import { queryKeys } from '@/lib/query-keys';
 
 const { Text } = Typography;
 
 export default function UsersAndRbacPage() {
   const queryClient = useQueryClient();
 
-  // Zustand Store
+  // Zustand Store with useShallow
   const {
     activeTab,
     setActiveTab,
@@ -71,21 +74,46 @@ export default function UsersAndRbacPage() {
     openEditRole,
     openPermMatrix,
     openUserRoles,
-  } = useRbacStore();
+  } = useRbacStore(
+    useShallow((s) => ({
+      activeTab: s.activeTab,
+      setActiveTab: s.setActiveTab,
+      userSearch: s.userSearch,
+      setUserSearch: s.setUserSearch,
+      userStatusFilter: s.userStatusFilter,
+      setUserStatusFilter: s.setUserStatusFilter,
+      userRoleFilter: s.userRoleFilter,
+      setUserRoleFilter: s.setUserRoleFilter,
+      userPage: s.userPage,
+      setUserPage: s.setUserPage,
+      userPageSize: s.userPageSize,
+      setUserPageSize: s.setUserPageSize,
+      roleSearch: s.roleSearch,
+      setRoleSearch: s.setRoleSearch,
+      openCreateUser: s.openCreateUser,
+      openEditUser: s.openEditUser,
+      openUserDetail: s.openUserDetail,
+      openCreateRole: s.openCreateRole,
+      openEditRole: s.openEditRole,
+      openPermMatrix: s.openPermMatrix,
+      openUserRoles: s.openUserRoles,
+    })),
+  );
 
   // 1. Fetch Paginated & Filtered Users (API-USERS-001)
+
+
   const {
     data: usersResponse,
     isLoading: isUsersLoading,
   } = useQuery({
-    queryKey: [
-      'users',
-      userPage,
-      userPageSize,
-      userSearch,
-      userStatusFilter,
-      userRoleFilter,
-    ],
+    queryKey: queryKeys.users.list({
+      page: userPage,
+      pageSize: userPageSize,
+      search: userSearch || undefined,
+      status: userStatusFilter || undefined,
+      roleId: userRoleFilter || undefined,
+    }),
     queryFn: () =>
       usersService.getUsers({
         page: userPage,
@@ -113,7 +141,7 @@ export default function UsersAndRbacPage() {
     data: rolesData,
     isLoading: isRolesLoading,
   } = useQuery({
-    queryKey: ['roles', roleSearch],
+    queryKey: queryKeys.users.roles(),
     queryFn: () => rbacService.getRoles({ search: roleSearch }),
   });
   const roles = rolesData || [];
@@ -123,7 +151,7 @@ export default function UsersAndRbacPage() {
     mutationFn: (id: string) => usersService.lockUser(id),
     onSuccess: () => {
       message.success('Đã khóa tài khoản người dùng thành công');
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
     },
     onError: (err: any) => {
       message.error(err.message || 'Lỗi khi khóa tài khoản');
@@ -134,7 +162,7 @@ export default function UsersAndRbacPage() {
     mutationFn: (id: string) => usersService.unlockUser(id),
     onSuccess: () => {
       message.success('Đã mở khóa tài khoản người dùng thành công');
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
     },
     onError: (err: any) => {
       message.error(err.message || 'Lỗi khi mở khóa tài khoản');
@@ -145,12 +173,13 @@ export default function UsersAndRbacPage() {
     mutationFn: (id: string) => usersService.deleteUser(id),
     onSuccess: () => {
       message.success('Đã xóa người dùng thành công');
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
     },
     onError: (err: any) => {
       message.error(err.message || 'Lỗi khi xóa người dùng');
     },
   });
+
 
   // Columns for Users Table
   const userColumns = [

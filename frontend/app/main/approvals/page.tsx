@@ -26,6 +26,8 @@ import {
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { estimatesService } from '@/services/estimates.service';
 import { EstimateItem, EstimateStatus } from '@/types/estimate';
+import { queryKeys } from '@/lib/query-keys';
+
 
 const { Text } = Typography;
 
@@ -52,11 +54,11 @@ export default function ApprovalsPage() {
   const [status, setStatus] = useState<EstimateStatus | 'ALL'>('ALL');
 
   const submittedQuery = useQuery({
-    queryKey: ['ceo-approvals', EstimateStatus.SUBMITTED],
+    queryKey: queryKeys.approvals.submitted({ status: EstimateStatus.SUBMITTED }),
     queryFn: () => estimatesService.getEstimates({ page: 1, limit: 100, status: EstimateStatus.SUBMITTED }),
   });
   const reviewingQuery = useQuery({
-    queryKey: ['ceo-approvals', EstimateStatus.IN_REVIEW],
+    queryKey: queryKeys.approvals.reviewing({ status: EstimateStatus.IN_REVIEW }),
     queryFn: () => estimatesService.getEstimates({ page: 1, limit: 100, status: EstimateStatus.IN_REVIEW }),
   });
 
@@ -76,11 +78,12 @@ export default function ApprovalsPage() {
 
   const detailQueries = useQueries({
     queries: estimates.slice(0, 30).map((estimate) => ({
-      queryKey: ['estimate', estimate.id],
+      queryKey: queryKeys.estimates.detail(estimate.id),
       queryFn: () => estimatesService.getEstimate(estimate.id),
       staleTime: 2 * 60 * 1000,
     })),
   });
+
   const detailById = new Map(detailQueries.map((query, index) => [estimates[index]?.id, query.data]));
 
   const getFinancial = (estimate: EstimateItem) => {

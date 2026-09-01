@@ -32,6 +32,8 @@ import { estimatesService } from '@/services/estimates.service';
 import { DossierItem } from '@/types/dossier';
 import { EstimateItem } from '@/types/estimate';
 import { TaskItem } from '@/types/task';
+import { queryKeys } from '@/lib/query-keys';
+
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, ChartTooltip, Legend);
 
@@ -83,10 +85,12 @@ function MetricCard({ label, value, note, icon, tone = 'green' }: { label: strin
 }
 
 export default function OperatorDashboard() {
-  const dossiersQuery = useQuery({ queryKey: ['operator-dashboard-dossiers'], queryFn: () => dossiersService.getDossiers({ page: 1, limit: 100 }) });
-  const tasksQuery = useQuery({ queryKey: ['operator-dashboard-tasks'], queryFn: () => tasksService.getTasks({ page: 1, limit: 100 }) });
-  const usersQuery = useQuery({ queryKey: ['operator-dashboard-users'], queryFn: () => usersService.getUsers({ page: 1, pageSize: 100 }) });
-  const estimatesQuery = useQuery({ queryKey: ['operator-dashboard-estimates'], queryFn: () => estimatesService.getEstimates({ page: 1, limit: 100 }) });
+
+  const dossiersQuery = useQuery({ queryKey: queryKeys.dossiers.list({ page: 1, limit: 100 }), queryFn: () => dossiersService.getDossiers({ page: 1, limit: 100 }) });
+
+  const tasksQuery = useQuery({ queryKey: queryKeys.tasks.list({ page: 1, limit: 100 }), queryFn: () => tasksService.getTasks({ page: 1, limit: 100 }) });
+  const usersQuery = useQuery({ queryKey: queryKeys.users.list({ page: 1, pageSize: 100 }), queryFn: () => usersService.getUsers({ page: 1, pageSize: 100 }) });
+  const estimatesQuery = useQuery({ queryKey: queryKeys.estimates.list({ page: 1, limit: 100 }), queryFn: () => estimatesService.getEstimates({ page: 1, limit: 100 }) });
   const [currentTimestamp] = React.useState(() => Date.now());
 
   const dossiers = useMemo(() => dossiersQuery.data?.items || [], [dossiersQuery.data?.items]);
@@ -97,7 +101,8 @@ export default function OperatorDashboard() {
     if (!current || estimate.versionNo > current.versionNo) result[estimate.dossierId] = estimate;
     return result;
   }, {})), [estimatesQuery.data?.items]);
-  const estimateDetails = useQueries({ queries: newestEstimates.map((estimate) => ({ queryKey: ['operator-dashboard-estimate', estimate.id], queryFn: () => estimatesService.getEstimate(estimate.id), enabled: !!estimate.id })) });
+  const estimateDetails = useQueries({ queries: newestEstimates.map((estimate) => ({ queryKey: queryKeys.estimates.detail(estimate.id), queryFn: () => estimatesService.getEstimate(estimate.id), enabled: !!estimate.id })) });
+
   const estimatesWithLines = useMemo(() => estimateDetails.map((query) => query.data).filter((estimate): estimate is EstimateItem => !!estimate), [estimateDetails]);
   const activeSales = users.filter((user) => user.status === 'ACTIVE' && user.roles?.some((role) => role.code === 'SALES'));
   const statusCounts = useMemo(() => dossiers.reduce<Record<string, number>>((total, dossier) => {

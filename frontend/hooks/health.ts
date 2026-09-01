@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { healthService } from '@/services/health.service';
+import { queryKeys } from '@/lib/query-keys';
 
 /**
  * Hook lấy thông tin sức khỏe hệ thống (Database, Memory)
@@ -7,9 +8,10 @@ import { healthService } from '@/services/health.service';
  */
 export function useSystemHealth() {
   return useQuery({
-    queryKey: ['system-health'],
+    queryKey: queryKeys.health.system(),
     queryFn: () => healthService.getSystemHealth(),
     refetchInterval: 30000, // Thăm dò trạng thái mỗi 30 giây
     retry: 1,              // Giới hạn số lần thử lại để tránh spam server khi mất kết nối
   });
 }
+

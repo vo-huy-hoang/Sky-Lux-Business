@@ -42,7 +42,9 @@ import { dossiersService } from '@/services/dossiers.service';
 import { DossierItem } from '@/types/dossier';
 import { useOperatorDashboard, useSalesDashboard } from '@/hooks/dashboards';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { queryKeys } from '@/lib/query-keys';
 import dynamic from 'next/dynamic';
+
 
 const CeoDashboard = dynamic(() => import('@/components/ceo/CeoDashboard'), {
   ssr: false,
@@ -108,8 +110,9 @@ const subscribe = () => () => {};
 const useIsClient = () => React.useSyncExternalStore(subscribe, () => true, () => false);
 
 function RoleDashboard() {
+
   const isClient = useIsClient();
-  const { hasRole } = useAuthStore();
+  const hasRole = useAuthStore((state) => state.hasRole);
 
   if (!isClient) {
     return (
@@ -128,7 +131,7 @@ function RoleDashboard() {
 }
 
 function OperationalDashboard() {
-  const { hasRole } = useAuthStore();
+  const hasRole = useAuthStore((state) => state.hasRole);
   const isOperator = hasRole('OPERATOR');
   const isSales = hasRole('SALES');
   const isSuperAdmin = hasRole('SUPER_ADMIN') || hasRole('CEO_ADMIN');
@@ -138,9 +141,10 @@ function OperationalDashboard() {
     isLoading: isLoadingDossiers,
     isError: isDossierError,
   } = useQuery({
-    queryKey: ['dashboard-dossiers'],
+    queryKey: queryKeys.dossiers.list({ page: 1, limit: 100 }),
     queryFn: () => dossiersService.getDossiers({ page: 1, limit: 100 }),
   });
+
 
   const {
     data: operatorDashboard,

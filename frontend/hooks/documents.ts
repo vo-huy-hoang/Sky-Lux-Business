@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { documentsService } from '@/services/documents.service';
+import { queryKeys } from '@/lib/query-keys';
 import {
   QueryDocumentParams,
   UploadDocumentPayload,
@@ -10,12 +11,13 @@ import {
 export const documentKeys = {
   all: ['documents'] as const,
   dossierList: (dossierId: string, params?: QueryDocumentParams) =>
-    [...documentKeys.all, 'dossier', dossierId, params] as const,
-  detail: (id: string) => [...documentKeys.all, 'detail', id] as const,
-  versions: (id: string) => [...documentKeys.all, 'versions', id] as const,
+    queryKeys.documents.dossierList(dossierId, params),
+  detail: (id: string) => queryKeys.documents.detail(id),
+  versions: (id: string) => queryKeys.documents.versions(id),
   downloadUrl: (id: string, params?: DownloadUrlParams) =>
-    [...documentKeys.all, 'download-url', id, params] as const,
+    queryKeys.documents.downloadUrl(id, params),
 };
+
 
 /**
  * API-DOCUMENT-001: Hook lấy danh sách tài liệu của hồ sơ

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { dashboardsService } from '@/services/dashboards.service';
+import { queryKeys } from '@/lib/query-keys';
 import { QueryDashboardParams } from '@/types/dashboard';
 
 /**
@@ -7,7 +8,7 @@ import { QueryDashboardParams } from '@/types/dashboard';
  */
 export function useSalesDashboard(params?: QueryDashboardParams, options?: { enabled?: boolean }) {
   return useQuery({
-    queryKey: ['dashboard-sales', params],
+    queryKey: queryKeys.dashboards.sales(params),
     queryFn: () => dashboardsService.getSalesDashboard(params),
     ...options,
   });
@@ -18,7 +19,7 @@ export function useSalesDashboard(params?: QueryDashboardParams, options?: { ena
  */
 export function useOperatorDashboard(params?: QueryDashboardParams, options?: { enabled?: boolean }) {
   return useQuery({
-    queryKey: ['dashboard-operator', params],
+    queryKey: queryKeys.dashboards.operator(params),
     queryFn: () => dashboardsService.getOperatorDashboard(params),
     ...options,
   });
@@ -29,8 +30,32 @@ export function useOperatorDashboard(params?: QueryDashboardParams, options?: { 
  */
 export function useCeoDashboard(params?: QueryDashboardParams, options?: { enabled?: boolean }) {
   return useQuery({
-    queryKey: ['dashboard-ceo', params],
+    queryKey: queryKeys.dashboards.ceo(params),
     queryFn: () => dashboardsService.getCeoDashboard(params),
     ...options,
   });
 }
+
+/**
+ * Hook lấy tổng hợp hiệu suất và doanh thu theo Sales (API-DASHBOARD-004)
+ */
+export function useOperatorSalesSummary(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.dashboards.operatorSalesSummary(),
+    queryFn: () => dashboardsService.getOperatorSalesSummary(),
+    ...options,
+  });
+}
+
+/**
+ * Hook lấy xu hướng tạo hồ sơ và doanh thu theo tháng (API-DASHBOARD-005)
+ */
+export function useOperatorMonthlyTrend(months = 6, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.dashboards.operatorMonthlyTrend(),
+    queryFn: () => dashboardsService.getOperatorMonthlyTrend(months),
+    ...options,
+  });
+}
+
+

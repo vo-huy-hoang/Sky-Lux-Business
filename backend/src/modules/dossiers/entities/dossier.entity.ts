@@ -25,6 +25,12 @@ import { DossierStatus, PriorityLevel } from '../../../common/enums';
   'salesUserId',
   'revenueRecognitionDate',
 ])
+@Index('idx_dossiers_org_created', ['organizationId', 'createdAt'])
+@Index('idx_dossiers_org_sales_created', [
+  'organizationId',
+  'salesUserId',
+  'createdAt',
+])
 export class Dossier extends BaseEntity {
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;

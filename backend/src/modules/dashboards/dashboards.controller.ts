@@ -52,6 +52,40 @@ export class DashboardsController {
     );
   }
 
+  @Get('operator/sales-summary')
+  @RequirePermissions('dashboard.operator')
+  @ApiOperation({
+    summary: 'Tổng hợp hiệu suất và doanh thu theo Sales (API-DASHBOARD-004)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lấy tổng hợp theo Sales thành công',
+  })
+  getOperatorSalesSummary(
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.dashboardsService.getOperatorSalesSummary(organizationId);
+  }
+
+  @Get('operator/monthly-trend')
+  @RequirePermissions('dashboard.operator')
+  @ApiOperation({
+    summary: 'Xu hướng tạo hồ sơ và doanh thu theo tháng (API-DASHBOARD-005)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lấy xu hướng theo tháng thành công',
+  })
+  getOperatorMonthlyTrend(
+    @CurrentUser('organizationId') organizationId: string,
+    @Query('months') months?: number,
+  ) {
+    return this.dashboardsService.getOperatorMonthlyTrend(
+      organizationId,
+      months ? Number(months) : 6,
+    );
+  }
+
   @Get('ceo')
   @RequirePermissions('dashboard.ceo')
   @ApiOperation({ summary: 'Xem Dashboard CEO (API-DASHBOARD-003)' })
