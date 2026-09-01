@@ -355,9 +355,10 @@ export default function AuditLogsPage() {
           </div>
         }
         placement="right"
-        width={640}
+        styles={{ wrapper: { width: 640, maxWidth: '100vw' } }}
         onClose={() => setSelectedLog(null)}
         open={!!selectedLog}
+
       >
         {isDetailLoading ? (
           <div className="flex justify-center py-10">

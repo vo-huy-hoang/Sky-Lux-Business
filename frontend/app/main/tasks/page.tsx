@@ -33,9 +33,9 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { dossiersService } from '@/services/dossiers.service';
 import { tasksService } from '@/services/tasks.service';
-import { usersService } from '@/services/users.service';
 import { queryKeys } from '@/lib/query-keys';
 import { useAuthStore } from '@/lib/stores/auth-store';
+
 import {
   CreateTaskInput,
   TaskChecklistItem,

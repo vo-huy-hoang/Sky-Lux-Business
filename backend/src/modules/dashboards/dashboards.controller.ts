@@ -86,6 +86,25 @@ export class DashboardsController {
     );
   }
 
+  @Get('ceo/monthly-trend')
+  @RequirePermissions('dashboard.ceo')
+  @ApiOperation({
+    summary: 'Xu hướng doanh thu, chi phí, lợi nhuận 12 tháng theo năm cho CEO (API-DASHBOARD-006)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lấy xu hướng 12 tháng theo năm cho CEO thành công',
+  })
+  getCeoMonthlyTrend(
+    @CurrentUser('organizationId') organizationId: string,
+    @Query('year') year?: number,
+  ) {
+    return this.dashboardsService.getCeoMonthlyTrend(
+      organizationId,
+      year ? Number(year) : new Date().getFullYear(),
+    );
+  }
+
   @Get('ceo')
   @RequirePermissions('dashboard.ceo')
   @ApiOperation({ summary: 'Xem Dashboard CEO (API-DASHBOARD-003)' })
@@ -100,3 +119,4 @@ export class DashboardsController {
     return this.dashboardsService.getCeoDashboard(organizationId, queryDto);
   }
 }
+

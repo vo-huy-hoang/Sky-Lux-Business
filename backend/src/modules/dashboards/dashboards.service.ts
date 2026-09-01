@@ -524,7 +524,117 @@ export class DashboardsService {
     return result;
   }
 
+  async getCeoMonthlyTrend(
+    organizationId: string,
+    year = new Date().getFullYear(),
+  ) {
+    const cacheKey = `dashboard:ceo:monthly-trend:${organizationId}:${year}`;
+    if (this.redisService) {
+      const cached = await this.redisService.get(cacheKey);
+      if (cached) return cached;
+    }
+
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59);
+
+    const [monthlyRevenue, monthlyCost, monthlyDossiers] = await Promise.all([
+      this.revenueLineRepository
+        .createQueryBuilder('line')
+        .innerJoin('line.estimate', 'estimate')
+        .innerJoin('estimate.dossier', 'dossier')
+        .select("TO_CHAR(estimate.approvedAt, 'YYYY-MM')", 'monthKey')
+        .addSelect('SUM(line.netAmount)', 'revenue')
+        .where('dossier.organizationId = :organizationId', { organizationId })
+        .andWhere('estimate.status = :status', {
+          status: EstimateStatus.APPROVED,
+        })
+        .andWhere('estimate.approvedAt BETWEEN :startDate AND :endDate', {
+          startDate,
+          endDate,
+        })
+        .groupBy("TO_CHAR(estimate.approvedAt, 'YYYY-MM')")
+        .getRawMany(),
+      this.costLineRepository
+        .createQueryBuilder('line')
+        .innerJoin('line.estimate', 'estimate')
+        .innerJoin('estimate.dossier', 'dossier')
+        .select("TO_CHAR(estimate.approvedAt, 'YYYY-MM')", 'monthKey')
+        .addSelect('SUM(line.netAmount)', 'cost')
+        .where('dossier.organizationId = :organizationId', { organizationId })
+        .andWhere('estimate.status = :status', {
+          status: EstimateStatus.APPROVED,
+        })
+        .andWhere('estimate.approvedAt BETWEEN :startDate AND :endDate', {
+          startDate,
+          endDate,
+        })
+        .groupBy("TO_CHAR(estimate.approvedAt, 'YYYY-MM')")
+        .getRawMany(),
+      this.dossierRepository
+        .createQueryBuilder('dossier')
+        .select("TO_CHAR(dossier.createdAt, 'YYYY-MM')", 'monthKey')
+        .addSelect(
+          `COUNT(CASE WHEN dossier.status IN ('APPROVED', 'COMPLETED') THEN 1 END)`,
+          'approvedDossiers',
+        )
+        .where('dossier.organizationId = :organizationId', { organizationId })
+        .andWhere('dossier.createdAt BETWEEN :startDate AND :endDate', {
+          startDate,
+          endDate,
+        })
+        .groupBy("TO_CHAR(dossier.createdAt, 'YYYY-MM')")
+        .getRawMany(),
+    ]);
+
+    const revMap = new Map<string, number>();
+    monthlyRevenue.forEach((r) =>
+      revMap.set(r.monthKey, Number(r.revenue || 0)),
+    );
+
+    const costMap = new Map<string, number>();
+    monthlyCost.forEach((c) => costMap.set(c.monthKey, Number(c.cost || 0)));
+
+    const dossierMap = new Map<string, number>();
+    monthlyDossiers.forEach((d) =>
+      dossierMap.set(d.monthKey, Number(d.approvedDossiers || 0)),
+    );
+
+    const result: Array<{
+      monthKey: string;
+      label: string;
+      totalRevenue: number;
+      totalCost: number;
+      totalProfit: number;
+      approvedDossiers: number;
+    }> = [];
+
+    for (let month = 1; month <= 12; month++) {
+      const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+      const label = `T${String(month).padStart(2, '0')}`;
+      const totalRevenue = revMap.get(monthKey) || 0;
+      const totalCost = costMap.get(monthKey) || 0;
+      const totalProfit = totalRevenue - totalCost;
+      const approvedDossiers = dossierMap.get(monthKey) || 0;
+
+      result.push({
+        monthKey,
+        label,
+        totalRevenue,
+        totalCost,
+        totalProfit,
+        approvedDossiers,
+      });
+    }
+
+    if (this.redisService) {
+      await this.redisService.set(cacheKey, result, 60);
+    }
+
+    return result;
+  }
+
   private async getApprovedEstimates(
+
     organizationId: string,
     userId: string,
     start: string,

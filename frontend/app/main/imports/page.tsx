@@ -42,7 +42,7 @@ import { importsService } from '@/services/imports.service';
 import { ImportError, ImportRow, ImportSession } from '@/types/import';
 import { RowEditModal } from './components/RowEditModal';
 import { queryKeys } from '@/lib/query-keys';
-
+import { useImportWizardStore } from '@/lib/stores/import-wizard-store';
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -54,12 +54,19 @@ function getRawValue(record: ImportRow, key: string) {
 export default function ImportsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'ALL' | 'VALID' | 'ERROR'>('ALL');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+
+  const currentSessionId = useImportWizardStore((state) => state.currentSessionId);
+  const setCurrentSessionId = useImportWizardStore((state) => state.setCurrentSessionId);
+  const activeTab = useImportWizardStore((state) => state.activeFilterTab);
+  const setActiveTab = useImportWizardStore((state) => state.setActiveFilterTab);
+  const page = useImportWizardStore((state) => state.page);
+  const setPage = useImportWizardStore((state) => state.setPage);
+  const pageSize = useImportWizardStore((state) => state.pageSize);
+  const setPageSize = useImportWizardStore((state) => state.setPageSize);
+
   const [editingRow, setEditingRow] = useState<ImportRow | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
 
   const {
     data: session,

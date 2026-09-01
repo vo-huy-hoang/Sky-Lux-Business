@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import {
   Alert,
@@ -23,7 +23,7 @@ import {
   LineChartOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   ArcElement,
   CategoryScale,
@@ -40,9 +40,10 @@ import { dashboardsService } from '@/services/dashboards.service';
 import { dossiersService } from '@/services/dossiers.service';
 import { usersService } from '@/services/users.service';
 import { DossierItem } from '@/types/dossier';
-import { CeoDashboardData } from '@/types/dashboard';
 import { UserItem } from '@/types/user';
+import { useFilterStore } from '@/lib/stores/filter-store';
 import { queryKeys } from '@/lib/query-keys';
+
 
 
 ChartJS.register(
@@ -142,16 +143,8 @@ function MetricCard({
 }
 
 export default function CeoDashboard() {
-  const months = useMemo(() => {
-    const now = new Date();
-    return Array.from({ length: 12 }, (_, index) => {
-      const date = new Date(now.getFullYear(), now.getMonth() - (11 - index), 1);
-      return {
-        date: date.toISOString().slice(0, 10),
-        label: new Intl.DateTimeFormat('vi-VN', { month: '2-digit', year: '2-digit' }).format(date),
-      };
-    });
-  }, []);
+
+  const selectedYear = useFilterStore((state) => state.selectedYear);
 
   const {
     data: overview,
@@ -162,30 +155,19 @@ export default function CeoDashboard() {
     queryFn: () => dashboardsService.getCeoDashboard({ periodType: 'MONTHLY' }),
   });
 
-
   const { data: dossierResponse, isLoading: isLoadingDossiers } = useQuery({
-    queryKey: queryKeys.dossiers.list({ page: 1, limit: 100 }),
-    queryFn: () => dossiersService.getDossiers({ page: 1, limit: 100 }),
+    queryKey: queryKeys.dossiers.list({ page: 1, limit: 6 }),
+    queryFn: () => dossiersService.getDossiers({ page: 1, limit: 6 }),
   });
 
   const { data: userResponse, isLoading: isLoadingUsers } = useQuery({
-    queryKey: queryKeys.users.list({ page: 1, pageSize: 100 }),
-    queryFn: () => usersService.getUsers({ page: 1, pageSize: 100 }),
+    queryKey: queryKeys.users.list({ page: 1, pageSize: 50 }),
+    queryFn: () => usersService.getUsers({ page: 1, pageSize: 50 }),
   });
 
-  const monthlyQueries = useQueries({
-    queries: months.map((month) => ({
-      queryKey: queryKeys.dashboards.ceo({
-        periodType: 'MONTHLY',
-        date: month.date,
-      }),
-      queryFn: () =>
-        dashboardsService.getCeoDashboard({
-          periodType: 'MONTHLY',
-          date: month.date,
-        }),
-      staleTime: 5 * 60 * 1000,
-    })),
+  const { data: monthlyTrend = [], isLoading: isLoadingTrend } = useQuery({
+    queryKey: queryKeys.dashboards.ceoMonthlyTrend(selectedYear),
+    queryFn: () => dashboardsService.getCeoMonthlyTrend(selectedYear),
   });
 
 
@@ -204,11 +186,11 @@ export default function CeoDashboard() {
   const costBreakdown = overview?.costBreakdown || [];
 
   const lineData = {
-    labels: months.map((month) => month.label),
+    labels: monthlyTrend.map((month) => month.label),
     datasets: [
       {
         label: 'Doanh thu',
-        data: monthlyQueries.map((query) => (query.data as CeoDashboardData | undefined)?.totalRevenue || 0),
+        data: monthlyTrend.map((t) => t.totalRevenue),
         borderColor: '#0F3D2E',
         backgroundColor: '#0F3D2E',
         pointBackgroundColor: '#FFFFFF',
@@ -219,7 +201,7 @@ export default function CeoDashboard() {
       },
       {
         label: 'Lợi nhuận',
-        data: monthlyQueries.map((query) => (query.data as CeoDashboardData | undefined)?.totalProfit || 0),
+        data: monthlyTrend.map((t) => t.totalProfit),
         borderColor: '#D4AF37',
         backgroundColor: '#D4AF37',
         pointBackgroundColor: '#FFFFFF',
@@ -230,6 +212,7 @@ export default function CeoDashboard() {
       },
     ],
   };
+
 
   const lineOptions: ChartOptions<'line'> = {
     responsive: true,
@@ -344,8 +327,9 @@ export default function CeoDashboard() {
       <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,.85fr)_minmax(260px,.7fr)]">
         <Card className="ceo-card" title="Doanh thu và lợi nhuận theo tháng">
           <div className="h-[286px]">
-            {monthlyQueries.some((query) => query.isLoading) ? <Skeleton active paragraph={{ rows: 7 }} /> : <Line data={lineData} options={lineOptions} />}
+            {isLoadingTrend ? <Skeleton active paragraph={{ rows: 7 }} /> : <Line data={lineData} options={lineOptions} />}
           </div>
+
         </Card>
 
         <Card className="ceo-card" title="Cơ cấu chi phí theo dịch vụ">

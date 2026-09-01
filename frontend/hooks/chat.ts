@@ -259,14 +259,13 @@ export const useChatRealtime = (conversationId?: string) => {
       }
     };
 
-    eventSource.onerror = (err) => {
-      console.error('Lỗi kết nối SSE stream:', err);
+    eventSource.onerror = () => {
       const currentToken = Cookies.get('access_token') || '';
       if (currentToken && currentToken !== token) {
-        console.log('Phát hiện token mới, thiết lập lại kết nối SSE...');
         setTokenTrigger(currentToken);
       }
     };
+
 
     return () => {
       eventSource.close();

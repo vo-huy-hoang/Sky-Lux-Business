@@ -23,7 +23,7 @@ import {
   WarningOutlined,
   ArrowRightOutlined,
 } from '@ant-design/icons';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { estimatesService } from '@/services/estimates.service';
 import { EstimateItem, EstimateStatus } from '@/types/estimate';
 import { queryKeys } from '@/lib/query-keys';
@@ -51,7 +51,7 @@ function waitingTime(value?: string) {
 
 export default function ApprovalsPage() {
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<EstimateStatus | 'ALL'>('ALL');
+  const [status, setStatus] = useState<string>('ALL');
 
   const submittedQuery = useQuery({
     queryKey: queryKeys.approvals.submitted({ status: EstimateStatus.SUBMITTED }),
@@ -76,21 +76,15 @@ export default function ApprovalsPage() {
       .sort((a, b) => new Date(a.submittedAt || a.createdAt).getTime() - new Date(b.submittedAt || b.createdAt).getTime());
   }, [reviewingQuery.data?.items, search, status, submittedQuery.data?.items]);
 
-  const detailQueries = useQueries({
-    queries: estimates.slice(0, 30).map((estimate) => ({
-      queryKey: queryKeys.estimates.detail(estimate.id),
-      queryFn: () => estimatesService.getEstimate(estimate.id),
-      staleTime: 2 * 60 * 1000,
-    })),
-  });
-
-  const detailById = new Map(detailQueries.map((query, index) => [estimates[index]?.id, query.data]));
-
   const getFinancial = (estimate: EstimateItem) => {
-    const detail = detailById.get(estimate.id);
-    const revenue = detail?.revenueLines?.reduce((sum, line) => sum + Number(line.netAmount || 0), 0) || 0;
-    const cost = detail?.costLines?.reduce((sum, line) => sum + Number(line.netAmount || 0), 0) || 0;
-    return { revenue, cost, profit: revenue - cost };
+    const revenue = Number(estimate.totalRevenue || 0);
+    const cost = Number(estimate.totalCost || 0);
+    const profit = Number(
+      estimate.totalProfit !== undefined
+        ? estimate.totalProfit
+        : revenue - cost,
+    );
+    return { revenue, cost, profit };
   };
 
   const columns = [

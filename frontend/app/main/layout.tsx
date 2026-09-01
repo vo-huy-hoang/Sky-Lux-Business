@@ -12,6 +12,11 @@ import {
   Space,
   Badge,
   Button,
+  Drawer,
+  List,
+  Typography,
+  Empty,
+  Tag,
 } from 'antd';
 import {
   DashboardOutlined,
@@ -38,8 +43,13 @@ import {
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useUIStore } from '@/lib/stores/ui-store';
+
+import { useNotificationStore } from '@/lib/stores/notification-store';
 
 const { Header, Sider, Content } = Layout;
+
+
 
 function BrandLogo({ collapsed }: { collapsed: boolean }) {
   const [failed, setFailed] = useState(false);
@@ -62,8 +72,10 @@ function BrandLogo({ collapsed }: { collapsed: boolean }) {
           height={180}
           className="h-[154px] w-[154px] object-contain"
           onError={() => setFailed(true)}
+          priority
           unoptimized
         />
+
       ) : (
         <div className="flex h-[116px] w-[138px] items-center justify-center rounded-full border border-[#D6A51F]/70 text-center text-[#F0C020]">
           <div>
@@ -81,12 +93,26 @@ export default function MainLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const collapsed = useUIStore((state) => state.sidebarCollapsed);
+  const toggleSidebar = useUIStore((state) => state.toggleSidebar);
+  const setSidebarCollapsed = useUIStore((state) => state.setSidebarCollapsed);
+  const notificationsDrawerOpen = useUIStore((state) => state.notificationsDrawerOpen);
+  const setNotificationsDrawerOpen = useUIStore((state) => state.setNotificationsDrawerOpen);
+
+  const notifications = useNotificationStore((state) => state.notifications);
+  const markAsRead = useNotificationStore((state) => state.markAsRead);
+  const markAllAsRead = useNotificationStore((state) => state.markAllAsRead);
+  const clearAll = useNotificationStore((state) => state.clearAll);
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
   const [isMobile, setIsMobile] = useState(false);
+
   const pathname = usePathname();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
+
+
 
   const handleLogout = () => {
     logout();
@@ -341,8 +367,9 @@ export default function MainLayout({
         breakpoint="lg"
         onBreakpoint={(broken) => {
           setIsMobile(broken);
-          setCollapsed(broken);
+          setSidebarCollapsed(broken);
         }}
+
         theme="dark"
         className="skylux-sidebar"
         style={{
@@ -406,10 +433,11 @@ export default function MainLayout({
             <Button
               type="text"
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed(!collapsed)}
+              onClick={toggleSidebar}
               className="text-slate-600"
               aria-label={collapsed ? 'Mở menu' : 'Thu gọn menu'}
             />
+
             <div className="min-w-0">
               <h1 className="m-0 truncate text-[25px] font-bold leading-tight text-[var(--color-text)]">{routeMeta.title}</h1>
               <div className="mt-0.5 hidden truncate text-sm text-[var(--color-text-muted)] md:block">{routeMeta.subtitle}</div>
@@ -426,12 +454,13 @@ export default function MainLayout({
                 {new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date())}
               </Button>
             )}
-            <Badge size="small" offset={[-2, 5]} color="var(--color-gold)">
+            <Badge count={unreadCount} size="small" offset={[-2, 5]} color="var(--color-gold)">
               <Button
                 type="text"
                 shape="circle"
                 icon={<BellOutlined className="text-lg text-slate-600" />}
                 aria-label="Thông báo"
+                onClick={() => setNotificationsDrawerOpen(true)}
               />
             </Badge>
             {isCeoAdmin && (
@@ -475,7 +504,105 @@ export default function MainLayout({
         <Content className="skylux-content-shell overflow-y-auto bg-[var(--color-bg)]">
           <div className="mx-auto max-w-[1540px]">{children}</div>
         </Content>
+
+        {/* Notifications Drawer */}
+        <Drawer
+          title={
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold">Thông báo ({unreadCount} chưa đọc)</span>
+              {notifications.length > 0 && (
+                <Space size={8}>
+                  <Button
+                    size="small"
+                    type="link"
+                    onClick={markAllAsRead}
+                    disabled={unreadCount === 0}
+                    className="text-xs"
+                  >
+                    Đọc tất cả
+                  </Button>
+                  <Button
+                    size="small"
+                    type="text"
+                    danger
+                    onClick={clearAll}
+                    className="text-xs"
+                  >
+                    Xóa hết
+                  </Button>
+                </Space>
+              )}
+            </div>
+          }
+          placement="right"
+          onClose={() => setNotificationsDrawerOpen(false)}
+          open={notificationsDrawerOpen}
+          size="default"
+        >
+
+          {notifications.length === 0 ? (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="Không có thông báo mới"
+              className="py-12"
+            />
+          ) : (
+            <List
+              itemLayout="vertical"
+              dataSource={notifications}
+              renderItem={(item) => (
+                <List.Item
+                  key={item.id}
+                  onClick={() => {
+                    markAsRead(item.id);
+                    if (item.actionUrl) {
+                      router.push(item.actionUrl);
+                      setNotificationsDrawerOpen(false);
+                    }
+                  }}
+                  className={`cursor-pointer rounded-lg p-3 transition-colors mb-2 ${
+                    item.read
+                      ? 'bg-slate-50 hover:bg-slate-100 opacity-75'
+                      : 'bg-emerald-50/50 hover:bg-emerald-50 border-l-4 border-[#007A55]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <Typography.Text strong className="text-sm text-slate-800">
+                      {item.title}
+                    </Typography.Text>
+                    <Tag
+                      color={
+                        item.type === 'success'
+                          ? 'success'
+                          : item.type === 'warning'
+                          ? 'warning'
+                          : item.type === 'error'
+                          ? 'error'
+                          : 'processing'
+                      }
+                      className="m-0 text-[10px]"
+                    >
+                      {item.type.toUpperCase()}
+                    </Tag>
+                  </div>
+                  <Typography.Paragraph className="text-xs text-slate-600 mb-1 mt-1">
+                    {item.message}
+                  </Typography.Paragraph>
+                  <span className="text-[11px] text-slate-400">
+                    {new Date(item.createdAt).toLocaleTimeString('vi-VN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      day: '2-digit',
+                      month: '2-digit',
+                    })}
+                  </span>
+                </List.Item>
+              )}
+            />
+          )}
+        </Drawer>
       </Layout>
     </Layout>
   );
 }
+

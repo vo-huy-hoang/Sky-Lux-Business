@@ -39,7 +39,10 @@ export const queryKeys = {
     operatorSalesSummary: (params?: Record<string, any>) =>
       [...queryKeys.dashboards.operator(params), 'sales-summary'] as const,
     operatorMonthlyTrend: () => [...queryKeys.dashboards.operator(), 'monthly-trend'] as const,
+    ceoMonthlyTrend: (year?: number) =>
+      [...queryKeys.dashboards.ceo(), 'monthly-trend', year || 'current'] as const,
   },
+
 
   // 4. ESTIMATES & COSTINGS
   estimates: {
@@ -164,4 +167,14 @@ export const queryKeys = {
     sessions: (params?: Record<string, any>) => [...queryKeys.imports.all, 'sessions', params || {}] as const,
     errors: (sessionId?: string) => [...queryKeys.imports.all, 'errors', sessionId || ''] as const,
   },
+
+  // 17. AUDIT LOGS
+  auditLogs: {
+    all: ['audit-logs'] as const,
+    lists: () => [...queryKeys.auditLogs.all, 'list'] as const,
+    list: (params?: Record<string, any>) => [...queryKeys.auditLogs.lists(), params || {}] as const,
+    details: () => [...queryKeys.auditLogs.all, 'detail'] as const,
+    detail: (id?: string) => [...queryKeys.auditLogs.details(), id || ''] as const,
+  },
 };
+
