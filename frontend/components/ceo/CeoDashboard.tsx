@@ -43,6 +43,8 @@ import { DossierItem } from '@/types/dossier';
 import { UserItem } from '@/types/user';
 import { useFilterStore } from '@/lib/stores/filter-store';
 import { queryKeys } from '@/lib/query-keys';
+import { WidgetErrorBoundary } from '@/components/common/widget-error-boundary';
+
 
 
 
@@ -325,86 +327,96 @@ export default function CeoDashboard() {
       </Row>
 
       <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,.85fr)_minmax(260px,.7fr)]">
-        <Card className="ceo-card" title="Doanh thu và lợi nhuận theo tháng">
-          <div className="h-[286px]">
-            {isLoadingTrend ? <Skeleton active paragraph={{ rows: 7 }} /> : <Line data={lineData} options={lineOptions} />}
-          </div>
+        <WidgetErrorBoundary title="Doanh thu và lợi nhuận theo tháng">
+          <Card className="ceo-card" title="Doanh thu và lợi nhuận theo tháng">
+            <div className="h-[286px]">
+              {isLoadingTrend ? <Skeleton active paragraph={{ rows: 7 }} /> : <Line data={lineData} options={lineOptions} />}
+            </div>
+          </Card>
+        </WidgetErrorBoundary>
 
-        </Card>
-
-        <Card className="ceo-card" title="Cơ cấu chi phí theo dịch vụ">
-          {costBreakdown.length ? (
-            <>
-              <div className="h-[190px]"><Doughnut data={costData} options={costOptions} /></div>
-              <div className="mt-3 space-y-2">
-                {costBreakdown.slice(0, 5).map((item, index) => (
-                  <div key={item.categoryName} className="flex items-center justify-between gap-3 text-xs">
-                    <span className="min-w-0 truncate text-[var(--ceo-text-muted)]">
-                      <i className="mr-2 inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: costData.datasets[0].backgroundColor[index] }} />
-                      {item.categoryName}
-                    </span>
-                    <span className="shrink-0 font-semibold [font-variant-numeric:tabular-nums]">{formatCompactCurrency(item.amount)}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có chi phí đã duyệt từ API" />
-          )}
-        </Card>
-
-        <Card className="ceo-card" title="Hồ sơ theo trạng thái">
-          <div className="space-y-1">
-            {funnel.length ? funnel.map((item) => {
-              const meta = statusMeta(item.status);
-              return (
-                <div key={item.status} className="flex items-center justify-between border-b border-[var(--ceo-divider)] py-2.5 last:border-0">
-                  <span className="text-sm text-[var(--ceo-text-muted)]">{meta.label}</span>
-                  <span className="font-bold [font-variant-numeric:tabular-nums]" style={{ color: meta.color }}>{item.count}</span>
+        <WidgetErrorBoundary title="Cơ cấu chi phí theo dịch vụ">
+          <Card className="ceo-card" title="Cơ cấu chi phí theo dịch vụ">
+            {costBreakdown.length ? (
+              <>
+                <div className="h-[190px]"><Doughnut data={costData} options={costOptions} /></div>
+                <div className="mt-3 space-y-2">
+                  {costBreakdown.slice(0, 5).map((item, index) => (
+                    <div key={item.categoryName} className="flex items-center justify-between gap-3 text-xs">
+                      <span className="min-w-0 truncate text-[var(--ceo-text-muted)]">
+                        <i className="mr-2 inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: costData.datasets[0].backgroundColor[index] }} />
+                        {item.categoryName}
+                      </span>
+                      <span className="shrink-0 font-semibold [font-variant-numeric:tabular-nums]">{formatCompactCurrency(item.amount)}</span>
+                    </div>
+                  ))}
                 </div>
-              );
-            }) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hồ sơ" />}
-          </div>
-          <Link href="/main/dossiers" className="mt-3 flex items-center justify-center gap-2 border-t border-[var(--ceo-divider)] pt-3 text-sm font-semibold text-[var(--ceo-primary-700)]">
-            Xem hồ sơ toàn hệ thống <ArrowRightOutlined />
-          </Link>
-        </Card>
+              </>
+            ) : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có chi phí đã duyệt từ API" />
+            )}
+          </Card>
+        </WidgetErrorBoundary>
+
+        <WidgetErrorBoundary title="Hồ sơ theo trạng thái">
+          <Card className="ceo-card" title="Hồ sơ theo trạng thái">
+            <div className="space-y-1">
+              {funnel.length ? funnel.map((item) => {
+                const meta = statusMeta(item.status);
+                return (
+                  <div key={item.status} className="flex items-center justify-between border-b border-[var(--ceo-divider)] py-2.5 last:border-0">
+                    <span className="text-sm text-[var(--ceo-text-muted)]">{meta.label}</span>
+                    <span className="font-bold [font-variant-numeric:tabular-nums]" style={{ color: meta.color }}>{item.count}</span>
+                  </div>
+                );
+              }) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hồ sơ" />}
+            </div>
+            <Link href="/main/dossiers" className="mt-3 flex items-center justify-center gap-2 border-t border-[var(--ceo-divider)] pt-3 text-sm font-semibold text-[var(--ceo-primary-700)]">
+              Xem hồ sơ toàn hệ thống <ArrowRightOutlined />
+            </Link>
+          </Card>
+        </WidgetErrorBoundary>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">
-        <Card
-          className="ceo-card"
-          title="Hồ sơ toàn hệ thống - Cập nhật gần nhất"
-          extra={<Button type="link" href="/main/dossiers">Xem tất cả</Button>}
-        >
-          <Table
-            rowKey="id"
-            dataSource={latestDossiers}
-            columns={dossierColumns}
-            loading={isLoadingDossiers}
-            pagination={false}
-            className="ceo-table"
-            scroll={{ x: 930 }}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hồ sơ từ API" /> }}
-          />
-        </Card>
+        <WidgetErrorBoundary title="Hồ sơ toàn hệ thống - Cập nhật gần nhất">
+          <Card
+            className="ceo-card"
+            title="Hồ sơ toàn hệ thống - Cập nhật gần nhất"
+            extra={<Button type="link" href="/main/dossiers">Xem tất cả</Button>}
+          >
+            <Table
+              rowKey="id"
+              dataSource={latestDossiers}
+              columns={dossierColumns}
+              loading={isLoadingDossiers}
+              pagination={false}
+              className="ceo-table"
+              scroll={{ x: 930 }}
+              locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hồ sơ từ API" /> }}
+            />
+          </Card>
+        </WidgetErrorBoundary>
 
-        <Card className="ceo-card" title="Top khách hàng theo doanh thu">
-          {overview?.vipCustomers?.length ? (
-            <div className="space-y-1">
-              {overview.vipCustomers.map((customer, index) => (
-                <div key={`${customer.customerName}-${index}`} className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--ceo-divider)] py-3 last:border-0">
-                  <span className={`ceo-rank ceo-rank-${Math.min(index + 1, 3)}`}>{index + 1}</span>
-                  <span className="truncate text-sm font-semibold">{customer.customerName}</span>
-                  <span className="text-sm font-semibold text-[var(--ceo-primary-700)] [font-variant-numeric:tabular-nums]">{formatCompactCurrency(customer.spend)}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có doanh thu khách hàng từ API" />
-          )}
-        </Card>
+        <WidgetErrorBoundary title="Top khách hàng theo doanh thu">
+          <Card className="ceo-card" title="Top khách hàng theo doanh thu">
+            {overview?.vipCustomers?.length ? (
+              <div className="space-y-1">
+                {overview.vipCustomers.map((customer, index) => (
+                  <div key={`${customer.customerName}-${index}`} className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--ceo-divider)] py-3 last:border-0">
+                    <span className={`ceo-rank ceo-rank-${Math.min(index + 1, 3)}`}>{index + 1}</span>
+                    <span className="truncate text-sm font-semibold">{customer.customerName}</span>
+                    <span className="text-sm font-semibold text-[var(--ceo-primary-700)] [font-variant-numeric:tabular-nums]">{formatCompactCurrency(customer.spend)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có doanh thu khách hàng từ API" />
+            )}
+          </Card>
+        </WidgetErrorBoundary>
       </div>
+
     </div>
   );
 }
