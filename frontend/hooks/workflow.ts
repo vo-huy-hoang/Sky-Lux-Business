@@ -25,7 +25,8 @@ export function useWorkflowHistory(
 ) {
   return useQuery({
     queryKey: queryKeys.approvals.history(dossierId, params),
-    queryFn: () => workflowService.getWorkflowHistory(dossierId, params),
+    queryFn: ({ signal }) =>
+      workflowService.getWorkflowHistory(dossierId, params, { signal }),
     enabled: Boolean(dossierId) && (options?.enabled ?? true),
   });
 }
@@ -40,10 +41,12 @@ export function useApprovals(
 ) {
   return useQuery({
     queryKey: queryKeys.approvals.approvalsList(dossierId, params),
-    queryFn: () => workflowService.getApprovals(dossierId, params),
+    queryFn: ({ signal }) =>
+      workflowService.getApprovals(dossierId, params, { signal }),
     enabled: Boolean(dossierId) && (options?.enabled ?? true),
   });
 }
+
 
 interface WorkflowMutationVariables {
   dossierId: string;

@@ -32,14 +32,14 @@ const removeMessageFromCache = (messageId: string) => (old?: Message[]) => {
 export const useConversations = () => {
   return useQuery({
     queryKey: queryKeys.chat.conversations(),
-    queryFn: () => chatService.getConversations(),
+    queryFn: ({ signal }) => chatService.getConversations({ signal }),
   });
 };
 
 export const useConversationDetail = (id: string) => {
   return useQuery({
     queryKey: queryKeys.chat.conversation(id),
-    queryFn: () => chatService.getConversationDetail(id),
+    queryFn: ({ signal }) => chatService.getConversationDetail(id, { signal }),
     enabled: !!id,
   });
 };
@@ -47,10 +47,11 @@ export const useConversationDetail = (id: string) => {
 export const useConversationMessages = (id: string) => {
   return useQuery({
     queryKey: queryKeys.chat.messages(id),
-    queryFn: () => chatService.getConversationMessages(id),
+    queryFn: ({ signal }) => chatService.getConversationMessages(id, { signal }),
     enabled: !!id,
   });
 };
+
 
 export const useCreateConversation = () => {
   const queryClient = useQueryClient();
@@ -179,10 +180,11 @@ export const useSendMessage = (conversationId: string) => {
 export const useDossierConversation = (dossierId: string) => {
   return useQuery({
     queryKey: ['dossier-conversation', dossierId],
-    queryFn: () => chatService.getDossierConversation(dossierId),
+    queryFn: ({ signal }) => chatService.getDossierConversation(dossierId, { signal }),
     enabled: !!dossierId,
   });
 };
+
 
 export const useDeleteMessage = (conversationId: string) => {
   const queryClient = useQueryClient();
@@ -490,10 +492,11 @@ export const useChatRealtime = (conversationId?: string) => {
 export const useConversationParticipants = (conversationId: string) => {
   return useQuery({
     queryKey: queryKeys.chat.participants(conversationId),
-    queryFn: () => chatService.getParticipants(conversationId),
+    queryFn: ({ signal }) => chatService.getParticipants(conversationId, { signal }),
     enabled: !!conversationId,
   });
 };
+
 
 /**
  * Hook đánh dấu đã đọc tin nhắn trong cuộc hội thoại

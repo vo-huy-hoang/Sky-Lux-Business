@@ -14,7 +14,7 @@ import {
 export function useDossiersList(params?: QueryDossierParams) {
   return useQuery({
     queryKey: queryKeys.dossiers.list(params),
-    queryFn: () => dossiersService.getDossiers(params),
+    queryFn: ({ signal }) => dossiersService.getDossiers(params, { signal }),
   });
 }
 
@@ -24,7 +24,7 @@ export function useDossiersList(params?: QueryDossierParams) {
 export function useDossierDetail(id: string) {
   return useQuery({
     queryKey: queryKeys.dossiers.detail(id),
-    queryFn: () => dossiersService.getDossier(id),
+    queryFn: ({ signal }) => dossiersService.getDossier(id, { signal }),
     enabled: !!id,
   });
 }
@@ -54,10 +54,11 @@ export function useUpdateDossierMetadata() {
 export function useDossierComments(dossierId: string, params?: QueryCommentParams) {
   return useQuery({
     queryKey: queryKeys.dossiers.comments(dossierId, params),
-    queryFn: () => dossiersService.getDossierComments(dossierId, params),
+    queryFn: ({ signal }) => dossiersService.getDossierComments(dossierId, params, { signal }),
     enabled: !!dossierId,
   });
 }
+
 
 /**
  * Hook tạo bình luận cho hồ sơ tour (API-COMMENT-002)

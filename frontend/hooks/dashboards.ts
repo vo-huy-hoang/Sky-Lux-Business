@@ -9,7 +9,7 @@ import { QueryDashboardParams } from '@/types/dashboard';
 export function useSalesDashboard(params?: QueryDashboardParams, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.dashboards.sales(params),
-    queryFn: () => dashboardsService.getSalesDashboard(params),
+    queryFn: ({ signal }) => dashboardsService.getSalesDashboard(params, { signal }),
     ...options,
   });
 }
@@ -20,7 +20,7 @@ export function useSalesDashboard(params?: QueryDashboardParams, options?: { ena
 export function useOperatorDashboard(params?: QueryDashboardParams, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.dashboards.operator(params),
-    queryFn: () => dashboardsService.getOperatorDashboard(params),
+    queryFn: ({ signal }) => dashboardsService.getOperatorDashboard(params, { signal }),
     ...options,
   });
 }
@@ -31,7 +31,7 @@ export function useOperatorDashboard(params?: QueryDashboardParams, options?: { 
 export function useCeoDashboard(params?: QueryDashboardParams, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.dashboards.ceo(params),
-    queryFn: () => dashboardsService.getCeoDashboard(params),
+    queryFn: ({ signal }) => dashboardsService.getCeoDashboard(params, { signal }),
     ...options,
   });
 }
@@ -42,7 +42,7 @@ export function useCeoDashboard(params?: QueryDashboardParams, options?: { enabl
 export function useOperatorSalesSummary(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.dashboards.operatorSalesSummary(),
-    queryFn: () => dashboardsService.getOperatorSalesSummary(),
+    queryFn: ({ signal }) => dashboardsService.getOperatorSalesSummary({ signal }),
     ...options,
   });
 }
@@ -53,7 +53,7 @@ export function useOperatorSalesSummary(options?: { enabled?: boolean }) {
 export function useOperatorMonthlyTrend(months = 6, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.dashboards.operatorMonthlyTrend(),
-    queryFn: () => dashboardsService.getOperatorMonthlyTrend(months),
+    queryFn: ({ signal }) => dashboardsService.getOperatorMonthlyTrend(months, { signal }),
     ...options,
   });
 }
@@ -64,10 +64,11 @@ export function useOperatorMonthlyTrend(months = 6, options?: { enabled?: boolea
 export function useCeoMonthlyTrend(year = new Date().getFullYear(), options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.dashboards.ceoMonthlyTrend(year),
-    queryFn: () => dashboardsService.getCeoMonthlyTrend(year),
+    queryFn: ({ signal }) => dashboardsService.getCeoMonthlyTrend(year, { signal }),
     ...options,
   });
 }
+
 
 
 

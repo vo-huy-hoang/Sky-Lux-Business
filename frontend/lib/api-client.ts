@@ -24,6 +24,18 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
+export interface RequestOptions {
+  signal?: AbortSignal;
+}
+
+export const isCanceledError = (error: unknown): boolean => {
+  return (
+    axios.isCancel(error) ||
+    (error instanceof Error &&
+      (error.name === 'CanceledError' || error.name === 'AbortError'))
+  );
+};
+
 // Response Interceptor: Handle 401 and Token Refresh
 let isRefreshing = false;
 let failedQueue: Array<{
@@ -58,9 +70,15 @@ apiClient.interceptors.response.use(
     return response.data;
   },
   async (error: AxiosError) => {
+    // 1. Kiểm tra nếu request bị hủy chủ động (AbortController / CanceledError)
+    if (axios.isCancel(error)) {
+      return Promise.reject(error);
+    }
+
     const originalRequest = error.config as InternalAxiosRequestConfig & {
       _retry?: boolean;
     };
+
 
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       if (originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh')) {

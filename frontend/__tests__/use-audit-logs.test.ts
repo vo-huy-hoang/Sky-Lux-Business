@@ -58,7 +58,9 @@ describe('useAuditLogs hooks', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(mockResponse);
-    expect(auditLogsService.getAuditLogs).toHaveBeenCalledWith(params);
+    expect(auditLogsService.getAuditLogs).toHaveBeenCalledWith(params, {
+      signal: expect.anything(),
+    });
   });
 
   it('useAuditLogDetail fetches audit log detail (API-AUDIT-002)', async () => {
@@ -73,6 +75,9 @@ describe('useAuditLogs hooks', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(mockAuditLog);
-    expect(auditLogsService.getAuditLog).toHaveBeenCalledWith(logId);
+    expect(auditLogsService.getAuditLog).toHaveBeenCalledWith(logId, {
+      signal: expect.anything(),
+    });
   });
 });
+

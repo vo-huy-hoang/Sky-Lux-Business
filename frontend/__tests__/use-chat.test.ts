@@ -96,8 +96,10 @@ describe('useChat hooks', () => {
     expect(result.current.data).toEqual(mockMessages);
     expect(chatService.getConversationMessages).toHaveBeenCalledWith(
       conversationId,
+      { signal: expect.anything() },
     );
   });
+
 
   it('useSendMessage mutates and sends message', async () => {
     const sentMessage = {

@@ -1,4 +1,5 @@
-import { apiClient } from '@/lib/api-client';
+import { apiClient, RequestOptions } from '@/lib/api-client';
+
 import {
   WorkflowActionInput,
   WorkflowActionResult,
@@ -64,20 +65,29 @@ export const workflowService = {
   /**
    * API-WORKFLOW-008: Lấy lịch sử workflow
    */
-  getWorkflowHistory: (dossierId: string, params?: QueryWorkflowParams) => {
+  getWorkflowHistory: (
+    dossierId: string,
+    params?: QueryWorkflowParams,
+    options?: RequestOptions,
+  ) => {
     return apiClient.get<unknown, WorkflowHistoryResponse>(
       `/dossiers/${dossierId}/workflow-history`,
-      { params },
+      { params, signal: options?.signal },
     );
   },
 
   /**
    * API-WORKFLOW-009: Lấy danh sách approval của hồ sơ
    */
-  getApprovals: (dossierId: string, params?: QueryWorkflowParams) => {
+  getApprovals: (
+    dossierId: string,
+    params?: QueryWorkflowParams,
+    options?: RequestOptions,
+  ) => {
     return apiClient.get<unknown, ApprovalsResponse>(
       `/dossiers/${dossierId}/approvals`,
-      { params },
+      { params, signal: options?.signal },
     );
   },
 };
+
