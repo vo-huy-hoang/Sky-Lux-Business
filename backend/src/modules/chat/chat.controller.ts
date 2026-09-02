@@ -89,7 +89,12 @@ export class ChatController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: SendMessageDto,
   ): Promise<Message> {
-    return this.chatService.sendMessage(user, id, dto.content);
+    return this.chatService.sendMessage(
+      user,
+      id,
+      dto.content,
+      dto.clientMessageId,
+    );
   }
 
   @Delete('messages/:id')

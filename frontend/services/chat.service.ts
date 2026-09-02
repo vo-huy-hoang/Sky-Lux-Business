@@ -38,11 +38,15 @@ export const chatService = {
   },
 
   /**
-   * Gửi tin nhắn vào cuộc hội thoại
+   * Gửi tin nhắn vào cuộc hội thoại (Hỗ trợ clientMessageId chống gửi trùng)
    */
-  sendMessage: (id: string, content: string) => {
-    return apiClient.post<any, Message>(`/conversations/${id}/messages`, { content });
+  sendMessage: (id: string, content: string, clientMessageId?: string) => {
+    return apiClient.post<any, Message>(`/conversations/${id}/messages`, {
+      content,
+      clientMessageId,
+    });
   },
+
 
   /**
    * API-CHAT-004: Lấy cuộc hội thoại liên kết với hồ sơ tour

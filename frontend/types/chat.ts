@@ -35,6 +35,9 @@ export interface Message {
   content: string;
   createdAt: string;
   sender: ChatUser;
+  // Resilience & Optimistic UI
+  clientMessageId?: string;
+  status?: 'sending' | 'sent' | 'failed';
 }
 
 export interface CreateConversationPayload {
@@ -46,7 +49,9 @@ export interface CreateConversationPayload {
 
 export interface SendMessagePayload {
   content: string;
+  clientMessageId?: string;
 }
+
 
 export interface AddParticipantsPayload {
   userIds: string[];

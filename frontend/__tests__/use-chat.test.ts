@@ -118,6 +118,34 @@ describe('useChat hooks', () => {
     expect(chatService.sendMessage).toHaveBeenCalledWith(
       conversationId,
       'Báo giá đã hoàn tất!',
+      undefined,
+    );
+  });
+
+  it('useSendMessage passes clientMessageId for idempotency', async () => {
+    const conversationId = 'conv-uuid-123';
+    const sentMessage = {
+      id: 'msg-3',
+      content: 'Tin nhắn gửi lại',
+    };
+    (chatService.sendMessage as jest.Mock).mockResolvedValueOnce(sentMessage);
+
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useSendMessage(conversationId), {
+      wrapper: Wrapper,
+    });
+
+    result.current.mutate({
+      content: 'Tin nhắn gửi lại',
+      clientMessageId: 'cmid-custom-123',
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(chatService.sendMessage).toHaveBeenCalledWith(
+      conversationId,
+      'Tin nhắn gửi lại',
+      'cmid-custom-123',
     );
   });
 });
+

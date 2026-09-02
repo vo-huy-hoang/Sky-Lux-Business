@@ -25,7 +25,10 @@ import {
   SearchOutlined,
   SendOutlined,
   TeamOutlined,
+  LoadingOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
+
 import {
   useChatRealtime,
   useConversationMessages,
@@ -161,23 +164,23 @@ export default function MessagesPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, typingUsers]);
 
-  // Xử lý gửi tin nhắn
-  const handleSendMessage = () => {
-    const text = inputText.trim();
+  // Xử lý gửi tin nhắn (Optimistic: xóa ô nhập ngay lập tức 0ms)
+  const handleSendMessage = (overrideText?: string, clientMessageId?: string) => {
+    const text = typeof overrideText === 'string' ? overrideText.trim() : inputText.trim();
     if (!text || !effectiveConversationId) return;
 
-    sendMessageMutation.mutate(text, {
-      onSuccess: () => {
-        clearDraftMessage(effectiveConversationId);
-        if (effectiveConversationId) {
-          stopTypingMutation.mutate();
-        }
-      },
-      onError: () => {
-        message.error('Không thể gửi tin nhắn. Vui lòng thử lại.');
-      },
-    });
+    if (typeof overrideText !== 'string') {
+      clearDraftMessage(effectiveConversationId);
+    }
+
+    if (effectiveConversationId) {
+      stopTypingMutation.mutate();
+    }
+
+    sendMessageMutation.mutate({ content: text, clientMessageId });
   };
+
+
 
   // Xử lý gõ phím và lưu tin nhắn nháp tức thời vào Zustand Store
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -469,7 +472,7 @@ export default function MessagesPage() {
                         ) : null}
 
                         <div className="flex items-center gap-1.5">
-                          {isMe ? (
+                          {isMe && msg.status !== 'sending' ? (
                             <Button
                               type="text"
                               size="small"
@@ -481,23 +484,51 @@ export default function MessagesPage() {
                           ) : null}
 
                           <div
-                            className={`rounded-2xl px-4 py-2.5 shadow-sm text-sm leading-relaxed break-words ${
-                              isMe
-                                ? 'bg-[#007A55] text-white rounded-br-none'
-                                : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
+                            className={`rounded-2xl px-4 py-2.5 shadow-sm text-sm leading-relaxed break-words transition-all ${
+                              msg.status === 'failed'
+                                ? 'bg-rose-50 border border-rose-300 text-rose-800 rounded-br-none'
+                                : isMe
+                                  ? msg.status === 'sending'
+                                    ? 'bg-[#007A55]/75 text-white/95 rounded-br-none'
+                                    : 'bg-[#007A55] text-white rounded-br-none'
+                                  : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
                             }`}
                           >
                             <p className="whitespace-pre-wrap m-0">{msg.content}</p>
                           </div>
                         </div>
 
-                        <span
-                          className={`block text-[10px] text-slate-400 px-1 ${
-                            isMe ? 'text-right' : 'text-left'
+                        <div
+                          className={`flex items-center gap-2 px-1 text-[10px] text-slate-400 ${
+                            isMe ? 'justify-end' : 'justify-start'
                           }`}
                         >
-                          {formatMessageTime(msg.createdAt)}
-                        </span>
+                          <span>{formatMessageTime(msg.createdAt)}</span>
+                          {isMe && msg.status === 'sending' && (
+                            <Tooltip title="Đang gửi...">
+                              <span className="flex items-center text-amber-600 font-medium">
+                                <LoadingOutlined className="mr-0.5 text-[10px] animate-spin" />
+                                Đang gửi
+                              </span>
+                            </Tooltip>
+                          )}
+                          {isMe && msg.status === 'failed' && (
+                            <span className="flex items-center gap-1">
+                              <span className="text-rose-500 font-semibold">Chưa gửi</span>
+                              <Button
+                                type="link"
+                                size="small"
+                                danger
+                                icon={<ReloadOutlined className="text-[10px]" />}
+                                onClick={() => handleSendMessage(msg.content, msg.clientMessageId)}
+                                className="p-0 h-auto text-[10px] font-bold underline"
+                              >
+                                Thử lại
+                              </Button>
+                            </span>
+                          )}
+                        </div>
+
                       </div>
                     </div>
                   );
@@ -559,8 +590,9 @@ export default function MessagesPage() {
                     icon={<SendOutlined />}
                     disabled={!inputText.trim()}
                     loading={sendMessageMutation.isPending}
-                    onClick={handleSendMessage}
+                    onClick={() => handleSendMessage()}
                     className="bg-[#007A55] hover:bg-[#006646]"
+
                     aria-label="Gửi tin nhắn"
                   />
                 </Tooltip>

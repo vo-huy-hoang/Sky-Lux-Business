@@ -2,6 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Cookies from 'js-cookie';
 import { useUIStore } from '@/lib/stores/ui-store';
+import { useAuthStore } from '@/lib/stores/auth-store';
+import { useChatUIStore } from '@/lib/stores/chat-ui-store';
+
 
 import { chatService } from '@/services/chat.service';
 import { API_BASE_URL } from '@/lib/api-client';
@@ -60,22 +63,118 @@ export const useCreateConversation = () => {
   });
 };
 
+export interface SendMessageParams {
+  content: string;
+  clientMessageId?: string;
+}
+
 export const useSendMessage = (conversationId: string) => {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (content: string) =>
-      chatService.sendMessage(conversationId, content),
-    onSuccess: (newMessage) => {
-      // Cập nhật nóng tin nhắn mới vào lịch sử chat trong cache
+  const addFailedMessage = useChatUIStore((state) => state.addFailedMessage);
+  const removeFailedMessage = useChatUIStore((state) => state.removeFailedMessage);
+
+  return useMutation<
+    Message,
+    Error,
+    string | SendMessageParams,
+    { previousMessages?: Message[]; tempId: string; clientMessageId: string }
+  >({
+    mutationFn: (variables) => {
+      const content = typeof variables === 'string' ? variables : variables.content;
+      const clientMessageId = typeof variables === 'string' ? undefined : variables.clientMessageId;
+      return chatService.sendMessage(conversationId, content, clientMessageId);
+    },
+    onMutate: async (variables) => {
+      const content = typeof variables === 'string' ? variables : variables.content;
+      const clientMessageId =
+        (typeof variables !== 'string' && variables.clientMessageId) ||
+        (typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `cm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
+
+      // 1. Cancel bất kỳ refetch nào đang chạy để tránh đè lên bản ghi optimistic
+      await queryClient.cancelQueries({ queryKey: queryKeys.chat.messages(conversationId) });
+
+      // 2. Chụp snapshot cache hiện tại
+      const previousMessages = queryClient.getQueryData<Message[]>(
+        queryKeys.chat.messages(conversationId),
+      );
+
+      const currentUser = useAuthStore.getState().user;
+      const tempId = `temp-${clientMessageId}`;
+
+      const optimisticMessage: Message = {
+        id: tempId,
+        clientMessageId,
+        organizationId: currentUser?.organizationId || '',
+        conversationId,
+        senderId: currentUser?.id || '',
+        content,
+        createdAt: new Date().toISOString(),
+        sender: {
+          id: currentUser?.id || '',
+          fullName: currentUser?.fullName || 'Tôi',
+          email: currentUser?.email || '',
+          employeeCode: currentUser?.employeeCode || '',
+        },
+        status: 'sending',
+      };
+
+      // 3. Đưa tin nhắn vào cache ngay lập tức (0ms delay)
       queryClient.setQueryData<Message[]>(
         queryKeys.chat.messages(conversationId),
-        appendMessageToCache(newMessage),
+        (old = []) => [...old, optimisticMessage],
       );
-      // Invalidate danh sách hội thoại để sắp xếp lại theo tin nhắn mới nhất
+
+      return { previousMessages, tempId, clientMessageId };
+    },
+    onError: (_err, variables, context) => {
+      const content = typeof variables === 'string' ? variables : variables.content;
+      if (context?.clientMessageId) {
+        // Lưu vào hàng đợi tin lỗi trong Zustand
+        addFailedMessage({
+          clientMessageId: context.clientMessageId,
+          conversationId,
+          content,
+          failedAt: Date.now(),
+        });
+
+        // Đổi trạng thái tin nhắn trong cache sang 'failed'
+        queryClient.setQueryData<Message[]>(
+          queryKeys.chat.messages(conversationId),
+          (old = []) =>
+            old.map((msg) =>
+              msg.id === context.tempId || msg.clientMessageId === context.clientMessageId
+                ? { ...msg, status: 'failed' }
+                : msg,
+            ),
+        );
+      }
+    },
+    onSuccess: (savedMessage, _variables, context) => {
+      if (context?.clientMessageId) {
+        removeFailedMessage(context.clientMessageId);
+      }
+
+      // 4. Reconcile: Thay thế tin nhắn tạm bằng tin nhắn chính thức từ server
+      queryClient.setQueryData<Message[]>(
+        queryKeys.chat.messages(conversationId),
+        (old = []) => {
+          const withoutTemp = old.filter(
+            (msg) => msg.id !== context?.tempId && msg.clientMessageId !== context?.clientMessageId,
+          );
+          if (withoutTemp.some((msg) => msg.id === savedMessage.id)) {
+            return withoutTemp;
+          }
+          return [...withoutTemp, { ...savedMessage, status: 'sent' }];
+        },
+      );
+
       queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
     },
   });
 };
+
 
 export const useDossierConversation = (dossierId: string) => {
   return useQuery({
