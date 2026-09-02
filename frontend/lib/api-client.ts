@@ -60,11 +60,28 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & {
       _retry?: boolean;
+      _permissionRetry?: boolean;
     };
 
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+    const errorData = error.response?.data as any;
+    const isPermissionDenied =
+      error.response?.status === 403 &&
+      typeof errorData?.message === 'string' &&
+      errorData.message.includes('Missing required permissions');
+    const shouldRefreshToken =
+      error.response?.status === 401
+        ? Boolean(originalRequest && !originalRequest._retry)
+        : Boolean(isPermissionDenied && originalRequest && !originalRequest._permissionRetry);
+
+    if (shouldRefreshToken && originalRequest) {
       if (originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh')) {
         return Promise.reject(error);
+      }
+
+      if (isPermissionDenied) {
+        originalRequest._permissionRetry = true;
+      } else {
+        originalRequest._retry = true;
       }
 
       if (isRefreshing) {
@@ -80,7 +97,6 @@ apiClient.interceptors.response.use(
           .catch((err) => Promise.reject(err));
       }
 
-      originalRequest._retry = true;
       isRefreshing = true;
 
       const refreshToken = Cookies.get('refresh_token');
@@ -130,7 +146,6 @@ apiClient.interceptors.response.use(
     }
 
     // Extract error message from API response envelope
-    const errorData = error.response?.data as any;
     const errorMessage =
       errorData?.message ||
       errorData?.errors?.[0] ||

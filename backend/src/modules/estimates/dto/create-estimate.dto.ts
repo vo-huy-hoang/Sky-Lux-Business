@@ -129,6 +129,12 @@ export class CreateEstimateCostLineDto {
   @IsOptional()
   vatRate?: number = 0;
 
+  @ApiPropertyOptional({ description: 'Tổng tiền gốc từ file import, nếu có' })
+  @IsNumber({}, { message: 'Số tiền nguồn phải là số' })
+  @Min(0, { message: 'Số tiền nguồn không được âm' })
+  @IsOptional()
+  sourceAmount?: number;
+
   @ApiPropertyOptional({ description: 'Cơ sở tính giá' })
   @IsString()
   @MaxLength(50)

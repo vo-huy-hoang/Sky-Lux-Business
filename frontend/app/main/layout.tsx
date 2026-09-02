@@ -146,6 +146,12 @@ export default function MainLayout({
       if (pathname?.startsWith('/main/reports')) {
         return { title: 'Báo cáo', subtitle: 'Tạo và xuất các báo cáo quản trị dành cho CEO/Admin' };
       }
+      if (pathname?.includes('/edit-import')) {
+        return {
+          title: 'Chỉnh sửa dữ liệu nhập',
+          subtitle: 'Rà soát và hiệu chỉnh dữ liệu chi tiết dự toán đã import',
+        };
+      }
       if (pathname?.startsWith('/main/dossiers/')) {
         return { title: 'Chi tiết hồ sơ', subtitle: 'Xem dự toán và quy trình phê duyệt hồ sơ' };
       }
@@ -173,9 +179,15 @@ export default function MainLayout({
       if (pathname?.startsWith('/main/revenue')) {
         return { title: 'Doanh thu & thống kê', subtitle: 'Theo dõi số liệu vận hành theo hồ sơ và Sales' };
       }
+      if (pathname?.includes('/edit-import')) {
+        return { title: 'Chỉnh sửa dữ liệu nhập', subtitle: 'Rà soát và hiệu chỉnh dữ liệu chi tiết dự toán đã import' };
+      }
       if (pathname?.startsWith('/main/dossiers/')) {
         return { title: 'Chi tiết hồ sơ', subtitle: 'Kiểm tra dự toán, lịch sử xử lý và yêu cầu bổ sung' };
       }
+    }
+    if (pathname?.includes('/edit-import')) {
+      return { title: 'Chỉnh sửa dữ liệu nhập', subtitle: 'Rà soát và hiệu chỉnh dữ liệu chi tiết dự toán đã import' };
     }
     if (pathname?.startsWith('/main/dossiers')) {
       return {
@@ -200,6 +212,12 @@ export default function MainLayout({
     }
     if (pathname?.startsWith('/main/profile')) {
       return { title: 'Hồ sơ cá nhân', subtitle: 'Quản lý thông tin tài khoản và cài đặt' };
+    }
+    if (pathname?.startsWith('/main/customers/')) {
+      return {
+        title: 'Chi tiết khách hàng',
+        subtitle: 'Thông tin hồ sơ, danh sách liên hệ và lịch sử giao dịch',
+      };
     }
     if (pathname?.startsWith('/main/customers')) {
       return {

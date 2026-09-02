@@ -168,11 +168,16 @@ export class EstimatesService {
     });
 
     const processedCostLines = costLines.map((line) => {
-      const netAmount =
+      const calculatedNetAmount =
         Number(line.quantity || 1) *
         Number(line.multiplier || 1) *
         Number(line.unitPrice || 0);
-      const grossAmount = netAmount * (1 + Number(line.vatRate || 0) / 100);
+      const importedAmount = Number(line.sourceAmount);
+      const hasImportedAmount = Number.isFinite(importedAmount);
+      const netAmount = hasImportedAmount ? importedAmount : calculatedNetAmount;
+      const grossAmount = hasImportedAmount
+        ? importedAmount
+        : calculatedNetAmount * (1 + Number(line.vatRate || 0) / 100);
       return this.costLineRepository.create({
         ...line,
         organizationId,
@@ -284,11 +289,16 @@ export class EstimatesService {
 
       // Update or create input lines
       estimate.costLines = costLines.map((line) => {
-        const netAmount =
+        const calculatedNetAmount =
           Number(line.quantity || 1) *
           Number(line.multiplier || 1) *
           Number(line.unitPrice || 0);
-        const grossAmount = netAmount * (1 + Number(line.vatRate || 0) / 100);
+        const importedAmount = Number(line.sourceAmount);
+        const hasImportedAmount = Number.isFinite(importedAmount);
+        const netAmount = hasImportedAmount ? importedAmount : calculatedNetAmount;
+        const grossAmount = hasImportedAmount
+          ? importedAmount
+          : calculatedNetAmount * (1 + Number(line.vatRate || 0) / 100);
 
         if (line.id) {
           const existing = estimate.costLines.find((el) => el.id === line.id);

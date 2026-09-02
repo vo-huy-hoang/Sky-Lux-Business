@@ -58,6 +58,7 @@ export interface DossierItem {
     id: string;
     code: string;
     displayName: string;
+    taxCode?: string;
   };
   salesUser?: {
     id: string;
@@ -69,6 +70,12 @@ export interface DossierItem {
     fullName: string;
     email: string;
   };
+  estimates?: Array<{
+    id?: string;
+    totalRevenue?: number;
+    totalCost?: number;
+    netProfit?: number;
+  }>;
   createdAt: string;
   updatedAt: string;
 }

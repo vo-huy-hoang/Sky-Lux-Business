@@ -2,12 +2,12 @@
 
 import React, { useEffect } from 'react';
 import {
+  App,
   Modal,
   Form,
   Input,
   Select,
   Button,
-  message,
   Space,
   Typography,
 } from 'antd';
@@ -33,27 +33,26 @@ export const RowEditModal: React.FC<RowEditModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
 
   useEffect(() => {
-    if (row && visible) {
-      const raw = row.rawData || {};
-      form.setFieldsValue({
-        code: raw['Mã hồ sơ'] || raw.code || '',
-        name: raw['Tên hồ sơ'] || raw.name || '',
-        customerCode: raw['Mã khách hàng'] || raw.customerCode || '',
-        customerName: raw['Tên khách hàng'] || raw.customerName || '',
-        phone: raw['Số điện thoại'] || raw['Số ĐT'] || raw.phone || '',
-        email: raw['Email'] || raw.email || '',
-        dob: raw['Ngày sinh nhật'] || raw['Ngày sinh'] || raw.dateOfBirth || '',
-        startDate: raw['Ngày bắt đầu'] || raw.startDate || '',
-        endDate: raw['Ngày kết thúc'] || raw.endDate || '',
-        route: raw['Tuyến đường'] || raw.route || '',
-        priority: raw['Mức độ ưu tiên'] || raw.priority || 'MEDIUM',
-      });
-    } else {
-      form.resetFields();
-    }
+    if (!row || !visible) return;
+
+    const raw = row.rawData || {};
+    form.setFieldsValue({
+      code: raw['Mã hồ sơ'] || raw.code || '',
+      name: raw['Tên hồ sơ'] || raw.name || '',
+      customerCode: raw['Mã khách hàng'] || raw.customerCode || '',
+      customerName: raw['Tên khách hàng'] || raw.customerName || '',
+      phone: raw['Số điện thoại'] || raw['Số ĐT'] || raw.phone || '',
+      email: raw['Email'] || raw.email || '',
+      dob: raw['Ngày sinh nhật'] || raw['Ngày sinh'] || raw.dateOfBirth || '',
+      startDate: raw['Ngày bắt đầu'] || raw.startDate || '',
+      endDate: raw['Ngày kết thúc'] || raw.endDate || '',
+      route: raw['Tuyến đường'] || raw.route || '',
+      priority: raw['Mức độ ưu tiên'] || raw.priority || 'MEDIUM',
+    });
   }, [row, visible, form]);
 
   const updateMutation = useMutation({
@@ -118,7 +117,6 @@ export const RowEditModal: React.FC<RowEditModalProps> = ({
           Lưu & Validate lại
         </Button>,
       ]}
-      forceRender
       destroyOnHidden
     >
       <Form form={form} layout="vertical" style={{ marginTop: 16 }}>

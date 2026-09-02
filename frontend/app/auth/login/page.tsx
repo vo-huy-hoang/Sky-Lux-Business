@@ -8,7 +8,6 @@ import {
   Input,
   Button,
   Checkbox,
-  Typography,
   App,
   Divider,
   Spin,
@@ -19,38 +18,121 @@ import {
   EyeInvisibleOutlined,
   EyeTwoTone,
   ArrowRightOutlined,
-  LineChartOutlined,
-  GlobalOutlined,
-  SendOutlined,
+  RightOutlined,
 } from '@ant-design/icons';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { LoginResponse } from '@/types/auth';
-
-const { Title, Text } = Typography;
 
 function LoginLogo() {
   const [failed, setFailed] = useState(false);
 
   if (!failed) {
     return (
-      <Image
-        src="/logo/logo.png"
-        alt="SkyLux Travel"
-        width={178}
-        height={148}
-        className="h-[148px] w-[178px] object-contain"
-        onError={() => setFailed(true)}
-        unoptimized
-      />
+      <div className="relative h-[130px] w-[130px]">
+        <Image
+          src="/logo/logo.png"
+          alt="SkyLux Travel"
+          width={130}
+          height={130}
+          className="h-full w-full object-contain drop-shadow-md"
+          onError={() => setFailed(true)}
+          unoptimized
+          priority
+        />
+      </div>
     );
   }
 
   return (
-    <div className="flex h-[148px] w-[148px] items-center justify-center rounded-full border border-[#D6A51F]/80 text-center text-[#F0C020]">
+    <div className="flex h-[130px] w-[130px] items-center justify-center rounded-full border-2 border-[#D4AF37] bg-[#0A3324] text-center shadow-lg">
       <div>
-        <div className="text-2xl font-bold leading-none">SKYLUX</div>
-        <div className="mt-1 text-[11px] font-semibold">TRAVEL</div>
+        <div className="text-xl font-bold tracking-wider text-[#F0C020]">SKYLUX</div>
+        <div className="mt-0.5 text-[10px] font-semibold tracking-widest text-[#D4AF37]">
+          TRAVEL
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DashboardMockup() {
+  return (
+    <div className="relative mt-8 rounded-2xl border border-[#164E3A] bg-[#0A3425]/90 p-5 shadow-2xl backdrop-blur-md">
+      {/* Top window dots and header icons */}
+      <div className="flex items-center justify-between pb-3 border-b border-[#134935]/80">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#2A7558]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#2A7558]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#2A7558]" />
+        </div>
+        <div className="flex items-center gap-2 text-emerald-400/40">
+          <span className="h-2 w-2 rounded-full bg-emerald-400/50" />
+          <span className="h-4 w-4 rounded-full border border-emerald-400/30" />
+        </div>
+      </div>
+
+      {/* Middle dashboard contents */}
+      <div className="grid grid-cols-12 gap-3 py-4 items-center">
+        {/* Line chart widget */}
+        <div className="col-span-7 rounded-lg bg-[#07281C]/90 p-3 border border-[#124231]">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-medium text-emerald-300/60">Doanh thu tour</span>
+            <span className="text-[10px] font-bold text-emerald-400">+24.8%</span>
+          </div>
+          <svg viewBox="0 0 160 50" className="w-full h-10 overflow-visible">
+            <path
+              d="M 0,40 Q 30,35 50,22 T 100,28 T 150,8"
+              fill="none"
+              stroke="#10B981"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            />
+            <path
+              d="M 0,40 Q 30,35 50,22 T 100,28 T 150,8 L 150,50 L 0,50 Z"
+              fill="url(#greenGradient)"
+              opacity="0.25"
+            />
+            <defs>
+              <linearGradient id="greenGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#10B981" />
+                <stop offset="100%" stopColor="#10B981" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <circle cx="150" cy="8" r="3" fill="#34D399" />
+          </svg>
+        </div>
+
+        {/* Circular Progress & Metrics */}
+        <div className="col-span-5 flex flex-col gap-2">
+          <div className="rounded-lg bg-[#07281C]/90 p-2.5 border border-[#124231] flex items-center gap-2.5">
+            <div className="relative h-7 w-7 rounded-full border-2 border-emerald-500 flex items-center justify-center text-[9px] font-bold text-emerald-300">
+              78%
+            </div>
+            <div className="flex-1">
+              <div className="h-1.5 w-full rounded bg-emerald-950">
+                <div className="h-full w-[78%] rounded bg-emerald-500" />
+              </div>
+              <span className="text-[9px] text-emerald-300/60 mt-1 block">Chỉ tiêu KPI</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom 3 stat cards */}
+      <div className="grid grid-cols-3 gap-2.5 pt-1">
+        <div className="h-12 rounded-lg bg-[#07281C]/90 border border-[#124231] p-2 flex flex-col justify-center">
+          <span className="text-[9px] text-emerald-300/60 leading-none">Hồ sơ mới</span>
+          <span className="text-xs font-bold text-white mt-1">128</span>
+        </div>
+        <div className="h-12 rounded-lg bg-[#07281C]/90 border border-[#124231] p-2 flex flex-col justify-center">
+          <span className="text-[9px] text-emerald-300/60 leading-none">Khách hàng</span>
+          <span className="text-xs font-bold text-white mt-1">1,420</span>
+        </div>
+        <div className="h-12 rounded-lg bg-[#07281C]/90 border border-[#124231] p-2 flex flex-col justify-center">
+          <span className="text-[9px] text-emerald-300/60 leading-none">Tỷ lệ chốt</span>
+          <span className="text-xs font-bold text-emerald-400 mt-1">94.2%</span>
+        </div>
       </div>
     </div>
   );
@@ -88,14 +170,14 @@ function LoginForm() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[480px]">
-      <div className="mb-9">
-        <Title level={2} style={{ marginBottom: 10, color: '#003828' }}>
+    <div className="w-full max-w-[420px] mx-auto">
+      <div className="mb-8">
+        <h2 className="text-2xl md:text-[28px] font-bold text-[#06281B] tracking-tight mb-2">
           Đăng nhập hệ thống
-        </Title>
-        <Text style={{ color: '#6B7280', fontSize: 15 }}>
+        </h2>
+        <p className="text-slate-500 text-sm font-normal">
           Vui lòng nhập thông tin để tiếp tục
-        </Text>
+        </p>
       </div>
 
       <Form
@@ -104,81 +186,100 @@ function LoginForm() {
         initialValues={{ remember: true }}
         onFinish={handleSubmit}
         requiredMark={false}
-        size="large"
+        className="space-y-4"
       >
         <Form.Item
           name="email"
-          label={<span className="font-medium text-slate-900">Email</span>}
+          label={<span className="text-slate-700 text-sm font-medium">Email</span>}
           rules={[
-            { required: true, message: 'Vui lòng nhập email' },
+            { required: true, message: 'Vui lòng nhập email của bạn' },
             { type: 'email', message: 'Email không đúng định dạng' },
           ]}
+          className="mb-4"
         >
           <Input
-            prefix={<MailOutlined className="text-slate-400 mr-1" />}
+            prefix={<MailOutlined className="text-slate-400 mr-2 text-base" />}
             placeholder="Nhập email của bạn"
             autoComplete="email"
-            className="h-14 rounded-lg"
+            className="h-12 rounded-lg border-slate-200 hover:border-[#073323] focus:border-[#073323] text-sm text-slate-800 placeholder:text-slate-400 shadow-sm"
           />
         </Form.Item>
 
         <Form.Item
           name="password"
-          label={<span className="font-medium text-slate-900">Mật khẩu</span>}
+          label={<span className="text-slate-700 text-sm font-medium">Mật khẩu</span>}
           rules={[
             { required: true, message: 'Vui lòng nhập mật khẩu' },
             { min: 6, message: 'Mật khẩu tối thiểu 6 ký tự' },
           ]}
+          className="mb-4"
         >
           <Input.Password
-            prefix={<LockOutlined className="text-slate-400 mr-1" />}
+            prefix={<LockOutlined className="text-slate-400 mr-2 text-base" />}
             placeholder="Nhập mật khẩu"
             autoComplete="current-password"
-            className="h-14 rounded-lg"
+            className="h-12 rounded-lg border-slate-200 hover:border-[#073323] focus:border-[#073323] text-sm text-slate-800 placeholder:text-slate-400 shadow-sm"
             iconRender={(visible) =>
-              visible ? <EyeTwoTone twoToneColor="#9CA3AF" /> : <EyeInvisibleOutlined />
+              visible ? (
+                <EyeTwoTone twoToneColor="#10B981" />
+              ) : (
+                <EyeInvisibleOutlined className="text-slate-400" />
+              )
             }
           />
         </Form.Item>
 
-        <Form.Item name="remember" valuePropName="checked" className="mb-5">
-          <Checkbox className="text-sm text-slate-700">
-            Ghi nhớ đăng nhập
-          </Checkbox>
-        </Form.Item>
+        <div className="flex items-center justify-between pb-1">
+          <Form.Item name="remember" valuePropName="checked" noStyle>
+            <Checkbox className="text-slate-600 text-sm select-none">
+              Ghi nhớ đăng nhập
+            </Checkbox>
+          </Form.Item>
+        </div>
 
-        <Form.Item className="mb-6">
+        <Form.Item className="pt-2 mb-4">
           <Button
             type="primary"
             htmlType="submit"
             loading={loading}
             block
-            iconPlacement="end"
-            icon={!loading ? <ArrowRightOutlined /> : undefined}
-            className="skylux-primary-button h-14 text-base font-semibold"
+            className="h-12 rounded-lg bg-[#063826] hover:bg-[#084D34] active:bg-[#052C1E] border-none text-white font-semibold text-base shadow-md transition-all duration-200 flex items-center justify-center gap-2"
           >
-            {loading ? 'Đang xác thực...' : 'Đăng nhập'}
+            <span>{loading ? 'Đang xác thực...' : 'Đăng nhập'}</span>
+            {!loading && <ArrowRightOutlined className="text-sm" />}
           </Button>
         </Form.Item>
       </Form>
 
-      <Divider style={{ margin: '22px 0', borderColor: '#E8E8E8' }}>
-        <span className="text-sm text-slate-400">hoặc</span>
-      </Divider>
+      <div className="relative my-6 flex items-center justify-center">
+        <Divider className="my-0 border-slate-200">
+          <span className="text-slate-400 text-xs px-2 font-normal">hoặc</span>
+        </Divider>
+      </div>
 
-      <div className="flex items-center justify-between gap-4 text-sm font-medium">
+      <div className="flex items-center justify-between text-sm pt-1">
         <a
-          className="text-[#00543D] hover:text-[#007A55]"
+          className="text-[#074D34] hover:text-[#0A6B48] font-medium transition-colors"
           href="#"
           onClick={(e) => {
             e.preventDefault();
-            message.info('Vui lòng liên hệ Admin để đặt lại mật khẩu.');
+            message.info(
+              'Tài khoản demo: admin@skylux.vn / Admin@123456 hoặc sales@skylux.vn / Sales@123456',
+            );
           }}
         >
           Quên mật khẩu?
         </a>
-        <a className="inline-flex items-center gap-2 text-[#00543D] hover:text-[#007A55]" href="#">
-          Đăng ký tài khoản <ArrowRightOutlined />
+        <a
+          className="inline-flex items-center gap-1 text-[#074D34] hover:text-[#0A6B48] font-medium transition-colors"
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            message.info('Vui lòng liên hệ Quản trị viên để được cấp tài khoản nhân viên.');
+          }}
+        >
+          <span>Đăng ký tài khoản</span>
+          <RightOutlined className="text-[11px]" />
         </a>
       </div>
     </div>
@@ -187,60 +288,104 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-[#F8F8F8] px-5 py-8">
-      <div className="absolute inset-0 pointer-events-none opacity-[0.08]">
-        <div className="absolute -left-14 bottom-10 h-52 w-80 rounded-[50%] border border-[#003828]" />
-        <div className="absolute right-12 top-8 h-20 w-20 rounded-full border border-dashed border-[#003828]" />
-        <SendOutlined className="absolute bottom-24 left-[12%] rotate-[-18deg] text-6xl text-[#003828]" />
-        <GlobalOutlined className="absolute bottom-12 right-[10%] text-8xl text-[#003828]" />
+    <div className="relative flex min-h-[100dvh] items-center justify-center bg-[#F3F5F4] px-4 py-8 sm:px-6 lg:px-8">
+      {/* Background Travel Vector Watermarks */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-[0.04]">
+        <svg
+          className="absolute -top-24 -left-24 w-[600px] h-[600px] text-[#06281B]"
+          fill="none"
+          viewBox="0 0 400 400"
+        >
+          <circle cx="200" cy="200" r="180" stroke="currentColor" strokeWidth="2" strokeDasharray="6 6" />
+          <circle cx="200" cy="200" r="130" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M50 200 Q 200 80 350 200" stroke="currentColor" strokeWidth="2" strokeDasharray="8 8" />
+        </svg>
+        <svg
+          className="absolute -bottom-20 -right-20 w-[500px] h-[500px] text-[#06281B]"
+          fill="none"
+          viewBox="0 0 300 300"
+        >
+          <circle cx="150" cy="150" r="140" stroke="currentColor" strokeWidth="2" />
+          <circle cx="150" cy="150" r="90" stroke="currentColor" strokeWidth="1" strokeDasharray="4 4" />
+        </svg>
       </div>
 
-      <div className="skylux-card relative grid min-h-[720px] w-full max-w-[1400px] overflow-hidden bg-white md:grid-cols-[48%_52%]">
-        <div className="relative overflow-hidden bg-[linear-gradient(160deg,#003828,#003020)] px-8 py-10 text-white md:px-14 md:py-14">
-          <LoginLogo />
-
-          <div className="mt-10 max-w-[430px]">
-            <Text className="text-xl text-white/78">Chào mừng bạn đến với</Text>
-            <Title level={1} style={{ color: '#FFFFFF', margin: '8px 0 6px', fontSize: 40 }}>
-              SkyLux Travel
-            </Title>
-            <Text className="text-lg text-white/70">
-              Phần mềm quản trị nội bộ dành cho Sales
-            </Text>
-            <div className="mt-6 h-[2px] w-16 bg-[#D6A51F]" />
-            <p className="mt-7 text-[16px] leading-7 text-white/78">
-              Nền tảng quản lý toàn diện giúp đội ngũ Sales vận hành hiệu quả,
-              theo dõi doanh thu, xử lý khách hàng và chốt tour nhanh chóng.
-            </p>
+      {/* Main Login Card Wrapper */}
+      <div className="relative z-10 w-full max-w-[1240px] rounded-[28px] md:rounded-[36px] bg-white shadow-2xl shadow-emerald-950/10 border border-slate-100 overflow-hidden grid grid-cols-1 lg:grid-cols-[48%_52%] min-h-[680px]">
+        {/* Left Hero Banner */}
+        <div className="relative flex flex-col justify-between overflow-hidden bg-[#06281B] p-8 sm:p-10 md:p-12 lg:p-14 text-white">
+          {/* Subtle Ambient Background Watermarks inside the banner */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            {/* Airplane with dotted flight curve */}
+            <svg
+              className="absolute top-10 right-8 w-44 h-44 text-emerald-500/10"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
+            </svg>
+            {/* Globe latitude lines watermark */}
+            <svg
+              className="absolute -bottom-16 -right-16 w-80 h-80 text-emerald-400/[0.06]"
+              fill="none"
+              viewBox="0 0 200 200"
+            >
+              <circle cx="100" cy="100" r="90" stroke="currentColor" strokeWidth="2" />
+              <ellipse cx="100" cy="100" rx="90" ry="40" stroke="currentColor" strokeWidth="1.5" />
+              <line x1="10" y1="100" x2="190" y2="100" stroke="currentColor" strokeWidth="1.5" />
+              <line x1="100" y1="10" x2="100" y2="190" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
           </div>
 
-          <div className="absolute bottom-11 left-8 right-8 rounded-xl border border-white/12 bg-white/[0.05] p-6 text-white/35 md:left-14 md:right-14">
-            <div className="mb-5 flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-white/20" />
-              <span className="h-3 w-3 rounded-full bg-white/20" />
-              <span className="h-3 w-3 rounded-full bg-white/20" />
+          <div className="relative z-10">
+            {/* Logo */}
+            <LoginLogo />
+
+            {/* Headings */}
+            <div className="mt-8 sm:mt-10">
+              <span className="block text-sm sm:text-base font-normal text-[#78A996] tracking-wide mb-1">
+                Chào mừng bạn đến với
+              </span>
+              <h1 className="text-3xl sm:text-4xl md:text-[42px] font-bold text-white tracking-tight leading-tight mb-2 font-sans">
+                SkyLux Travel
+              </h1>
+              <p className="text-sm sm:text-base font-normal text-[#6CA08B] mb-0">
+                Phần mềm quản trị nội bộ dành cho Sales
+              </p>
+
+              {/* Golden Accent Line */}
+              <div className="h-[2.5px] w-14 bg-[#D4AF37] rounded-full my-5" />
+
+              {/* Description Paragraph */}
+              <p className="text-sm sm:text-[15px] font-normal leading-relaxed text-[#D2E3DC] max-w-[440px]">
+                Nền tảng quản lý toàn diện giúp đội ngũ Sales vận hành hiệu quả,
+                theo dõi doanh thu, xử lý khách hàng và chốt tour nhanh chóng.
+              </p>
             </div>
-            <LineChartOutlined className="text-7xl" />
-            <div className="mt-5 grid grid-cols-3 gap-3">
-              <div className="h-14 rounded-lg bg-white/10" />
-              <div className="h-14 rounded-lg bg-white/10" />
-              <div className="h-14 rounded-lg bg-white/10" />
-            </div>
+          </div>
+
+          {/* Interactive / Visual Dashboard Mockup Card */}
+          <div className="relative z-10 pt-4">
+            <DashboardMockup />
           </div>
         </div>
 
-        <div className="flex flex-col justify-center px-8 py-10 md:px-20">
-          <Suspense
-            fallback={
-              <div className="p-12 text-center">
-                <Spin size="large" />
-              </div>
-            }
-          >
-            <LoginForm />
-          </Suspense>
+        {/* Right Form Container */}
+        <div className="flex flex-col justify-between p-8 sm:p-10 md:p-14 lg:p-16 bg-white">
+          <div className="flex-1 flex items-center justify-center">
+            <Suspense
+              fallback={
+                <div className="p-12 text-center">
+                  <Spin size="large" />
+                </div>
+              }
+            >
+              <LoginForm />
+            </Suspense>
+          </div>
 
-          <div className="mt-24 flex items-center justify-between border-t border-[#E8E8E8] pt-8 text-xs text-slate-500">
+          {/* Bottom copyright and version */}
+          <div className="mt-12 flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 pt-6 text-xs text-slate-400 gap-2">
             <span>© 2025 SkyLux Travel. All rights reserved.</span>
             <span>Phiên bản 1.0.0</span>
           </div>

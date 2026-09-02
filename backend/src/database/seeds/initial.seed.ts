@@ -132,6 +132,7 @@ export async function runInitialSeed(dataSource: DataSource) {
     { code: 'estimate.create', name: 'Tạo dự toán', module: 'ESTIMATE' },
     { code: 'estimate.update', name: 'Sửa dự toán', module: 'ESTIMATE' },
     { code: 'estimate.view', name: 'Xem dự toán', module: 'ESTIMATE' },
+    { code: 'import.manage', name: 'Quản lý import Excel', module: 'IMPORT' },
 
     // Customers & Suppliers
     { code: 'customer.manage', name: 'Quản lý khách hàng', module: 'CRM' },
@@ -248,6 +249,7 @@ export async function runInitialSeed(dataSource: DataSource) {
         'estimate.create',
         'estimate.update',
         'estimate.view',
+        'import.manage',
         'customer.manage',
         'supplier.manage',
         'task.manage',
@@ -265,6 +267,7 @@ export async function runInitialSeed(dataSource: DataSource) {
         'dossier.update',
         'estimate.view',
         'estimate.update',
+        'import.manage',
         'supplier.manage',
         'task.manage',
         'chat.access',
