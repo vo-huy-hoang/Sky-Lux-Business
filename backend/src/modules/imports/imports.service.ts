@@ -297,7 +297,10 @@ export class ImportsService {
               email,
               dateOfBirth,
             });
-            customer = await transactionalEntityManager.save(Customer, customer);
+            customer = await transactionalEntityManager.save(
+              Customer,
+              customer,
+            );
           }
           resolvedCustomerId = customer.id;
         }
@@ -348,7 +351,8 @@ export class ImportsService {
                 PassengerType,
                 { where: { code: line.passengerTypeCode } },
               );
-              if (passengerType) passengerTypes.set(line.passengerTypeCode, passengerType.id);
+              if (passengerType)
+                passengerTypes.set(line.passengerTypeCode, passengerType.id);
             }
             if (!units.has(line.unitCode)) {
               const unit = await transactionalEntityManager.findOne(Unit, {
@@ -364,7 +368,10 @@ export class ImportsService {
                 { where: { code: line.serviceCategoryCode } },
               );
               if (serviceCategory) {
-                serviceCategories.set(line.serviceCategoryCode, serviceCategory.id);
+                serviceCategories.set(
+                  line.serviceCategoryCode,
+                  serviceCategory.id,
+                );
               }
             }
           }
@@ -398,7 +405,8 @@ export class ImportsService {
               Number(line.quantity || 1) *
               Number(line.multiplier || 1) *
               Number(line.unitPrice || 0);
-            const grossAmount = netAmount * (1 + Number(line.vatRate || 0) / 100);
+            const grossAmount =
+              netAmount * (1 + Number(line.vatRate || 0) / 100);
             await transactionalEntityManager.save(
               EstimateRevenueLine,
               transactionalEntityManager.create(EstimateRevenueLine, {
@@ -439,7 +447,9 @@ export class ImportsService {
               transactionalEntityManager.create(EstimateCostLine, {
                 organizationId,
                 estimateId: estimate.id,
-                serviceCategoryId: serviceCategories.get(line.serviceCategoryCode),
+                serviceCategoryId: serviceCategories.get(
+                  line.serviceCategoryCode,
+                ),
                 description: line.description,
                 quantity: line.quantity,
                 multiplier: line.multiplier,

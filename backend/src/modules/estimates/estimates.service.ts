@@ -174,7 +174,9 @@ export class EstimatesService {
         Number(line.unitPrice || 0);
       const importedAmount = Number(line.sourceAmount);
       const hasImportedAmount = Number.isFinite(importedAmount);
-      const netAmount = hasImportedAmount ? importedAmount : calculatedNetAmount;
+      const netAmount = hasImportedAmount
+        ? importedAmount
+        : calculatedNetAmount;
       const grossAmount = hasImportedAmount
         ? importedAmount
         : calculatedNetAmount * (1 + Number(line.vatRate || 0) / 100);
@@ -295,7 +297,9 @@ export class EstimatesService {
           Number(line.unitPrice || 0);
         const importedAmount = Number(line.sourceAmount);
         const hasImportedAmount = Number.isFinite(importedAmount);
-        const netAmount = hasImportedAmount ? importedAmount : calculatedNetAmount;
+        const netAmount = hasImportedAmount
+          ? importedAmount
+          : calculatedNetAmount;
         const grossAmount = hasImportedAmount
           ? importedAmount
           : calculatedNetAmount * (1 + Number(line.vatRate || 0) / 100);

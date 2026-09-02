@@ -634,7 +634,6 @@ export class DashboardsService {
   }
 
   private async getApprovedEstimates(
-
     organizationId: string,
     userId: string,
     start: string,

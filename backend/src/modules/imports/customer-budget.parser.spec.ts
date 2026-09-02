@@ -51,7 +51,10 @@ describe('customer-budget.parser', () => {
       G46: 900000,
     };
     for (const [address, value] of Object.entries(values)) {
-      sheet[address] = { v: value, t: value instanceof Date ? 'd' : typeof value === 'number' ? 'n' : 's' };
+      sheet[address] = {
+        v: value,
+        t: value instanceof Date ? 'd' : typeof value === 'number' ? 'n' : 's',
+      };
     }
     const workbook = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(workbook, sheet, 'DỰ TOÁN');

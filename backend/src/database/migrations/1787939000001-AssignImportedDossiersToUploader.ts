@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AssignImportedDossiersToUploader1787939000001
-  implements MigrationInterface
-{
+export class AssignImportedDossiersToUploader1787939000001 implements MigrationInterface {
   name = 'AssignImportedDossiersToUploader1787939000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

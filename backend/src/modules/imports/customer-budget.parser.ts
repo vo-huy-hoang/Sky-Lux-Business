@@ -50,7 +50,16 @@ export interface ParsedCustomerBudgetRow {
 }
 
 function text(value: unknown): string {
-  return value === undefined || value === null ? '' : String(value).trim();
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'string') return value.trim();
+  if (
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
+  ) {
+    return String(value).trim();
+  }
+  return '';
 }
 
 function number(value: unknown): number | undefined {
@@ -71,7 +80,8 @@ function dateValue(value: unknown): string {
   }
   const raw = text(value);
   const match = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
-  if (match) return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+  if (match)
+    return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
   return raw;
 }
 
@@ -84,9 +94,14 @@ function slug(value: string): string {
     .toUpperCase();
 }
 
-function parseDateRange(value: unknown): { startDate: string; endDate: string } {
+function parseDateRange(value: unknown): {
+  startDate: string;
+  endDate: string;
+} {
   const raw = text(value);
-  const match = raw.match(/^(\d{1,2})[/-](\d{1,2})\s*[-–]\s*(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  const match = raw.match(
+    /^(\d{1,2})[/-](\d{1,2})\s*[-–]\s*(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/,
+  );
   if (!match) return { startDate: '', endDate: '' };
   const [, startDay, startMonth, endDay, endMonth, year] = match;
   return {
@@ -95,7 +110,10 @@ function parseDateRange(value: unknown): { startDate: string; endDate: string } 
   };
 }
 
-function serviceCategoryCode(categoryName: string, description: string): string {
+function serviceCategoryCode(
+  categoryName: string,
+  description: string,
+): string {
   const value = `${categoryName} ${description}`.toUpperCase();
   if (value.includes('VÉ THAM QUAN')) return 'ENTRANCE_FEE';
   if (value.includes('KHÁCH SẠN')) return 'HOTEL';
@@ -111,7 +129,9 @@ function isCategoryMarker(value: unknown): boolean {
 }
 
 export function isCustomerBudgetWorkbook(workbook: xlsx.WorkBook): boolean {
-  const sheetName = workbook.SheetNames.find((name) => name.trim() === 'DỰ TOÁN');
+  const sheetName = workbook.SheetNames.find(
+    (name) => name.trim() === 'DỰ TOÁN',
+  );
   if (!sheetName) return false;
   const sheet = workbook.Sheets[sheetName];
   return (
@@ -120,8 +140,12 @@ export function isCustomerBudgetWorkbook(workbook: xlsx.WorkBook): boolean {
   );
 }
 
-export function parseCustomerBudgetWorkbook(workbook: xlsx.WorkBook): ParsedCustomerBudgetRow {
-  const sheetName = workbook.SheetNames.find((name) => name.trim() === 'DỰ TOÁN');
+export function parseCustomerBudgetWorkbook(
+  workbook: xlsx.WorkBook,
+): ParsedCustomerBudgetRow {
+  const sheetName = workbook.SheetNames.find(
+    (name) => name.trim() === 'DỰ TOÁN',
+  );
   if (!sheetName) throw new Error('Không tìm thấy sheet DỰ TOÁN');
   const sheet = workbook.Sheets[sheetName];
   const cell = (address: string): unknown => sheet[address]?.v;
@@ -139,21 +163,23 @@ export function parseCustomerBudgetWorkbook(workbook: xlsx.WorkBook): ParsedCust
     ['Trẻ em 50%', 'CHILD', 'C14', 'F14'],
     ['Trẻ em miễn phí', 'CHILD', 'C15', 'F15'],
   ] as const;
-  revenueDefinitions.forEach(([description, passengerTypeCode, quantityCell, priceCell], index) => {
-    const quantity = number(cell(quantityCell));
-    const unitPrice = number(cell(priceCell));
-    if (quantity !== undefined && unitPrice !== undefined) {
-      revenueLines.push({
-        description,
-        passengerTypeCode,
-        quantity,
-        unitCode: 'PAX',
-        unitPrice,
-        vatRate: 0,
-        sortOrder: index,
-      });
-    }
-  });
+  revenueDefinitions.forEach(
+    ([description, passengerTypeCode, quantityCell, priceCell], index) => {
+      const quantity = number(cell(quantityCell));
+      const unitPrice = number(cell(priceCell));
+      if (quantity !== undefined && unitPrice !== undefined) {
+        revenueLines.push({
+          description,
+          passengerTypeCode,
+          quantity,
+          unitCode: 'PAX',
+          unitPrice,
+          vatRate: 0,
+          sortOrder: index,
+        });
+      }
+    },
+  );
 
   const costLines: CustomerBudgetLine[] = [];
   let section: 'I' | 'II' = 'I';
@@ -182,14 +208,20 @@ export function parseCustomerBudgetWorkbook(workbook: xlsx.WorkBook): ParsedCust
       prefix.toUpperCase() === 'TỔNG CỘNG' ||
       description.toUpperCase() === 'TỔNG CỘNG' ||
       description.toUpperCase() === 'NỘI DUNG'
-    ) continue;
+    )
+      continue;
     if (unitPrice === undefined && sourceAmount === undefined) continue;
 
     const safeQuantity = quantity ?? 1;
     const safeMultiplier = multiplier ?? 1;
-    const safeUnitPrice = unitPrice ?? (sourceAmount ?? 0) / safeQuantity / safeMultiplier;
-    const amount = sourceAmount ?? safeQuantity * safeMultiplier * safeUnitPrice;
-    const noteParts = [supplierName && `Nhà cung cấp: ${supplierName}`, progress && `Tiến độ: ${progress}`].filter(Boolean);
+    const safeUnitPrice =
+      unitPrice ?? (sourceAmount ?? 0) / safeQuantity / safeMultiplier;
+    const amount =
+      sourceAmount ?? safeQuantity * safeMultiplier * safeUnitPrice;
+    const noteParts = [
+      supplierName && `Nhà cung cấp: ${supplierName}`,
+      progress && `Tiến độ: ${progress}`,
+    ].filter(Boolean);
     costLines.push({
       description: description || `${categoryName || 'Dịch vụ'} - dòng ${row}`,
       supplierName: supplierName || undefined,

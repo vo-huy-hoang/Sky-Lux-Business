@@ -340,7 +340,10 @@ export class CustomersService {
         const enrichedEstimates = item.estimates.map((est) => {
           const totalRev = (est.revenueLines || []).reduce((acc, line) => {
             const lineGross = Number(line.grossAmount) || 0;
-            const lineSubtotal = (Number(line.quantity) || 0) * (Number(line.multiplier) || 1) * (Number(line.unitPrice) || 0);
+            const lineSubtotal =
+              (Number(line.quantity) || 0) *
+              (Number(line.multiplier) || 1) *
+              (Number(line.unitPrice) || 0);
             return acc + (lineGross > 0 ? lineGross : lineSubtotal);
           }, 0);
           return {

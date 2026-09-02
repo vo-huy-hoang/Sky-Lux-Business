@@ -159,8 +159,7 @@ export class ImportProcessor extends WorkerHost {
       const errors: string[] = [];
       const data = row.rawData;
 
-      const isCustomerBudget =
-        data.__importFormat === CUSTOMER_BUDGET_FORMAT;
+      const isCustomerBudget = data.__importFormat === CUSTOMER_BUDGET_FORMAT;
 
       // 1. Basic validation rules for Dossier import
       const code = String(data[codeKey] || '').trim();

@@ -89,7 +89,8 @@ export class DashboardsController {
   @Get('ceo/monthly-trend')
   @RequirePermissions('dashboard.ceo')
   @ApiOperation({
-    summary: 'Xu hướng doanh thu, chi phí, lợi nhuận 12 tháng theo năm cho CEO (API-DASHBOARD-006)',
+    summary:
+      'Xu hướng doanh thu, chi phí, lợi nhuận 12 tháng theo năm cho CEO (API-DASHBOARD-006)',
   })
   @ApiResponse({
     status: 200,
@@ -119,4 +120,3 @@ export class DashboardsController {
     return this.dashboardsService.getCeoDashboard(organizationId, queryDto);
   }
 }
-
