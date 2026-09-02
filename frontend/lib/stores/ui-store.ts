@@ -12,7 +12,12 @@ export interface UIState {
   activeModalId: string | null;
   openModal: (modalId: string) => void;
   closeModal: () => void;
+  connectionStatus: 'connected' | 'reconnecting' | 'offline';
+  setConnectionStatus: (status: 'connected' | 'reconnecting' | 'offline') => void;
+  reconnectAttempt: number;
+  setReconnectAttempt: (attempt: number) => void;
 }
+
 
 export const useUIStore = create<UIState>()(
   persist(
@@ -30,9 +35,14 @@ export const useUIStore = create<UIState>()(
       activeModalId: null,
       openModal: (modalId: string) => set({ activeModalId: modalId }),
       closeModal: () => set({ activeModalId: null }),
+      connectionStatus: 'connected',
+      setConnectionStatus: (status) => set({ connectionStatus: status }),
+      reconnectAttempt: 0,
+      setReconnectAttempt: (attempt) => set({ reconnectAttempt: attempt }),
     }),
     {
       name: 'skylux-ui-storage',
+
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         sidebarCollapsed: state.sidebarCollapsed,

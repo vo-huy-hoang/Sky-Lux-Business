@@ -98,6 +98,9 @@ export default function MainLayout({
   const setSidebarCollapsed = useUIStore((state) => state.setSidebarCollapsed);
   const notificationsDrawerOpen = useUIStore((state) => state.notificationsDrawerOpen);
   const setNotificationsDrawerOpen = useUIStore((state) => state.setNotificationsDrawerOpen);
+  const connectionStatus = useUIStore((state) => state.connectionStatus);
+  const reconnectAttempt = useUIStore((state) => state.reconnectAttempt);
+
 
   const notifications = useNotificationStore((state) => state.notifications);
   const markAsRead = useNotificationStore((state) => state.markAsRead);
@@ -500,8 +503,22 @@ export default function MainLayout({
             </Dropdown>
           </Space>
         </Header>
+        {connectionStatus !== 'connected' && (
+          <div
+            className={`flex items-center justify-center gap-2 px-4 py-1.5 text-center text-xs font-semibold tracking-wide transition-all ${
+              connectionStatus === 'reconnecting'
+                ? 'bg-amber-500 text-white shadow-sm'
+                : 'bg-rose-600 text-white shadow-sm'
+            }`}
+          >
+            {connectionStatus === 'reconnecting'
+              ? `⚡ Đang kết nối lại hệ thống thời gian thực (lần thử #${reconnectAttempt})...`
+              : '⚠️ Đã mất kết nối mạng. Hệ thống sẽ tự động kết nối lại khi có mạng.'}
+          </div>
+        )}
 
         <Content className="skylux-content-shell overflow-y-auto bg-[var(--color-bg)]">
+
           <div className="mx-auto max-w-[1540px]">{children}</div>
         </Content>
 

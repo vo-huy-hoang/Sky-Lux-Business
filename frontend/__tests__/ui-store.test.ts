@@ -58,4 +58,23 @@ describe('useUIStore (Zustand Global UI Store)', () => {
     useUIStore.getState().closeModal();
     expect(useUIStore.getState().activeModalId).toBeNull();
   });
+
+  it('should manage connection status and reconnect attempts', () => {
+    expect(useUIStore.getState().connectionStatus).toBe('connected');
+    expect(useUIStore.getState().reconnectAttempt).toBe(0);
+
+    useUIStore.getState().setConnectionStatus('reconnecting');
+    useUIStore.getState().setReconnectAttempt(2);
+    expect(useUIStore.getState().connectionStatus).toBe('reconnecting');
+    expect(useUIStore.getState().reconnectAttempt).toBe(2);
+
+    useUIStore.getState().setConnectionStatus('offline');
+    expect(useUIStore.getState().connectionStatus).toBe('offline');
+
+    useUIStore.getState().setConnectionStatus('connected');
+    useUIStore.getState().setReconnectAttempt(0);
+    expect(useUIStore.getState().connectionStatus).toBe('connected');
+    expect(useUIStore.getState().reconnectAttempt).toBe(0);
+  });
 });
+

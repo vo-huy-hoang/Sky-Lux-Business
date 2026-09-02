@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Cookies from 'js-cookie';
+import { useUIStore } from '@/lib/stores/ui-store';
+
 import { chatService } from '@/services/chat.service';
 import { API_BASE_URL } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
@@ -100,13 +102,39 @@ export const useDeleteMessage = (conversationId: string) => {
 };
 
 /**
+
+ * Thuật toán Exponential Backoff with Full Jitter theo chuẩn AWS Architecture
+ * - Attempt 0: Fast Immediate Retry (0ms) cho sự cố giật mạng nhẹ.
+ * - Attempt >= 1: delay = random(0, min(maxDelay, baseDelay * 2^(attempt - 1)))
+ */
+export function calculateBackoffWithJitter(
+  attempt: number,
+  baseDelay = 500,
+  maxDelay = 5000,
+): number {
+  if (attempt <= 0) return 0;
+  const exponential = Math.min(maxDelay, baseDelay * Math.pow(2, attempt - 1));
+  return Math.floor(Math.random() * exponential);
+}
+
+/**
  * Custom Hook lắng nghe tin nhắn thời gian thực qua Server-Sent Events (SSE)
- * tự động cập nhật cache của TanStack Query khi có tin mới hoặc tin bị xóa
+ * tự động cập nhật cache của TanStack Query khi có tin mới hoặc tin bị xóa.
+ * Trang bị Exponential Backoff + Full Jitter và trạng thái phục hồi tự động qua Zustand.
  */
 export const useChatRealtime = (conversationId?: string) => {
   const queryClient = useQueryClient();
   const [typingUsers, setTypingUsers] = useState<{ userId: string; fullName: string; expiresAt: number }[]>([]);
   const [tokenTrigger, setTokenTrigger] = useState(Cookies.get('access_token') || '');
+
+  const attemptRef = useRef(0);
+  const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const connectRef = useRef<() => void>(() => {});
+
+  const setConnectionStatus = useUIStore((state) => state.setConnectionStatus);
+
+  const setReconnectAttempt = useUIStore((state) => state.setReconnectAttempt);
 
   // Synchronize token trigger state if cookies change
   useEffect(() => {
@@ -132,149 +160,230 @@ export const useChatRealtime = (conversationId?: string) => {
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (!conversationId) return;
+  const connect = useCallback(() => {
+    if (typeof window === 'undefined') return;
+
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
 
     const token = Cookies.get('access_token');
-    if (!token) return;
+    if (!token) {
+      setConnectionStatus('offline');
+      return;
+    }
 
-    // Khởi tạo luồng kết nối EventSource nhận tin nhắn mới
-    const eventSource = new EventSource(
-      `${API_BASE_URL}/conversations/stream?token=${token}`,
-    );
+    try {
+      // Khởi tạo luồng kết nối EventSource nhận tin nhắn mới
+      const eventSource = new EventSource(
+        `${API_BASE_URL}/conversations/stream?token=${token}`,
+      );
+      eventSourceRef.current = eventSource;
 
-    eventSource.onmessage = (event) => {
-      try {
-        const chatEvent = JSON.parse(event.data) as ChatEvent;
+      eventSource.onopen = () => {
+        attemptRef.current = 0;
+        setReconnectAttempt(0);
+        setConnectionStatus('connected');
+        queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
+      };
 
-        if (chatEvent.type === 'message.created') {
-          const newMessage = chatEvent.payload as Message;
-          // Chỉ cập nhật cache tin nhắn nếu tin thuộc cuộc hội thoại hiện tại đang xem
-          if (newMessage.conversationId === conversationId) {
-            queryClient.setQueryData<Message[]>(
-              ['conversation-messages', conversationId],
-              appendMessageToCache(newMessage),
-            );
+      eventSource.onmessage = (event) => {
+        try {
+          const chatEvent = JSON.parse(event.data) as ChatEvent;
+
+          if (chatEvent.type === 'message.created') {
+            const newMessage = chatEvent.payload as Message;
+            if (newMessage.conversationId === conversationId) {
+              queryClient.setQueryData<Message[]>(
+                ['conversation-messages', conversationId],
+                appendMessageToCache(newMessage),
+              );
+            }
+            queryClient.invalidateQueries({ queryKey: ['conversations'] });
+          } else if (chatEvent.type === 'message.deleted') {
+            const { id, conversationId: msgConversationId } = chatEvent.payload as {
+              id: string;
+              conversationId: string;
+            };
+            if (msgConversationId === conversationId) {
+              queryClient.setQueryData<Message[]>(
+                ['conversation-messages', conversationId],
+                removeMessageFromCache(id),
+              );
+            }
+            queryClient.invalidateQueries({ queryKey: ['conversations'] });
+          } else if (chatEvent.type === 'member.joined') {
+            const { conversationId: joinedConvId, member } = chatEvent.payload as {
+              conversationId: string;
+              member: ConversationMember;
+            };
+            if (joinedConvId === conversationId) {
+              queryClient.setQueryData<ConversationMember[]>(
+                ['conversation-participants', conversationId],
+                (old) => {
+                  if (!old) return [member];
+                  if (old.some((m) => m.id === member.id)) return old;
+                  return [...old, member];
+                },
+              );
+            }
+          } else if (chatEvent.type === 'member.left') {
+            const { conversationId: leftConvId, userId } = chatEvent.payload as {
+              conversationId: string;
+              userId: string;
+            };
+            if (leftConvId === conversationId) {
+              queryClient.setQueryData<ConversationMember[]>(
+                ['conversation-participants', conversationId],
+                (old) => {
+                  if (!old) return [];
+                  return old.filter((m) => m.userId !== userId);
+                },
+              );
+            }
+          } else if (chatEvent.type === 'message.read') {
+            const { conversationId: readConvId, userId, messageId, readAt } = chatEvent.payload as {
+              conversationId: string;
+              userId: string;
+              messageId: string;
+              readAt: string;
+            };
+            if (readConvId === conversationId) {
+              queryClient.setQueryData<ConversationMember[]>(
+                ['conversation-participants', conversationId],
+                (old) => {
+                  if (!old) return [];
+                  return old.map((m) =>
+                    m.userId === userId
+                      ? { ...m, lastReadMessageId: messageId, lastReadAt: readAt }
+                      : m,
+                  );
+                },
+              );
+            }
+          } else if (chatEvent.type === 'typing.start') {
+            const { conversationId: typingConvId, userId, fullName } = chatEvent.payload as {
+              conversationId: string;
+              userId: string;
+              fullName: string;
+            };
+            if (typingConvId === conversationId) {
+              setTypingUsers((prev) => {
+                const expiresAt = Date.now() + 6000;
+                const filtered = prev.filter((u) => u.userId !== userId);
+                return [...filtered, { userId, fullName, expiresAt }];
+              });
+            }
+          } else if (chatEvent.type === 'typing.stop') {
+            const { conversationId: typingConvId, userId } = chatEvent.payload as {
+              conversationId: string;
+              userId: string;
+            };
+            if (typingConvId === conversationId) {
+              setTypingUsers((prev) => prev.filter((u) => u.userId !== userId));
+            }
+          } else if (chatEvent.type === 'unread_count') {
+            queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
+          } else if (chatEvent.type === 'conversation.updated') {
+            queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
+            if ((chatEvent.payload as { conversationId: string })?.conversationId === conversationId) {
+              queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversation(conversationId) });
+            }
           }
-          // Float hội thoại có hoạt động mới lên trên cùng
-          queryClient.invalidateQueries({ queryKey: ['conversations'] });
-        } else if (chatEvent.type === 'message.deleted') {
-          const { id, conversationId: msgConversationId } = chatEvent.payload as {
-            id: string;
-            conversationId: string;
-          };
-          // Xóa tin nhắn khỏi cache nếu thuộc cuộc hội thoại hiện tại đang xem
-          if (msgConversationId === conversationId) {
-            queryClient.setQueryData<Message[]>(
-              ['conversation-messages', conversationId],
-              removeMessageFromCache(id),
-            );
-          }
-          // Cập nhật danh sách cuộc hội thoại để thay đổi preview tin nhắn cuối
-          queryClient.invalidateQueries({ queryKey: ['conversations'] });
-        } else if (chatEvent.type === 'member.joined') {
-          const { conversationId: joinedConvId, member } = chatEvent.payload as {
-            conversationId: string;
-            member: ConversationMember;
-          };
-          // Thêm thành viên mới vào danh sách cache nếu thuộc cuộc hội thoại đang xem
-          if (joinedConvId === conversationId) {
-            queryClient.setQueryData<ConversationMember[]>(
-              ['conversation-participants', conversationId],
-              (old) => {
-                if (!old) return [member];
-                if (old.some((m) => m.id === member.id)) return old;
-                return [...old, member];
-              },
-            );
-          }
-        } else if (chatEvent.type === 'member.left') {
-          const { conversationId: leftConvId, userId } = chatEvent.payload as {
-            conversationId: string;
-            userId: string;
-          };
-          // Xóa thành viên khỏi danh sách cache nếu thuộc cuộc hội thoại đang xem
-          if (leftConvId === conversationId) {
-            queryClient.setQueryData<ConversationMember[]>(
-              ['conversation-participants', conversationId],
-              (old) => {
-                if (!old) return [];
-                return old.filter((m) => m.userId !== userId);
-              },
-            );
-          }
-        } else if (chatEvent.type === 'message.read') {
-          const { conversationId: readConvId, userId, messageId, readAt } = chatEvent.payload as {
-            conversationId: string;
-            userId: string;
-            messageId: string;
-            readAt: string;
-          };
-          // Cập nhật trạng thái đã đọc của thành viên trong cache nếu thuộc cuộc hội thoại đang xem
-          if (readConvId === conversationId) {
-            queryClient.setQueryData<ConversationMember[]>(
-              ['conversation-participants', conversationId],
-              (old) => {
-                if (!old) return [];
-                return old.map((m) =>
-                  m.userId === userId
-                    ? { ...m, lastReadMessageId: messageId, lastReadAt: readAt }
-                    : m,
-                );
-              },
-            );
-          }
-        } else if (chatEvent.type === 'typing.start') {
-          const { conversationId: typingConvId, userId, fullName } = chatEvent.payload as {
-            conversationId: string;
-            userId: string;
-            fullName: string;
-          };
-          if (typingConvId === conversationId) {
-            setTypingUsers((prev) => {
-              const expiresAt = Date.now() + 6000; // Keep active for 6 seconds
-              const filtered = prev.filter((u) => u.userId !== userId);
-              return [...filtered, { userId, fullName, expiresAt }];
-            });
-          }
-        } else if (chatEvent.type === 'typing.stop') {
-          const { conversationId: typingConvId, userId } = chatEvent.payload as {
-            conversationId: string;
-            userId: string;
-          };
-          if (typingConvId === conversationId) {
-            setTypingUsers((prev) => prev.filter((u) => u.userId !== userId));
-          }
-        } else if (chatEvent.type === 'unread_count') {
-          // Invalidate cache thông báo tin nhắn chưa đọc
-          queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
-        } else if (chatEvent.type === 'conversation.updated') {
-          queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
-          if ((chatEvent.payload as { conversationId: string })?.conversationId === conversationId) {
-            queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversation(conversationId) });
-          }
+        } catch (err) {
+          console.error('Lỗi phân giải tin nhắn SSE:', err);
         }
-      } catch (err) {
-        console.error('Lỗi phân giải tin nhắn SSE:', err);
+      };
+
+      eventSource.onerror = () => {
+        eventSource.close();
+        eventSourceRef.current = null;
+
+        const currentToken = Cookies.get('access_token') || '';
+        if (currentToken && currentToken !== token) {
+          setTokenTrigger(currentToken);
+          return;
+        }
+
+        // Full Jitter Exponential Backoff
+        const nextAttempt = attemptRef.current + 1;
+        attemptRef.current = nextAttempt;
+        setReconnectAttempt(nextAttempt);
+        setConnectionStatus('reconnecting');
+
+        const delay = calculateBackoffWithJitter(nextAttempt);
+
+        if (retryTimerRef.current) {
+          clearTimeout(retryTimerRef.current);
+        }
+        retryTimerRef.current = setTimeout(() => {
+          connectRef.current();
+        }, delay);
+      };
+    } catch {
+      setConnectionStatus('reconnecting');
+    }
+  }, [conversationId, queryClient, setConnectionStatus, setReconnectAttempt]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
+
+  // Online / Offline System Event Listeners for Fast Recovery
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleOnline = () => {
+      // Mạng có lại: Lập tức reset attempt về 0 và thử kết nối lại ngay tức thì (0ms)
+      attemptRef.current = 0;
+      setReconnectAttempt(0);
+      setConnectionStatus('reconnecting');
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+      }
+      connectRef.current();
+    };
+
+    const handleOffline = () => {
+      setConnectionStatus('offline');
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
       }
     };
 
-    eventSource.onerror = () => {
-      const currentToken = Cookies.get('access_token') || '';
-      if (currentToken && currentToken !== token) {
-        setTokenTrigger(currentToken);
-      }
-    };
-
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
 
     return () => {
-      eventSource.close();
-      setTypingUsers([]); // Reset typing status on switching conversation or unmounting
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
-  }, [conversationId, queryClient, tokenTrigger]);
+  }, [setConnectionStatus, setReconnectAttempt]);
+
+  useEffect(() => {
+    connect();
+
+    return () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+      }
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      setTypingUsers([]);
+    };
+  }, [connect, tokenTrigger]);
+
 
   return { typingUsers };
 };
+
 
 /**
  * Hook lấy danh sách thành viên trong cuộc hội thoại
