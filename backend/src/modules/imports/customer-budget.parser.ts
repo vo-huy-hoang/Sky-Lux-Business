@@ -1,0 +1,232 @@
+import * as xlsx from 'xlsx';
+
+export const CUSTOMER_BUDGET_FORMAT = 'SKYLUX_CUSTOMER_BUDGET';
+
+export interface CustomerBudgetLine {
+  description: string;
+  supplierName?: string;
+  categoryName?: string;
+  serviceCategoryCode?: string;
+  quantity: number;
+  multiplier: number;
+  unitPrice: number;
+  vatRate: number;
+  sourceAmount: number;
+  note?: string;
+  sortOrder: number;
+}
+
+export interface ParsedCustomerBudgetRow {
+  'Mã hồ sơ': string;
+  'Tên hồ sơ': string;
+  'Mã khách hàng': string;
+  'Tên khách hàng': string;
+  'Số điện thoại': string;
+  Email: string;
+  'Ngày sinh nhật': string;
+  'Tuyến đường': string;
+  'Ngày bắt đầu': string;
+  'Ngày kết thúc': string;
+  'Mức độ ưu tiên': string;
+  __importFormat: typeof CUSTOMER_BUDGET_FORMAT;
+  __businessLineCode: string;
+  __marketTypeCode: string;
+  __revenueLines: Array<{
+    description: string;
+    passengerTypeCode: string;
+    quantity: number;
+    unitCode: string;
+    unitPrice: number;
+    vatRate: number;
+    sortOrder: number;
+  }>;
+  __costLines: CustomerBudgetLine[];
+  __sourceSummary: {
+    totalRevenue?: number;
+    totalCost?: number;
+    totalProfit?: number;
+    profitRate?: number;
+  };
+}
+
+function text(value: unknown): string {
+  return value === undefined || value === null ? '' : String(value).trim();
+}
+
+function number(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const parsed = Number(text(value).replace(/,/g, ''));
+  return Number.isFinite(parsed) && text(value) !== '' ? parsed : undefined;
+}
+
+function dateValue(value: unknown): string {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  if (typeof value === 'number') {
+    const parsed = xlsx.SSF.parse_date_code(value);
+    if (parsed) {
+      return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
+    }
+  }
+  const raw = text(value);
+  const match = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (match) return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+  return raw;
+}
+
+function slug(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toUpperCase();
+}
+
+function parseDateRange(value: unknown): { startDate: string; endDate: string } {
+  const raw = text(value);
+  const match = raw.match(/^(\d{1,2})[/-](\d{1,2})\s*[-–]\s*(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (!match) return { startDate: '', endDate: '' };
+  const [, startDay, startMonth, endDay, endMonth, year] = match;
+  return {
+    startDate: `${year}-${startMonth.padStart(2, '0')}-${startDay.padStart(2, '0')}`,
+    endDate: `${year}-${endMonth.padStart(2, '0')}-${endDay.padStart(2, '0')}`,
+  };
+}
+
+function serviceCategoryCode(categoryName: string, description: string): string {
+  const value = `${categoryName} ${description}`.toUpperCase();
+  if (value.includes('VÉ THAM QUAN')) return 'ENTRANCE_FEE';
+  if (value.includes('KHÁCH SẠN')) return 'HOTEL';
+  if (value.includes('ĂN UỐNG')) return 'RESTAURANT';
+  if (value.includes('VẬN CHUYỂN')) return 'TRANSPORT';
+  if (value.includes('HƯỚNG DẪN')) return 'GUIDE';
+  if (value.includes('BẢO HIỂM')) return 'VISA_INSURANCE';
+  return 'OTHER';
+}
+
+function isCategoryMarker(value: unknown): boolean {
+  return /^\d+\.\d+$/.test(text(value));
+}
+
+export function isCustomerBudgetWorkbook(workbook: xlsx.WorkBook): boolean {
+  const sheetName = workbook.SheetNames.find((name) => name.trim() === 'DỰ TOÁN');
+  if (!sheetName) return false;
+  const sheet = workbook.Sheets[sheetName];
+  return (
+    text(sheet.A9?.v).toUpperCase().includes('DỰ TRÙ') &&
+    text(sheet.A18?.v).toUpperCase() === 'STT'
+  );
+}
+
+export function parseCustomerBudgetWorkbook(workbook: xlsx.WorkBook): ParsedCustomerBudgetRow {
+  const sheetName = workbook.SheetNames.find((name) => name.trim() === 'DỰ TOÁN');
+  if (!sheetName) throw new Error('Không tìm thấy sheet DỰ TOÁN');
+  const sheet = workbook.Sheets[sheetName];
+  const cell = (address: string): unknown => sheet[address]?.v;
+  const title = text(cell('D9')) || text(cell('A9')) || 'Dự toán tour';
+  const { startDate, endDate } = parseDateRange(cell('F11'));
+  const startCode = startDate.replace(/-/g, '').slice(0, 8) || 'IMPORT';
+  const code = `IMP-${startCode}-${slug(title).slice(0, 30)}`.slice(0, 50);
+  const phoneRaw = text(cell('E10')).replace(/\D/g, '');
+  const phone = phoneRaw.length === 9 ? `0${phoneRaw}` : phoneRaw;
+
+  const revenueLines: ParsedCustomerBudgetRow['__revenueLines'] = [];
+  const revenueDefinitions = [
+    ['Người lớn', 'ADULT', 'C12', 'F12'],
+    ['Trẻ em 70%', 'CHILD', 'C13', 'F13'],
+    ['Trẻ em 50%', 'CHILD', 'C14', 'F14'],
+    ['Trẻ em miễn phí', 'CHILD', 'C15', 'F15'],
+  ] as const;
+  revenueDefinitions.forEach(([description, passengerTypeCode, quantityCell, priceCell], index) => {
+    const quantity = number(cell(quantityCell));
+    const unitPrice = number(cell(priceCell));
+    if (quantity !== undefined && unitPrice !== undefined) {
+      revenueLines.push({
+        description,
+        passengerTypeCode,
+        quantity,
+        unitCode: 'PAX',
+        unitPrice,
+        vatRate: 0,
+        sortOrder: index,
+      });
+    }
+  });
+
+  const costLines: CustomerBudgetLine[] = [];
+  let section: 'I' | 'II' = 'I';
+  let categoryName = '';
+  // Rows 52 onward contain totals/sign-off text, not cost line items.
+  for (let row = 20; row <= 51; row += 1) {
+    const prefix = text(cell(`A${row}`));
+    const description = text(cell(`B${row}`));
+    const supplierName = text(cell(`C${row}`));
+    const quantity = number(cell(`D${row}`));
+    const multiplier = number(cell(`E${row}`));
+    const unitPrice = number(cell(`F${row}`));
+    const sourceAmount = number(cell(`G${row}`));
+    const progress = text(cell(`H${row}`));
+
+    if (prefix === 'I' || prefix === 'II') {
+      section = prefix;
+      categoryName = '';
+      continue;
+    }
+    if (isCategoryMarker(prefix) && description) {
+      categoryName = description;
+      continue;
+    }
+    if (
+      prefix.toUpperCase() === 'TỔNG CỘNG' ||
+      description.toUpperCase() === 'TỔNG CỘNG' ||
+      description.toUpperCase() === 'NỘI DUNG'
+    ) continue;
+    if (unitPrice === undefined && sourceAmount === undefined) continue;
+
+    const safeQuantity = quantity ?? 1;
+    const safeMultiplier = multiplier ?? 1;
+    const safeUnitPrice = unitPrice ?? (sourceAmount ?? 0) / safeQuantity / safeMultiplier;
+    const amount = sourceAmount ?? safeQuantity * safeMultiplier * safeUnitPrice;
+    const noteParts = [supplierName && `Nhà cung cấp: ${supplierName}`, progress && `Tiến độ: ${progress}`].filter(Boolean);
+    costLines.push({
+      description: description || `${categoryName || 'Dịch vụ'} - dòng ${row}`,
+      supplierName: supplierName || undefined,
+      categoryName: categoryName || undefined,
+      serviceCategoryCode: serviceCategoryCode(categoryName, description),
+      quantity: safeQuantity,
+      multiplier: safeMultiplier,
+      unitPrice: safeUnitPrice,
+      vatRate: section === 'I' ? 10 : 0,
+      sourceAmount: amount,
+      note: noteParts.length > 0 ? noteParts.join('; ') : undefined,
+      sortOrder: costLines.length,
+    });
+  }
+
+  return {
+    'Mã hồ sơ': code,
+    'Tên hồ sơ': title,
+    'Mã khách hàng': '',
+    'Tên khách hàng': text(cell('C10')),
+    'Số điện thoại': phone,
+    Email: text(cell('G10')),
+    'Ngày sinh nhật': dateValue(cell('I10')),
+    'Tuyến đường': text(cell('C11')),
+    'Ngày bắt đầu': startDate,
+    'Ngày kết thúc': endDate,
+    'Mức độ ưu tiên': 'MEDIUM',
+    __importFormat: CUSTOMER_BUDGET_FORMAT,
+    __businessLineCode: 'TOUR_DOMESTIC',
+    __marketTypeCode: 'DOMESTIC',
+    __revenueLines: revenueLines,
+    __costLines: costLines,
+    __sourceSummary: {
+      totalRevenue: number(cell('C16')),
+      totalProfit: number(cell('C17')),
+      profitRate: number(cell('D17')),
+      totalCost: number(cell('G52')),
+    },
+  };
+}
