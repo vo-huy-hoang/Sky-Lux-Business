@@ -7,6 +7,9 @@ interface AuthState {
   user: UserProfile | null;
   accessToken: string | null;
   isAuthenticated: boolean;
+  lockoutSeconds: number;
+  setLockoutSeconds: (seconds: number) => void;
+  decrementLockoutSeconds: () => void;
   setAuth: (data: LoginResponse) => void;
   setUser: (user: UserProfile) => void;
   logout: () => void;
@@ -21,9 +24,14 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       accessToken: null,
       isAuthenticated: false,
+      lockoutSeconds: 0,
+      setLockoutSeconds: (seconds: number) => set({ lockoutSeconds: seconds }),
+      decrementLockoutSeconds: () =>
+        set((state) => ({ lockoutSeconds: Math.max(0, state.lockoutSeconds - 1) })),
 
       setAuth: (data: LoginResponse) => {
         const { accessToken, refreshToken, user } = data;
+
 
         // Save tokens in cookies for Next.js SSR middleware
         Cookies.set('access_token', accessToken, { expires: 1 });
@@ -85,7 +93,9 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         accessToken: state.accessToken,
         isAuthenticated: state.isAuthenticated,
+        lockoutSeconds: state.lockoutSeconds,
       }),
+
     },
   ),
 );

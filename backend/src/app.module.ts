@@ -41,10 +41,34 @@ import { DashboardsModule } from './modules/dashboards/dashboards.module';
 import { HealthModule } from './modules/health/health.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { RedisModule } from './common/redis/redis.module';
+import { RedisService } from './common/redis/redis.service';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from './common/throttler/throttler-storage-redis.service';
+import { CustomThrottlerGuard } from './common/throttler/custom-throttler.guard';
 
 @Module({
   imports: [
     RedisModule,
+    ThrottlerModule.forRootAsync({
+      imports: [RedisModule],
+      inject: [RedisService],
+      useFactory: (redisService: RedisService) => ({
+        throttlers: [
+          {
+            name: 'default',
+            ttl: 60000,
+            limit: 120,
+          },
+          {
+            name: 'auth',
+            ttl: 60000,
+            limit: 5,
+          },
+        ],
+        storage: new ThrottlerStorageRedisService(redisService),
+      }),
+    }),
+
     ConfigModule.forRoot({
       isGlobal: true,
       load: [databaseConfig, appConfig, redisConfig, storageConfig],
@@ -92,8 +116,13 @@ import { RedisModule } from './common/redis/redis.module';
     AppService,
     {
       provide: APP_GUARD,
+      useClass: CustomThrottlerGuard,
+    },
+    {
+      provide: APP_GUARD,
       useClass: JwtAuthGuard,
     },
+
     {
       provide: APP_GUARD,
       useClass: RolesGuard,

@@ -155,6 +155,15 @@ apiClient.interceptors.response.use(
       error.message ||
       'Đã xảy ra lỗi khi kết nối máy chủ';
 
-    return Promise.reject(new Error(errorMessage));
+    const customError: any = new Error(errorMessage);
+    customError.status = error.response?.status;
+    customError.response = error.response;
+    if (error.response?.status === 429) {
+      customError.isRateLimited = true;
+      customError.lockoutSeconds = errorData?.lockoutSeconds || 60;
+    }
+
+    return Promise.reject(customError);
   },
 );
+
