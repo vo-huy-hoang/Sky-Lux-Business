@@ -5,11 +5,12 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   Card,
   Input,
+  InputNumber,
   Select,
   Button,
   Skeleton,
   Empty,
-  message,
+  App,
 } from 'antd';
 import {
   FileExcelFilled,
@@ -34,11 +35,11 @@ function formatCurrency(amount?: number | string) {
   return new Intl.NumberFormat('vi-VN').format(isNaN(num) ? 0 : num);
 }
 
-function parseCurrency(str?: string | number) {
+function parseCurrency(str?: string | number | null) {
   if (typeof str === 'number') return str;
   if (!str) return 0;
-  const clean = str.replace(/[^\d.-]/g, '');
-  return parseFloat(clean) || 0;
+  const clean = String(str).replace(/\D/g, '');
+  return parseInt(clean, 10) || 0;
 }
 
 interface EditableRevenueRow {
@@ -72,6 +73,7 @@ interface EditableCostRow {
 }
 
 export default function EditImportDossierPage() {
+  const { message } = App.useApp();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -368,8 +370,8 @@ export default function EditImportDossierPage() {
   }, [costRows]);
 
   // Handlers for revenue row changes
-  const handleRevenuePriceChange = (id: string, newPriceStr: string) => {
-    const newPrice = parseCurrency(newPriceStr);
+  const handleRevenuePriceChange = (id: string, newPriceVal?: string | number | null) => {
+    const newPrice = typeof newPriceVal === 'number' ? newPriceVal : parseCurrency(newPriceVal);
     setEditedRevenue((prev) => ({
       ...prev,
       [id]: { ...(prev[id] || {}), unitPrice: newPrice },
@@ -397,8 +399,8 @@ export default function EditImportDossierPage() {
     }));
   };
 
-  const handleCostPriceChange = (id: string, newPriceStr: string) => {
-    const newPrice = parseCurrency(newPriceStr);
+  const handleCostPriceChange = (id: string, newPriceVal?: string | number | null) => {
+    const newPrice = typeof newPriceVal === 'number' ? newPriceVal : parseCurrency(newPriceVal);
     setEditedCost((prev) => ({
       ...prev,
       [id]: { ...(prev[id] || {}), unitPrice: newPrice, sourceAmount: undefined },
@@ -570,11 +572,14 @@ export default function EditImportDossierPage() {
                         <td className="py-2.5 px-2 text-center font-semibold text-slate-800">{row.quantity}</td>
                         <td className="py-2.5 px-2 text-center text-slate-500 font-medium">{row.unit}</td>
                         <td className="py-2.5 px-2 text-right">
-                          <Input
+                          <InputNumber<number>
                             size="small"
-                            value={formatCurrency(row.unitPrice)}
-                            onChange={(e) => handleRevenuePriceChange(row.id, e.target.value)}
-                            className={`text-right font-mono font-medium text-xs h-7 rounded-md ${
+                            value={row.unitPrice}
+                            onChange={(val) => handleRevenuePriceChange(row.id, val ?? 0)}
+                            formatter={(value) => (value !== undefined && value !== null ? `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '')}
+                            parser={(displayValue) => (displayValue ? Number(displayValue.replace(/\D/g, '')) : 0)}
+                            controls={false}
+                            className={`w-full text-right font-mono font-medium text-xs h-7 rounded-md [&_input]:text-right ${
                               isWarning
                                 ? 'border-amber-400 bg-amber-50/50 text-amber-900 focus:border-amber-500'
                                 : 'border-slate-200 text-slate-800'
@@ -697,11 +702,14 @@ export default function EditImportDossierPage() {
                         <td className="py-2.5 px-2 text-center font-semibold text-slate-800">{row.quantity}</td>
                         <td className="py-2.5 px-2 text-center text-slate-500 font-medium">{row.unit}</td>
                         <td className="py-2.5 px-2 text-right">
-                          <Input
+                          <InputNumber<number>
                             size="small"
-                            value={formatCurrency(row.unitPrice)}
-                            onChange={(e) => handleCostPriceChange(row.id, e.target.value)}
-                            className={`text-right font-mono font-medium text-xs h-7 rounded-md ${
+                            value={row.unitPrice}
+                            onChange={(val) => handleCostPriceChange(row.id, val ?? 0)}
+                            formatter={(value) => (value !== undefined && value !== null ? `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '')}
+                            parser={(displayValue) => (displayValue ? Number(displayValue.replace(/\D/g, '')) : 0)}
+                            controls={false}
+                            className={`w-full text-right font-mono font-medium text-xs h-7 rounded-md [&_input]:text-right ${
                               isError
                                 ? 'border-red-400 bg-white text-red-700'
                                 : isWarning

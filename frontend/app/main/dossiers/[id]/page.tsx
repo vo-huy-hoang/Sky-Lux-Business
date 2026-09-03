@@ -12,7 +12,7 @@ import {
   Breadcrumb,
   Empty,
   Skeleton,
-  message,
+  App,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -36,6 +36,7 @@ import { estimatesService } from '@/services/estimates.service';
 import { EstimateRevenueLine, EstimateCostLine, EstimateStatus } from '@/types/estimate';
 import DossierDocumentsTab from '@/components/documents/DossierDocumentsTab';
 import { DossierComments } from '../components/DossierComments';
+import DossierCostTable from '../components/DossierCostTable';
 
 function formatCurrency(amount?: number | string) {
   if (amount === undefined || amount === null) return '0 đ';
@@ -60,81 +61,76 @@ interface CostSummaryRow {
 }
 
 function CostSummaryTable({ rows }: { rows: CostSummaryRow[] }) {
-  const columns: ColumnsType<CostSummaryRow> = [
-    {
-      title: 'Tổng thu từ khách hàng',
-      dataIndex: 'label',
-      key: 'label',
-      width: 220,
-      render: (value: string, row) => (
-        <span className={row.key === 'total' ? 'font-bold text-slate-900' : 'font-semibold text-slate-800'}>
-          {value}
-        </span>
-      ),
-    },
-    {
-      title: 'Doanh thu',
-      dataIndex: 'customerRevenue',
-      key: 'customerRevenue',
-      align: 'right',
-      render: (value: number) => (value ? formatSummaryCurrency(value) : ''),
-    },
-    {
-      title: 'DT thuần',
-      dataIndex: 'netRevenue',
-      key: 'netRevenue',
-      align: 'right',
-      render: (value: number) => formatSummaryCurrency(value),
-    },
-    {
-      title: 'Chi phí',
-      dataIndex: 'cost',
-      key: 'cost',
-      align: 'right',
-      render: (value: number) => formatSummaryCurrency(value),
-    },
-    {
-      title: 'Chi phí thuần',
-      dataIndex: 'netCost',
-      key: 'netCost',
-      align: 'right',
-      render: (value: number) => formatSummaryCurrency(value),
-    },
-    {
-      title: 'Lãi Gộp',
-      dataIndex: 'grossProfit',
-      key: 'grossProfit',
-      align: 'right',
-      render: (value: number) => (
-        <span className={value < 0 ? 'text-red-600' : 'text-slate-900'}>
-          {formatSummaryCurrency(value)}
-        </span>
-      ),
-    },
-  ];
   const totalRow = rows.find((row) => row.key === 'total');
+  const marginPercent = totalRow && totalRow.netRevenue > 0
+    ? ((totalRow.grossProfit / totalRow.netRevenue) * 100).toFixed(1)
+    : '0.0';
 
   return (
-    <div className="border border-slate-100 rounded-2xl p-4 bg-white shadow-sm">
-      <h3 className="text-xs font-bold text-slate-900 pb-3 border-b border-slate-100 mb-3">
-        Tổng hợp doanh thu và lợi nhuận
-      </h3>
-      <Table
-        dataSource={rows}
-        columns={columns}
-        rowKey="key"
-        pagination={false}
-        size="small"
-        className="ceo-table ceo-excel-table"
-        scroll={{ x: 940 }}
-        rowClassName={(row) =>
-          row.key === 'total' ? 'bg-yellow-100 font-bold' : ''
-        }
-      />
-      <div className="mt-2 text-right text-sm font-bold text-red-600">
-        {totalRow && totalRow.netRevenue > 0
-          ? `${((totalRow.grossProfit / totalRow.netRevenue) * 100).toFixed(1)}%`
-          : '0.0%'}
+    <div className="border border-slate-200/90 rounded-2xl p-4 bg-white shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+        <h3 className="text-xs font-bold text-slate-900 mb-0 uppercase tracking-tight">
+          Tổng hợp doanh thu và lợi nhuận
+        </h3>
+        {totalRow && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-100/80 text-[11px] font-semibold">
+            <span className="text-slate-500">Tỷ suất lợi nhuận:</span>
+            <span className="font-mono font-extrabold text-xs text-rose-600">{marginPercent}%</span>
+          </div>
+        )}
+      </div>
+
+      <div className="w-full">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr className="bg-slate-50/90 text-slate-700 font-bold text-[11px] uppercase tracking-wider border-b border-slate-200">
+              <th className="py-2 px-2 text-left font-bold w-[22%]">Tổng thu từ KH</th>
+              <th className="py-2 px-2 text-right font-bold w-[15%]">Doanh thu</th>
+              <th className="py-2 px-2 text-right font-bold w-[15%]">DT thuần</th>
+              <th className="py-2 px-2 text-right font-bold w-[16%]">Chi phí</th>
+              <th className="py-2 px-2 text-right font-bold w-[16%]">Chi phí thuần</th>
+              <th className="py-2 px-2 text-right font-bold w-[16%]">Lãi Gộp</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-slate-800">
+            {rows.map((row) => {
+              const isTotal = row.key === 'total';
+              return (
+                <tr
+                  key={row.key}
+                  className={`transition-colors ${
+                    isTotal
+                      ? 'bg-amber-100/80 font-bold border-t-2 border-amber-300 text-slate-900'
+                      : 'hover:bg-slate-50/70 text-slate-700'
+                  }`}
+                >
+                  <td className="py-2.5 px-2">
+                    <span className={isTotal ? 'font-extrabold text-slate-900 uppercase text-xs' : 'font-semibold text-slate-800'}>
+                      {row.label}
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-2 text-right font-mono text-[11px] sm:text-xs">
+                    {row.customerRevenue ? formatSummaryCurrency(row.customerRevenue) : '-'}
+                  </td>
+                  <td className="py-2.5 px-2 text-right font-mono text-[11px] sm:text-xs">
+                    {formatSummaryCurrency(row.netRevenue)}
+                  </td>
+                  <td className="py-2.5 px-2 text-right font-mono text-[11px] sm:text-xs">
+                    {formatSummaryCurrency(row.cost)}
+                  </td>
+                  <td className="py-2.5 px-2 text-right font-mono text-[11px] sm:text-xs">
+                    {formatSummaryCurrency(row.netCost)}
+                  </td>
+                  <td className="py-2.5 px-2 text-right font-mono text-[11px] sm:text-xs">
+                    <span className={row.grossProfit < 0 ? 'text-red-600 font-semibold' : isTotal ? 'text-slate-950 font-extrabold' : 'text-slate-900 font-semibold'}>
+                      {formatSummaryCurrency(row.grossProfit)}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -190,6 +186,7 @@ const statusMap: Record<string, { label: string; color: string; bg: string }> = 
 };
 
 export default function DossierDetailPage() {
+  const { message } = App.useApp();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -328,103 +325,7 @@ export default function DossierDetailPage() {
     return revenueLines.reduce((sum, line) => sum + (Number(line.quantity) || 0), 0);
   }, [revenueLines]);
 
-  // Grouped Revenue by Passenger Type
-  const revenueByPaxType = useMemo(() => {
-    if (revenueLines.length === 0) {
-      return [
-        {
-          key: '1',
-          stt: 1,
-          paxType: 'Người lớn (Từ 11 tuổi trở lên)',
-          quantity: 40,
-          unitPrice: 18000000,
-          amount: 720000000,
-          note: '-',
-        },
-        {
-          key: '2',
-          stt: 2,
-          paxType: 'Trẻ em (Từ 2 - dưới 11 tuổi)',
-          quantity: 8,
-          unitPrice: 15000000,
-          amount: 120000000,
-          note: '-',
-        },
-        {
-          key: '3',
-          stt: 3,
-          paxType: 'Trẻ nhỏ (Dưới 2 tuổi)',
-          quantity: 2,
-          unitPrice: 3000000,
-          amount: 6000000,
-          note: '-',
-        },
-      ];
-    }
-    return revenueLines.map((line, idx) => {
-      const subtotal = (Number(line.quantity) || 0) * (Number(line.multiplier) || 1) * (Number(line.unitPrice) || 0);
-      const gross = Number(line.grossAmount) || subtotal;
-      return {
-        key: line.id || String(idx + 1),
-        stt: idx + 1,
-        paxType: line.passengerType?.name || line.description || `Hạng mục ${idx + 1}`,
-        quantity: Number(line.quantity) || 0,
-        unitPrice: Number(line.unitPrice) || 0,
-        amount: gross,
-        note: line.note || '-',
-      };
-    });
-  }, [revenueLines]);
-
-  // Columns for Table 1: Doanh thu theo khách đoàn / loại khách
-  const paxColumns: ColumnsType<any> = [
-    {
-      title: 'STT',
-      dataIndex: 'stt',
-      key: 'stt',
-      width: 60,
-      align: 'center',
-    },
-    {
-      title: 'Loại khách',
-      dataIndex: 'paxType',
-      key: 'paxType',
-      render: (text) => <span className="font-medium text-slate-800 text-xs">{text}</span>,
-    },
-    {
-      title: 'Số lượng',
-      dataIndex: 'quantity',
-      key: 'quantity',
-      width: 90,
-      align: 'center',
-      render: (val) => <span className="text-slate-700 text-xs font-semibold">{val}</span>,
-    },
-    {
-      title: 'Đơn giá (đ)',
-      dataIndex: 'unitPrice',
-      key: 'unitPrice',
-      width: 140,
-      align: 'right',
-      render: (val) => <span className="text-slate-700 text-xs font-mono">{formatCurrency(val)}</span>,
-    },
-    {
-      title: 'Thành tiền (đ)',
-      dataIndex: 'amount',
-      key: 'amount',
-      width: 160,
-      align: 'right',
-      render: (val) => <span className="text-slate-900 text-xs font-mono font-semibold">{formatCurrency(val)}</span>,
-    },
-    {
-      title: 'Ghi chú',
-      dataIndex: 'note',
-      key: 'note',
-      width: 120,
-      render: (note) => <span className="text-slate-400 text-xs">{note || '-'}</span>,
-    },
-  ];
-
-  // Columns for Table 2: Chi tiết doanh thu
+  // Columns for Table: Chi tiết doanh thu
   const detailRevenueColumns: ColumnsType<EstimateRevenueLine> = [
     {
       title: 'STT',
@@ -483,64 +384,7 @@ export default function DossierDetailPage() {
     },
   ];
 
-  // Columns for Table 3: Chi phí theo hạng mục
-  const costCategoryColumns: ColumnsType<EstimateCostLine> = [
-    {
-      title: 'STT',
-      key: 'stt',
-      width: 60,
-      align: 'center',
-      render: (_, __, idx) => idx + 1,
-    },
-    {
-      title: 'Hạng mục',
-      key: 'serviceCategory',
-      render: (_, record) => (
-        <span className="font-semibold text-slate-800 text-xs">
-          {record.serviceCategory?.name || record.description || 'Chi phí'}
-        </span>
-      ),
-    },
-    {
-      title: 'Diễn giải',
-      dataIndex: 'description',
-      key: 'description',
-      render: (text) => <span className="text-slate-600 text-xs">{text || '-'}</span>,
-    },
-    {
-      title: 'Đơn vị tính',
-      key: 'unit',
-      width: 100,
-      render: (_, record) => <span className="text-slate-600 text-xs">{record.unit?.name || 'Gói'}</span>,
-    },
-    {
-      title: 'Số lượng',
-      dataIndex: 'quantity',
-      key: 'quantity',
-      width: 90,
-      align: 'center',
-      render: (val) => <span className="text-slate-700 text-xs font-semibold">{val}</span>,
-    },
-    {
-      title: 'Đơn giá (đ)',
-      dataIndex: 'unitPrice',
-      key: 'unitPrice',
-      width: 140,
-      align: 'right',
-      render: (val) => <span className="text-slate-700 text-xs font-mono">{formatCurrency(val)}</span>,
-    },
-    {
-      title: 'Thành tiền (đ)',
-      key: 'grossAmount',
-      width: 160,
-      align: 'right',
-      render: (_, record) => {
-        const subtotal = (Number(record.quantity) || 0) * (Number(record.multiplier) || 1) * (Number(record.unitPrice) || 0);
-        const gross = Number(record.grossAmount) || subtotal;
-        return <span className="text-slate-900 text-xs font-mono font-semibold">{formatCurrency(gross)}</span>;
-      },
-    },
-  ];
+
 
   if (isLoadingDossier) {
     return (
@@ -784,52 +628,9 @@ export default function DossierDetailPage() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* Left Column: Revenue Tables (Span 8) */}
               <div className="lg:col-span-8 space-y-6">
-                {/* Table 1: Doanh thu theo khách đoàn / loại khách */}
+                {/* Bảng Doanh thu */}
                 <div className="border border-slate-100 rounded-2xl p-4 bg-white shadow-sm">
-                  <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-100">
-                    <h3 className="text-xs font-bold text-slate-900 mb-0">
-                      Doanh thu theo khách đoàn / loại khách
-                    </h3>
-                    <Button
-                      type="link"
-                      size="small"
-                      className="text-emerald-700 hover:text-emerald-800 font-semibold p-0 text-xs inline-flex items-center gap-1"
-                    >
-                      <span>Xem chi tiết</span>
-                      <ArrowRightOutlined className="text-[10px]" />
-                    </Button>
-                  </div>
-
-                  <Table
-                    dataSource={revenueByPaxType}
-                    columns={paxColumns}
-                    pagination={false}
-                    size="small"
-                    summary={() => (
-                      <Table.Summary fixed>
-                        <Table.Summary.Row className="bg-emerald-50/50 font-bold text-xs">
-                          <Table.Summary.Cell index={0} colSpan={2}>
-                            <span className="text-emerald-800 font-bold">TỔNG CỘNG</span>
-                          </Table.Summary.Cell>
-                          <Table.Summary.Cell index={2} align="center">
-                            <span className="text-emerald-800 font-bold">{totalPax || 50}</span>
-                          </Table.Summary.Cell>
-                          <Table.Summary.Cell index={3} />
-                          <Table.Summary.Cell index={4} align="right">
-                            <span className="text-emerald-800 font-bold font-mono">
-                              {formatCurrency(totalRevenue || 846000000)}
-                            </span>
-                          </Table.Summary.Cell>
-                          <Table.Summary.Cell index={5} />
-                        </Table.Summary.Row>
-                      </Table.Summary>
-                    )}
-                  />
-                </div>
-
-                {/* Table 2: Chi tiết doanh thu */}
-                <div className="border border-slate-100 rounded-2xl p-4 bg-white shadow-sm">
-                  <div className="pb-3 mb-2 border-b border-slate-100">
+                  <div className="pb-3 mb-2 border-b border-slate-100 flex items-center justify-between">
                     <h3 className="text-xs font-bold text-slate-900 mb-0">
                       Chi tiết doanh thu
                     </h3>
@@ -866,12 +667,12 @@ export default function DossierDetailPage() {
                             <span className="text-emerald-800 font-bold">TỔNG CỘNG</span>
                           </Table.Summary.Cell>
                           <Table.Summary.Cell index={4} align="center">
-                            <span className="text-emerald-800 font-bold">{totalPax || 50}</span>
+                            <span className="text-emerald-800 font-bold">{revenueLines.length > 0 ? totalPax : 50}</span>
                           </Table.Summary.Cell>
                           <Table.Summary.Cell index={5} />
                           <Table.Summary.Cell index={6} align="right">
                             <span className="text-emerald-800 font-bold font-mono">
-                              {formatCurrency(totalRevenue || 846000000)}
+                              {formatCurrency(revenueLines.length > 0 ? totalRevenue : 846000000)}
                             </span>
                           </Table.Summary.Cell>
                         </Table.Summary.Row>
@@ -883,122 +684,8 @@ export default function DossierDetailPage() {
                   </div>
                 </div>
 
-                {/* Table 3: Chi phí theo hạng mục */}
-                <div className="border border-slate-100 rounded-2xl p-4 bg-white shadow-sm">
-                  <div className="pb-3 mb-2 border-b border-slate-100">
-                    <h3 className="text-xs font-bold text-slate-900 mb-0">
-                      Chi phí theo hạng mục
-                    </h3>
-                  </div>
-
-                  <Table
-                    dataSource={costLines.length > 0 ? costLines : [
-                      {
-                        id: 'c1',
-                        organizationId: '',
-                        estimateId: '',
-                        description: '3 đêm Singapore + 2 đêm Kuala Lumpur',
-                        serviceCategory: { name: 'Khách sạn' },
-                        unit: { name: 'Phòng' },
-                        quantity: 25,
-                        multiplier: 1,
-                        unitPrice: 28900000,
-                        grossAmount: 700000000,
-                        netAmount: 700000000,
-                        vatRate: 0,
-                        sortOrder: 1,
-                        createdAt: '',
-                        updatedAt: '',
-                      } as EstimateCostLine,
-                      {
-                        id: 'c2',
-                        organizationId: '',
-                        estimateId: '',
-                        description: 'Theo chương trình',
-                        serviceCategory: { name: 'Ăn uống' },
-                        unit: { name: 'Khách' },
-                        quantity: 50,
-                        multiplier: 1,
-                        unitPrice: 3600000,
-                        grossAmount: 180000000,
-                        netAmount: 180000000,
-                        vatRate: 0,
-                        sortOrder: 2,
-                        createdAt: '',
-                        updatedAt: '',
-                      } as EstimateCostLine,
-                      {
-                        id: 'c3',
-                        organizationId: '',
-                        estimateId: '',
-                        description: 'Vé máy bay, xe đưa đón, phí đường bộ',
-                        serviceCategory: { name: 'Vận chuyển' },
-                        unit: { name: 'Khách' },
-                        quantity: 50,
-                        multiplier: 1,
-                        unitPrice: 3200000,
-                        grossAmount: 160000000,
-                        netAmount: 160000000,
-                        vatRate: 0,
-                        sortOrder: 3,
-                        createdAt: '',
-                        updatedAt: '',
-                      } as EstimateCostLine,
-                      {
-                        id: 'c4',
-                        organizationId: '',
-                        estimateId: '',
-                        description: 'Phòng tiệc + âm thanh + trang trí',
-                        serviceCategory: { name: 'Gala / Gala dinner' },
-                        unit: { name: 'Gói' },
-                        quantity: 1,
-                        multiplier: 1,
-                        unitPrice: 80000000,
-                        grossAmount: 80000000,
-                        netAmount: 80000000,
-                        vatRate: 0,
-                        sortOrder: 4,
-                        createdAt: '',
-                        updatedAt: '',
-                      } as EstimateCostLine,
-                      {
-                        id: 'c5',
-                        organizationId: '',
-                        estimateId: '',
-                        description: 'Tham quan theo chương trình',
-                        serviceCategory: { name: 'Vé tham quan' },
-                        unit: { name: 'Khách' },
-                        quantity: 50,
-                        multiplier: 1,
-                        unitPrice: 1300000,
-                        grossAmount: 65000000,
-                        netAmount: 65000000,
-                        vatRate: 0,
-                        sortOrder: 5,
-                        createdAt: '',
-                        updatedAt: '',
-                      } as EstimateCostLine,
-                    ]}
-                    columns={costCategoryColumns}
-                    rowKey="id"
-                    pagination={false}
-                    size="small"
-                    summary={() => (
-                      <Table.Summary fixed>
-                        <Table.Summary.Row className="bg-emerald-50/50 font-bold text-xs">
-                          <Table.Summary.Cell index={0} colSpan={6}>
-                            <span className="text-emerald-800 font-bold">TỔNG CỘNG</span>
-                          </Table.Summary.Cell>
-                          <Table.Summary.Cell index={6} align="right">
-                            <span className="text-emerald-800 font-bold font-mono">
-                              {formatCurrency(totalCost || 1185000000)}
-                            </span>
-                          </Table.Summary.Cell>
-                        </Table.Summary.Row>
-                      </Table.Summary>
-                    )}
-                  />
-                </div>
+                {/* Table 3: Chi phí theo hạng mục - Chuẩn Excel 1908 */}
+                <DossierCostTable costLines={costLines} />
                 <CostSummaryTable rows={costSummaryRows} />
               </div>
 
@@ -1147,32 +834,7 @@ export default function DossierDetailPage() {
           {/* TAB 3: CHI PHÍ */}
           {activeTab === 'cost' && (
             <div className="space-y-4">
-              <div className="border border-slate-100 rounded-2xl p-4 bg-white shadow-sm">
-                <h3 className="text-xs font-bold text-slate-900 pb-3 border-b border-slate-100 mb-3">
-                  Bảng kê chi tiết chi phí dịch vụ
-                </h3>
-                <Table
-                  dataSource={costLines}
-                  columns={costCategoryColumns}
-                  rowKey="id"
-                  pagination={false}
-                  size="small"
-                  summary={() => (
-                    <Table.Summary fixed>
-                      <Table.Summary.Row className="bg-emerald-50/50 font-bold text-xs">
-                        <Table.Summary.Cell index={0} colSpan={6}>
-                          <span className="text-emerald-800 font-bold">TỔNG CHI PHÍ</span>
-                        </Table.Summary.Cell>
-                        <Table.Summary.Cell index={6} align="right">
-                          <span className="text-emerald-800 font-bold font-mono">
-                            {formatCurrency(totalCost)}
-                          </span>
-                        </Table.Summary.Cell>
-                      </Table.Summary.Row>
-                    </Table.Summary>
-                  )}
-                />
-              </div>
+              <DossierCostTable costLines={costLines} />
               <CostSummaryTable rows={costSummaryRows} />
             </div>
           )}
