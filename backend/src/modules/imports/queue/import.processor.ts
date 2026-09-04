@@ -227,38 +227,6 @@ export class ImportProcessor extends WorkerHost {
         errors.push(`${customerNameKey} không được để trống`);
       }
 
-      // Check customer exist in organization
-      let customer: Customer | null = null;
-      if (customerCode) {
-        customer = await this.customerRepository.findOne({
-          where: { code: customerCode, organizationId: session.organizationId },
-        });
-        if (!customer) {
-          errors.push(
-            `Không tìm thấy khách hàng có mã "${customerCode}" trong hệ thống`,
-          );
-        }
-      } else if (isCustomerBudget) {
-        if (email) {
-          customer = await this.customerRepository.findOne({
-            where: { email, organizationId: session.organizationId },
-          });
-        }
-        if (!customer && phone) {
-          customer = await this.customerRepository.findOne({
-            where: { phone, organizationId: session.organizationId },
-          });
-        }
-        if (!customer && customerName) {
-          customer = await this.customerRepository.findOne({
-            where: {
-              displayName: customerName,
-              organizationId: session.organizationId,
-            },
-          });
-        }
-      }
-
       // Customer fields validation
       if (email && !emailRegex.test(email)) {
         errors.push(`${emailKey} không đúng định dạng email`);
@@ -306,6 +274,25 @@ export class ImportProcessor extends WorkerHost {
               `Không thể tự động tạo mới khách hàng "${customerCode}": ${createErr?.message || 'Lỗi lưu dữ liệu'}`,
             );
           }
+        }
+      } else if (isCustomerBudget) {
+        if (email) {
+          customer = await this.customerRepository.findOne({
+            where: { email, organizationId: session.organizationId },
+          });
+        }
+        if (!customer && phone) {
+          customer = await this.customerRepository.findOne({
+            where: { phone, organizationId: session.organizationId },
+          });
+        }
+        if (!customer && customerName) {
+          customer = await this.customerRepository.findOne({
+            where: {
+              displayName: customerName,
+              organizationId: session.organizationId,
+            },
+          });
         }
       }
 
@@ -365,7 +352,9 @@ export class ImportProcessor extends WorkerHost {
             ? new Date(endDate).toISOString().slice(0, 10)
             : undefined,
           priority: data[priorityKey] || 'MEDIUM',
-          ...(customerName ? { customerName: sanitizeCellValue(customerName) } : {}),
+          ...(customerName
+            ? { customerName: sanitizeCellValue(customerName) }
+            : {}),
           ...(phone ? { phone: sanitizeCellValue(phone) } : {}),
           ...(email ? { email: sanitizeCellValue(email) } : {}),
           ...(dob && !isNaN(Date.parse(dob))

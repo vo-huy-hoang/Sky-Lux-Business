@@ -625,7 +625,8 @@ export async function runInitialSeed(dataSource: DataSource) {
       phone: '02439749999',
       email: 'info@vingroup.net',
       taxCode: '0101245486',
-      address: 'Số 7 Đường Bằng Lăng 1, KĐT Vinhomes Riverside, Long Biên, Hà Nội',
+      address:
+        'Số 7 Đường Bằng Lăng 1, KĐT Vinhomes Riverside, Long Biên, Hà Nội',
     },
     {
       code: 'KH-LE-001',
@@ -674,10 +675,18 @@ export async function runInitialSeed(dataSource: DataSource) {
   const revLineRepo = dataSource.getRepository(EstimateRevenueLine);
   const costLineRepo = dataSource.getRepository(EstimateCostLine);
 
-  const sales1 = await userRepo.findOne({ where: { email: 'sales@skylux.vn' } });
-  const sales2 = await userRepo.findOne({ where: { email: 'sales2@skylux.vn' } });
-  const sales3 = await userRepo.findOne({ where: { email: 'sales3@skylux.vn' } });
-  const operatorUser = await userRepo.findOne({ where: { email: 'operator@skylux.vn' } });
+  const sales1 = await userRepo.findOne({
+    where: { email: 'sales@skylux.vn' },
+  });
+  const sales2 = await userRepo.findOne({
+    where: { email: 'sales2@skylux.vn' },
+  });
+  const sales3 = await userRepo.findOne({
+    where: { email: 'sales3@skylux.vn' },
+  });
+  const operatorUser = await userRepo.findOne({
+    where: { email: 'operator@skylux.vn' },
+  });
 
   const inboundBL = await blRepo.findOne({ where: { code: 'TOUR_INBOUND' } });
   const domesticBL = await blRepo.findOne({ where: { code: 'TOUR_DOMESTIC' } });

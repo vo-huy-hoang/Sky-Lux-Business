@@ -369,7 +369,8 @@ export class DossiersService {
     if (this.notificationsService) {
       try {
         const linkUrl = `/main/dossiers/${dossierId}`;
-        const snippet = content.length > 80 ? `${content.slice(0, 80)}...` : content;
+        const snippet =
+          content.length > 80 ? `${content.slice(0, 80)}...` : content;
         const notifiedUserIds = new Set<string>();
 
         if (createCommentDto.parentId) {
@@ -393,8 +394,11 @@ export class DossiersService {
           }
         }
 
-        const stakeholders = [dossier.salesUserId, dossier.operatorUserId].filter(
-          (id): id is string => Boolean(id && id !== user.id && !notifiedUserIds.has(id)),
+        const stakeholders = [
+          dossier.salesUserId,
+          dossier.operatorUserId,
+        ].filter((id): id is string =>
+          Boolean(id && id !== user.id && !notifiedUserIds.has(id)),
         );
         for (const targetId of stakeholders) {
           await this.notificationsService.notify({
@@ -408,7 +412,9 @@ export class DossiersService {
           });
         }
       } catch (err) {
-        this.logger.error(`Lỗi gửi thông báo bình luận hồ sơ ${dossierId}: ${err?.message}`);
+        this.logger.error(
+          `Lỗi gửi thông báo bình luận hồ sơ ${dossierId}: ${err?.message}`,
+        );
       }
     }
 

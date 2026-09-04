@@ -62,7 +62,9 @@ describe('TasksService', () => {
   };
 
   const mockDataSource = {
-    transaction: jest.fn().mockImplementation((cb) => cb({ save: jest.fn((e) => e) })),
+    transaction: jest
+      .fn()
+      .mockImplementation((cb) => cb({ save: jest.fn((e) => e) })),
   };
 
   beforeEach(async () => {
@@ -95,6 +97,8 @@ describe('TasksService', () => {
           useValue: {
             notify: jest.fn().mockResolvedValue({}),
           },
+        },
+        {
           provide: RedisService,
           useValue: mockRedisService,
         },

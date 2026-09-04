@@ -26,7 +26,8 @@ export interface SendNotificationPayload {
 }
 
 export interface NotificationEvent {
-  type: 'notification.created' | 'notification.read' | 'notification.unread_count';
+  type:
+    'notification.created' | 'notification.read' | 'notification.unread_count';
   organizationId: string;
   userId: string;
   data: any;
@@ -256,10 +257,13 @@ export class NotificationsService {
       .createQueryBuilder()
       .update(Notification)
       .set({ isRead: true, readAt: new Date() })
-      .where('organizationId = :organizationId AND userId = :userId AND isRead = false', {
-        organizationId: user.organizationId,
-        userId: user.id,
-      })
+      .where(
+        'organizationId = :organizationId AND userId = :userId AND isRead = false',
+        {
+          organizationId: user.organizationId,
+          userId: user.id,
+        },
+      )
       .execute();
 
     const updatedCount = result.affected || 0;
@@ -309,8 +313,7 @@ export class NotificationsService {
     return this.notificationEvent$.asObservable().pipe(
       filter(
         (evt) =>
-          evt.organizationId === user.organizationId &&
-          evt.userId === user.id,
+          evt.organizationId === user.organizationId && evt.userId === user.id,
       ),
       map((evt) => ({
         data: {

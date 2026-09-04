@@ -420,7 +420,11 @@ describe('DocumentsService', () => {
       ]);
 
       const queryDto = { page: 1, limit: 10 };
-      const result = await service.findVersions(mockUser, 'doc-uuid-1', queryDto);
+      const result = await service.findVersions(
+        mockUser,
+        'doc-uuid-1',
+        queryDto,
+      );
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0].objectKey).toBeUndefined();
@@ -463,7 +467,7 @@ describe('DocumentsService', () => {
 
       expect(storageService.uploadFile).toHaveBeenCalled();
       expect(dataSource.transaction).toHaveBeenCalled();
-      
+
       // We don't check docVerRepo.save directly anymore since it runs inside the transaction via manager.save
       // But we can check that document's versionNo was updated before being returned
       expect(result.versionNo).toBe(2);

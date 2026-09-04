@@ -55,7 +55,9 @@ describe('Tasks Module (Integration)', () => {
   };
 
   const mockDataSource = {
-    transaction: jest.fn().mockImplementation((cb) => cb({ save: jest.fn((e) => e) })),
+    transaction: jest
+      .fn()
+      .mockImplementation((cb) => cb({ save: jest.fn((e) => e) })),
   };
 
   beforeEach(async () => {

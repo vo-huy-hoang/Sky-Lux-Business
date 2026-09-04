@@ -18,7 +18,9 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
    * - Throttler 'auth' (limit: 5) chỉ được phép chạy trên các route có gắn @Throttle({ auth: ... })
    * - Các route nghiệp vụ thông thường (Dashboard, Dossiers, Tasks,...) tự động bỏ qua 'auth' và dùng 'default' (120 req/phút)
    */
-  protected async handleRequest(requestProps: ThrottlerRequest): Promise<boolean> {
+  protected async handleRequest(
+    requestProps: ThrottlerRequest,
+  ): Promise<boolean> {
     const { context, throttler } = requestProps;
 
     if (throttler.name === 'auth') {
@@ -38,7 +40,7 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
     return super.handleRequest(requestProps);
   }
 
-  protected async getTracker(req: Record<string, any>): Promise<string> {
+  protected getTracker(req: Record<string, any>): Promise<string> {
     const rawForwarded = req.headers?.['x-forwarded-for'];
     const forwardedIp = Array.isArray(rawForwarded)
       ? rawForwarded[0]
@@ -59,25 +61,33 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
       : '';
 
     if (email) {
-      return `${ip}:${email}`;
+      return Promise.resolve(`${ip}:${email}`);
     }
 
-    return ip;
+    return Promise.resolve(ip);
   }
 
-  protected async getErrorMessage(
+  protected getErrorMessage(
     _context: ExecutionContext,
     throttlerLimitDetail: ThrottlerLimitDetail,
   ): Promise<string> {
-    const seconds = Math.max(1, Math.ceil(throttlerLimitDetail.timeToExpire / 1000));
-    return `Bạn đã thao tác quá nhiều lần. Vui lòng thử lại sau ${seconds} giây.`;
+    const seconds = Math.max(
+      1,
+      Math.ceil(throttlerLimitDetail.timeToExpire / 1000),
+    );
+    return Promise.resolve(
+      `Bạn đã thao tác quá nhiều lần. Vui lòng thử lại sau ${seconds} giây.`,
+    );
   }
 
   protected async throwThrottlingException(
     context: ExecutionContext,
     throttlerLimitDetail: ThrottlerLimitDetail,
   ): Promise<void> {
-    const seconds = Math.max(1, Math.ceil(throttlerLimitDetail.timeToExpire / 1000));
+    const seconds = Math.max(
+      1,
+      Math.ceil(throttlerLimitDetail.timeToExpire / 1000),
+    );
     const message = await this.getErrorMessage(context, throttlerLimitDetail);
 
     throw new HttpException(

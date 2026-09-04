@@ -35,8 +35,14 @@ describe('NotificationsService', () => {
   } as unknown as Notification;
 
   const mockRepository = {
-    create: jest.fn().mockImplementation((dto) => ({ ...dto, id: 'notif-uuid-1' })),
-    save: jest.fn().mockImplementation((item) => Promise.resolve({ ...item, id: item.id || 'notif-uuid-1' })),
+    create: jest
+      .fn()
+      .mockImplementation((dto) => ({ ...dto, id: 'notif-uuid-1' })),
+    save: jest
+      .fn()
+      .mockImplementation((item) =>
+        Promise.resolve({ ...item, id: item.id || 'notif-uuid-1' }),
+      ),
     findOne: jest.fn(),
     count: jest.fn().mockResolvedValue(1),
     remove: jest.fn().mockResolvedValue(undefined),
@@ -66,7 +72,9 @@ describe('NotificationsService', () => {
   describe('notify', () => {
     it('should save notification and emit created + unread_count events', async () => {
       const events: any[] = [];
-      const sub = service.notificationEvent$.subscribe((evt) => events.push(evt));
+      const sub = service.notificationEvent$.subscribe((evt) =>
+        events.push(evt),
+      );
 
       const result = await service.notify({
         organizationId: 'org-uuid-1',
@@ -100,15 +108,26 @@ describe('NotificationsService', () => {
       };
       mockRepository.createQueryBuilder.mockReturnValue(qb);
 
-      const res = await service.findAll(mockUser, { page: 1, limit: 10, isRead: false, type: 'DOSSIER' });
+      const res = await service.findAll(mockUser, {
+        page: 1,
+        limit: 10,
+        isRead: false,
+        type: 'DOSSIER',
+      });
 
       expect(res.items.length).toBe(1);
       expect(res.total).toBe(1);
       expect(res.totalPages).toBe(1);
-      expect(qb.where).toHaveBeenCalledWith('notification.organizationId = :organizationId', {
-        organizationId: mockUser.organizationId,
-      });
-      expect(qb.andWhere).toHaveBeenCalledWith('notification.userId = :userId', { userId: mockUser.id });
+      expect(qb.where).toHaveBeenCalledWith(
+        'notification.organizationId = :organizationId',
+        {
+          organizationId: mockUser.organizationId,
+        },
+      );
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'notification.userId = :userId',
+        { userId: mockUser.id },
+      );
     });
   });
 
@@ -153,7 +172,9 @@ describe('NotificationsService', () => {
       mockRepository.count.mockResolvedValue(0);
 
       const events: any[] = [];
-      const sub = service.notificationEvent$.subscribe((evt) => events.push(evt));
+      const sub = service.notificationEvent$.subscribe((evt) =>
+        events.push(evt),
+      );
 
       const res = await service.markAsRead('notif-uuid-1', mockUser);
 
@@ -178,7 +199,9 @@ describe('NotificationsService', () => {
       mockRepository.createQueryBuilder.mockReturnValue(qb);
 
       const events: any[] = [];
-      const sub = service.notificationEvent$.subscribe((evt) => events.push(evt));
+      const sub = service.notificationEvent$.subscribe((evt) =>
+        events.push(evt),
+      );
 
       const res = await service.markAllAsRead(mockUser);
 
@@ -197,7 +220,9 @@ describe('NotificationsService', () => {
       mockRepository.count.mockResolvedValue(0);
 
       const events: any[] = [];
-      const sub = service.notificationEvent$.subscribe((evt) => events.push(evt));
+      const sub = service.notificationEvent$.subscribe((evt) =>
+        events.push(evt),
+      );
 
       await service.remove('notif-uuid-1', mockUser);
 

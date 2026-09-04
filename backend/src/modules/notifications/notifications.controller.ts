@@ -40,7 +40,8 @@ export class NotificationsController {
   @Public()
   @UseGuards(JwtQueryAuthGuard)
   @ApiOperation({
-    summary: 'Mở kết nối Server-Sent Events (SSE) nhận thông báo thời gian thực',
+    summary:
+      'Mở kết nối Server-Sent Events (SSE) nhận thông báo thời gian thực',
   })
   @ApiResponse({ status: 200, description: 'Luồng dữ liệu EventSource' })
   streamNotifications(

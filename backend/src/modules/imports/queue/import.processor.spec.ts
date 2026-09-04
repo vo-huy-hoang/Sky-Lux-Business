@@ -289,7 +289,9 @@ describe('ImportProcessor', () => {
 
       expect(errorRepository.save).toHaveBeenCalled();
       const savedErrors = errorRepository.save.mock.calls[0][0];
-      expect(savedErrors.some((e: any) => e.errorMessage.includes('bị trùng lặp'))).toBe(true);
+      expect(
+        savedErrors.some((e: any) => e.errorMessage.includes('bị trùng lặp')),
+      ).toBe(true);
     });
 
     it('should reject invalid date range when endDate is before startDate', async () => {
@@ -321,7 +323,11 @@ describe('ImportProcessor', () => {
 
       expect(errorRepository.save).toHaveBeenCalled();
       const savedErrors = errorRepository.save.mock.calls[0][0];
-      expect(savedErrors.some((e: any) => e.errorMessage.includes('không thể trước'))).toBe(true);
+      expect(
+        savedErrors.some((e: any) =>
+          e.errorMessage.includes('không thể trước'),
+        ),
+      ).toBe(true);
     });
 
     it('should sanitize formula injection values starting with =, +, -, @', async () => {

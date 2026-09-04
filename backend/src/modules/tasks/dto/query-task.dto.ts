@@ -1,4 +1,11 @@
-import { IsOptional, IsEnum, IsUUID, IsBoolean, IsDateString, IsString } from 'class-validator';
+import {
+  IsOptional,
+  IsEnum,
+  IsUUID,
+  IsBoolean,
+  IsDateString,
+  IsString,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { TaskStatus, PriorityLevel } from '../../../common/enums';
@@ -27,7 +34,10 @@ export class QueryTaskDto extends PaginationQueryDto {
   @IsOptional()
   status?: TaskStatus;
 
-  @ApiPropertyOptional({ description: 'Lọc theo mức độ ưu tiên', enum: PriorityLevel })
+  @ApiPropertyOptional({
+    description: 'Lọc theo mức độ ưu tiên',
+    enum: PriorityLevel,
+  })
   @IsEnum(PriorityLevel)
   @IsOptional()
   priority?: PriorityLevel;
@@ -47,5 +57,4 @@ export class QueryTaskDto extends PaginationQueryDto {
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   overdue?: boolean;
-
 }

@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateNotificationDto {
@@ -7,7 +13,10 @@ export class CreateNotificationDto {
   @IsNotEmpty({ message: 'userId không được để trống' })
   userId: string;
 
-  @ApiProperty({ description: 'Tiêu đề thông báo', example: 'Hồ sơ đã được phê duyệt' })
+  @ApiProperty({
+    description: 'Tiêu đề thông báo',
+    example: 'Hồ sơ đã được phê duyệt',
+  })
   @IsString({ message: 'Tiêu đề phải là chuỗi ký tự' })
   @MaxLength(255, { message: 'Tiêu đề không được vượt quá 255 ký tự' })
   @IsNotEmpty({ message: 'Tiêu đề không được để trống' })
@@ -18,12 +27,18 @@ export class CreateNotificationDto {
   @IsNotEmpty({ message: 'Nội dung không được để trống' })
   content: string;
 
-  @ApiPropertyOptional({ description: 'Loại thông báo (DOSSIER, ESTIMATE, TASK, SYSTEM, CHAT)', default: 'SYSTEM' })
+  @ApiPropertyOptional({
+    description: 'Loại thông báo (DOSSIER, ESTIMATE, TASK, SYSTEM, CHAT)',
+    default: 'SYSTEM',
+  })
   @IsString()
   @IsOptional()
   type?: string = 'SYSTEM';
 
-  @ApiPropertyOptional({ description: 'Đường dẫn liên kết khi click thông báo', example: '/main/dossiers/123' })
+  @ApiPropertyOptional({
+    description: 'Đường dẫn liên kết khi click thông báo',
+    example: '/main/dossiers/123',
+  })
   @IsString()
   @IsOptional()
   linkUrl?: string;

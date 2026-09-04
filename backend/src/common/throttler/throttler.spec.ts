@@ -56,10 +56,21 @@ describe('Phase 24: Distributed Throttler & Auth Shield', () => {
       } as any;
 
       const redisStorage = new ThrottlerStorageRedisService(mockRedisService);
-      const res = await redisStorage.increment('user-key-1', 60000, 5, 0, 'auth');
+      const res = await redisStorage.increment(
+        'user-key-1',
+        60000,
+        5,
+        0,
+        'auth',
+      );
 
-      expect(mockRedisClient.incr).toHaveBeenCalledWith('throttle:auth:user-key-1');
-      expect(mockRedisClient.expire).toHaveBeenCalledWith('throttle:auth:user-key-1', 60);
+      expect(mockRedisClient.incr).toHaveBeenCalledWith(
+        'throttle:auth:user-key-1',
+      );
+      expect(mockRedisClient.expire).toHaveBeenCalledWith(
+        'throttle:auth:user-key-1',
+        60,
+      );
       expect(res.totalHits).toBe(1);
       expect(res.isBlocked).toBe(false);
     });

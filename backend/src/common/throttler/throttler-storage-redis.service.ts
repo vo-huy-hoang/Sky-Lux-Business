@@ -55,7 +55,10 @@ export class ThrottlerStorageRedisService implements ThrottlerStorage {
 
         if (hits > limit) {
           if (blockDuration > 0) {
-            const blockDurationSeconds = Math.max(1, Math.ceil(blockDuration / 1000));
+            const blockDurationSeconds = Math.max(
+              1,
+              Math.ceil(blockDuration / 1000),
+            );
             await client.set(blockKey, '1', 'EX', blockDurationSeconds);
             return {
               totalHits: hits,
@@ -80,7 +83,9 @@ export class ThrottlerStorageRedisService implements ThrottlerStorage {
           timeToBlockExpire: 0,
         };
       } catch (err: any) {
-        this.logger.warn(`Redis throttler error, falling back to memory: ${err.message}`);
+        this.logger.warn(
+          `Redis throttler error, falling back to memory: ${err.message}`,
+        );
       }
     }
 
