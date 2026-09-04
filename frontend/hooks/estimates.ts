@@ -1,27 +1,29 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { estimatesService } from '@/services/estimates.service';
 import { queryKeys } from '@/lib/query-keys';
-import { EstimateItem } from '@/types/estimate';
+import { EstimateItem, PaginatedEstimatesResponse } from '@/types/estimate';
 
 /**
  * Hook lấy danh sách báo giá của dossier
  */
-export function useDossierEstimates(dossierId: string) {
-  return useQuery({
+export function useDossierEstimates(dossierId: string, options?: { enabled?: boolean }) {
+  return useQuery<PaginatedEstimatesResponse>({
     queryKey: queryKeys.estimates.dossierList(dossierId),
-    queryFn: () => estimatesService.getDossierEstimates(dossierId),
+    queryFn: ({ signal }) => estimatesService.getDossierEstimates(dossierId, { signal }),
     enabled: !!dossierId,
+    ...options,
   });
 }
 
 /**
  * Hook lấy thông tin chi tiết một báo giá
  */
-export function useEstimateDetail(id: string) {
-  return useQuery({
-    queryKey: queryKeys.estimates.detail(id),
-    queryFn: () => estimatesService.getEstimate(id),
+export function useEstimateDetail(id?: string | null, options?: { enabled?: boolean }) {
+  return useQuery<EstimateItem>({
+    queryKey: queryKeys.estimates.detail(id || undefined),
+    queryFn: ({ signal }) => estimatesService.getEstimate(id!, { signal }),
     enabled: !!id,
+    ...options,
   });
 }
 

@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client';
+import { apiClient, RequestOptions } from '@/lib/api-client';
 import {
   CreateTaskInput,
   PaginatedTasksResponse,
@@ -8,10 +8,16 @@ import {
 } from '@/types/task';
 
 export const tasksService = {
-  getTasks: (params?: QueryTaskParams) =>
-    apiClient.get<any, PaginatedTasksResponse>('/tasks', { params }),
+  getTasks: (params?: QueryTaskParams, options?: RequestOptions) =>
+    apiClient.get<any, PaginatedTasksResponse>('/tasks', {
+      params,
+      signal: options?.signal,
+    }),
 
-  getTask: (id: string) => apiClient.get<any, TaskItem>(`/tasks/${id}`),
+  getTask: (id: string, options?: RequestOptions) =>
+    apiClient.get<any, TaskItem>(`/tasks/${id}`, {
+      signal: options?.signal,
+    }),
 
   createTask: (data: CreateTaskInput) =>
     apiClient.post<any, TaskItem>('/tasks', data),

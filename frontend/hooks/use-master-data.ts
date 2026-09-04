@@ -32,7 +32,7 @@ export const useBusinessLines = (
 ) => {
   return useQuery({
     queryKey: masterDataKeys.businessLines(params),
-    queryFn: () => masterDataService.getBusinessLines(params),
+    queryFn: ({ signal }) => masterDataService.getBusinessLines(params, { signal }),
     staleTime: 1000 * 60 * 30, // 30 minutes
     ...options,
   });
@@ -44,7 +44,7 @@ export const useMarketTypes = (
 ) => {
   return useQuery({
     queryKey: masterDataKeys.marketTypes(params),
-    queryFn: () => masterDataService.getMarketTypes(params),
+    queryFn: ({ signal }) => masterDataService.getMarketTypes(params, { signal }),
     staleTime: 1000 * 60 * 30,
     ...options,
   });
@@ -56,7 +56,7 @@ export const useServiceCategories = (
 ) => {
   return useQuery({
     queryKey: masterDataKeys.serviceCategories(params),
-    queryFn: () => masterDataService.getServiceCategories(params),
+    queryFn: ({ signal }) => masterDataService.getServiceCategories(params, { signal }),
     staleTime: 1000 * 60 * 30,
     ...options,
   });
@@ -68,7 +68,7 @@ export const usePassengerTypes = (
 ) => {
   return useQuery({
     queryKey: masterDataKeys.passengerTypes(params),
-    queryFn: () => masterDataService.getPassengerTypes(params),
+    queryFn: ({ signal }) => masterDataService.getPassengerTypes(params, { signal }),
     staleTime: 1000 * 60 * 30,
     ...options,
   });
@@ -80,7 +80,7 @@ export const useSupplierTypes = (
 ) => {
   return useQuery({
     queryKey: masterDataKeys.supplierTypes(params),
-    queryFn: () => masterDataService.getSupplierTypes(params),
+    queryFn: ({ signal }) => masterDataService.getSupplierTypes(params, { signal }),
     staleTime: 1000 * 60 * 30,
     ...options,
   });
@@ -92,7 +92,7 @@ export const useUnits = (
 ) => {
   return useQuery({
     queryKey: masterDataKeys.units(params),
-    queryFn: () => masterDataService.getUnits(params),
+    queryFn: ({ signal }) => masterDataService.getUnits(params, { signal }),
     staleTime: 1000 * 60 * 30,
     ...options,
   });

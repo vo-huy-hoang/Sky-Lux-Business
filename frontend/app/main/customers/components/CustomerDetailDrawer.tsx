@@ -57,7 +57,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
 
   const { data: customer, isLoading: isLoadingCustomer } = useQuery<CustomerItem>({
     queryKey: queryKeys.customers.detail(customerId || undefined),
-    queryFn: () => customersService.getCustomer(customerId!),
+    queryFn: ({ signal }) => customersService.getCustomer(customerId!, { signal }),
     enabled: !!customerId && visible,
   });
 
@@ -67,11 +67,15 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
     meta: { page: number; pageSize: number; total: number; totalPages: number };
   }>({
     queryKey: queryKeys.dossiers.list({ customerId: customerId || undefined, page: dossierPage, limit: 10 }),
-    queryFn: () =>
-      customersService.getCustomerDossiers(customerId!, {
-        page: dossierPage,
-        limit: 10,
-      }),
+    queryFn: ({ signal }) =>
+      customersService.getCustomerDossiers(
+        customerId!,
+        {
+          page: dossierPage,
+          limit: 10,
+        },
+        { signal },
+      ),
     enabled: !!customerId && visible,
   });
 
@@ -108,7 +112,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
       dataIndex: 'name',
       key: 'name',
       render: (name: string, record: CustomerContact) => (
-        <Space direction="vertical" size={2}>
+        <div className="flex flex-col gap-0.5">
           <Space>
             <Text strong>{name}</Text>
             {record.isPrimary && (
@@ -122,14 +126,14 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
               {record.position}
             </Text>
           )}
-        </Space>
+        </div>
       ),
     },
     {
       title: 'Liên hệ',
       key: 'contactInfo',
       render: (_: any, record: CustomerContact) => (
-        <Space direction="vertical" size={2}>
+        <div className="flex flex-col gap-0.5">
           {record.phone && (
             <Text>
               <PhoneOutlined /> {record.phone}
@@ -140,7 +144,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
               <MailOutlined /> {record.email}
             </Text>
           )}
-        </Space>
+        </div>
       ),
     },
     {

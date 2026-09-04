@@ -6,6 +6,8 @@ import { TasksService } from './tasks.service';
 import { Task } from './entities/task.entity';
 import { TaskChecklistItem } from './entities/task-checklist-item.entity';
 import { DossiersService } from '../dossiers/dossiers.service';
+import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { QueryTaskDto } from './dto/query-task.dto';
 import { CreateTaskDto } from './dto/create-task.dto';
@@ -17,6 +19,7 @@ describe('TasksService', () => {
   let taskRepository: jest.Mocked<Repository<Task>>;
   let checklistItemRepository: jest.Mocked<Repository<TaskChecklistItem>>;
   let dossiersService: jest.Mocked<DossiersService>;
+  let notificationsService: any;
 
   const mockUserPayload = {
     id: 'user-uuid',
@@ -73,6 +76,12 @@ describe('TasksService', () => {
           provide: DossiersService,
           useValue: mockDossiersService,
         },
+        {
+          provide: NotificationsService,
+          useValue: {
+            notify: jest.fn().mockResolvedValue({}),
+          },
+        },
       ],
     }).compile();
 
@@ -80,6 +89,7 @@ describe('TasksService', () => {
     taskRepository = module.get(getRepositoryToken(Task));
     checklistItemRepository = module.get(getRepositoryToken(TaskChecklistItem));
     dossiersService = module.get(DossiersService);
+    notificationsService = module.get(NotificationsService);
   });
 
   afterEach(() => {
@@ -161,6 +171,32 @@ describe('TasksService', () => {
       expect(result.progressPercent).toEqual(50);
       expect(result.status).toEqual(TaskStatus.IN_PROGRESS);
       expect(taskRepository.save).toHaveBeenCalled();
+    });
+
+    it('should dispatch notification when task is assigned to another user', async () => {
+      dossiersService.findOne.mockResolvedValue({ id: 'dossier-uuid' } as any);
+      taskRepository.save.mockImplementation((entity) =>
+        Promise.resolve({
+          ...entity,
+          id: 'task-1',
+          assignedTo: 'other-user-uuid',
+        } as any),
+      );
+
+      const createDto: CreateTaskDto = {
+        title: 'Book Flight',
+        assignedTo: 'other-user-uuid',
+      };
+
+      await service.create(mockUserPayload, createDto);
+
+      expect(notificationsService.notify).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'other-user-uuid',
+          type: 'TASK',
+          title: expect.stringContaining('Book Flight'),
+        }),
+      );
     });
   });
 

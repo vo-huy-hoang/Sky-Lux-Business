@@ -57,6 +57,18 @@ export class ChatController {
   ): Promise<Conversation> {
     return this.chatService.createConversation(user, dto);
   }
+  @Sse('conversations/stream')
+  @Public()
+  @UseGuards(JwtQueryAuthGuard)
+  @ApiOperation({
+    summary: 'Mở kết nối thời gian thực nhận tin nhắn mới (SSE)',
+  })
+  @ApiResponse({ status: 200, description: 'Luồng dữ liệu EventSource' })
+  streamMessages(
+    @CurrentUser() user: CurrentUserPayload,
+  ): Observable<MessageEvent> {
+    return this.chatService.getMessagesStream(user);
+  }
 
   @Get('conversations/:id')
   @ApiOperation({ summary: 'Lấy chi tiết một cuộc hội thoại (API-CHAT-003)' })
@@ -204,18 +216,5 @@ export class ChatController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     return this.chatService.sendTypingStatus(user, id, 'stop');
-  }
-
-  @Sse('conversations/stream')
-  @Public()
-  @UseGuards(JwtQueryAuthGuard)
-  @ApiOperation({
-    summary: 'Mở kết nối thời gian thực nhận tin nhắn mới (SSE)',
-  })
-  @ApiResponse({ status: 200, description: 'Luồng dữ liệu EventSource' })
-  streamMessages(
-    @CurrentUser() user: CurrentUserPayload,
-  ): Observable<MessageEvent> {
-    return this.chatService.getMessagesStream(user);
   }
 }

@@ -79,4 +79,13 @@ export interface QueryDossierParams {
   search?: string;
   status?: string;
   priority?: string;
+  salesUserId?: string;
+}
+
+export interface PaginatedDossiersResponse {
+  items: DossierItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }

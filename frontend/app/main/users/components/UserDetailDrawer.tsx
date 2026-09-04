@@ -55,7 +55,7 @@ export default function UserDetailDrawer() {
   // 1. Fetch Fresh User Details (API-USERS-002)
   const { data: userDetail, isLoading } = useQuery({
     queryKey: queryKeys.users.detail(userId || undefined),
-    queryFn: () => usersService.getUser(userId!),
+    queryFn: ({ signal }) => usersService.getUser(userId!, { signal }),
     enabled: !!userId && isUserDrawerOpen,
   });
 
@@ -92,7 +92,7 @@ export default function UserDetailDrawer() {
     onSuccess: () => {
       message.success('Đã xóa người dùng thành công');
       closeUserDetail();
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
     },
     onError: (err: any) => {
       message.error(err.message || 'Lỗi khi xóa người dùng');

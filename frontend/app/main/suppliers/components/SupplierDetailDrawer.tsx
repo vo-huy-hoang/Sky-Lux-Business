@@ -48,7 +48,8 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
     error,
   } = useQuery({
     queryKey: queryKeys.suppliers.detail(supplierId || undefined),
-    queryFn: () => (supplierId ? suppliersService.getSupplier(supplierId) : null),
+    queryFn: ({ signal }) =>
+      supplierId ? suppliersService.getSupplier(supplierId, { signal }) : null,
     enabled: Boolean(visible && supplierId),
   });
 

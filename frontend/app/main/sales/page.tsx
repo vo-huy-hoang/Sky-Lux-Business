@@ -1,15 +1,36 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { Avatar, Card, Empty, Progress, Skeleton, Table, Tag, Typography } from 'antd';
-import { Bar } from 'react-chartjs-2';
-import { BarElement, CategoryScale, Chart as ChartJS, ChartOptions, Legend, LinearScale, Tooltip } from 'chart.js';
-import { CheckCircleOutlined, DollarOutlined, FolderOpenOutlined, TeamOutlined } from '@ant-design/icons';
+import dynamic from 'next/dynamic';
+import Link from 'next/link';
+import { Avatar, Card, Progress, Skeleton, Table, Tag, Tooltip, Typography } from 'antd';
+import {
+  CheckCircleOutlined,
+  DollarOutlined,
+  FolderOpenOutlined,
+  TeamOutlined,
+} from '@ant-design/icons';
 
 import { useOperatorSalesSummary } from '@/hooks/dashboards';
 import { OperatorSalesSummaryItem } from '@/types/dashboard';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
+// Dynamic import with ssr: false for fast initial page load (<100ms)
+const SalesDossiersChart = dynamic(
+  () => import('@/components/sales/SalesDossiersChart'),
+  {
+    ssr: false,
+    loading: () => <Skeleton active paragraph={{ rows: 6 }} />,
+  },
+);
+
+const SalesRevenueChart = dynamic(
+  () => import('@/components/sales/SalesRevenueChart'),
+  {
+    ssr: false,
+    loading: () => <Skeleton active paragraph={{ rows: 6 }} />,
+  },
+);
+
 const { Text } = Typography;
 
 function money(value?: number | null) {
@@ -18,19 +39,33 @@ function money(value?: number | null) {
 
 function compact(value?: number | null) {
   const number = value || 0;
-  if (Math.abs(number) >= 1_000_000_000) return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000_000)} tỷ`;
-  if (Math.abs(number) >= 1_000_000) return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000)} tr`;
+  if (Math.abs(number) >= 1_000_000_000)
+    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000_000)} tỷ`;
+  if (Math.abs(number) >= 1_000_000)
+    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000)} tr`;
   return new Intl.NumberFormat('vi-VN').format(number);
 }
 
-function Metric({ label, value, icon, tone }: { label: string; value: React.ReactNode; icon: React.ReactNode; tone: 'green' | 'gold' | 'orange' | 'blue' }) {
+function Metric({
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: React.ReactNode;
+  icon: React.ReactNode;
+  tone: 'green' | 'gold' | 'orange' | 'blue';
+}) {
   return (
     <Card className="op-card op-kpi-card">
       <div className="flex items-center gap-4">
         <span className={`op-metric-icon op-metric-${tone}`}>{icon}</span>
         <div>
           <Text className="text-sm text-[var(--op-text-muted)]">{label}</Text>
-          <strong className="mt-1 block text-[24px] leading-none tabular-nums text-[var(--op-primary-900)]">{value}</strong>
+          <strong className="mt-1 block text-[24px] leading-none tabular-nums text-[var(--op-primary-900)]">
+            {value}
+          </strong>
         </div>
       </div>
     </Card>
@@ -41,73 +76,42 @@ export default function OperatorSalesPage() {
   const { data: salesList = [], isLoading } = useOperatorSalesSummary();
 
   const totalSales = salesList.length;
-  const totalDossiers = useMemo(() => salesList.reduce((sum, item) => sum + item.totalDossiers, 0), [salesList]);
-  const totalApproved = useMemo(() => salesList.reduce((sum, item) => sum + item.approvedDossiers, 0), [salesList]);
-  const totalRevenue = useMemo(() => salesList.reduce((sum, item) => sum + item.totalRevenue, 0), [salesList]);
-
-  // Dossiers chart
-  const dossiersChartData = useMemo(() => ({
-    labels: salesList.slice(0, 8).map((s) => s.salesUserName),
-    datasets: [
-      {
-        label: 'Hồ sơ phụ trách',
-        data: salesList.slice(0, 8).map((s) => s.totalDossiers),
-        backgroundColor: '#004230',
-        borderRadius: 6,
-        barThickness: 22,
-      },
-    ],
-  }), [salesList]);
-
-  // Revenue chart
-  const revenueChartData = useMemo(() => ({
-    labels: salesList.slice(0, 8).map((s) => s.salesUserName),
-    datasets: [
-      {
-        label: 'Doanh thu (VNĐ)',
-        data: salesList.slice(0, 8).map((s) => s.totalRevenue),
-        backgroundColor: '#D4AF37',
-        borderRadius: 6,
-        barThickness: 22,
-      },
-    ],
-  }), [salesList]);
-
-  const barRevenueOptions: ChartOptions<'bar'> = {
-    indexAxis: 'y',
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: (context) => money(context.parsed.x),
-        },
-      },
-    },
-    scales: {
-      x: {
-        beginAtZero: true,
-        ticks: { callback: (v) => compact(Number(v)) },
-        grid: { color: '#EEF0EF' },
-        border: { display: false },
-      },
-      y: { grid: { display: false }, border: { display: false } },
-    },
-  };
+  const totalDossiers = useMemo(
+    () => salesList.reduce((sum, item) => sum + item.totalDossiers, 0),
+    [salesList],
+  );
+  const totalApproved = useMemo(
+    () => salesList.reduce((sum, item) => sum + item.approvedDossiers, 0),
+    [salesList],
+  );
+  const totalRevenue = useMemo(
+    () => salesList.reduce((sum, item) => sum + item.totalRevenue, 0),
+    [salesList],
+  );
 
   const columns = [
     {
       title: 'Sales',
       key: 'sales',
       render: (_: unknown, row: OperatorSalesSummaryItem) => (
-        <div className="flex items-center gap-3">
-          <Avatar className="bg-[#004230] text-[#D6A51F]">{row.salesUserName.charAt(0)}</Avatar>
-          <div>
-            <Text strong className="block">{row.salesUserName}</Text>
-            <Text className="text-xs text-[var(--op-text-muted)]">{row.salesUserEmail || row.employeeCode || 'Sales Staff'}</Text>
-          </div>
-        </div>
+        <Tooltip title={`Xem toàn bộ hồ sơ của ${row.salesUserName}`}>
+          <Link
+            href={`/main/dossiers?salesUserId=${row.salesUserId}`}
+            className="group flex items-center gap-3 text-inherit transition-colors hover:text-[#004230]"
+          >
+            <Avatar className="bg-[#004230] text-[#D6A51F] transition-transform group-hover:scale-105">
+              {row.salesUserName?.charAt(0) || 'S'}
+            </Avatar>
+            <div>
+              <Text strong className="block transition-colors group-hover:text-[#004230] group-hover:underline">
+                {row.salesUserName}
+              </Text>
+              <Text className="text-xs text-[var(--op-text-muted)]">
+                {row.salesUserEmail || row.employeeCode || 'Sales Staff'}
+              </Text>
+            </div>
+          </Link>
+        </Tooltip>
       ),
     },
     {
@@ -121,28 +125,51 @@ export default function OperatorSalesPage() {
       dataIndex: 'totalDossiers',
       key: 'totalDossiers',
       align: 'right' as const,
-      render: (val: number) => <strong className="tabular-nums">{val}</strong>,
+      render: (val: number, row: OperatorSalesSummaryItem) => (
+        <Tooltip title={`Bấm để xem ${val} hồ sơ của ${row.salesUserName}`}>
+          <Link
+            href={`/main/dossiers?salesUserId=${row.salesUserId}`}
+            className="inline-flex items-center gap-1.5 font-bold text-slate-800 transition-colors hover:text-[#004230] hover:underline"
+          >
+            <span className="tabular-nums">{val}</span>
+            <FolderOpenOutlined className="text-xs text-slate-400" />
+          </Link>
+        </Tooltip>
+      ),
     },
     {
       title: 'Đã duyệt / Hoàn tất',
       dataIndex: 'approvedDossiers',
       key: 'approvedDossiers',
       align: 'right' as const,
-      render: (val: number) => <span className="tabular-nums font-semibold text-emerald-700">{val}</span>,
+      render: (val: number, row: OperatorSalesSummaryItem) => (
+        <Tooltip title={`Bấm để xem ${val} hồ sơ đã duyệt của ${row.salesUserName}`}>
+          <Link
+            href={`/main/dossiers?salesUserId=${row.salesUserId}&status=APPROVED`}
+            className="tabular-nums font-semibold text-emerald-700 hover:underline"
+          >
+            {val}
+          </Link>
+        </Tooltip>
+      ),
     },
     {
       title: 'Doanh thu',
       dataIndex: 'totalRevenue',
       key: 'totalRevenue',
       align: 'right' as const,
-      render: (val: number) => <strong className="tabular-nums text-[#004230]">{money(val)}</strong>,
+      render: (val: number) => (
+        <strong className="tabular-nums text-[#004230]">{money(val)}</strong>
+      ),
     },
     {
       title: 'Lợi nhuận gộp',
       dataIndex: 'totalProfit',
       key: 'totalProfit',
       align: 'right' as const,
-      render: (val: number) => <strong className="tabular-nums text-amber-700">{money(val)}</strong>,
+      render: (val: number) => (
+        <strong className="tabular-nums text-amber-700">{money(val)}</strong>
+      ),
     },
     {
       title: 'Tỷ lệ duyệt',
@@ -150,8 +177,15 @@ export default function OperatorSalesPage() {
       width: 180,
       render: (_: unknown, row: OperatorSalesSummaryItem) => (
         <div className="flex items-center gap-2">
-          <Progress percent={row.completionRate} size="small" showInfo={false} strokeColor="#0B7A5B" />
-          <span className="w-10 tabular-nums text-xs font-semibold">{row.completionRate}%</span>
+          <Progress
+            percent={row.completionRate}
+            size="small"
+            showInfo={false}
+            strokeColor="#0B7A5B"
+          />
+          <span className="w-10 tabular-nums text-xs font-semibold">
+            {row.completionRate}%
+          </span>
         </div>
       ),
     },
@@ -159,8 +193,20 @@ export default function OperatorSalesPage() {
       title: 'Đánh giá',
       key: 'status',
       render: (_: unknown, row: OperatorSalesSummaryItem) => (
-        <Tag className={row.completionRate >= 80 ? 'op-status-valid' : row.completionRate >= 50 ? 'op-status-info' : 'op-status-warning'}>
-          {row.completionRate >= 80 ? 'Xuất sắc' : row.completionRate >= 50 ? 'Đạt chuẩn' : 'Cần hỗ trợ'}
+        <Tag
+          className={
+            row.completionRate >= 80
+              ? 'op-status-valid'
+              : row.completionRate >= 50
+                ? 'op-status-info'
+                : 'op-status-warning'
+          }
+        >
+          {row.completionRate >= 80
+            ? 'Xuất sắc'
+            : row.completionRate >= 50
+              ? 'Đạt chuẩn'
+              : 'Cần hỗ trợ'}
         </Tag>
       ),
     },
@@ -169,10 +215,30 @@ export default function OperatorSalesPage() {
   return (
     <div className="op-page space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
-        <Metric label="Tổng Nhân sự Sales" value={isLoading ? <Skeleton.Input active size="small" /> : totalSales} icon={<TeamOutlined />} tone="green" />
-        <Metric label="Tổng Doanh thu Sales" value={isLoading ? <Skeleton.Input active size="small" /> : compact(totalRevenue)} icon={<DollarOutlined />} tone="gold" />
-        <Metric label="Hồ sơ đã phê duyệt" value={isLoading ? <Skeleton.Input active size="small" /> : totalApproved} icon={<CheckCircleOutlined />} tone="blue" />
-        <Metric label="Tổng Hồ sơ phụ trách" value={isLoading ? <Skeleton.Input active size="small" /> : totalDossiers} icon={<FolderOpenOutlined />} tone="orange" />
+        <Metric
+          label="Tổng Nhân sự Sales"
+          value={isLoading ? <Skeleton.Input active size="small" /> : totalSales}
+          icon={<TeamOutlined />}
+          tone="green"
+        />
+        <Metric
+          label="Tổng Doanh thu Sales"
+          value={isLoading ? <Skeleton.Input active size="small" /> : compact(totalRevenue)}
+          icon={<DollarOutlined />}
+          tone="gold"
+        />
+        <Metric
+          label="Hồ sơ đã phê duyệt"
+          value={isLoading ? <Skeleton.Input active size="small" /> : totalApproved}
+          icon={<CheckCircleOutlined />}
+          tone="blue"
+        />
+        <Metric
+          label="Tổng Hồ sơ phụ trách"
+          value={isLoading ? <Skeleton.Input active size="small" /> : totalDossiers}
+          icon={<FolderOpenOutlined />}
+          tone="orange"
+        />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -180,25 +246,8 @@ export default function OperatorSalesPage() {
           <div className="h-[310px]">
             {isLoading ? (
               <Skeleton active paragraph={{ rows: 6 }} />
-            ) : salesList.length ? (
-              <Bar
-                data={dossiersChartData}
-                options={{
-                  indexAxis: 'y',
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: { display: false },
-                    tooltip: { callbacks: { label: (context) => `${context.parsed.x} hồ sơ` } },
-                  },
-                  scales: {
-                    x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#EEF0EF' }, border: { display: false } },
-                    y: { grid: { display: false }, border: { display: false } },
-                  },
-                }}
-              />
             ) : (
-              <Empty description="Chưa có dữ liệu Sales" />
+              <SalesDossiersChart items={salesList} />
             )}
           </div>
         </Card>
@@ -207,10 +256,8 @@ export default function OperatorSalesPage() {
           <div className="h-[310px]">
             {isLoading ? (
               <Skeleton active paragraph={{ rows: 6 }} />
-            ) : salesList.length ? (
-              <Bar data={revenueChartData} options={barRevenueOptions} />
             ) : (
-              <Empty description="Chưa có dữ liệu Doanh thu Sales" />
+              <SalesRevenueChart items={salesList} />
             )}
           </div>
         </Card>
@@ -230,4 +277,3 @@ export default function OperatorSalesPage() {
     </div>
   );
 }
-

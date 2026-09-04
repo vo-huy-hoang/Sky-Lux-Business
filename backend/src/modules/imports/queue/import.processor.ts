@@ -8,8 +8,17 @@ import * as xlsx from 'xlsx';
 import { ImportSession } from '../entities/import-session.entity';
 import { ImportRow } from '../entities/import-row.entity';
 import { ImportError } from '../entities/import-error.entity';
-import { ImportSessionStatus } from '../../../common/enums';
+import { ImportSessionStatus, CustomerType } from '../../../common/enums';
 import { Customer } from '../../customers/entities/customer.entity';
+
+function sanitizeCellValue(value: any): string {
+  if (value === null || value === undefined) return '';
+  const str = String(value).trim();
+  if (['=', '+', '-', '@'].some((prefix) => str.startsWith(prefix))) {
+    return `'${str}`;
+  }
+  return str;
+}
 
 @Processor('import-queue')
 export class ImportProcessor extends WorkerHost {
@@ -148,6 +157,18 @@ export class ImportProcessor extends WorkerHost {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const phoneRegex = /^[0-9+\s().-]{8,20}$/;
 
+    // Track codes across rows in the same file to detect internal duplicates
+    const codeOccurrences = new Map<string, number[]>();
+    for (const r of rows) {
+      const c = String(r.rawData?.[codeKey] || '').trim();
+      if (c) {
+        if (!codeOccurrences.has(c)) {
+          codeOccurrences.set(c, []);
+        }
+        codeOccurrences.get(c)!.push(r.rowNumber);
+      }
+    }
+
     for (const row of rows) {
       const errors: string[] = [];
       const data = row.rawData;
@@ -181,25 +202,17 @@ export class ImportProcessor extends WorkerHost {
 
       if (!code) {
         errors.push(`${codeKey} không được để trống`);
+      } else if ((codeOccurrences.get(code)?.length ?? 0) > 1) {
+        errors.push(
+          `${codeKey} "${code}" bị trùng lặp tại các dòng: ${codeOccurrences.get(code)!.join(', ')} trong tệp tin`,
+        );
       }
+
       if (!name) {
         errors.push(`${nameKey} không được để trống`);
       }
       if (!customerCode) {
         errors.push(`${customerKey} không được để trống`);
-      }
-
-      // Check customer exist in organization
-      let customer: Customer | null = null;
-      if (customerCode) {
-        customer = await this.customerRepository.findOne({
-          where: { code: customerCode, organizationId: session.organizationId },
-        });
-        if (!customer) {
-          errors.push(
-            `Không tìm thấy khách hàng có mã "${customerCode}" trong hệ thống`,
-          );
-        }
       }
 
       // Customer fields validation
@@ -220,12 +233,61 @@ export class ImportProcessor extends WorkerHost {
         }
       }
 
-      // Date parsing validation
-      if (startDate && isNaN(Date.parse(startDate))) {
-        errors.push(`${startDateKey} không đúng định dạng YYYY-MM-DD`);
+      // Check customer exist in organization, or auto-create if new
+      let customer: Customer | null = null;
+      if (customerCode) {
+        customer = await this.customerRepository.findOne({
+          where: { code: customerCode, organizationId: session.organizationId },
+        });
+        if (!customer) {
+          // Tự động tạo mới khách hàng từ thông tin trong file Excel
+          try {
+            const nameToUse = customerName || `Khách hàng ${customerCode}`;
+            const newCustomer = this.customerRepository.create({
+              organizationId: session.organizationId,
+              code: customerCode,
+              displayName: nameToUse,
+              customerType: CustomerType.INDIVIDUAL,
+              phone: phone || undefined,
+              email: email || undefined,
+              dateOfBirth:
+                dob && !isNaN(Date.parse(dob))
+                  ? new Date(dob).toISOString().slice(0, 10)
+                  : undefined,
+              status: 'ACTIVE',
+            });
+            customer = await this.customerRepository.save(newCustomer);
+          } catch (createErr: any) {
+            errors.push(
+              `Không thể tự động tạo mới khách hàng "${customerCode}": ${createErr?.message || 'Lỗi lưu dữ liệu'}`,
+            );
+          }
+        }
       }
-      if (endDate && isNaN(Date.parse(endDate))) {
-        errors.push(`${endDateKey} không đúng định dạng YYYY-MM-DD`);
+
+      // Date parsing & logical order validation
+      let validStartDate = false;
+      let validEndDate = false;
+      if (startDate) {
+        if (isNaN(Date.parse(startDate))) {
+          errors.push(`${startDateKey} không đúng định dạng YYYY-MM-DD`);
+        } else {
+          validStartDate = true;
+        }
+      }
+      if (endDate) {
+        if (isNaN(Date.parse(endDate))) {
+          errors.push(`${endDateKey} không đúng định dạng YYYY-MM-DD`);
+        } else {
+          validEndDate = true;
+        }
+      }
+      if (validStartDate && validEndDate) {
+        if (new Date(startDate) > new Date(endDate)) {
+          errors.push(
+            `${endDateKey} (${endDate}) không thể trước ${startDateKey} (${startDate})`,
+          );
+        }
       }
 
       if (errors.length > 0) {
@@ -244,14 +306,14 @@ export class ImportProcessor extends WorkerHost {
         );
         await this.errorRepository.save(errorEntities);
       } else {
-        // Save normalized data structure for Dossier & Customer migration
+        // Save normalized data structure for Dossier & Customer migration (with formula sanitization)
         validRowsCount++;
         row.status = 'VALID';
         row.normalizedData = {
-          code,
-          name,
+          code: sanitizeCellValue(code),
+          name: sanitizeCellValue(name),
           customerId: customer?.id,
-          route: String(data[routeKey] || '').trim(),
+          route: sanitizeCellValue(String(data[routeKey] || '').trim()),
           startDate: startDate
             ? new Date(startDate).toISOString().slice(0, 10)
             : undefined,
@@ -259,9 +321,9 @@ export class ImportProcessor extends WorkerHost {
             ? new Date(endDate).toISOString().slice(0, 10)
             : undefined,
           priority: data[priorityKey] || 'MEDIUM',
-          ...(customerName ? { customerName } : {}),
-          ...(phone ? { phone } : {}),
-          ...(email ? { email } : {}),
+          ...(customerName ? { customerName: sanitizeCellValue(customerName) } : {}),
+          ...(phone ? { phone: sanitizeCellValue(phone) } : {}),
+          ...(email ? { email: sanitizeCellValue(email) } : {}),
           ...(dob && !isNaN(Date.parse(dob))
             ? { dateOfBirth: new Date(dob).toISOString().slice(0, 10) }
             : {}),
