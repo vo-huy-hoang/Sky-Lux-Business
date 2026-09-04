@@ -7,8 +7,20 @@ export function hasPermission(
   requiredPermission: string,
 ): boolean {
   if (!userPermissions || userPermissions.length === 0) return false;
-  return (
+  if (
     userPermissions.includes('*') ||
     userPermissions.includes(requiredPermission)
-  );
+  ) {
+    return true;
+  }
+
+  // Phân cấp quyền tự nhiên: Sở hữu quyền '.manage' thì tự động có quyền '.view' tương ứng
+  if (requiredPermission.endsWith('.view')) {
+    const modulePrefix = requiredPermission.slice(0, -5);
+    if (userPermissions.includes(`${modulePrefix}.manage`)) {
+      return true;
+    }
+  }
+
+  return false;
 }

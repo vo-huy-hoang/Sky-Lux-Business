@@ -14,9 +14,11 @@ const createWrapper = () => {
       queries: { retry: false },
     },
   });
-  return ({ children }: { children: React.ReactNode }) => (
+  const QueryWrapper = ({ children }: { children: React.ReactNode }) => (
     React.createElement(QueryClientProvider, { client: queryClient }, children)
   );
+  QueryWrapper.displayName = 'QueryWrapper';
+  return QueryWrapper;
 };
 
 describe('Deep Hook: use-users', () => {

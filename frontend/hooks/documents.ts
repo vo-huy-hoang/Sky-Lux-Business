@@ -148,7 +148,7 @@ export function useDocumentVersions(
 ) {
   return useQuery({
     queryKey: documentKeys.versions(id, params),
-    queryFn: () => documentsService.getDocumentVersions(id, params),
+    queryFn: () => documentsService.getDocumentVersions(id, ...(params ? [params] : [])),
     enabled: Boolean(id) && (options?.enabled ?? true),
   });
 }

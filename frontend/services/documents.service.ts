@@ -82,7 +82,7 @@ export const documentsService = {
   getDocumentVersions: (id: string, params?: QueryDocumentVersionParams) => {
     return apiClient.get<any, PaginatedMetaResponse<DocumentVersionItem>>(
       `/documents/${id}/versions`,
-      { params }
+      ...(params ? [{ params }] : []),
     );
   },
 

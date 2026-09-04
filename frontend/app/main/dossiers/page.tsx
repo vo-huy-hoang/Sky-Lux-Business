@@ -6,6 +6,8 @@ import {
   Button,
   Card,
   Col,
+  Descriptions,
+  Drawer,
   Empty,
   Input,
   Row,
@@ -13,6 +15,7 @@ import {
   Skeleton,
   Space,
   Table,
+  Tabs,
   Tag,
   Typography,
 } from 'antd';
@@ -31,7 +34,6 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useDossiersList } from '@/hooks/dossiers';
 import { DossierItem } from '@/types/dossier';
-import { queryKeys } from '@/lib/query-keys';
 import DossierDetailView from '@/components/dossiers/DossierDetailView';
 import { DossierComments } from './components/DossierComments';
 import { useAuthStore } from '@/lib/stores/auth-store';
@@ -104,6 +106,7 @@ function DossiersContent() {
   const debouncedSearch = useDebounce(search, 350);
   const [status, setStatus] = useState<string | undefined>(statusParam);
   const [priority, setPriority] = useState<string>();
+  const [selectedDossierId, setSelectedDossierId] = useState<string | null>(null);
 
   const { data, isLoading, refetch } = useDossiersList({
     page,

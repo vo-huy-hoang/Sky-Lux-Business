@@ -258,13 +258,6 @@ export const useChatRealtime = (conversationId?: string) => {
   const setReconnectAttempt = useUIStore((state) => state.setReconnectAttempt);
   const reconnectTrigger = useUIStore((state) => state.reconnectTrigger);
 
-  // Reactive Token Synchronization (0ms latency, zero polling intervals)
-  useEffect(() => {
-    const currentToken = authAccessToken || Cookies.get('access_token') || '';
-    if (currentToken && currentToken !== tokenTrigger) {
-      setTokenTrigger(currentToken);
-    }
-  }, [authAccessToken, tokenTrigger]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -575,7 +568,7 @@ export const useChatRealtime = (conversationId?: string) => {
       setConnectionStatus('connected');
       setReconnectAttempt(0);
     };
-  }, [connect, tokenTrigger, setConnectionStatus, setChatStatus, setReconnectAttempt]);
+  }, [connect, authAccessToken, tokenTrigger, setConnectionStatus, setChatStatus, setReconnectAttempt]);
 
 
   return { typingUsers };

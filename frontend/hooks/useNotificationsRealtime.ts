@@ -34,13 +34,6 @@ export function useNotificationsRealtime() {
   const authAccessToken = useAuthStore((state) => state.accessToken);
   const [tokenTrigger, setTokenTrigger] = useState<string>(authAccessToken || Cookies.get('access_token') || '');
 
-  // Reactive Token Synchronization (0ms latency)
-  useEffect(() => {
-    const currentToken = authAccessToken || Cookies.get('access_token') || '';
-    if (currentToken && currentToken !== tokenTrigger) {
-      setTokenTrigger(currentToken);
-    }
-  }, [authAccessToken, tokenTrigger]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -249,7 +242,7 @@ export function useNotificationsRealtime() {
       }
       setNotificationsStatus('connected');
     };
-  }, [connect, tokenTrigger, queryClient, setNotificationsStatus]);
+  }, [connect, authAccessToken, tokenTrigger, queryClient, setNotificationsStatus]);
 
   return null;
 }
