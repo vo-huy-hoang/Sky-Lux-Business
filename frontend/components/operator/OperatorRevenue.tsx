@@ -29,7 +29,7 @@ export default function OperatorRevenue() {
   const monthlyTrendQuery = useOperatorMonthlyTrend(6);
   const dossiersQuery = useQuery({
     queryKey: queryKeys.dossiers.list({ page: 1, limit: 100 }),
-    queryFn: () => dossiersService.getDossiers({ page: 1, limit: 100 }),
+    queryFn: ({ signal }) => dossiersService.getDossiers({ page: 1, limit: 100 }, { signal }),
   });
 
   const dossiers = useMemo(() => dossiersQuery.data?.items || [], [dossiersQuery.data?.items]);

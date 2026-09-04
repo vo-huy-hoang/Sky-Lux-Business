@@ -9,7 +9,7 @@ import { queryKeys } from '@/lib/query-keys';
 export function useSystemHealth() {
   return useQuery({
     queryKey: queryKeys.health.system(),
-    queryFn: () => healthService.getSystemHealth(),
+    queryFn: ({ signal }) => healthService.getSystemHealth({ signal }),
     refetchInterval: 30000, // Thăm dò trạng thái mỗi 30 giây
     retry: 1,              // Giới hạn số lần thử lại để tránh spam server khi mất kết nối
   });

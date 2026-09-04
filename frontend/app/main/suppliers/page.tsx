@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Table,
   Button,
@@ -33,6 +33,7 @@ import dayjs from 'dayjs';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { queryKeys } from '@/lib/query-keys';
 import { useRouter } from 'next/navigation';
+import { useDebounce } from '@/hooks/use-debounce';
 
 
 const { Title, Text } = Typography;
@@ -41,12 +42,13 @@ const { Option } = Select;
 export default function SuppliersPage() {
   const router = useRouter();
   const hasRole = useAuthStore((state) => state.hasRole);
-  const isCeoAdmin = hasRole('CEO_ADMIN') || hasRole('SUPER_ADMIN');
+  const isCeoAdmin = hasRole(['CEO_ADMIN', 'SUPER_ADMIN']);
 
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 350);
   const [status, setStatus] = useState<SupplierStatus | undefined>();
 
   const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(
@@ -59,21 +61,23 @@ export default function SuppliersPage() {
     null,
   );
 
-  const { data, isLoading, refetch } = useQuery({
-
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: queryKeys.suppliers.list({
       page,
       limit: pageSize,
-      search: search || undefined,
+      search: debouncedSearch || undefined,
       status,
     }),
-    queryFn: () =>
-      suppliersService.getSuppliers({
-        page,
-        limit: pageSize,
-        search: search || undefined,
-        status,
-      }),
+    queryFn: ({ signal }) =>
+      suppliersService.getSuppliers(
+        {
+          page,
+          limit: pageSize,
+          search: debouncedSearch || undefined,
+          status,
+        },
+        { signal },
+      ),
   });
 
   const deleteMutation = useMutation({
@@ -133,14 +137,14 @@ export default function SuppliersPage() {
       dataIndex: 'name',
       key: 'name',
       render: (text: string, record: SupplierItem) => (
-        <Space orientation="vertical" size={0}>
+        <div className="flex flex-col">
           <Text strong>{text}</Text>
           {record.address && (
             <Text type="secondary" style={{ fontSize: 12 }}>
               {record.address}
             </Text>
           )}
-        </Space>
+        </div>
       ),
     },
     {
@@ -160,7 +164,7 @@ export default function SuppliersPage() {
       key: 'contact',
       width: 200,
       render: (_: any, record: SupplierItem) => (
-        <Space orientation="vertical" size={0}>
+        <div className="flex flex-col">
           {record.contactName ? (
             <Text>{record.contactName}</Text>
           ) : (
@@ -171,7 +175,7 @@ export default function SuppliersPage() {
               {record.phone}
             </Text>
           )}
-        </Space>
+        </div>
       ),
     },
     {
@@ -319,7 +323,7 @@ export default function SuppliersPage() {
           columns={columns}
           dataSource={data?.items || []}
           rowKey="id"
-          loading={isLoading}
+          loading={isLoading || isFetching}
           pagination={{
             current: page,
             pageSize: pageSize,

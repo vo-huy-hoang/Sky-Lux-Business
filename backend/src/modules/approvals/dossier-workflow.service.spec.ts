@@ -65,12 +65,19 @@ describe('DossierWorkflowService', () => {
       transaction: jest.fn((callback) => callback(manager)),
       getRepository: jest.fn(),
     } as unknown as DataSource;
+    const notificationsService = {
+      notify: jest.fn().mockResolvedValue({}),
+    };
     return {
-      service: new DossierWorkflowService(dataSource),
+      service: new DossierWorkflowService(
+        dataSource,
+        notificationsService as any,
+      ),
       dossierRepository,
       estimateRepository,
       approvalRepository,
       historyRepository,
+      notificationsService,
     };
   }
 
@@ -82,10 +89,18 @@ describe('DossierWorkflowService', () => {
     context.estimateRepository.save.mockImplementation((value) => value);
 
     const result = await context.service.submit(user, dossier.id, {
-      note: 'Sẵn sàng để Điều hành xem xét',
+      customerId: 'customer-id',
+      operatorUserId: 'operator-id',
     });
 
     expect(result.data.status).toBe(DossierStatus.SUBMITTED);
+    expect(context.dossierRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customerId: 'customer-id',
+        operatorUserId: 'operator-id',
+        status: DossierStatus.SUBMITTED,
+      }),
+    );
     expect(context.estimateRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({ status: EstimateStatus.SUBMITTED }),
     );
@@ -96,6 +111,27 @@ describe('DossierWorkflowService', () => {
       expect.objectContaining({
         action: 'SUBMIT',
         toStatus: DossierStatus.SUBMITTED,
+      }),
+    );
+  });
+
+  it('dispatches notification to operator when sales submits dossier', async () => {
+    const context = createService();
+    const draftDossier = { ...dossier, operatorUserId: 'operator-user-2' };
+    context.dossierRepository.findOne.mockResolvedValue(draftDossier);
+    context.dossierRepository.save.mockImplementation((val) => val);
+    context.estimateRepository.findOne.mockResolvedValue({ ...estimate });
+    context.estimateRepository.save.mockImplementation((val) => val);
+
+    await context.service.submit(user, draftDossier.id, {
+      operatorUserId: 'operator-user-2',
+    });
+
+    expect(context.notificationsService.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'operator-user-2',
+        type: 'DOSSIER',
+        title: expect.stringContaining('HS-001'),
       }),
     );
   });

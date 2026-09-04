@@ -161,7 +161,7 @@ export class DossiersController {
   }
 
   @Post(':id/approve')
-  @RequirePermissions('dossier.update')
+  @RequirePermissions('dossier.approve')
   @ApiOperation({ summary: 'Phê duyệt hồ sơ (API-WORKFLOW-005)' })
   approve(
     @CurrentUser() user: CurrentUserPayload,

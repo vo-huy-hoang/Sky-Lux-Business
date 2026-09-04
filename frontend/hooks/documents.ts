@@ -56,7 +56,7 @@ export function useUploadDossierDocument() {
         queryKey: documentKeys.dossierList(dossierId),
       });
       queryClient.invalidateQueries({
-        queryKey: ['dossier-detail', dossierId],
+        queryKey: queryKeys.dossiers.detail(dossierId),
       });
     },
   });
@@ -89,7 +89,7 @@ export function useDeleteDocument() {
           queryKey: documentKeys.dossierList(variables.dossierId),
         });
         queryClient.invalidateQueries({
-          queryKey: ['dossier-detail', variables.dossierId],
+          queryKey: queryKeys.dossiers.detail(variables.dossierId),
         });
       }
     },

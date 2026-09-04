@@ -30,7 +30,7 @@ export default function PermissionMatrixModal() {
   // 1. Fetch All Permissions
   const { data: permsData } = useQuery({
     queryKey: queryKeys.users.permissions(),
-    queryFn: () => rbacService.getPermissions({ limit: 150 }),
+    queryFn: ({ signal }) => rbacService.getPermissions({ limit: 150 }, { signal }),
   });
   const permissionsByModule = (permsData || []).reduce<Record<string, PermissionItem[]>>(
     (groups, permission) => {
@@ -45,7 +45,7 @@ export default function PermissionMatrixModal() {
   const selectedRoleId = selectedRoleForPerms?.id;
   const { data: detailedRole } = useQuery({
     queryKey: queryKeys.users.roleDetail(selectedRoleId || undefined),
-    queryFn: () => rbacService.getRole(selectedRoleId!),
+    queryFn: ({ signal }) => rbacService.getRole(selectedRoleId!, { signal }),
     enabled: !!selectedRoleId,
   });
 

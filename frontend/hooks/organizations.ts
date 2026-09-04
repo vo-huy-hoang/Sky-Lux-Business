@@ -9,7 +9,7 @@ import { OrganizationItem } from '@/types/organization';
 export function useOrganizationProfile() {
   return useQuery({
     queryKey: queryKeys.organizations.profile(),
-    queryFn: () => organizationsService.getProfile(),
+    queryFn: ({ signal }) => organizationsService.getProfile({ signal }),
   });
 }
 
@@ -34,7 +34,7 @@ export function useUpdateOrganizationProfile() {
 export function useOrganizationSettings() {
   return useQuery({
     queryKey: queryKeys.organizations.settings(),
-    queryFn: () => organizationsService.getSettings(),
+    queryFn: ({ signal }) => organizationsService.getSettings({ signal }),
   });
 }
 

@@ -15,6 +15,9 @@ describe('OrganizationsService', () => {
     const result = await organizationsService.getSettings();
 
     expect(result).toEqual(settings);
-    expect(apiClient.get).toHaveBeenCalledWith('/organization/settings');
+    expect(apiClient.get).toHaveBeenCalledWith(
+      '/organization/settings',
+      expect.anything(),
+    );
   });
 });

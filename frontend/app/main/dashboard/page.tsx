@@ -11,7 +11,6 @@ import {
   Progress,
   Row,
   Skeleton,
-  Space,
   Table,
   Tag,
   Typography,
@@ -144,7 +143,7 @@ function OperationalDashboard() {
     isError: isDossierError,
   } = useQuery({
     queryKey: queryKeys.dossiers.list({ page: 1, limit: 100 }),
-    queryFn: () => dossiersService.getDossiers({ page: 1, limit: 100 }),
+    queryFn: ({ signal }) => dossiersService.getDossiers({ page: 1, limit: 100 }, { signal }),
   });
 
 
@@ -254,12 +253,12 @@ function OperationalDashboard() {
       title: 'Khách hàng',
       key: 'customer',
       render: (_: unknown, record: DossierItem) => (
-        <Space orientation="vertical" size={0}>
+        <div className="flex flex-col">
           <Text strong>{record.customer?.displayName || record.name}</Text>
           <Text type="secondary" className="text-xs">
             {record.route || '-'}
           </Text>
-        </Space>
+        </div>
       ),
     },
     {

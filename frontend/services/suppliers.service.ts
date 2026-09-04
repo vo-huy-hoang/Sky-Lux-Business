@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client';
+import { apiClient, RequestOptions } from '@/lib/api-client';
 import {
   SupplierItem,
   CreateSupplierInput,
@@ -11,17 +11,20 @@ export const suppliersService = {
   /**
    * API-SUPPLIER-001: Lấy danh sách nhà cung cấp phân trang và tìm kiếm
    */
-  getSuppliers: (params?: QuerySupplierParams) => {
+  getSuppliers: (params?: QuerySupplierParams, options?: RequestOptions) => {
     return apiClient.get<any, PaginatedSuppliersResponse>('/suppliers', {
       params,
+      signal: options?.signal,
     });
   },
 
   /**
    * API-SUPPLIER-002: Lấy chi tiết nhà cung cấp theo ID
    */
-  getSupplier: (id: string) => {
-    return apiClient.get<any, SupplierItem>(`/suppliers/${id}`);
+  getSupplier: (id: string, options?: RequestOptions) => {
+    return apiClient.get<any, SupplierItem>(`/suppliers/${id}`, {
+      signal: options?.signal,
+    });
   },
 
   /**

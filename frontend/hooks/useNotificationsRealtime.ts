@@ -1,0 +1,315 @@
+import { useEffect, useRef, useCallback, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import { notification as antdNotification } from 'antd';
+import Cookies from 'js-cookie';
+import { API_BASE_URL } from '@/lib/api-client';
+import { queryKeys } from '@/lib/query-keys';
+import { notificationsService } from '@/services/notifications.service';
+import { useNotificationStore } from '@/lib/stores/notification-store';
+import { useAuthStore } from '@/lib/stores/auth-store';
+import { useUIStore } from '@/lib/stores/ui-store';
+import { NotificationItem, NotificationQuery } from '@/types/notification';
+import { calculateBackoffWithJitter } from '@/hooks/chat';
+
+/**
+ * Hook kết nối luồng Server-Sent Events (SSE) nhận thông báo thời gian thực
+ */
+export function useNotificationsRealtime() {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const setNotificationsStatus = useUIStore((state) => state.setNotificationsStatus);
+  const syncSingleBackendNotification = useNotificationStore(
+    (state) => state.syncSingleBackendNotification,
+  );
+  const setServerUnreadCount = useNotificationStore(
+    (state) => state.setServerUnreadCount,
+  );
+  const markAsReadStore = useNotificationStore((state) => state.markAsRead);
+
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const attemptRef = useRef<number>(0);
+  const connectRef = useRef<() => void>(() => {});
+  const authAccessToken = useAuthStore((state) => state.accessToken);
+  const [tokenTrigger, setTokenTrigger] = useState<string>(authAccessToken || Cookies.get('access_token') || '');
+
+  // Reactive Token Synchronization (0ms latency)
+  useEffect(() => {
+    const currentToken = authAccessToken || Cookies.get('access_token') || '';
+    if (currentToken && currentToken !== tokenTrigger) {
+      setTokenTrigger(currentToken);
+    }
+  }, [authAccessToken, tokenTrigger]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleTokenRefreshed = (e: Event) => {
+      const customEvt = e as CustomEvent<{ accessToken: string }>;
+      const newToken = customEvt.detail?.accessToken || Cookies.get('access_token') || '';
+      if (newToken && newToken !== tokenTrigger) {
+        setTokenTrigger(newToken);
+      }
+    };
+    window.addEventListener('skylux:token-refreshed', handleTokenRefreshed);
+    return () => {
+      window.removeEventListener('skylux:token-refreshed', handleTokenRefreshed);
+    };
+  }, [tokenTrigger]);
+
+  const connect = useCallback(() => {
+    if (typeof window === 'undefined') return;
+
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+
+    let token = Cookies.get('access_token');
+    if (!token && typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('skylux-auth-storage');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          token = parsed?.state?.accessToken;
+          if (token) {
+            Cookies.set('access_token', token, { expires: 1, path: '/' });
+          }
+        }
+      } catch {
+        // Bỏ qua lỗi đọc localStorage
+      }
+    }
+    if (!token) {
+      setNotificationsStatus('connected');
+      return;
+    }
+
+    try {
+      const eventSource = new EventSource(
+        `${API_BASE_URL}/notifications/stream?token=${token}`,
+      );
+      eventSourceRef.current = eventSource;
+
+      eventSource.onopen = () => {
+        attemptRef.current = 0;
+        setNotificationsStatus('connected');
+        // Invalidate và làm mới dữ liệu thông báo khi kết nối thành công
+        queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
+      };
+
+      eventSource.onmessage = (event) => {
+        try {
+          const parsed = JSON.parse(event.data);
+          const { type, payload } = parsed as { type: string; payload: any };
+
+          if (type === 'notification.created') {
+            const newNotif = payload as NotificationItem;
+            // 1. Cập nhật Store đồng bộ tức thời
+            syncSingleBackendNotification(newNotif);
+
+            // 2. Invalidate TanStack Query để refetch dữ liệu tươi mới
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.notifications.lists(),
+            });
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.notifications.unreadCount(),
+            });
+
+            // 3. Hiển thị popup toast nổi góc màn hình
+            antdNotification.info({
+              message: newNotif.title,
+              description: newNotif.content,
+              placement: 'topRight',
+              duration: 5,
+              onClick: () => {
+                if (newNotif.linkUrl) {
+                  router.push(newNotif.linkUrl);
+                }
+              },
+            });
+          } else if (type === 'notification.read') {
+            const { id } = payload as { id: string };
+            markAsReadStore(id);
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.notifications.lists(),
+            });
+          } else if (type === 'notification.unread_count') {
+            const { unreadCount } = payload as { unreadCount: number };
+            setServerUnreadCount(unreadCount);
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.notifications.unreadCount(),
+            });
+          }
+        } catch (err) {
+          console.error('Lỗi phân giải SSE Notification:', err);
+        }
+      };
+
+      eventSource.onerror = () => {
+        eventSource.close();
+        eventSourceRef.current = null;
+
+        const currentToken = Cookies.get('access_token') || '';
+        if (currentToken && currentToken !== token) {
+          setTokenTrigger(currentToken);
+          return;
+        }
+
+        // Full Jitter Exponential Backoff (tối đa 5 lần)
+        const nextAttempt = attemptRef.current + 1;
+        attemptRef.current = nextAttempt;
+
+        if (nextAttempt > 5) {
+          setNotificationsStatus('reconnect_failed');
+          return;
+        }
+
+        setNotificationsStatus('reconnecting');
+
+        // Khi tab đang ẩn: tạm hoãn retry để tiết kiệm tài nguyên
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+          return;
+        }
+
+        const delay = calculateBackoffWithJitter(nextAttempt);
+        if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = setTimeout(() => {
+          connectRef.current();
+        }, delay);
+      };
+    } catch {
+      setNotificationsStatus('reconnecting');
+    }
+  }, [
+    queryClient,
+    router,
+    syncSingleBackendNotification,
+    setServerUnreadCount,
+    markAsReadStore,
+    setNotificationsStatus,
+  ]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
+
+  useEffect(() => {
+    connect();
+
+    const handleOnline = () => {
+      attemptRef.current = 0;
+      setNotificationsStatus('reconnecting');
+      connect();
+    };
+
+    const handleOffline = () => {
+      setNotificationsStatus('offline');
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    };
+
+    // Page Visibility API: Quản lý vòng đời kết nối khi người dùng ẩn/hiện tab
+    const handleVisibilityChange = () => {
+      if (typeof document === 'undefined') return;
+      if (document.visibilityState === 'visible') {
+        if (!eventSourceRef.current) {
+          attemptRef.current = 0;
+          setNotificationsStatus('reconnecting');
+          connect();
+        } else {
+          queryClient.invalidateQueries({ queryKey: queryKeys.notifications.unreadCount() });
+        }
+      } else {
+        if (retryTimerRef.current) {
+          clearTimeout(retryTimerRef.current);
+          retryTimerRef.current = null;
+        }
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      setNotificationsStatus('connected');
+    };
+  }, [connect, tokenTrigger, queryClient, setNotificationsStatus]);
+
+  return null;
+}
+
+/**
+ * Hook lấy danh sách thông báo phân trang (TanStack Query)
+ */
+export function useNotificationsQuery(queryDto: NotificationQuery = {}) {
+  return useQuery({
+    queryKey: queryKeys.notifications.list(queryDto),
+    queryFn: ({ signal }) =>
+      notificationsService.getNotifications(queryDto, { signal }),
+  });
+}
+
+/**
+ * Hook lấy số lượng thông báo chưa đọc
+ */
+export function useUnreadNotificationsCountQuery() {
+  return useQuery({
+    queryKey: queryKeys.notifications.unreadCount(),
+    queryFn: ({ signal }) => notificationsService.getUnreadCount({ signal }),
+    refetchInterval: 60000, // Định kỳ 60s thăm dò dự phòng
+  });
+}
+
+/**
+ * Hook đánh dấu 1 thông báo là đã đọc
+ */
+export function useMarkNotificationReadMutation() {
+  const queryClient = useQueryClient();
+  const markAsReadStore = useNotificationStore((state) => state.markAsRead);
+
+  return useMutation({
+    mutationFn: (id: string) => notificationsService.markAsRead(id),
+    onSuccess: (updated) => {
+      markAsReadStore(updated.id);
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.notifications.all,
+      });
+    },
+  });
+}
+
+/**
+ * Hook đánh dấu tất cả thông báo là đã đọc
+ */
+export function useMarkAllNotificationsReadMutation() {
+  const queryClient = useQueryClient();
+  const markAllAsReadStore = useNotificationStore(
+    (state) => state.markAllAsRead,
+  );
+
+  return useMutation({
+    mutationFn: () => notificationsService.markAllAsRead(),
+    onSuccess: () => {
+      markAllAsReadStore();
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.notifications.all,
+      });
+    },
+  });
+}

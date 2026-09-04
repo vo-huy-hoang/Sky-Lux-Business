@@ -26,6 +26,7 @@ import {
   RightOutlined,
 } from '@ant-design/icons';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { LoginResponse } from '@/types/auth';
@@ -149,6 +150,7 @@ function LoginForm() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const setAuth = useAuthStore((state) => state.setAuth);
   const lockoutSeconds = useAuthStore((state) => state.lockoutSeconds);
@@ -177,6 +179,7 @@ function LoginForm() {
         },
       );
 
+      queryClient.clear();
       setAuth(response);
       message.success(`Chào mừng ${response.user.fullName} quay trở lại!`);
 

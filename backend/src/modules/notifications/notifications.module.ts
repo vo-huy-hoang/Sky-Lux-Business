@@ -7,6 +7,8 @@ import { Conversation } from './entities/conversation.entity';
 import { ConversationParticipant } from './entities/conversation-participant.entity';
 import { Message } from './entities/message.entity';
 import { MessageAttachment } from './entities/message-attachment.entity';
+import { AuthModule } from '../auth/auth.module';
+import { RedisModule } from '../../common/redis/redis.module';
 
 @Module({
   imports: [
@@ -17,6 +19,8 @@ import { MessageAttachment } from './entities/message-attachment.entity';
       Message,
       MessageAttachment,
     ]),
+    AuthModule,
+    RedisModule,
   ],
   controllers: [NotificationsController],
   providers: [NotificationsService],

@@ -4,6 +4,8 @@ import { queryKeys } from '@/lib/query-keys';
 import {
   DossierItem,
   QueryDossierParams,
+  PaginatedDossiersResponse,
+  DossierCommentsResponse,
   CreateCommentPayload,
   QueryCommentParams,
 } from '@/types/dossier';
@@ -11,21 +13,23 @@ import {
 /**
  * Hook lấy danh sách hồ sơ phân trang và tìm kiếm
  */
-export function useDossiersList(params?: QueryDossierParams) {
-  return useQuery({
+export function useDossiersList(params?: QueryDossierParams, options?: { enabled?: boolean }) {
+  return useQuery<PaginatedDossiersResponse>({
     queryKey: queryKeys.dossiers.list(params),
     queryFn: ({ signal }) => dossiersService.getDossiers(params, { signal }),
+    ...options,
   });
 }
 
 /**
  * Hook lấy chi tiết hồ sơ tour theo ID
  */
-export function useDossierDetail(id: string) {
-  return useQuery({
+export function useDossierDetail(id: string, options?: { enabled?: boolean }) {
+  return useQuery<DossierItem>({
     queryKey: queryKeys.dossiers.detail(id),
     queryFn: ({ signal }) => dossiersService.getDossier(id, { signal }),
     enabled: !!id,
+    ...options,
   });
 }
 
@@ -51,11 +55,12 @@ export function useUpdateDossierMetadata() {
 /**
  * Hook lấy danh sách bình luận của hồ sơ tour (API-COMMENT-001)
  */
-export function useDossierComments(dossierId: string, params?: QueryCommentParams) {
-  return useQuery({
+export function useDossierComments(dossierId: string, params?: QueryCommentParams, options?: { enabled?: boolean }) {
+  return useQuery<DossierCommentsResponse>({
     queryKey: queryKeys.dossiers.comments(dossierId, params),
     queryFn: ({ signal }) => dossiersService.getDossierComments(dossierId, params, { signal }),
     enabled: !!dossierId,
+    ...options,
   });
 }
 

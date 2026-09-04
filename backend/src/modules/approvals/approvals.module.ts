@@ -7,6 +7,7 @@ import { WorkflowHistory } from './entities/workflow-history.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { Estimate } from '../estimates/entities/estimate.entity';
 import { DossierWorkflowService } from './dossier-workflow.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { DossierWorkflowService } from './dossier-workflow.service';
       Dossier,
       Estimate,
     ]),
+    NotificationsModule,
   ],
   controllers: [ApprovalsController],
   providers: [ApprovalsService, DossierWorkflowService],

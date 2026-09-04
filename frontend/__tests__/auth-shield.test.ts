@@ -59,4 +59,58 @@ describe('Phase 24: Distributed Throttler & Auth Shield (Frontend)', () => {
       }
     });
   });
+
+  describe('useAuthStore hasRole Multi-Role support', () => {
+    it('should return true when single role matches', () => {
+      useAuthStore.setState({
+        user: {
+          id: 'u1',
+          email: 'sales@skylux.vn',
+          fullName: 'Sales User',
+          organizationId: 'org1',
+          departmentId: 'dept1',
+          roles: ['SALES'],
+          permissions: [],
+        } as any,
+      });
+
+      expect(useAuthStore.getState().hasRole('SALES')).toBe(true);
+      expect(useAuthStore.getState().hasRole('OPERATOR')).toBe(false);
+    });
+
+    it('should return true when any role in array matches', () => {
+      useAuthStore.setState({
+        user: {
+          id: 'u2',
+          email: 'ceo@skylux.vn',
+          fullName: 'CEO User',
+          organizationId: 'org1',
+          departmentId: 'dept1',
+          roles: ['CEO_ADMIN'],
+          permissions: [],
+        } as any,
+      });
+
+      expect(useAuthStore.getState().hasRole(['SUPER_ADMIN', 'CEO_ADMIN'])).toBe(true);
+      expect(useAuthStore.getState().hasRole(['SALES', 'OPERATOR'])).toBe(false);
+    });
+
+    it('should always return true for SUPER_ADMIN', () => {
+      useAuthStore.setState({
+        user: {
+          id: 'u3',
+          email: 'admin@skylux.vn',
+          fullName: 'Admin User',
+          organizationId: 'org1',
+          departmentId: 'dept1',
+          roles: ['SUPER_ADMIN'],
+          permissions: [],
+        } as any,
+      });
+
+      expect(useAuthStore.getState().hasRole('ANY_ROLE')).toBe(true);
+      expect(useAuthStore.getState().hasRole(['ROLE_A', 'ROLE_B'])).toBe(true);
+    });
+  });
 });
+

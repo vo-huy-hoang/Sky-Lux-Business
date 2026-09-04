@@ -19,4 +19,10 @@ export class QueryDossierDto extends PaginationQueryDto {
   @IsEnum(PriorityLevel, { message: 'Mức độ ưu tiên không hợp lệ' })
   @IsOptional()
   priority?: PriorityLevel;
+
+  @ApiPropertyOptional({
+    description: 'Lọc theo nhân viên Sales phụ trách',
+  })
+  @IsOptional()
+  salesUserId?: string;
 }

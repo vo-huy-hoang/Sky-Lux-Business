@@ -64,7 +64,10 @@ describe('useMasterData hooks', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(mockData);
-    expect(masterDataService.getBusinessLines).toHaveBeenCalledWith({ page: 1 });
+    expect(masterDataService.getBusinessLines).toHaveBeenCalledWith(
+      { page: 1 },
+      expect.anything(),
+    );
   });
 
   it('useMarketTypes fetches market types', async () => {

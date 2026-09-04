@@ -45,7 +45,6 @@ export class AuthController {
     description: 'Đăng nhập thất bại quá nhiều lần, tạm thời bị giới hạn',
   })
   login(@Body() loginDto: LoginDto, @Req() req: Request) {
-
     const ipAddress = req.ip;
     const userAgent = req.headers['user-agent'];
     return this.authService.login(loginDto, ipAddress, userAgent);

@@ -5,6 +5,7 @@ import { SupplierType } from './supplier-type.entity';
 
 @Entity('suppliers')
 export class Supplier extends BaseEntity {
+  @Index()
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;
 

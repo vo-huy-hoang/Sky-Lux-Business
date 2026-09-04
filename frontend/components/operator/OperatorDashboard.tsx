@@ -35,6 +35,7 @@ import { useDossiersList } from '@/hooks/dossiers';
 import { tasksService } from '@/services/tasks.service';
 import { DossierItem } from '@/types/dossier';
 import { TaskItem } from '@/types/task';
+import { OperatorMonthlyTrendItem } from '@/types/dashboard';
 import { queryKeys } from '@/lib/query-keys';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, ChartTooltip, Legend);
@@ -107,7 +108,7 @@ export default function OperatorDashboard() {
 
   const { data: urgentTasksResponse, isLoading: isLoadingTasks } = useQuery({
     queryKey: queryKeys.tasks.list({ page: 1, limit: 5, status: 'IN_PROGRESS' }),
-    queryFn: () => tasksService.getTasks({ page: 1, limit: 5, status: 'IN_PROGRESS' }),
+    queryFn: ({ signal }) => tasksService.getTasks({ page: 1, limit: 5, status: 'IN_PROGRESS' }, { signal }),
   });
   const urgentTasks = urgentTasksResponse?.items || [];
 
@@ -124,8 +125,8 @@ export default function OperatorDashboard() {
   const priorityDossiers = useMemo(() => {
     return (
       operatorData?.priorityBreakdown
-        ?.filter((p) => ['HIGH', 'URGENT'].includes(p.priority))
-        ?.reduce((sum, p) => sum + p.count, 0) || 0
+        ?.filter((p: { priority: string; count: number }) => ['HIGH', 'URGENT'].includes(p.priority))
+        ?.reduce((sum: number, p: { priority: string; count: number }) => sum + p.count, 0) || 0
     );
   }, [operatorData?.priorityBreakdown]);
 
@@ -139,12 +140,12 @@ export default function OperatorDashboard() {
   // Biểu đồ Xu hướng doanh thu & Hồ sơ 6 tháng gần nhất
   const chartData = useMemo(() => {
     return {
-      labels: monthlyTrends.map((t) => t.label || t.monthKey),
+      labels: monthlyTrends.map((t: OperatorMonthlyTrendItem) => t.label || t.monthKey),
       datasets: [
         {
           type: 'bar' as const,
           label: 'Doanh thu (đ)',
-          data: monthlyTrends.map((t) => t.totalRevenue),
+          data: monthlyTrends.map((t: OperatorMonthlyTrendItem) => t.totalRevenue),
           backgroundColor: '#004230',
           borderRadius: 6,
           borderSkipped: false,
@@ -154,7 +155,7 @@ export default function OperatorDashboard() {
         {
           type: 'line' as const,
           label: 'Hồ sơ đã duyệt',
-          data: monthlyTrends.map((t) => t.approvedDossiers),
+          data: monthlyTrends.map((t: OperatorMonthlyTrendItem) => t.approvedDossiers),
           borderColor: '#D3A11B',
           backgroundColor: '#D3A11B',
           pointRadius: 4,
@@ -171,10 +172,10 @@ export default function OperatorDashboard() {
   const donutData = useMemo(() => {
     const tasksBreakdown = operatorData?.tasksBreakdown || [];
     return {
-      labels: tasksBreakdown.map((t) => t.status),
+      labels: tasksBreakdown.map((t: { status: string; count: number }) => t.status),
       datasets: [
         {
-          data: tasksBreakdown.map((t) => t.count),
+          data: tasksBreakdown.map((t: { status: string; count: number }) => t.count),
           backgroundColor: ['#D3A11B', '#3487C8', '#0B7A5B', '#D94A4A', '#8462C7'],
           borderWidth: 2,
           borderColor: '#FFFFFF',
@@ -196,7 +197,7 @@ export default function OperatorDashboard() {
     year: 'numeric',
   }).format(new Date());
 
-  const hasChartData = monthlyTrends.some((item) => item.totalRevenue > 0 || item.totalDossiers > 0);
+  const hasChartData = monthlyTrends.some((item: OperatorMonthlyTrendItem) => item.totalRevenue > 0 || item.totalDossiers > 0);
 
   const dossierColumns = [
     {
@@ -365,7 +366,7 @@ export default function OperatorDashboard() {
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                   <Text className="text-xs text-[var(--op-text-muted)]">Tổng công việc</Text>
                   <strong className="text-3xl tabular-nums text-[var(--op-primary-900)]">
-                    {operatorData?.tasksBreakdown?.reduce((sum, t) => sum + t.count, 0) || 0}
+                    {operatorData?.tasksBreakdown?.reduce((sum: number, t: { status: string; count: number }) => sum + t.count, 0) || 0}
                   </strong>
                 </div>
               </>
@@ -374,7 +375,7 @@ export default function OperatorDashboard() {
             )}
           </div>
           <div className="mt-3 space-y-2">
-            {operatorData?.tasksBreakdown?.map((task, idx) => (
+            {operatorData?.tasksBreakdown?.map((task: { status: string; count: number }, idx: number) => (
               <div key={task.status} className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-2">
                   <i

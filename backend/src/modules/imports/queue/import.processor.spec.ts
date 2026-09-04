@@ -34,6 +34,10 @@ describe('ImportProcessor', () => {
 
     customerRepository = {
       findOne: jest.fn(),
+      create: jest.fn((dto) => dto),
+      save: jest.fn((entity) =>
+        Promise.resolve({ id: 'auto-cust-uuid', ...entity }),
+      ),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -203,6 +207,153 @@ describe('ImportProcessor', () => {
       const errorRow = rowRepository.save.mock.calls[1][0];
       expect(errorRow.status).toBe('ERROR');
       expect(errorRepository.save).toHaveBeenCalled();
+    });
+
+    it('should auto-create customer when customer code does not exist in CRM', async () => {
+      const mockSession = {
+        id: 'session-autocreate',
+        organizationId: 'org-id',
+        template: null,
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+
+      const mockRows = [
+        {
+          id: 'row-new-cust',
+          rowNumber: 2,
+          rawData: {
+            'Mã hồ sơ': 'TOUR-NEW-01',
+            'Tên hồ sơ': 'Tour Phu Quoc 3N2D',
+            'Mã khách hàng': 'KH-BRAND-NEW',
+            'Tên khách hàng': 'Le Thi C',
+            'Số điện thoại': '0933445566',
+            Email: 'lethic@gmail.com',
+          },
+          status: 'PENDING',
+        },
+      ];
+      rowRepository.find.mockResolvedValue(mockRows);
+      customerRepository.findOne.mockResolvedValue(null); // Not found
+
+      await (processor as any).handleValidateRows('session-autocreate');
+
+      expect(customerRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'KH-BRAND-NEW',
+          displayName: 'Le Thi C',
+          phone: '0933445566',
+          email: 'lethic@gmail.com',
+        }),
+      );
+      expect(customerRepository.save).toHaveBeenCalled();
+
+      const savedRow = rowRepository.save.mock.calls[0][0];
+      expect(savedRow.status).toBe('VALID');
+      expect(savedRow.normalizedData.customerId).toBe('auto-cust-uuid');
+    });
+
+    it('should detect in-file duplicate dossier codes and flag error', async () => {
+      const mockSession = {
+        id: 'session-dup',
+        organizationId: 'org-id',
+        template: null,
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+
+      const mockRows = [
+        {
+          id: 'row-dup-1',
+          rowNumber: 2,
+          rawData: {
+            'Mã hồ sơ': 'TOUR-DUPLICATE',
+            'Tên hồ sơ': 'Tour 1',
+            'Mã khách hàng': 'KH001',
+          },
+          status: 'PENDING',
+        },
+        {
+          id: 'row-dup-2',
+          rowNumber: 3,
+          rawData: {
+            'Mã hồ sơ': 'TOUR-DUPLICATE',
+            'Tên hồ sơ': 'Tour 2',
+            'Mã khách hàng': 'KH001',
+          },
+          status: 'PENDING',
+        },
+      ];
+      rowRepository.find.mockResolvedValue(mockRows);
+      customerRepository.findOne.mockResolvedValue({ id: 'cust-uuid' });
+
+      await (processor as any).handleValidateRows('session-dup');
+
+      expect(errorRepository.save).toHaveBeenCalled();
+      const savedErrors = errorRepository.save.mock.calls[0][0];
+      expect(savedErrors.some((e: any) => e.errorMessage.includes('bị trùng lặp'))).toBe(true);
+    });
+
+    it('should reject invalid date range when endDate is before startDate', async () => {
+      const mockSession = {
+        id: 'session-invalid-dates',
+        organizationId: 'org-id',
+        template: null,
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+
+      const mockRows = [
+        {
+          id: 'row-date-error',
+          rowNumber: 2,
+          rawData: {
+            'Mã hồ sơ': 'TOUR-DATE-ERR',
+            'Tên hồ sơ': 'Tour Logic Error',
+            'Mã khách hàng': 'KH001',
+            'Ngày bắt đầu': '2026-10-10',
+            'Ngày kết thúc': '2026-10-05',
+          },
+          status: 'PENDING',
+        },
+      ];
+      rowRepository.find.mockResolvedValue(mockRows);
+      customerRepository.findOne.mockResolvedValue({ id: 'cust-uuid' });
+
+      await (processor as any).handleValidateRows('session-invalid-dates');
+
+      expect(errorRepository.save).toHaveBeenCalled();
+      const savedErrors = errorRepository.save.mock.calls[0][0];
+      expect(savedErrors.some((e: any) => e.errorMessage.includes('không thể trước'))).toBe(true);
+    });
+
+    it('should sanitize formula injection values starting with =, +, -, @', async () => {
+      const mockSession = {
+        id: 'session-sanitize',
+        organizationId: 'org-id',
+        template: null,
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+
+      const mockRows = [
+        {
+          id: 'row-formula',
+          rowNumber: 2,
+          rawData: {
+            'Mã hồ sơ': 'TOUR-SAFE',
+            'Tên hồ sơ': '=cmd|/c calc!A1',
+            'Mã khách hàng': 'KH001',
+            'Tuyến đường': '+SUM(1,2)',
+          },
+          status: 'PENDING',
+        },
+      ];
+      rowRepository.find.mockResolvedValue(mockRows);
+      customerRepository.findOne.mockResolvedValue({ id: 'cust-uuid' });
+
+      await (processor as any).handleValidateRows('session-sanitize');
+
+      const savedRow = rowRepository.save.mock.calls[0][0];
+      expect(savedRow.status).toBe('VALID');
+      expect(savedRow.normalizedData.name).toBe("'=cmd|/c calc!A1");
+      expect(savedRow.normalizedData.route).toBe("'+SUM(1,2)");
     });
   });
 });

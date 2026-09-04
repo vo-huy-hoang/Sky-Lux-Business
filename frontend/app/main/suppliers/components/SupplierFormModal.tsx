@@ -12,6 +12,7 @@ import {
 } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { suppliersService } from '@/services/suppliers.service';
+import { queryKeys } from '@/lib/query-keys';
 import { SupplierItem, CreateSupplierInput } from '@/types/supplier';
 
 const { Option } = Select;
@@ -62,7 +63,7 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
       suppliersService.createSupplier(values),
     onSuccess: () => {
       message.success('Tạo nhà cung cấp thành công');
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.suppliers.all });
       form.resetFields();
       onCancel();
       onSuccess?.();
@@ -81,10 +82,10 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
       suppliersService.updateSupplier(initialData!.id, values),
     onSuccess: () => {
       message.success('Cập nhật nhà cung cấp thành công');
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.suppliers.all });
       if (initialData?.id) {
         queryClient.invalidateQueries({
-          queryKey: ['supplier', initialData.id],
+          queryKey: queryKeys.suppliers.detail(initialData.id),
         });
       }
       form.resetFields();

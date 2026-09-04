@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client';
+import { apiClient, RequestOptions } from '@/lib/api-client';
 import {
   OrganizationItem,
   OrganizationSettingItem,
@@ -9,8 +9,10 @@ export const organizationsService = {
   /**
    * API-ORG-001: Lấy thông tin chi tiết tổ chức/doanh nghiệp
    */
-  getProfile: () => {
-    return apiClient.get<any, OrganizationItem>('/organization');
+  getProfile: (options?: RequestOptions) => {
+    return apiClient.get<any, OrganizationItem>('/organization', {
+      signal: options?.signal,
+    });
   },
 
   /**
@@ -23,8 +25,10 @@ export const organizationsService = {
   /**
    * API-ORG-003: Lấy danh sách thiết lập/cấu hình của tổ chức
    */
-  getSettings: () => {
-    return apiClient.get<any, OrganizationSettings>('/organization/settings');
+  getSettings: (options?: RequestOptions) => {
+    return apiClient.get<any, OrganizationSettings>('/organization/settings', {
+      signal: options?.signal,
+    });
   },
 
   /**

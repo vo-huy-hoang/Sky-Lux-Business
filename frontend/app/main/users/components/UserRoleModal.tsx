@@ -7,6 +7,7 @@ import { rbacService } from '@/services/rbac.service';
 import { useRbacStore } from '../store';
 import { useShallow } from 'zustand/react/shallow';
 import { queryKeys } from '@/lib/query-keys';
+import { useUserRoles } from '@/hooks/use-users';
 
 export default function UserRoleModal() {
   const queryClient = useQueryClient();
@@ -27,12 +28,8 @@ export default function UserRoleModal() {
     })),
   );
 
-
-  // 1. Fetch All Roles
-  const { data: rolesData } = useQuery({
-    queryKey: queryKeys.users.roles(),
-    queryFn: () => rbacService.getRoles({ search: '' }),
-  });
+  // 1. Fetch All Roles (Deep Hook with signal)
+  const { data: rolesData } = useUserRoles('');
   const roles = rolesData || [];
 
   const assignUserRolesMutation = useMutation({

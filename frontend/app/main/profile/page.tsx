@@ -93,29 +93,41 @@ export default function ProfilePage() {
   const isOperator = user?.roles?.includes('OPERATOR');
 
   const { data: meData, isLoading: isProfileLoading } = useQuery({
-    queryKey: ['auth-me'],
-    queryFn: authService.getMe,
+    queryKey: queryKeys.users.me(user?.id),
+    queryFn: ({ signal }) => authService.getMe({ signal }),
     enabled: !!user?.id,
   });
 
   const profile = useMemo(
-    () => (meData ? normalizeProfile(meData) : user),
+    () => (meData && meData.id === user?.id ? normalizeProfile(meData) : user),
     [meData, user],
   );
 
   useEffect(() => {
-    if (meData) setUser(normalizeProfile(meData));
+    if (!meData) return;
+    const normalized = normalizeProfile(meData);
+    const currentUser = useAuthStore.getState().user;
+    if (
+      !currentUser ||
+      currentUser.id !== normalized.id ||
+      currentUser.fullName !== normalized.fullName ||
+      currentUser.email !== normalized.email ||
+      currentUser.phone !== normalized.phone ||
+      currentUser.avatarUrl !== normalized.avatarUrl
+    ) {
+      setUser(normalized);
+    }
   }, [meData, setUser]);
 
   const { data: kpiData } = useQuery({
     queryKey: queryKeys.kpis.myResults({ periodType: 'MONTHLY' }),
-    queryFn: () => kpiService.getMyKpi({ periodType: 'MONTHLY' }),
+    queryFn: ({ signal }) => kpiService.getMyKpi({ periodType: 'MONTHLY' }, { signal }),
     enabled: !!profile?.id,
   });
 
   const { data: dossierData } = useQuery({
     queryKey: queryKeys.dossiers.list({ page: 1, limit: 4 }),
-    queryFn: () => dossiersService.getDossiers({ page: 1, limit: 4 }),
+    queryFn: ({ signal }) => dossiersService.getDossiers({ page: 1, limit: 4 }, { signal }),
     enabled: !!profile?.id,
   });
 

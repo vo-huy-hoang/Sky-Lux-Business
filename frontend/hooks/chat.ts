@@ -18,15 +18,32 @@ import {
   MarkReadPayload,
 } from '@/types/chat';
 
-const appendMessageToCache = (newMessage: Message) => (old?: Message[]) => {
-  if (!old) return [newMessage];
-  if (old.some((msg) => msg.id === newMessage.id)) return old;
+export const appendMessageToCache = (newMessage: Message) => (old: Message[] = []): Message[] => {
+  // 1. Nếu đã có tin nhắn tạm mang clientMessageId này, thay thế tại chỗ
+  if (
+    newMessage.clientMessageId &&
+    old.some((msg) => msg.clientMessageId === newMessage.clientMessageId)
+  ) {
+    return old.map((msg) =>
+      msg.clientMessageId === newMessage.clientMessageId
+        ? ({ ...newMessage, status: 'sent' as const })
+        : msg,
+    );
+  }
+
+  // 2. Chống lặp nếu đã tồn tại ID thật
+  if (old.some((msg) => msg.id === newMessage.id)) {
+    return old;
+  }
+
+  // 3. Tin nhắn mới từ người khác: Nối vào cuối danh sách
   return [...old, newMessage];
 };
 
-const removeMessageFromCache = (messageId: string) => (old?: Message[]) => {
-  if (!old) return [];
-  return old.filter((msg) => msg.id !== messageId);
+export const removeMessageFromCache = (messageIdOrClientId: string) => (old: Message[] = []): Message[] => {
+  return old.filter(
+    (msg) => msg.id !== messageIdOrClientId && msg.clientMessageId !== messageIdOrClientId,
+  );
 };
 
 export const useConversations = () => {
@@ -165,9 +182,11 @@ export const useSendMessage = (conversationId: string) => {
             (msg) => msg.id !== context?.tempId && msg.clientMessageId !== context?.clientMessageId,
           );
           if (withoutTemp.some((msg) => msg.id === savedMessage.id)) {
-            return withoutTemp;
+            return withoutTemp.map((msg) =>
+              msg.id === savedMessage.id ? ({ ...savedMessage, status: 'sent' as const }) : msg,
+            );
           }
-          return [...withoutTemp, { ...savedMessage, status: 'sent' }];
+          return [...withoutTemp, { ...savedMessage, status: 'sent' as const }];
         },
       );
 
@@ -179,7 +198,7 @@ export const useSendMessage = (conversationId: string) => {
 
 export const useDossierConversation = (dossierId: string) => {
   return useQuery({
-    queryKey: ['dossier-conversation', dossierId],
+    queryKey: queryKeys.chat.dossierConversation(dossierId),
     queryFn: ({ signal }) => chatService.getDossierConversation(dossierId, { signal }),
     enabled: !!dossierId,
   });
@@ -226,7 +245,8 @@ export function calculateBackoffWithJitter(
 export const useChatRealtime = (conversationId?: string) => {
   const queryClient = useQueryClient();
   const [typingUsers, setTypingUsers] = useState<{ userId: string; fullName: string; expiresAt: number }[]>([]);
-  const [tokenTrigger, setTokenTrigger] = useState(Cookies.get('access_token') || '');
+  const authAccessToken = useAuthStore((state) => state.accessToken);
+  const [tokenTrigger, setTokenTrigger] = useState(authAccessToken || Cookies.get('access_token') || '');
 
   const attemptRef = useRef(0);
   const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -234,18 +254,31 @@ export const useChatRealtime = (conversationId?: string) => {
   const connectRef = useRef<() => void>(() => {});
 
   const setConnectionStatus = useUIStore((state) => state.setConnectionStatus);
-
+  const setChatStatus = useUIStore((state) => state.setChatStatus);
   const setReconnectAttempt = useUIStore((state) => state.setReconnectAttempt);
+  const reconnectTrigger = useUIStore((state) => state.reconnectTrigger);
 
-  // Synchronize token trigger state if cookies change
+  // Reactive Token Synchronization (0ms latency, zero polling intervals)
   useEffect(() => {
-    const interval = setInterval(() => {
-      const currentToken = Cookies.get('access_token') || '';
-      if (currentToken !== tokenTrigger) {
-        setTokenTrigger(currentToken);
+    const currentToken = authAccessToken || Cookies.get('access_token') || '';
+    if (currentToken && currentToken !== tokenTrigger) {
+      setTokenTrigger(currentToken);
+    }
+  }, [authAccessToken, tokenTrigger]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleTokenRefreshed = (e: Event) => {
+      const customEvt = e as CustomEvent<{ accessToken: string }>;
+      const newToken = customEvt.detail?.accessToken || Cookies.get('access_token') || '';
+      if (newToken && newToken !== tokenTrigger) {
+        setTokenTrigger(newToken);
       }
-    }, 5000);
-    return () => clearInterval(interval);
+    };
+    window.addEventListener('skylux:token-refreshed', handleTokenRefreshed);
+    return () => {
+      window.removeEventListener('skylux:token-refreshed', handleTokenRefreshed);
+    };
   }, [tokenTrigger]);
 
   // Periodic cleanup of expired typing indicators (Receiver GC)
@@ -271,11 +304,13 @@ export const useChatRealtime = (conversationId?: string) => {
 
     const token = Cookies.get('access_token');
     if (!token) {
-      setConnectionStatus('offline');
+      setChatStatus('idle');
+      setConnectionStatus('connected');
       return;
     }
 
     try {
+      setChatStatus('reconnecting');
       // Khởi tạo luồng kết nối EventSource nhận tin nhắn mới
       const eventSource = new EventSource(
         `${API_BASE_URL}/conversations/stream?token=${token}`,
@@ -285,6 +320,7 @@ export const useChatRealtime = (conversationId?: string) => {
       eventSource.onopen = () => {
         attemptRef.current = 0;
         setReconnectAttempt(0);
+        setChatStatus('connected');
         setConnectionStatus('connected');
         queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
       };
@@ -297,11 +333,11 @@ export const useChatRealtime = (conversationId?: string) => {
             const newMessage = chatEvent.payload as Message;
             if (newMessage.conversationId === conversationId) {
               queryClient.setQueryData<Message[]>(
-                ['conversation-messages', conversationId],
+                queryKeys.chat.messages(conversationId),
                 appendMessageToCache(newMessage),
               );
             }
-            queryClient.invalidateQueries({ queryKey: ['conversations'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
           } else if (chatEvent.type === 'message.deleted') {
             const { id, conversationId: msgConversationId } = chatEvent.payload as {
               id: string;
@@ -309,11 +345,11 @@ export const useChatRealtime = (conversationId?: string) => {
             };
             if (msgConversationId === conversationId) {
               queryClient.setQueryData<Message[]>(
-                ['conversation-messages', conversationId],
+                queryKeys.chat.messages(conversationId),
                 removeMessageFromCache(id),
               );
             }
-            queryClient.invalidateQueries({ queryKey: ['conversations'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
           } else if (chatEvent.type === 'member.joined') {
             const { conversationId: joinedConvId, member } = chatEvent.payload as {
               conversationId: string;
@@ -321,7 +357,7 @@ export const useChatRealtime = (conversationId?: string) => {
             };
             if (joinedConvId === conversationId) {
               queryClient.setQueryData<ConversationMember[]>(
-                ['conversation-participants', conversationId],
+                queryKeys.chat.participants(conversationId),
                 (old) => {
                   if (!old) return [member];
                   if (old.some((m) => m.id === member.id)) return old;
@@ -336,7 +372,7 @@ export const useChatRealtime = (conversationId?: string) => {
             };
             if (leftConvId === conversationId) {
               queryClient.setQueryData<ConversationMember[]>(
-                ['conversation-participants', conversationId],
+                queryKeys.chat.participants(conversationId),
                 (old) => {
                   if (!old) return [];
                   return old.filter((m) => m.userId !== userId);
@@ -352,7 +388,7 @@ export const useChatRealtime = (conversationId?: string) => {
             };
             if (readConvId === conversationId) {
               queryClient.setQueryData<ConversationMember[]>(
-                ['conversation-participants', conversationId],
+                queryKeys.chat.participants(conversationId),
                 (old) => {
                   if (!old) return [];
                   return old.map((m) =>
@@ -385,7 +421,7 @@ export const useChatRealtime = (conversationId?: string) => {
               setTypingUsers((prev) => prev.filter((u) => u.userId !== userId));
             }
           } else if (chatEvent.type === 'unread_count') {
-            queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.chat.unreadCount() });
           } else if (chatEvent.type === 'conversation.updated') {
             queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
             if ((chatEvent.payload as { conversationId: string })?.conversationId === conversationId) {
@@ -411,7 +447,21 @@ export const useChatRealtime = (conversationId?: string) => {
         const nextAttempt = attemptRef.current + 1;
         attemptRef.current = nextAttempt;
         setReconnectAttempt(nextAttempt);
+
+        // Giới hạn tối đa 5 lần thử lại tự động: dừng vòng lặp và chuyển sang chế độ chờ nút bấm thủ công
+        if (nextAttempt > 5) {
+          setChatStatus('reconnect_failed');
+          setConnectionStatus('reconnect_failed');
+          return;
+        }
+
+        setChatStatus('reconnecting');
         setConnectionStatus('reconnecting');
+
+        // Khi tab đang ẩn: tạm hoãn retry để tiết kiệm tài nguyên mạng và socket
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+          return;
+        }
 
         const delay = calculateBackoffWithJitter(nextAttempt);
 
@@ -423,13 +473,25 @@ export const useChatRealtime = (conversationId?: string) => {
         }, delay);
       };
     } catch {
+      setChatStatus('reconnecting');
       setConnectionStatus('reconnecting');
     }
-  }, [conversationId, queryClient, setConnectionStatus, setReconnectAttempt]);
+  }, [conversationId, queryClient, setConnectionStatus, setChatStatus, setReconnectAttempt]);
 
   useEffect(() => {
     connectRef.current = connect;
   }, [connect]);
+
+  // Lắng nghe tín hiệu kích hoạt kết nối lại thủ công từ Header banner
+  useEffect(() => {
+    if (reconnectTrigger > 0) {
+      attemptRef.current = 0;
+      setReconnectAttempt(0);
+      setChatStatus('reconnecting');
+      setConnectionStatus('reconnecting');
+      connectRef.current();
+    }
+  }, [reconnectTrigger, setConnectionStatus, setChatStatus, setReconnectAttempt]);
 
   // Online / Offline System Event Listeners for Fast Recovery
   useEffect(() => {
@@ -439,6 +501,7 @@ export const useChatRealtime = (conversationId?: string) => {
       // Mạng có lại: Lập tức reset attempt về 0 và thử kết nối lại ngay tức thì (0ms)
       attemptRef.current = 0;
       setReconnectAttempt(0);
+      setChatStatus('reconnecting');
       setConnectionStatus('reconnecting');
       if (retryTimerRef.current) {
         clearTimeout(retryTimerRef.current);
@@ -447,6 +510,7 @@ export const useChatRealtime = (conversationId?: string) => {
     };
 
     const handleOffline = () => {
+      setChatStatus('offline');
       setConnectionStatus('offline');
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
@@ -454,17 +518,44 @@ export const useChatRealtime = (conversationId?: string) => {
       }
       if (retryTimerRef.current) {
         clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    };
+
+    // Page Visibility API: Quản lý vòng đời kết nối khi người dùng ẩn/hiện tab
+    const handleVisibilityChange = () => {
+      if (typeof document === 'undefined') return;
+      if (document.visibilityState === 'visible') {
+        if (!eventSourceRef.current) {
+          attemptRef.current = 0;
+          setReconnectAttempt(0);
+          setChatStatus('reconnecting');
+          setConnectionStatus('reconnecting');
+          connectRef.current();
+        } else {
+          queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
+          if (conversationId) {
+            queryClient.invalidateQueries({ queryKey: queryKeys.chat.messages(conversationId) });
+          }
+        }
+      } else {
+        if (retryTimerRef.current) {
+          clearTimeout(retryTimerRef.current);
+          retryTimerRef.current = null;
+        }
       }
     };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [setConnectionStatus, setReconnectAttempt]);
+  }, [conversationId, queryClient, setChatStatus, setConnectionStatus, setReconnectAttempt]);
 
   useEffect(() => {
     connect();
@@ -472,14 +563,19 @@ export const useChatRealtime = (conversationId?: string) => {
     return () => {
       if (retryTimerRef.current) {
         clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
       }
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
       setTypingUsers([]);
+      // Lazy-scoped: khi rời khỏi màn hình Chat, trả trạng thái chat về idle
+      setChatStatus('idle');
+      setConnectionStatus('connected');
+      setReconnectAttempt(0);
     };
-  }, [connect, tokenTrigger]);
+  }, [connect, tokenTrigger, setConnectionStatus, setChatStatus, setReconnectAttempt]);
 
 
   return { typingUsers };

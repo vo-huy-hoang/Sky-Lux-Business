@@ -25,9 +25,16 @@ export const queryKeys = {
     list: (filters?: Record<string, any>) => [...queryKeys.users.lists(), filters || {}] as const,
     details: () => [...queryKeys.users.all, 'detail'] as const,
     detail: (id?: string) => [...queryKeys.users.details(), id || ''] as const,
-    roles: () => [...queryKeys.users.all, 'roles'] as const,
+    roles: (search?: string) =>
+      search !== undefined
+        ? ([...queryKeys.users.all, 'roles', search] as const)
+        : ([...queryKeys.users.all, 'roles'] as const),
     permissions: () => [...queryKeys.users.all, 'permissions'] as const,
     roleDetail: (id?: string) => [...queryKeys.users.roles(), id || ''] as const,
+    me: (userId?: string) =>
+      userId
+        ? ([...queryKeys.users.all, 'me', userId] as const)
+        : ([...queryKeys.users.all, 'me'] as const),
   },
 
   // 3. DASHBOARDS (OPERATOR, SALES, CEO)
@@ -117,6 +124,8 @@ export const queryKeys = {
     unreadCount: () => [...queryKeys.chat.all, 'unread-count'] as const,
     participants: (conversationId?: string) =>
       [...queryKeys.chat.all, 'participants', conversationId || ''] as const,
+    dossierConversation: (dossierId?: string) =>
+      [...queryKeys.chat.all, 'dossier', dossierId || ''] as const,
   },
 
   // 12. DOCUMENTS & ATTACHMENTS
@@ -176,6 +185,16 @@ export const queryKeys = {
     list: (params?: Record<string, any>) => [...queryKeys.auditLogs.lists(), params || {}] as const,
     details: () => [...queryKeys.auditLogs.all, 'detail'] as const,
     detail: (id?: string) => [...queryKeys.auditLogs.details(), id || ''] as const,
+  },
+
+  // 18. NOTIFICATIONS & ALERTS
+  notifications: {
+    all: ['notifications'] as const,
+    lists: () => [...queryKeys.notifications.all, 'list'] as const,
+    list: (params?: Record<string, any>) =>
+      [...queryKeys.notifications.lists(), params || {}] as const,
+    unreadCount: () => [...queryKeys.notifications.all, 'unread-count'] as const,
+    detail: (id?: string) => [...queryKeys.notifications.all, 'detail', id || ''] as const,
   },
 };
 

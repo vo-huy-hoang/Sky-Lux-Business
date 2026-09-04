@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Task } from './entities/task.entity';
@@ -19,6 +20,8 @@ export class TasksService {
     @InjectRepository(TaskChecklistItem)
     private readonly checklistItemRepository: Repository<TaskChecklistItem>,
     private readonly dossiersService: DossiersService,
+    @Optional()
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   async findAll(
@@ -121,7 +124,25 @@ export class TasksService {
 
     this.recalculateTaskProgress(task);
 
-    return this.taskRepository.save(task);
+    const saved = await this.taskRepository.save(task);
+
+    if (this.notificationsService && saved.assignedTo && saved.assignedTo !== user.id) {
+      try {
+        await this.notificationsService.notify({
+          organizationId: user.organizationId,
+          userId: saved.assignedTo,
+          title: `Công việc mới được giao: ${saved.title}`,
+          content: `${user.fullName || 'Quản lý'} đã giao công việc "${saved.title}" cho bạn.`,
+          type: 'TASK',
+          linkUrl: '/main/tasks',
+          metadata: { taskId: saved.id, dossierId: saved.dossierId },
+        });
+      } catch (err: any) {
+        // Không để lỗi gửi thông báo làm gián đoạn việc lưu công việc
+      }
+    }
+
+    return saved;
   }
 
   async update(
@@ -130,6 +151,7 @@ export class TasksService {
     updateTaskDto: UpdateTaskDto,
   ): Promise<Task> {
     const task = await this.findOne(user, id);
+    const previousAssignee = task.assignedTo;
     const {
       status,
       checklistItems,
@@ -184,7 +206,30 @@ export class TasksService {
 
     this.recalculateTaskProgress(task);
 
-    return this.taskRepository.save(task);
+    const saved = await this.taskRepository.save(task);
+
+    if (
+      this.notificationsService &&
+      saved.assignedTo &&
+      saved.assignedTo !== user.id &&
+      saved.assignedTo !== previousAssignee
+    ) {
+      try {
+        await this.notificationsService.notify({
+          organizationId: user.organizationId,
+          userId: saved.assignedTo,
+          title: `Công việc được chuyển giao: ${saved.title}`,
+          content: `${user.fullName || 'Quản lý'} đã phân công công việc "${saved.title}" cho bạn.`,
+          type: 'TASK',
+          linkUrl: '/main/tasks',
+          metadata: { taskId: saved.id, dossierId: saved.dossierId },
+        });
+      } catch (err: any) {
+        // Không để lỗi gửi thông báo làm gián đoạn việc cập nhật công việc
+      }
+    }
+
+    return saved;
   }
 
   async remove(user: CurrentUserPayload, id: string): Promise<void> {

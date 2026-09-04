@@ -19,11 +19,7 @@ export const importsService = {
       formData.append('templateId', templateId);
     }
 
-    return apiClient.post<any, ImportSession>('/imports', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    return apiClient.post<any, ImportSession>('/imports', formData);
   },
 
   /**

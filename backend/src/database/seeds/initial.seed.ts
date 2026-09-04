@@ -12,8 +12,21 @@ import { MarketType } from '../../modules/master-data/entities/market-type.entit
 import { ServiceCategory } from '../../modules/master-data/entities/service-category.entity';
 import { PassengerType } from '../../modules/master-data/entities/passenger-type.entity';
 import { Unit } from '../../modules/master-data/entities/unit.entity';
+import { Supplier } from '../../modules/suppliers/entities/supplier.entity';
 import { SupplierType } from '../../modules/suppliers/entities/supplier-type.entity';
-import { UserStatus, RoleScope } from '../../common/enums';
+import { Customer } from '../../modules/customers/entities/customer.entity';
+import { Dossier } from '../../modules/dossiers/entities/dossier.entity';
+import { Estimate } from '../../modules/estimates/entities/estimate.entity';
+import { EstimateRevenueLine } from '../../modules/estimates/entities/estimate-revenue-line.entity';
+import { EstimateCostLine } from '../../modules/estimates/entities/estimate-cost-line.entity';
+import {
+  UserStatus,
+  RoleScope,
+  CustomerType,
+  DossierStatus,
+  EstimateStatus,
+  PriorityLevel,
+} from '../../common/enums';
 
 export async function runInitialSeed(dataSource: DataSource) {
   console.log('🌱 Starting Initial Database Seed...');
@@ -133,6 +146,25 @@ export async function runInitialSeed(dataSource: DataSource) {
     { code: 'estimate.update', name: 'Sửa dự toán', module: 'ESTIMATE' },
     { code: 'estimate.view', name: 'Xem dự toán', module: 'ESTIMATE' },
     { code: 'import.manage', name: 'Quản lý import Excel', module: 'IMPORT' },
+
+    // Imports
+    {
+      code: 'import.manage',
+      name: 'Quản lý nhập dữ liệu Excel',
+      module: 'IMPORT',
+    },
+
+    // Documents
+    {
+      code: 'document.view',
+      name: 'Xem tài liệu hồ sơ',
+      module: 'DOCUMENT',
+    },
+    {
+      code: 'document.manage',
+      name: 'Quản lý tài liệu hồ sơ',
+      module: 'DOCUMENT',
+    },
 
     // Customers & Suppliers
     { code: 'customer.manage', name: 'Quản lý khách hàng', module: 'CRM' },
@@ -256,6 +288,8 @@ export async function runInitialSeed(dataSource: DataSource) {
         'chat.access',
         'master_data.view',
         'kpi.manage',
+        'import.manage',
+        'document.view',
       ],
       scope: RoleScope.ALL,
     },
@@ -265,6 +299,7 @@ export async function runInitialSeed(dataSource: DataSource) {
         'dossier.view.all',
         'dossier.view.team',
         'dossier.update',
+        'dossier.approve',
         'estimate.view',
         'estimate.update',
         'import.manage',
@@ -272,6 +307,8 @@ export async function runInitialSeed(dataSource: DataSource) {
         'task.manage',
         'chat.access',
         'master_data.view',
+        'import.manage',
+        'document.view',
       ],
       scope: RoleScope.ALL,
     },
@@ -358,6 +395,24 @@ export async function runInitialSeed(dataSource: DataSource) {
       password: 'Accountant@123456',
       departmentCode: 'ACC',
       roleCodes: ['ACCOUNTANT'],
+    },
+    {
+      employeeCode: 'EMP006',
+      fullName: 'Lê Hoàng Nam',
+      email: 'sales2@skylux.vn',
+      phone: '0901234572',
+      password: 'Sales@123456',
+      departmentCode: 'SALES',
+      roleCodes: ['SALES'],
+    },
+    {
+      employeeCode: 'EMP007',
+      fullName: 'Trần Thùy Linh',
+      email: 'sales3@skylux.vn',
+      phone: '0901234573',
+      password: 'Sales@123456',
+      departmentCode: 'SALES',
+      roleCodes: ['SALES'],
     },
   ];
 
@@ -471,6 +526,360 @@ export async function runInitialSeed(dataSource: DataSource) {
   for (const st of supplierTypes) {
     const exists = await stRepo.findOne({ where: { code: st.code } });
     if (!exists) await stRepo.save(stRepo.create(st));
+  }
+
+  // 8. Sample Suppliers Seed
+  const suppRepo = dataSource.getRepository(Supplier);
+  const sampleSuppliers = [
+    {
+      code: 'NCC-KS-001',
+      name: 'Khách sạn Mường Thanh Luxury Đà Nẵng',
+      typeCode: 'HOTEL',
+      contactName: 'Nguyễn Văn Quản Lý',
+      phone: '0988776655',
+      email: 'booking@muongthanhdanang.vn',
+      address: '270 Võ Nguyên Giáp, Ngũ Hành Sơn, Đà Nẵng',
+      taxCode: '0102030405',
+    },
+    {
+      code: 'NCC-KS-002',
+      name: 'Novotel Danang Premier Han River',
+      typeCode: 'HOTEL',
+      contactName: 'Trần Thị Thu Hà',
+      phone: '0912345678',
+      email: 'reservation@novoteldanang.com',
+      address: '36 Bạch Đằng, Hải Châu, Đà Nẵng',
+      taxCode: '0102030406',
+    },
+    {
+      code: 'NCC-XE-001',
+      name: 'Công ty TNHH Vận tải Du lịch Tuấn Cường',
+      typeCode: 'TRANSPORT',
+      contactName: 'Phạm Tuấn Cường',
+      phone: '0905123456',
+      email: 'vantai.tuancuong@gmail.com',
+      address: '15 Nguyễn Tri Phương, Thanh Khê, Đà Nẵng',
+      taxCode: '0401234567',
+    },
+    {
+      code: 'NCC-NH-001',
+      name: 'Nhà hàng Cơm Niêu Nhà Đỏ Đà Nẵng',
+      typeCode: 'RESTAURANT',
+      contactName: 'Lê Văn Bếp',
+      phone: '0935123456',
+      email: 'comnieunhado@gmail.com',
+      address: '176 Nguyễn Tri Phương, Thanh Khê, Đà Nẵng',
+      taxCode: '0409876543',
+    },
+    {
+      code: 'NCC-HK-001',
+      name: 'Tổng công ty Hàng không Việt Nam (Vietnam Airlines)',
+      typeCode: 'AIRLINE',
+      contactName: 'Phòng Vé Đại Lý',
+      phone: '19001100',
+      email: 'telesales@vietnamairlines.com',
+      address: '200 Nguyễn Sơn, Long Biên, Hà Nội',
+      taxCode: '0100107518',
+    },
+  ];
+
+  for (const s of sampleSuppliers) {
+    const exists = await suppRepo.findOne({
+      where: { code: s.code, organizationId: org.id },
+    });
+    if (!exists) {
+      const sType = await stRepo.findOne({ where: { code: s.typeCode } });
+      await suppRepo.save(
+        suppRepo.create({
+          organizationId: org.id,
+          supplierTypeId: sType?.id,
+          code: s.code,
+          name: s.name,
+          contactName: s.contactName,
+          phone: s.phone,
+          email: s.email,
+          address: s.address,
+          taxCode: s.taxCode,
+          status: 'ACTIVE',
+        }),
+      );
+    }
+  }
+
+  // 9. Sample Customers
+  const custRepo = dataSource.getRepository(Customer);
+  const sampleCustomers = [
+    {
+      code: 'KH-DOANH-001',
+      displayName: 'Công ty Cổ phần Công nghệ FPT',
+      customerType: CustomerType.COMPANY,
+      phone: '02473007300',
+      email: 'contact@fpt.com.vn',
+      taxCode: '0101248141',
+      address: 'Số 10 Phạm Văn Bạch, Cầu Giấy, Hà Nội',
+    },
+    {
+      code: 'KH-DOANH-002',
+      displayName: 'Tập đoàn Vingroup - CTCP',
+      customerType: CustomerType.COMPANY,
+      phone: '02439749999',
+      email: 'info@vingroup.net',
+      taxCode: '0101245486',
+      address: 'Số 7 Đường Bằng Lăng 1, KĐT Vinhomes Riverside, Long Biên, Hà Nội',
+    },
+    {
+      code: 'KH-LE-001',
+      displayName: 'Trương Gia Bình',
+      customerType: CustomerType.INDIVIDUAL,
+      phone: '0903456789',
+      email: 'binhtg@fpt.com.vn',
+      address: 'Ba Đình, Hà Nội',
+    },
+    {
+      code: 'KH-LE-002',
+      displayName: 'Nguyễn Thị Mai',
+      customerType: CustomerType.INDIVIDUAL,
+      phone: '0912345679',
+      email: 'main@gmail.com',
+      address: 'Hải Châu, Đà Nẵng',
+    },
+  ];
+
+  const customerMap: Record<string, Customer> = {};
+  for (const c of sampleCustomers) {
+    let cust = await custRepo.findOne({
+      where: { code: c.code, organizationId: org.id },
+    });
+    if (!cust) {
+      cust = await custRepo.save(
+        custRepo.create({
+          organizationId: org.id,
+          code: c.code,
+          displayName: c.displayName,
+          customerType: c.customerType,
+          phone: c.phone,
+          email: c.email,
+          taxCode: c.taxCode,
+          address: c.address,
+        }),
+      );
+      console.log(`  ✅ Created Customer: ${c.displayName} (${c.code})`);
+    }
+    customerMap[c.code] = cust;
+  }
+
+  // 10. Sample Dossiers with Approved Estimates (For Sales & Operator Dashboards)
+  const dossierRepo = dataSource.getRepository(Dossier);
+  const estimateRepo = dataSource.getRepository(Estimate);
+  const revLineRepo = dataSource.getRepository(EstimateRevenueLine);
+  const costLineRepo = dataSource.getRepository(EstimateCostLine);
+
+  const sales1 = await userRepo.findOne({ where: { email: 'sales@skylux.vn' } });
+  const sales2 = await userRepo.findOne({ where: { email: 'sales2@skylux.vn' } });
+  const sales3 = await userRepo.findOne({ where: { email: 'sales3@skylux.vn' } });
+  const operatorUser = await userRepo.findOne({ where: { email: 'operator@skylux.vn' } });
+
+  const inboundBL = await blRepo.findOne({ where: { code: 'TOUR_INBOUND' } });
+  const domesticBL = await blRepo.findOne({ where: { code: 'TOUR_DOMESTIC' } });
+  const domesticMT = await mtRepo.findOne({ where: { code: 'DOMESTIC' } });
+
+  const sampleDossiers = [
+    {
+      code: 'DOS-2026-001',
+      name: 'Tour Khám Phá Di Sản Miền Trung 4N3Đ (FPT)',
+      customerCode: 'KH-DOANH-001',
+      salesUser: sales1,
+      operatorUser,
+      businessLine: domesticBL,
+      marketType: domesticMT,
+      status: DossierStatus.APPROVED,
+      priority: PriorityLevel.HIGH,
+      route: 'Đà Nẵng - Hội An - Huế',
+      startDate: '2026-04-10',
+      endDate: '2026-04-14',
+      revenue: 292500000,
+      cost: 216000000,
+      revDesc: 'Gói dịch vụ tour Di Sản Miền Trung trọn gói (45 khách)',
+      costDesc: 'Lưu trú Khách sạn Mường Thanh + Xe du lịch + Vé tham quan',
+      qty: 45,
+    },
+    {
+      code: 'DOS-2026-002',
+      name: 'Team Building & Gala Dinner Nha Trang 3N2Đ (Vingroup)',
+      customerCode: 'KH-DOANH-002',
+      salesUser: sales1,
+      operatorUser,
+      businessLine: domesticBL,
+      marketType: domesticMT,
+      status: DossierStatus.COMPLETED,
+      priority: PriorityLevel.URGENT,
+      route: 'TP.HCM - Cam Ranh - Nha Trang',
+      startDate: '2026-03-01',
+      endDate: '2026-03-03',
+      revenue: 464000000,
+      cost: 336000000,
+      revDesc: 'Gói Team Building & Sự kiện Gala trọn gói (80 khách)',
+      costDesc: 'Chi phí resort Vinpearl + Gala Dinner + Âm thanh ánh sáng',
+      qty: 80,
+    },
+    {
+      code: 'DOS-2026-003',
+      name: 'Nghỉ Dưỡng Thượng Lưu Nam Đảo Phú Quốc 3N2Đ',
+      customerCode: 'KH-LE-001',
+      salesUser: sales1,
+      operatorUser,
+      businessLine: domesticBL,
+      marketType: domesticMT,
+      status: DossierStatus.SUBMITTED,
+      priority: PriorityLevel.MEDIUM,
+      route: 'Hà Nội - Phú Quốc',
+      startDate: '2026-05-10',
+      endDate: '2026-05-13',
+      revenue: 65000000,
+      cost: 48000000,
+      revDesc: 'Gói Villa biển cao cấp cho gia đình (6 khách)',
+      costDesc: 'Villa 3 phòng ngủ + Vé máy bay khứ hồi',
+      qty: 6,
+    },
+    {
+      code: 'DOS-2026-004',
+      name: 'Tour Golf & Nghỉ Dưỡng Đà Lạt Mùa Hoa 4N3Đ',
+      customerCode: 'KH-LE-002',
+      salesUser: sales2,
+      operatorUser,
+      businessLine: domesticBL,
+      marketType: domesticMT,
+      status: DossierStatus.APPROVED,
+      priority: PriorityLevel.HIGH,
+      route: 'Hà Nội - Đà Lạt',
+      startDate: '2026-05-02',
+      endDate: '2026-05-05',
+      revenue: 190000000,
+      cost: 136000000,
+      revDesc: 'Gói Tour Golf & Khách sạn DaLat Palace (20 golfer)',
+      costDesc: 'Green fee 3 sân + Caddy + Khách sạn 5 sao',
+      qty: 20,
+    },
+    {
+      code: 'DOS-2026-005',
+      name: 'Khám Phá Sông Nước Miền Tây & Chợ Nổi Cái Răng 2N1Đ',
+      customerCode: 'KH-DOANH-001',
+      salesUser: sales2,
+      operatorUser,
+      businessLine: domesticBL,
+      marketType: domesticMT,
+      status: DossierStatus.COMPLETED,
+      priority: PriorityLevel.LOW,
+      route: 'TP.HCM - Tiền Giang - Cần Thơ',
+      startDate: '2026-02-15',
+      endDate: '2026-02-17',
+      revenue: 96000000,
+      cost: 69000000,
+      revDesc: 'Tour Trải nghiệm sông nước miền Tây (30 khách)',
+      costDesc: 'Tàu du lịch + Khách sạn Cần Thơ + Ẩm thực Nam Bộ',
+      qty: 30,
+    },
+    {
+      code: 'DOS-2026-006',
+      name: 'Hành Trình Chinh Phục Cực Bắc Hà Giang 4N3Đ',
+      customerCode: 'KH-DOANH-002',
+      salesUser: sales3,
+      operatorUser,
+      businessLine: inboundBL || domesticBL,
+      marketType: domesticMT,
+      status: DossierStatus.APPROVED,
+      priority: PriorityLevel.HIGH,
+      route: 'Hà Nội - Đồng Văn - Mã Pí Lèng - Mèo Vạc',
+      startDate: '2026-04-20',
+      endDate: '2026-04-24',
+      revenue: 130000000,
+      cost: 95000000,
+      revDesc: 'Tour Chinh phục Hà Giang xe Limousine (25 khách)',
+      costDesc: 'Xe Limousine + Homestay cao cấp + Ăn uống 4 ngày',
+      qty: 25,
+    },
+  ];
+
+  for (const d of sampleDossiers) {
+    if (!d.salesUser) continue;
+    const existingDossier = await dossierRepo.findOne({
+      where: { code: d.code, organizationId: org.id },
+    });
+
+    if (!existingDossier) {
+      const cust = customerMap[d.customerCode];
+      if (!cust) continue;
+
+      const newDossier = await dossierRepo.save(
+        dossierRepo.create({
+          organizationId: org.id,
+          code: d.code,
+          name: d.name,
+          customerId: cust.id,
+          salesUserId: d.salesUser.id,
+          operatorUserId: d.operatorUser?.id,
+          businessLineId: d.businessLine?.id,
+          marketTypeId: d.marketType?.id,
+          route: d.route,
+          startDate: d.startDate,
+          endDate: d.endDate,
+          status: d.status,
+          priority: d.priority,
+          createdBy: d.salesUser.id,
+        }),
+      );
+
+      // Create an Approved/Submitted Estimate for this dossier
+      const newEstimate = await estimateRepo.save(
+        estimateRepo.create({
+          organizationId: org.id,
+          dossierId: newDossier.id,
+          versionNo: 1,
+          status:
+            d.status === DossierStatus.SUBMITTED
+              ? EstimateStatus.SUBMITTED
+              : EstimateStatus.APPROVED,
+          currency: 'VND',
+          createdBy: d.salesUser.id,
+          approvedAt:
+            d.status !== DossierStatus.SUBMITTED ? new Date() : undefined,
+        }),
+      );
+
+      // Create Revenue Line
+      await revLineRepo.save(
+        revLineRepo.create({
+          organizationId: org.id,
+          estimateId: newEstimate.id,
+          description: d.revDesc,
+          quantity: d.qty,
+          multiplier: 1,
+          unitPrice: Math.round(d.revenue / d.qty),
+          grossAmount: d.revenue,
+          netAmount: d.revenue,
+          sortOrder: 1,
+        }),
+      );
+
+      // Create Cost Line
+      await costLineRepo.save(
+        costLineRepo.create({
+          organizationId: org.id,
+          estimateId: newEstimate.id,
+          description: d.costDesc,
+          quantity: d.qty,
+          multiplier: 1,
+          unitPrice: Math.round(d.cost / d.qty),
+          grossAmount: d.cost,
+          netAmount: d.cost,
+          sortOrder: 1,
+        }),
+      );
+
+      console.log(
+        `  ✅ Created Dossier & Estimate: ${d.code} - ${d.name} (${d.status})`,
+      );
+    }
   }
 
   console.log('🎉 Initial Seed Completed Successfully!');

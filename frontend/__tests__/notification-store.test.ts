@@ -1,11 +1,15 @@
-import { useNotificationStore } from '../lib/stores/notification-store';
+import {
+  useNotificationStore,
+  mapBackendToAppNotification,
+} from '../lib/stores/notification-store';
+import { NotificationItem } from '../types/notification';
 
 describe('useNotificationStore (Zustand Realtime Notification Store)', () => {
   beforeEach(() => {
     useNotificationStore.getState().clearAll();
   });
 
-  it('should initialize with empty notifications after clearAll', () => {
+  it('should initialize with empty notifications and zero unread count (Zero Mock)', () => {
     const state = useNotificationStore.getState();
     expect(state.notifications).toEqual([]);
     expect(state.getUnreadCount()).toBe(0);
@@ -65,5 +69,39 @@ describe('useNotificationStore (Zustand Realtime Notification Store)', () => {
     expect(useNotificationStore.getState().notifications.length).toBe(1);
     useNotificationStore.getState().removeNotification('notif-delete-me');
     expect(useNotificationStore.getState().notifications.length).toBe(0);
+  });
+
+  it('should sync notifications from backend format', () => {
+    const backendItems: NotificationItem[] = [
+      {
+        id: 'b-1',
+        organizationId: 'org-1',
+        userId: 'u-1',
+        title: 'Hồ sơ đã duyệt',
+        content: 'Duyệt thành công',
+        type: 'DOSSIER',
+        linkUrl: '/main/dossiers/1',
+        isRead: false,
+        createdAt: '2026-09-04T12:00:00.000Z',
+        updatedAt: '2026-09-04T12:00:00.000Z',
+      },
+    ];
+
+    useNotificationStore.getState().syncBackendNotifications(backendItems);
+
+    const storeItems = useNotificationStore.getState().notifications;
+    expect(storeItems.length).toBe(1);
+    expect(storeItems[0].id).toBe('b-1');
+    expect(storeItems[0].message).toBe('Duyệt thành công');
+    expect(storeItems[0].type).toBe('info');
+    expect(storeItems[0].actionUrl).toBe('/main/dossiers/1');
+  });
+
+  it('should support server unread count synchronization', () => {
+    useNotificationStore.getState().setServerUnreadCount(5);
+    expect(useNotificationStore.getState().getUnreadCount()).toBe(5);
+
+    useNotificationStore.getState().markAllAsRead();
+    expect(useNotificationStore.getState().getUnreadCount()).toBe(0);
   });
 });

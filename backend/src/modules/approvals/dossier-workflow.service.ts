@@ -2,8 +2,11 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import {
   ApprovalStatus,
@@ -31,7 +34,13 @@ const ADMIN_ROLES = ['SUPER_ADMIN', 'CEO_ADMIN'];
 
 @Injectable()
 export class DossierWorkflowService {
-  constructor(private readonly dataSource: DataSource) {}
+  private readonly logger = new Logger(DossierWorkflowService.name);
+
+  constructor(
+    private readonly dataSource: DataSource,
+    @Optional()
+    private readonly notificationsService?: NotificationsService,
+  ) {}
 
   submit(user: CurrentUserPayload, dossierId: string, dto: WorkflowActionDto) {
     return this.execute(user, dossierId, dto, 'SUBMIT');
@@ -127,7 +136,7 @@ export class DossierWorkflowService {
     dto: WorkflowActionDto,
     action: WorkflowAction,
   ) {
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const dossiers = manager.getRepository(Dossier);
       const estimates = manager.getRepository(Estimate);
       const dossier = await this.findDossierForUpdate(
@@ -175,8 +184,29 @@ export class DossierWorkflowService {
           comment: dto.note,
         }),
       );
-      return { data: this.dossierResponse(savedDossier), meta: {} };
+      return {
+        data: this.dossierResponse(savedDossier),
+        meta: {},
+        savedDossier,
+      };
     });
+
+    if (this.notificationsService) {
+      try {
+        await this.dispatchWorkflowNotification(
+          result.savedDossier,
+          user,
+          action,
+          dto.note,
+        );
+      } catch (notifErr: any) {
+        this.logger.error(
+          `Lỗi phát thông báo workflow hồ sơ ${dossierId}: ${notifErr?.message}`,
+        );
+      }
+    }
+
+    return { data: result.data, meta: result.meta };
   }
 
   private async findDossierForUpdate(
@@ -425,5 +455,117 @@ export class DossierWorkflowService {
       total,
       totalPages: Math.ceil(total / query.pageSize),
     };
+  }
+
+  private async dispatchWorkflowNotification(
+    dossier: Dossier,
+    actor: CurrentUserPayload,
+    action: WorkflowAction,
+    note?: string,
+  ) {
+    if (!this.notificationsService) return;
+
+    const linkUrl = `/main/dossiers/${dossier.id}`;
+    const dossierName = dossier.name || dossier.code;
+
+    // 1. SUBMIT / RESUBMIT: Sales submits to Operator
+    if (action === 'SUBMIT' || action === 'RESUBMIT') {
+      const recipientId = dossier.operatorUserId;
+      if (recipientId && recipientId !== actor.id) {
+        await this.notificationsService.notify({
+          organizationId: actor.organizationId,
+          userId: recipientId,
+          title: `Hồ sơ ${dossier.code} đã được gửi duyệt`,
+          content: `${actor.fullName || 'Nhân viên Sales'} đã gửi hồ sơ "${dossierName}" để thẩm định.`,
+          type: 'DOSSIER',
+          linkUrl,
+          metadata: { dossierId: dossier.id, action },
+        });
+      }
+    }
+
+    // 2. START_REVIEW: Operator begins review
+    if (action === 'START_REVIEW') {
+      const recipientId = dossier.salesUserId;
+      if (recipientId && recipientId !== actor.id) {
+        await this.notificationsService.notify({
+          organizationId: actor.organizationId,
+          userId: recipientId,
+          title: `Hồ sơ ${dossier.code} đang được thẩm định`,
+          content: `Điều hành viên ${actor.fullName || ''} đã tiếp nhận thẩm định hồ sơ "${dossierName}".`,
+          type: 'DOSSIER',
+          linkUrl,
+          metadata: { dossierId: dossier.id, action },
+        });
+      }
+    }
+
+    // 3. REQUEST_CHANGES: Operator requests changes
+    if (action === 'REQUEST_CHANGES') {
+      const recipientId = dossier.salesUserId;
+      if (recipientId && recipientId !== actor.id) {
+        await this.notificationsService.notify({
+          organizationId: actor.organizationId,
+          userId: recipientId,
+          title: `Hồ sơ ${dossier.code} yêu cầu điều chỉnh`,
+          content: `Điều hành viên ${actor.fullName || ''} yêu cầu chỉnh sửa: "${note || 'Vui lòng kiểm tra lại dự toán'}".`,
+          type: 'DOSSIER',
+          linkUrl,
+          metadata: { dossierId: dossier.id, action, note },
+        });
+      }
+    }
+
+    // 4. APPROVE: Operator approves dossier
+    if (action === 'APPROVE') {
+      const recipientId = dossier.salesUserId;
+      if (recipientId && recipientId !== actor.id) {
+        await this.notificationsService.notify({
+          organizationId: actor.organizationId,
+          userId: recipientId,
+          title: `Hồ sơ ${dossier.code} đã được phê duyệt`,
+          content: `Hồ sơ "${dossierName}" đã được phê duyệt thành công bởi ${actor.fullName || 'Điều hành'}.`,
+          type: 'DOSSIER',
+          linkUrl,
+          metadata: { dossierId: dossier.id, action },
+        });
+      }
+    }
+
+    // 5. COMPLETE: Dossier tour completed
+    if (action === 'COMPLETE') {
+      const recipients = [dossier.salesUserId, dossier.operatorUserId].filter(
+        (id): id is string => Boolean(id && id !== actor.id),
+      );
+      for (const rId of recipients) {
+        await this.notificationsService.notify({
+          organizationId: actor.organizationId,
+          userId: rId,
+          title: `Hồ sơ ${dossier.code} đã hoàn thành`,
+          content: `Hồ sơ "${dossierName}" đã được đánh dấu hoàn thành.`,
+          type: 'DOSSIER',
+          linkUrl,
+          metadata: { dossierId: dossier.id, action },
+        });
+      }
+    }
+
+    // 6. LOCK: CEO/Admin locks dossier
+    if (action === 'LOCK') {
+      const recipients = [dossier.salesUserId, dossier.operatorUserId].filter(
+        (id): id is string => Boolean(id && id !== actor.id),
+      );
+      for (const rId of recipients) {
+        await this.notificationsService.notify({
+          organizationId: actor.organizationId,
+          userId: rId,
+          title: `Hồ sơ ${dossier.code} đã được khóa`,
+          content: `Hồ sơ "${dossierName}" đã được chốt và khóa bởi ${actor.fullName || 'Ban Giám Đốc'}.`,
+          type: 'DOSSIER',
+          linkUrl,
+          metadata: { dossierId: dossier.id, action },
+        });
+      }
+    }
   }
 }

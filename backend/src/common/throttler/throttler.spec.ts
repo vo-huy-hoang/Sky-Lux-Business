@@ -70,7 +70,7 @@ describe('Phase 24: Distributed Throttler & Auth Shield', () => {
     let reflector: Reflector;
     let storage: ThrottlerStorageRedisService;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       storage = new ThrottlerStorageRedisService(undefined);
       reflector = new Reflector();
       guard = new CustomThrottlerGuard(
@@ -78,6 +78,7 @@ describe('Phase 24: Distributed Throttler & Auth Shield', () => {
         storage,
         reflector,
       );
+      await guard.onModuleInit();
     });
 
     it('should track IP only when request does not have email in body', async () => {
@@ -131,6 +132,60 @@ describe('Phase 24: Distributed Throttler & Auth Shield', () => {
         expect(response.lockoutSeconds).toBe(45);
         expect(response.message).toContain('45 giây');
       }
+    });
+
+    it('should bypass auth throttler when endpoint does not have @Throttle auth metadata', async () => {
+      const mockContext = {
+        getHandler: jest.fn().mockReturnValue(() => {}),
+        getClass: jest.fn().mockReturnValue(class MockController {}),
+        switchToHttp: () => ({
+          getRequest: () => ({ headers: {}, body: {} }),
+          getResponse: () => ({ header: jest.fn() }),
+        }),
+      } as unknown as ExecutionContext;
+
+      // Reflector returns undefined for THROTTLER_LIMIT + 'auth'
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(undefined);
+
+      const requestProps: any = {
+        context: mockContext,
+        limit: 5,
+        ttl: 60000,
+        throttler: { name: 'auth', limit: 5, ttl: 60000 },
+        blockDuration: 0,
+        getTracker: jest.fn().mockResolvedValue('127.0.0.1'),
+        generateKey: jest.fn().mockReturnValue('auth:127.0.0.1'),
+      };
+
+      const result = await (guard as any).handleRequest(requestProps);
+      expect(result).toBe(true);
+    });
+
+    it('should enforce auth throttler when endpoint has @Throttle auth metadata', async () => {
+      const mockContext = {
+        getHandler: jest.fn().mockReturnValue(() => {}),
+        getClass: jest.fn().mockReturnValue(class MockController {}),
+        switchToHttp: () => ({
+          getRequest: () => ({ headers: {}, body: {}, ip: '127.0.0.1' }),
+          getResponse: () => ({ header: jest.fn() }),
+        }),
+      } as unknown as ExecutionContext;
+
+      // Reflector returns 5 for THROTTLER_LIMIT + 'auth'
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(5);
+
+      const requestProps: any = {
+        context: mockContext,
+        limit: 5,
+        ttl: 60000,
+        throttler: { name: 'auth', limit: 5, ttl: 60000 },
+        blockDuration: 0,
+        getTracker: jest.fn().mockResolvedValue('127.0.0.1'),
+        generateKey: jest.fn().mockReturnValue('auth:127.0.0.1'),
+      };
+
+      const result = await (guard as any).handleRequest(requestProps);
+      expect(result).toBe(true);
     });
   });
 });
