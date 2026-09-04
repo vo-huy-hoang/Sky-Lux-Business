@@ -54,6 +54,12 @@ export interface QueryDocumentParams {
   documentTypeId?: string;
 }
 
+export interface QueryDocumentVersionParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+}
+
 export interface UploadDocumentPayload {
   file: File;
   documentTypeId?: string;
@@ -77,5 +83,8 @@ export interface DownloadUrlParams {
 
 export interface CreateDocumentVersionPayload {
   file: File;
+  documentTypeId?: string;
   changeNote?: string;
+  versionNote?: string;
+  description?: string;
 }

@@ -26,6 +26,7 @@ import type { CurrentUserPayload } from '../../common/decorators/current-user.de
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { DownloadUrlQueryDto } from './dto/download-url-query.dto';
 import { CreateDocumentVersionDto } from './dto/create-document-version.dto';
+import { DocumentVersionQueryDto } from './dto/document-version-query.dto';
 
 @ApiTags('Documents')
 @ApiBearerAuth('JWT-auth')
@@ -73,6 +74,7 @@ export class DocumentsController {
   }
 
   @Get(':id/versions')
+  @RequirePermissions('document.view')
   @ApiOperation({
     summary: 'Lấy danh sách các phiên bản của tài liệu (API-DOCVER-001)',
   })
@@ -84,12 +86,13 @@ export class DocumentsController {
   findVersions(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: DocumentVersionQueryDto,
   ) {
-    return this.documentsService.findVersions(user, id);
+    return this.documentsService.findVersions(user, id, query);
   }
 
   @Post(':id/versions')
-  @RequirePermissions('dossier.update')
+  @RequirePermissions('document.manage')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 50 * 1024 * 1024 }, // 50MB

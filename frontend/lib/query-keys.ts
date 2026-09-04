@@ -127,7 +127,8 @@ export const queryKeys = {
       [...queryKeys.documents.lists(), 'dossier', dossierId || '', params || {}] as const,
     details: () => [...queryKeys.documents.all, 'detail'] as const,
     detail: (id?: string) => [...queryKeys.documents.details(), id || ''] as const,
-    versions: (id?: string) => [...queryKeys.documents.detail(id), 'versions'] as const,
+    versions: (id?: string, params?: Record<string, any>) =>
+      [...queryKeys.documents.detail(id), 'versions', params || {}] as const,
     downloadUrl: (id?: string, params?: Record<string, any>) =>
       [...queryKeys.documents.detail(id), 'download', params || {}] as const,
   },
