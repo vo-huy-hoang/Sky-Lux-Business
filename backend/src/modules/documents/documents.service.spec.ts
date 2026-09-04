@@ -1,13 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { DocumentsService } from './documents.service';
 import { Document } from './entities/document.entity';
 import { DocumentType } from './entities/document-type.entity';
 import { DocumentVersion } from './entities/document-version.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { StorageService } from '../../shared/storage/storage.service';
+import { RedisService } from '../../common/redis/redis.service';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { DossierStatus } from '../../common/enums';
 import { QueryDocumentDto } from './dto/query-document.dto';
@@ -22,6 +23,8 @@ describe('DocumentsService', () => {
   let docVerRepo: jest.Mocked<Repository<DocumentVersion>>;
   let dossierRepo: jest.Mocked<Repository<Dossier>>;
   let storageService: jest.Mocked<StorageService>;
+  let redisService: jest.Mocked<RedisService>;
+  let dataSource: jest.Mocked<DataSource>;
 
   const orgId = 'org-uuid-1';
   const userId = 'user-uuid-1';
@@ -99,6 +102,7 @@ describe('DocumentsService', () => {
         {
           provide: getRepositoryToken(DocumentVersion),
           useValue: {
+            createQueryBuilder: jest.fn(() => mockQueryBuilder),
             findOne: jest.fn(),
             find: jest.fn(),
             create: jest.fn((dto) => dto),
@@ -119,6 +123,23 @@ describe('DocumentsService', () => {
             deleteFile: jest.fn(),
           },
         },
+        {
+          provide: RedisService,
+          useValue: {
+            get: jest.fn(),
+            set: jest.fn(),
+            delByPattern: jest.fn(),
+          },
+        },
+        {
+          provide: DataSource,
+          useValue: {
+            transaction: jest.fn().mockImplementation(async (cb) => {
+              const manager = { save: jest.fn((obj) => obj) };
+              return await cb(manager);
+            }),
+          },
+        },
       ],
     }).compile();
 
@@ -128,6 +149,8 @@ describe('DocumentsService', () => {
     docVerRepo = module.get(getRepositoryToken(DocumentVersion));
     dossierRepo = module.get(getRepositoryToken(Dossier));
     storageService = module.get(StorageService);
+    redisService = module.get(RedisService);
+    dataSource = module.get(DataSource);
   });
 
   afterEach(() => {
@@ -396,11 +419,12 @@ describe('DocumentsService', () => {
         } as any,
       ]);
 
-      const result = await service.findVersions(mockUser, 'doc-uuid-1');
+      const queryDto = { page: 1, limit: 10 };
+      const result = await service.findVersions(mockUser, 'doc-uuid-1', queryDto);
 
-      expect(result).toHaveLength(1);
-      expect((result[0] as any).objectKey).toBeUndefined();
-      expect((result[0].uploader as any)?.passwordHash).toBeUndefined();
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].objectKey).toBeUndefined();
+      expect(result.data[0].uploader?.passwordHash).toBeUndefined();
     });
   });
 
@@ -438,8 +462,10 @@ describe('DocumentsService', () => {
       );
 
       expect(storageService.uploadFile).toHaveBeenCalled();
-      expect(docVerRepo.save).toHaveBeenCalled();
-      expect(docRepo.save).toHaveBeenCalled();
+      expect(dataSource.transaction).toHaveBeenCalled();
+      
+      // We don't check docVerRepo.save directly anymore since it runs inside the transaction via manager.save
+      // But we can check that document's versionNo was updated before being returned
       expect(result.versionNo).toBe(2);
     });
   });

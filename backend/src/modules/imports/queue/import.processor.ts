@@ -10,6 +10,11 @@ import { ImportRow } from '../entities/import-row.entity';
 import { ImportError } from '../entities/import-error.entity';
 import { ImportSessionStatus } from '../../../common/enums';
 import { Customer } from '../../customers/entities/customer.entity';
+import {
+  CUSTOMER_BUDGET_FORMAT,
+  isCustomerBudgetWorkbook,
+  parseCustomerBudgetWorkbook,
+} from '../customer-budget.parser';
 
 @Processor('import-queue')
 export class ImportProcessor extends WorkerHost {
@@ -64,12 +69,14 @@ export class ImportProcessor extends WorkerHost {
       throw new Error(`Không tìm thấy tệp tin Excel tại: ${filePath}`);
     }
 
-    const workbook = xlsx.readFile(filePath);
+    const workbook = xlsx.readFile(filePath, { cellDates: true });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
 
     // Read sheet to JSON format with empty string default values
-    const rowsData: any[] = xlsx.utils.sheet_to_json(sheet, { defval: '' });
+    const rowsData: any[] = isCustomerBudgetWorkbook(workbook)
+      ? [parseCustomerBudgetWorkbook(workbook)]
+      : xlsx.utils.sheet_to_json(sheet, { defval: '' });
 
     // Clear existing raw rows in staging
     await this.rowRepository.delete({ sessionId });
@@ -80,7 +87,7 @@ export class ImportProcessor extends WorkerHost {
       return this.rowRepository.create({
         sessionId,
         sheetName,
-        rowNumber: index + 2, // Excel rows are 1-indexed, headers are row 1
+        rowNumber: isCustomerBudgetWorkbook(workbook) ? 1 : index + 2,
         rawData: data,
         status: 'PENDING',
       });
@@ -152,6 +159,8 @@ export class ImportProcessor extends WorkerHost {
       const errors: string[] = [];
       const data = row.rawData;
 
+      const isCustomerBudget = data.__importFormat === CUSTOMER_BUDGET_FORMAT;
+
       // 1. Basic validation rules for Dossier import
       const code = String(data[codeKey] || '').trim();
       const name = String(data[nameKey] || '').trim();
@@ -185,8 +194,11 @@ export class ImportProcessor extends WorkerHost {
       if (!name) {
         errors.push(`${nameKey} không được để trống`);
       }
-      if (!customerCode) {
+      if (!customerCode && !isCustomerBudget) {
         errors.push(`${customerKey} không được để trống`);
+      }
+      if (isCustomerBudget && !customerName) {
+        errors.push(`${customerNameKey} không được để trống`);
       }
 
       // Check customer exist in organization
@@ -199,6 +211,25 @@ export class ImportProcessor extends WorkerHost {
           errors.push(
             `Không tìm thấy khách hàng có mã "${customerCode}" trong hệ thống`,
           );
+        }
+      } else if (isCustomerBudget) {
+        if (email) {
+          customer = await this.customerRepository.findOne({
+            where: { email, organizationId: session.organizationId },
+          });
+        }
+        if (!customer && phone) {
+          customer = await this.customerRepository.findOne({
+            where: { phone, organizationId: session.organizationId },
+          });
+        }
+        if (!customer && customerName) {
+          customer = await this.customerRepository.findOne({
+            where: {
+              displayName: customerName,
+              organizationId: session.organizationId,
+            },
+          });
         }
       }
 
@@ -264,6 +295,16 @@ export class ImportProcessor extends WorkerHost {
           ...(email ? { email } : {}),
           ...(dob && !isNaN(Date.parse(dob))
             ? { dateOfBirth: new Date(dob).toISOString().slice(0, 10) }
+            : {}),
+          ...(isCustomerBudget
+            ? {
+                importFormat: CUSTOMER_BUDGET_FORMAT,
+                businessLineCode: data.__businessLineCode,
+                marketTypeCode: data.__marketTypeCode,
+                revenueLines: data.__revenueLines,
+                costLines: data.__costLines,
+                sourceSummary: data.__sourceSummary,
+              }
             : {}),
         };
       }

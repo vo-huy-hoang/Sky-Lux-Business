@@ -35,7 +35,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { customersService } from '@/services/customers.service';
 import { CustomerItem, CustomerType } from '@/types/customer';
-import { CustomerDetailDrawer } from './components/CustomerDetailDrawer';
 import { queryKeys } from '@/lib/query-keys';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useRouter } from 'next/navigation';
@@ -63,8 +62,6 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('');
   const [customerType, setCustomerType] = useState<CustomerType | undefined>();
   const [status, setStatus] = useState<string | undefined>();
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
-  const [drawerVisible, setDrawerVisible] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: queryKeys.customers.list({
@@ -102,8 +99,7 @@ export default function CustomersPage() {
 
 
   const handleViewDetail = (id: string) => {
-    setSelectedCustomerId(id);
-    setDrawerVisible(true);
+    router.push(`/main/customers/${id}`);
   };
 
   const summary = useMemo(() => {
@@ -122,14 +118,24 @@ export default function CustomersPage() {
       dataIndex: 'code',
       key: 'code',
       width: 120,
-      render: (code: string) => <Text strong>{code}</Text>,
+      render: (code: string, record: CustomerItem) => (
+        <span
+          onClick={() => handleViewDetail(record.id)}
+          className="font-bold text-slate-900 hover:text-emerald-700 cursor-pointer transition-colors"
+        >
+          {code}
+        </span>
+      ),
     },
     {
       title: 'Khách hàng',
       dataIndex: 'displayName',
       key: 'displayName',
       render: (text: string, record: CustomerItem) => (
-        <Space size={12}>
+        <div
+          onClick={() => handleViewDetail(record.id)}
+          className="flex items-center gap-3 cursor-pointer group"
+        >
           <Avatar
             size={34}
             style={{
@@ -141,13 +147,15 @@ export default function CustomersPage() {
           >
             {record.customerType === 'BUSINESS' ? undefined : initials(text)}
           </Avatar>
-          <Space direction="vertical" size={0}>
-            <Text strong>{text}</Text>
+          <Space orientation="vertical" size={0}>
+            <span className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">
+              {text}
+            </span>
             <Text type="secondary" className="text-xs">
               {record.email || record.address || '-'}
             </Text>
           </Space>
-        </Space>
+        </div>
       ),
     },
     {
@@ -168,7 +176,7 @@ export default function CustomersPage() {
         const primary = record.contacts?.find((contact) => contact.isPrimary) || record.contacts?.[0];
         if (!primary) return <Text type="secondary">-</Text>;
         return (
-          <Space direction="vertical" size={0}>
+          <Space orientation="vertical" size={0}>
             <Space size={6}>
               <Text>{primary.name}</Text>
               {primary.isPrimary && <StarFilled style={{ color: '#D6A51F', fontSize: 12 }} />}
@@ -382,15 +390,6 @@ export default function CustomersPage() {
           }}
         />
       </Card>
-
-      <CustomerDetailDrawer
-        visible={drawerVisible}
-        customerId={selectedCustomerId}
-        onClose={() => {
-          setDrawerVisible(false);
-          setSelectedCustomerId(null);
-        }}
-      />
     </div>
   );
 }

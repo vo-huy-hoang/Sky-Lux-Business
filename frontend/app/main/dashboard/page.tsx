@@ -254,7 +254,7 @@ function OperationalDashboard() {
       title: 'Khách hàng',
       key: 'customer',
       render: (_: unknown, record: DossierItem) => (
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Text strong>{record.customer?.displayName || record.name}</Text>
           <Text type="secondary" className="text-xs">
             {record.route || '-'}

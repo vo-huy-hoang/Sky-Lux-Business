@@ -100,6 +100,11 @@ export default function DossierDocumentsTab({
   const [isNewVersionModalOpen, setIsNewVersionModalOpen] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<DocumentItem | null>(null);
 
+  // Version history state
+  const [versionPage, setVersionPage] = useState(1);
+  const [versionPageSize, setVersionPageSize] = useState(5);
+  const [versionSearch, setVersionSearch] = useState('');
+
   // Forms
   const [uploadForm] = Form.useForm();
   const [versionForm] = Form.useForm();
@@ -119,9 +124,17 @@ export default function DossierDocumentsTab({
   const createVersionMutation = useCreateDocumentVersion();
 
   const { data: versionsData, isLoading: isVersionsLoading } =
-    useDocumentVersions(selectedDoc?.id || '', {
-      enabled: Boolean(selectedDoc && isVersionModalOpen),
-    });
+    useDocumentVersions(
+      selectedDoc?.id || '',
+      {
+        page: versionPage,
+        limit: versionPageSize,
+        search: versionSearch || undefined,
+      },
+      {
+        enabled: Boolean(selectedDoc && isVersionModalOpen),
+      },
+    );
 
   // Handle Download
   const handleDownload = async (doc: DocumentItem, versionNo?: number) => {
@@ -184,7 +197,8 @@ export default function DossierDocumentsTab({
         dossierId,
         payload: {
           file: versionFileList[0].originFileObj as File,
-          changeNote: values.changeNote,
+          changeNote: values.changeNote, // Backend maps this to versionNote or changeNote
+          description: values.description,
         },
       });
       message.success('Cập nhật phiên bản mới thành công');
@@ -430,21 +444,43 @@ export default function DossierDocumentsTab({
         onCancel={() => {
           setIsVersionModalOpen(false);
           setSelectedDoc(null);
+          setVersionPage(1);
+          setVersionSearch('');
         }}
         footer={[
           <Button key="close" onClick={() => setIsVersionModalOpen(false)}>
             Đóng
           </Button>,
         ]}
-        width={650}
+        width={750}
       >
+        <div className="mb-4">
+          <Input.Search
+            placeholder="Tìm kiếm theo ghi chú thay đổi..."
+            allowClear
+            onSearch={(val) => {
+              setVersionSearch(val);
+              setVersionPage(1);
+            }}
+          />
+        </div>
+        
         {isVersionsLoading ? (
           <Skeleton active />
         ) : (
           <Table
-            dataSource={versionsData || []}
+            dataSource={versionsData?.data || []}
             rowKey="id"
-            pagination={false}
+            pagination={{
+              current: versionPage,
+              pageSize: versionPageSize,
+              total: versionsData?.meta?.total || 0,
+              showSizeChanger: true,
+              onChange: (p, ps) => {
+                setVersionPage(p);
+                setVersionPageSize(ps);
+              },
+            }}
             columns={[
               {
                 title: 'Phiên bản',
@@ -520,6 +556,13 @@ export default function DossierDocumentsTab({
             >
               <Button icon={<UploadOutlined />}>Chọn tệp mới</Button>
             </Upload>
+          </Form.Item>
+
+          <Form.Item name="description" label="Mô tả tài liệu">
+            <Input.TextArea
+              rows={2}
+              placeholder="Cập nhật mô tả chung cho tài liệu nếu cần..."
+            />
           </Form.Item>
 
           <Form.Item

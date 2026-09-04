@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import * as crypto from 'crypto';
 import * as path from 'path';
 import { Document } from './entities/document.entity';
@@ -12,6 +12,7 @@ import { DocumentType } from './entities/document-type.entity';
 import { DocumentVersion } from './entities/document-version.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { StorageService } from '../../shared/storage/storage.service';
+import { RedisService } from '../../common/redis/redis.service';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
 import { DossierStatus } from '../../common/enums';
@@ -26,6 +27,7 @@ import {
   DocumentVersionResponseDto,
   DownloadUrlResponseDto,
 } from './dto/document-response.dto';
+import { DocumentVersionQueryDto } from './dto/document-version-query.dto';
 
 @Injectable()
 export class DocumentsService {
@@ -39,6 +41,8 @@ export class DocumentsService {
     @InjectRepository(Dossier)
     private readonly dossierRepository: Repository<Dossier>,
     private readonly storageService: StorageService,
+    private readonly redisService: RedisService,
+    private readonly dataSource: DataSource,
   ) {}
 
   /**
@@ -245,16 +249,58 @@ export class DocumentsService {
   async findVersions(
     user: CurrentUserPayload,
     id: string,
-  ): Promise<DocumentVersionResponseDto[]> {
+    queryDto: DocumentVersionQueryDto,
+  ) {
     await this.findAccessibleDocumentEntity(user, id);
 
-    const versions = await this.documentVersionRepository.find({
-      where: { documentId: id, organizationId: user.organizationId },
-      relations: { uploader: true },
-      order: { versionNo: 'DESC' },
-    });
+    const { page, search } = queryDto;
+    const limit = queryDto.pageSize || queryDto.limit;
 
-    return versions.map((v) => this.toDocumentVersionResponse(v));
+    // Cache key pattern from detail design: skylux:documents::api:documents:id:versions:org:{organizationId}:user:{userId}:hash:{queryHash}
+    const queryHash = crypto
+      .createHash('md5')
+      .update(JSON.stringify(queryDto))
+      .digest('hex');
+    const cacheKey = `skylux:documents::api:documents:${id}:versions:org:${user.organizationId}:user:${user.id}:hash:${queryHash}`;
+
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const queryBuilder = this.documentVersionRepository
+      .createQueryBuilder('version')
+      .leftJoinAndSelect('version.uploader', 'uploader')
+      .where('version.documentId = :documentId', { documentId: id })
+      .andWhere('version.organizationId = :organizationId', {
+        organizationId: user.organizationId,
+      });
+
+    if (search) {
+      queryBuilder.andWhere('version.changeNote ILIKE :search', {
+        search: `%${search}%`,
+      });
+    }
+
+    queryBuilder
+      .orderBy('version.versionNo', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [items, total] = await queryBuilder.getManyAndCount();
+
+    const response = {
+      data: items.map((v) => this.toDocumentVersionResponse(v)),
+      meta: {
+        page,
+        pageSize: limit,
+        total,
+      },
+    };
+
+    await this.redisService.set(cacheKey, response, 60);
+
+    return response;
   }
 
   /**
@@ -289,30 +335,50 @@ export class DocumentsService {
       `-v${nextVersionNo}`,
     );
 
-    const newVersion = this.documentVersionRepository.create({
-      organizationId: user.organizationId,
-      documentId: id,
-      versionNo: nextVersionNo,
-      objectKey,
-      fileSize: size,
-      checksum,
-      changeNote: dto.changeNote || `Cập nhật phiên bản ${nextVersionNo}`,
-      uploadedBy: user.id,
+    const savedDocId = id;
+
+    await this.dataSource.transaction(async (manager) => {
+      const versionNote =
+        dto.versionNote ||
+        dto.changeNote ||
+        `Cập nhật phiên bản ${nextVersionNo}`;
+
+      const newVersion = this.documentVersionRepository.create({
+        organizationId: user.organizationId,
+        documentId: id,
+        versionNo: nextVersionNo,
+        objectKey,
+        fileSize: size,
+        checksum,
+        changeNote: versionNote,
+        uploadedBy: user.id,
+      });
+
+      await manager.save(newVersion);
+
+      document.versionNo = nextVersionNo;
+      document.objectKey = objectKey;
+      document.originalName = file.originalname;
+      document.mimeType = file.mimetype;
+      document.fileSize = size;
+      document.checksum = checksum;
+      document.uploadedBy = user.id;
+
+      if (dto.documentTypeId) {
+        document.documentTypeId = dto.documentTypeId;
+      }
+
+      await manager.save(document);
     });
 
-    await this.documentVersionRepository.save(newVersion);
+    // Cache invalidation for this document's versions
+    await this.redisService.delByPattern(
+      `skylux:documents::api:documents:${id}:versions:org:${user.organizationId}:*`,
+    );
 
-    document.versionNo = nextVersionNo;
-    document.objectKey = objectKey;
-    document.originalName = file.originalname;
-    document.mimeType = file.mimetype;
-    document.fileSize = size;
-    document.checksum = checksum;
-    document.uploadedBy = user.id;
+    const docResponse = await this.findOne(user, id);
 
-    await this.documentRepository.save(document);
-
-    return this.findOne(user, id);
+    return docResponse;
   }
 
   private async uploadBufferToStorage(

@@ -276,6 +276,12 @@ describe('ImportsService', () => {
         importedRowsCount: 1,
       });
       expect(dataSource.transaction).toHaveBeenCalled();
+      expect(dossierRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          createdBy: 'user-id',
+          salesUserId: 'user-id',
+        }),
+      );
     });
   });
 });

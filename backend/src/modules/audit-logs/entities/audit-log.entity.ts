@@ -13,7 +13,6 @@ import { User } from '../../users/entities/user.entity';
 @Index('idx_audit_org_created', ['organizationId', 'createdAt'])
 @Index('idx_audit_org_actor', ['organizationId', 'actorUserId'])
 export class AuditLog extends BaseEntity {
-
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;
 

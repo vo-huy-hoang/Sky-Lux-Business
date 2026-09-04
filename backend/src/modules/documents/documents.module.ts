@@ -7,16 +7,13 @@ import { DocumentType } from './entities/document-type.entity';
 import { DocumentVersion } from './entities/document-version.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { StorageModule } from '../../shared/storage/storage.module';
+import { RedisModule } from '../../common/redis/redis.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      Document,
-      DocumentType,
-      DocumentVersion,
-      Dossier,
-    ]),
+    TypeOrmModule.forFeature([Document, DocumentType, Dossier]),
     StorageModule,
+    RedisModule,
   ],
   controllers: [DocumentsController],
   providers: [DocumentsService],

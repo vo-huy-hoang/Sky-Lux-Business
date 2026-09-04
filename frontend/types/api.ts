@@ -13,3 +13,12 @@ export interface PaginatedResponse<T = any> {
   limit: number;
   totalPages: number;
 }
+
+export interface PaginatedMetaResponse<T = any> {
+  data: T[];
+  meta: {
+    page: number;
+    pageSize: number;
+    total: number;
+  };
+}

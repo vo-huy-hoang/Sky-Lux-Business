@@ -133,7 +133,7 @@ export default function SuppliersPage() {
       dataIndex: 'name',
       key: 'name',
       render: (text: string, record: SupplierItem) => (
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Text strong>{text}</Text>
           {record.address && (
             <Text type="secondary" style={{ fontSize: 12 }}>
@@ -160,7 +160,7 @@ export default function SuppliersPage() {
       key: 'contact',
       width: 200,
       render: (_: any, record: SupplierItem) => (
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           {record.contactName ? (
             <Text>{record.contactName}</Text>
           ) : (
