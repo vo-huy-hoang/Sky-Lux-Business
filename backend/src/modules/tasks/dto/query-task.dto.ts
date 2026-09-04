@@ -1,6 +1,7 @@
-import { IsOptional, IsEnum, IsUUID } from 'class-validator';
+import { IsOptional, IsEnum, IsUUID, IsBoolean, IsDateString, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { TaskStatus } from '../../../common/enums';
+import { TaskStatus, PriorityLevel } from '../../../common/enums';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
 export class QueryTaskDto extends PaginationQueryDto {
@@ -25,4 +26,26 @@ export class QueryTaskDto extends PaginationQueryDto {
   @IsEnum(TaskStatus, { message: 'Trạng thái không hợp lệ' })
   @IsOptional()
   status?: TaskStatus;
+
+  @ApiPropertyOptional({ description: 'Lọc theo mức độ ưu tiên', enum: PriorityLevel })
+  @IsEnum(PriorityLevel)
+  @IsOptional()
+  priority?: PriorityLevel;
+
+  @ApiPropertyOptional({ description: 'Hạn chót từ ngày (ISO string)' })
+  @IsDateString()
+  @IsOptional()
+  dueFrom?: string;
+
+  @ApiPropertyOptional({ description: 'Hạn chót đến ngày (ISO string)' })
+  @IsDateString()
+  @IsOptional()
+  dueTo?: string;
+
+  @ApiPropertyOptional({ description: 'Lọc các công việc đã quá hạn' })
+  @IsBoolean()
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  overdue?: boolean;
+
 }

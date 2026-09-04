@@ -80,3 +80,14 @@ export interface UpdateTaskInput extends Partial<CreateTaskInput> {
   progressPercent?: number;
   completedAt?: string;
 }
+
+export interface TaskActionInput {
+  comment?: string;
+  reasonCode?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface TaskExtensionRequestInput {
+  dueDate: string;
+  reason?: string;
+}

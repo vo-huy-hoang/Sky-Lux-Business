@@ -39,6 +39,7 @@ import { useAuthStore } from '@/lib/stores/auth-store';
 import {
   CreateTaskInput,
   TaskChecklistItem,
+  TaskExtensionRequestInput,
   TaskItem,
   TaskPriority,
   TaskStatus,
@@ -260,7 +261,7 @@ function TaskDetailDrawer({
   taskId: string | null;
   onClose: () => void;
 }) {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const queryClient = useQueryClient();
   const { data: task, isLoading } = useQuery({
     queryKey: queryKeys.tasks.detail(taskId || undefined),
@@ -279,6 +280,64 @@ function TaskDetailDrawer({
     onError: (error: Error) => message.error(error.message || 'Không thể cập nhật công việc'),
   });
 
+  const startTask = useMutation({
+    mutationFn: (id: string) => tasksService.startTask(id),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKeys.tasks.detail(updated.id), updated);
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboards.all });
+      message.success('Đã bắt đầu xử lý công việc');
+    },
+    onError: (error: Error) => message.error(error.message || 'Lỗi khi bắt đầu công việc'),
+  });
+
+  const completeTask = useMutation({
+    mutationFn: (id: string) => tasksService.completeTask(id),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKeys.tasks.detail(updated.id), updated);
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboards.all });
+      message.success('Đã hoàn thành công việc');
+    },
+    onError: (error: Error) => message.error(error.message || 'Lỗi khi hoàn thành công việc'),
+  });
+
+  const deleteTask = useMutation({
+    mutationFn: (id: string) => tasksService.deleteTask(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboards.all });
+      message.success('Đã xóa công việc');
+      onClose();
+    },
+    onError: (error: Error) => message.error(error.message || 'Lỗi khi xóa công việc'),
+  });
+
+  const [extOpen, setExtOpen] = useState(false);
+  const [extForm] = Form.useForm<TaskExtensionRequestInput>();
+  const requestExtension = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: TaskExtensionRequestInput }) => tasksService.requestExtension(id, data),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKeys.tasks.detail(updated.id), updated);
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      message.success('Đã gửi yêu cầu gia hạn');
+      setExtOpen(false);
+      extForm.resetFields();
+    },
+    onError: (error: Error) => message.error(error.message || 'Lỗi khi gửi yêu cầu gia hạn'),
+  });
+
+  const confirmDelete = () => {
+    modal.confirm({
+      title: 'Xóa công việc',
+      content: 'Bạn có chắc chắn muốn xóa công việc này không? Dữ liệu không thể phục hồi.',
+      okText: 'Xóa',
+      okButtonProps: { danger: true },
+      cancelText: 'Hủy',
+      onOk: () => deleteTask.mutate(task!.id),
+    });
+  };
+
   const updateChecklist = (item: TaskChecklistItem, checked: boolean) => {
     if (!task) return;
     const checklistItems = (task.checklistItems || []).map((current) =>
@@ -294,6 +353,22 @@ function TaskDetailDrawer({
       onClose={onClose}
       styles={{ wrapper: { width: 440, maxWidth: '100vw' } }}
       className="skylux-task-drawer"
+      extra={
+        task && (
+          <div className="flex gap-2">
+            {task.status === 'TODO' && (
+              <Button size="small" type="primary" onClick={() => startTask.mutate(task.id)} loading={startTask.isPending}>Bắt đầu</Button>
+            )}
+            {task.status === 'IN_PROGRESS' && (
+              <Button size="small" type="primary" className="bg-[#66A967]" onClick={() => completeTask.mutate(task.id)} loading={completeTask.isPending}>Hoàn thành</Button>
+            )}
+            {task.status !== 'COMPLETED' && task.status !== 'CANCELLED' && (
+              <Button size="small" onClick={() => setExtOpen(true)}>Gia hạn</Button>
+            )}
+            <Button size="small" danger onClick={confirmDelete} loading={deleteTask.isPending}>Xóa</Button>
+          </div>
+        )
+      }
     >
       {isLoading || !task ? (
         <div className="space-y-4">
@@ -368,6 +443,26 @@ function TaskDetailDrawer({
           </div>
         </div>
       )}
+
+      <Modal
+        title="Gia hạn công việc"
+        open={extOpen}
+        onCancel={() => setExtOpen(false)}
+        onOk={() => extForm.submit()}
+        confirmLoading={requestExtension.isPending}
+        okText="Gửi yêu cầu"
+        cancelText="Hủy"
+        destroyOnClose
+      >
+        <Form form={extForm} layout="vertical" onFinish={(values) => requestExtension.mutate({ id: task!.id, data: { ...values, dueDate: new Date(values.dueDate).toISOString() } })}>
+          <Form.Item name="dueDate" label="Hạn chót mới" rules={[{ required: true, message: 'Vui lòng chọn ngày giờ' }]}>
+            <Input type="datetime-local" />
+          </Form.Item>
+          <Form.Item name="reason" label="Lý do gia hạn">
+            <Input.TextArea rows={3} placeholder="Ví dụ: Đợi phản hồi từ khách hàng" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Drawer>
   );
 }
