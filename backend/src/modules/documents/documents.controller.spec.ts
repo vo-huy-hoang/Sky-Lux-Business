@@ -127,14 +127,20 @@ describe('DocumentsController', () => {
 
   describe('findVersions (API-DOCVER-001)', () => {
     it('should return document version list', async () => {
-      const mockResult = [{ id: 'ver-1', versionNo: 1 }];
+      const mockResult = { data: [{ id: 'ver-1', versionNo: 1 }], meta: { page: 1, pageSize: 10, total: 1 } };
       mockDocumentsService.findVersions.mockResolvedValue(mockResult);
 
-      const result = await controller.findVersions(mockUserPayload, 'doc-uuid');
+      const queryDto = { page: 1, limit: 10 };
+      const result = await controller.findVersions(
+        mockUserPayload,
+        'doc-uuid',
+        queryDto as any
+      );
 
       expect(service.findVersions).toHaveBeenCalledWith(
         mockUserPayload,
         'doc-uuid',
+        queryDto
       );
       expect(result).toEqual(mockResult);
     });

@@ -7,8 +7,9 @@ import {
   DownloadUrlResponse,
   DownloadUrlParams,
   CreateDocumentVersionPayload,
+  QueryDocumentVersionParams,
 } from '@/types/document';
-import { PaginatedResponse } from '@/types/api';
+import { PaginatedResponse, PaginatedMetaResponse } from '@/types/api';
 
 export const documentsService = {
   /**
@@ -78,9 +79,10 @@ export const documentsService = {
   /**
    * API-DOCVER-001: Lấy danh sách các phiên bản của tài liệu
    */
-  getDocumentVersions: (id: string) => {
-    return apiClient.get<any, DocumentVersionItem[]>(
+  getDocumentVersions: (id: string, params?: QueryDocumentVersionParams) => {
+    return apiClient.get<any, PaginatedMetaResponse<DocumentVersionItem>>(
       `/documents/${id}/versions`,
+      { params }
     );
   },
 
@@ -93,8 +95,17 @@ export const documentsService = {
   ) => {
     const formData = new FormData();
     formData.append('file', payload.file);
+    if (payload.documentTypeId) {
+      formData.append('documentTypeId', payload.documentTypeId);
+    }
     if (payload.changeNote) {
       formData.append('changeNote', payload.changeNote);
+    }
+    if (payload.versionNote) {
+      formData.append('versionNote', payload.versionNote);
+    }
+    if (payload.description) {
+      formData.append('description', payload.description);
     }
 
     return apiClient.post<any, DocumentItem>(

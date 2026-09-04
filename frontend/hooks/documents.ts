@@ -6,6 +6,7 @@ import {
   UploadDocumentPayload,
   DownloadUrlParams,
   CreateDocumentVersionPayload,
+  QueryDocumentVersionParams,
 } from '@/types/document';
 
 export const documentKeys = {
@@ -13,7 +14,8 @@ export const documentKeys = {
   dossierList: (dossierId: string, params?: QueryDocumentParams) =>
     queryKeys.documents.dossierList(dossierId, params),
   detail: (id: string) => queryKeys.documents.detail(id),
-  versions: (id: string) => queryKeys.documents.versions(id),
+  versions: (id: string, params?: QueryDocumentVersionParams) =>
+    queryKeys.documents.versions(id, params),
   downloadUrl: (id: string, params?: DownloadUrlParams) =>
     queryKeys.documents.downloadUrl(id, params),
 };
@@ -141,11 +143,12 @@ export function useDownloadDocument() {
  */
 export function useDocumentVersions(
   id: string,
+  params?: QueryDocumentVersionParams,
   options?: { enabled?: boolean },
 ) {
   return useQuery({
-    queryKey: documentKeys.versions(id),
-    queryFn: () => documentsService.getDocumentVersions(id),
+    queryKey: documentKeys.versions(id, params),
+    queryFn: () => documentsService.getDocumentVersions(id, params),
     enabled: Boolean(id) && (options?.enabled ?? true),
   });
 }

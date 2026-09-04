@@ -9,7 +9,9 @@ import { DocumentType } from './entities/document-type.entity';
 import { DocumentVersion } from './entities/document-version.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { StorageService } from '../../shared/storage/storage.service';
+import { RedisService } from '../../common/redis/redis.service';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { DataSource } from 'typeorm';
 
 describe('Documents Module (Integration)', () => {
   let controller: DocumentsController;
@@ -90,6 +92,20 @@ describe('Documents Module (Integration)', () => {
         {
           provide: StorageService,
           useValue: mockStorageService,
+        },
+        {
+          provide: RedisService,
+          useValue: {
+            get: jest.fn(),
+            set: jest.fn(),
+            delByPattern: jest.fn(),
+          },
+        },
+        {
+          provide: DataSource,
+          useValue: {
+            transaction: jest.fn().mockImplementation((cb) => cb({ save: jest.fn() })),
+          },
         },
       ],
     }).compile();
