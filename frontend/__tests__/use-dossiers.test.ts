@@ -70,8 +70,10 @@ describe('useDossiers hooks', () => {
     expect(dossiersService.getDossierComments).toHaveBeenCalledWith(
       dossierId,
       undefined,
+      { signal: expect.anything() },
     );
   });
+
 
   it('useCreateDossierComment executes mutation and invalidates queries (API-COMMENT-002)', async () => {
     (dossiersService.createDossierComment as jest.Mock).mockResolvedValueOnce(

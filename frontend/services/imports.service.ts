@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client';
+import { apiClient, RequestOptions } from '@/lib/api-client';
 import {
   ImportSession,
   PaginatedImportRowsResponse,
@@ -19,39 +19,38 @@ export const importsService = {
       formData.append('templateId', templateId);
     }
 
-    return apiClient.post<any, ImportSession>('/imports', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    return apiClient.post<any, ImportSession>('/imports', formData);
   },
 
   /**
    * API-IMPORT-002: Lấy thông tin & trạng thái phiên nhập
    */
-  getSession: (id: string) => {
-    return apiClient.get<any, ImportSession>(`/imports/${id}`);
+  getSession: (id: string, options?: RequestOptions) => {
+    return apiClient.get<any, ImportSession>(`/imports/${id}`, {
+      signal: options?.signal,
+    });
   },
 
   /**
    * API-IMPORT-003: Xem trước các dòng dữ liệu thô và đã chuẩn hóa
    */
-  getPreview: (id: string, params?: QueryImportParams) => {
+  getPreview: (id: string, params?: QueryImportParams, options?: RequestOptions) => {
     return apiClient.get<any, PaginatedImportRowsResponse>(
       `/imports/${id}/preview`,
-      { params },
+      { params, signal: options?.signal },
     );
   },
 
   /**
    * API-IMPORT-004: Xem danh sách lỗi kiểm duyệt
    */
-  getErrors: (id: string, params?: QueryImportParams) => {
+  getErrors: (id: string, params?: QueryImportParams, options?: RequestOptions) => {
     return apiClient.get<any, PaginatedImportErrorsResponse>(
       `/imports/${id}/errors`,
-      { params },
+      { params, signal: options?.signal },
     );
   },
+
 
   /**
    * API-IMPORT-005: Sửa lỗi thông tin dòng trên bảng tạm

@@ -6,11 +6,13 @@ import { Task } from './entities/task.entity';
 import { TaskChecklistItem } from './entities/task-checklist-item.entity';
 
 import { DossiersModule } from '../dossiers/dossiers.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Task, TaskChecklistItem]),
     DossiersModule,
+    NotificationsModule,
   ],
   controllers: [TasksController],
   providers: [TasksService],

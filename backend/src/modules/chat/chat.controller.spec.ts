@@ -96,6 +96,22 @@ describe('ChatController', () => {
         mockUser,
         'conv-1',
         'hello',
+        undefined,
+      );
+    });
+
+    it('should pass clientMessageId for idempotency', async () => {
+      const dto: SendMessageDto = {
+        content: 'hello',
+        clientMessageId: 'cm-123',
+      };
+      const res = await controller.sendMessage(mockUser, 'conv-1', dto);
+      expect(res).toEqual({ id: 'msg-1' });
+      expect(service.sendMessage).toHaveBeenCalledWith(
+        mockUser,
+        'conv-1',
+        'hello',
+        'cm-123',
       );
     });
   });

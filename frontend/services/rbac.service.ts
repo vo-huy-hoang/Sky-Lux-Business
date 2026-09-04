@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client';
+import { apiClient, RequestOptions } from '@/lib/api-client';
 import { PaginatedUsersResponse } from '@/types/user';
 
 export interface RolePermissionItem {
@@ -63,15 +63,18 @@ const toRoleItem = (role: BackendRole): RoleItem => ({
 
 export const rbacService = {
   // Roles APIs (API-RBAC-001, 002, 003, 005)
-  getRoles: (params?: { page?: number; limit?: number; search?: string }) => {
+  getRoles: (
+    params?: { page?: number; limit?: number; search?: string },
+    options?: RequestOptions,
+  ) => {
     return apiClient
-      .get<any, BackendRole[]>('/roles', { params })
+      .get<any, BackendRole[]>('/roles', { params, signal: options?.signal })
       .then((roles) => roles.map(toRoleItem));
   },
 
-  getRole: (id: string) => {
+  getRole: (id: string, options?: RequestOptions) => {
     return apiClient
-      .get<any, BackendRole>(`/roles/${id}`)
+      .get<any, BackendRole>(`/roles/${id}`, { signal: options?.signal })
       .then(toRoleItem);
   },
 
@@ -107,18 +110,26 @@ export const rbacService = {
   },
 
   // Permissions API (API-RBAC-004)
-  getPermissions: (params?: {
-    page?: number;
-    limit?: number;
-    search?: string;
-    module?: string;
-  }) => {
-    return apiClient.get<any, PermissionItem[]>('/permissions', { params });
+  getPermissions: (
+    params?: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      module?: string;
+    },
+    options?: RequestOptions,
+  ) => {
+    return apiClient.get<any, PermissionItem[]>('/permissions', {
+      params,
+      signal: options?.signal,
+    });
   },
 
   // Users & Role Assignment APIs (API-RBAC-006)
-  getUsers: () => {
-    return apiClient.get<any, PaginatedUsersResponse>('/users');
+  getUsers: (options?: RequestOptions) => {
+    return apiClient.get<any, PaginatedUsersResponse>('/users', {
+      signal: options?.signal,
+    });
   },
 
   assignUserRoles: (userId: string, roleIds: string[]) => {

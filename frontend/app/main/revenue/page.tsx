@@ -43,19 +43,31 @@ function CeoRevenuePage() {
 
   const currentMonth = useQuery({
     queryKey: queryKeys.dashboards.ceo({ periodType: 'MONTHLY', date: anchorDate.format('YYYY-MM-DD') }),
-    queryFn: () => dashboardsService.getCeoDashboard({ periodType: 'MONTHLY', date: anchorDate.format('YYYY-MM-DD') }),
+    queryFn: ({ signal }) =>
+      dashboardsService.getCeoDashboard(
+        { periodType: 'MONTHLY', date: anchorDate.format('YYYY-MM-DD') },
+        { signal },
+      ),
   });
   const currentQuarter = useQuery({
     queryKey: queryKeys.dashboards.ceo({ periodType: 'QUARTERLY', date: anchorDate.format('YYYY-MM-DD') }),
-    queryFn: () => dashboardsService.getCeoDashboard({ periodType: 'QUARTERLY', date: anchorDate.format('YYYY-MM-DD') }),
+    queryFn: ({ signal }) =>
+      dashboardsService.getCeoDashboard(
+        { periodType: 'QUARTERLY', date: anchorDate.format('YYYY-MM-DD') },
+        { signal },
+      ),
   });
   const currentYear = useQuery({
     queryKey: queryKeys.dashboards.ceo({ periodType: 'YEARLY', date: `${year}-01-01` }),
-    queryFn: () => dashboardsService.getCeoDashboard({ periodType: 'YEARLY', date: `${year}-01-01` }),
+    queryFn: ({ signal }) =>
+      dashboardsService.getCeoDashboard(
+        { periodType: 'YEARLY', date: `${year}-01-01` },
+        { signal },
+      ),
   });
   const monthlyTrendQuery = useQuery({
     queryKey: queryKeys.dashboards.ceoMonthlyTrend(year),
-    queryFn: () => dashboardsService.getCeoMonthlyTrend(year),
+    queryFn: ({ signal }) => dashboardsService.getCeoMonthlyTrend(year, { signal }),
   });
 
   const monthlyTrend = monthlyTrendQuery.data || [];

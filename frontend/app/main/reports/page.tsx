@@ -29,7 +29,11 @@ export default function ReportsPage() {
   const [dates, setDates] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')]);
   const dashboard = useQuery({
     queryKey: queryKeys.reports.dashboard({ reportType, date: dates[0].format('YYYY-MM-DD') }),
-    queryFn: () => dashboardsService.getCeoDashboard({ periodType: 'MONTHLY', date: dates[0].format('YYYY-MM-DD') }),
+    queryFn: ({ signal }) =>
+      dashboardsService.getCeoDashboard(
+        { periodType: 'MONTHLY', date: dates[0].format('YYYY-MM-DD') },
+        { signal },
+      ),
   });
 
 

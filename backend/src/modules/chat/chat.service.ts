@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   MessageEvent,
+  Optional,
 } from '@nestjs/common';
 import { Subject, Observable } from 'rxjs';
 import { filter, map, mergeMap } from 'rxjs/operators';
@@ -18,9 +19,15 @@ import { AddParticipantsDto } from './dto/add-participants.dto';
 import { MarkReadDto } from './dto/mark-read.dto';
 import { User } from '../users/entities/user.entity';
 import { toPublicUser } from '../../common/utils/public-user';
+import { RedisService } from '../../common/redis/redis.service';
 
 @Injectable()
 export class ChatService {
+  private readonly memoryIdempotency = new Map<
+    string,
+    { message: Message; timestamp: number }
+  >();
+
   private readonly chatEvent$ = new Subject<{
     type:
       | 'message.created'
@@ -46,6 +53,8 @@ export class ChatService {
     private readonly messageRepository: Repository<Message>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @Optional()
+    private readonly redisService?: RedisService,
   ) {}
 
   /**
@@ -189,13 +198,33 @@ export class ChatService {
   }
 
   /**
-   * Gửi tin nhắn vào cuộc hội thoại
+   * Gửi tin nhắn vào cuộc hội thoại (Hỗ trợ Idempotency Key chống lưu trùng)
    */
   async sendMessage(
     user: CurrentUserPayload,
     conversationId: string,
     content: string,
+    clientMessageId?: string,
   ): Promise<Message> {
+    // 1. Kiểm tra Idempotency Key chống gửi trùng tin nhắn
+    if (clientMessageId) {
+      const cacheKey = `idempotency:chat:${user.organizationId}:${clientMessageId}`;
+      const memoryHit = this.memoryIdempotency.get(cacheKey);
+      if (memoryHit && Date.now() - memoryHit.timestamp < 120000) {
+        return memoryHit.message;
+      }
+      if (this.redisService) {
+        const redisHit = await this.redisService.get<Message>(cacheKey);
+        if (redisHit) {
+          this.memoryIdempotency.set(cacheKey, {
+            message: redisHit,
+            timestamp: Date.now(),
+          });
+          return redisHit;
+        }
+      }
+    }
+
     // Xác thực quyền truy cập hội thoại trước và lấy danh sách thành viên
     const conversation = await this.findConversation(user, conversationId);
 
@@ -223,6 +252,18 @@ export class ChatService {
     }
 
     this.sanitizeMessage(fullMessage);
+
+    // Lưu kết quả vào Idempotency Cache (120s)
+    if (clientMessageId) {
+      const cacheKey = `idempotency:chat:${user.organizationId}:${clientMessageId}`;
+      this.memoryIdempotency.set(cacheKey, {
+        message: fullMessage,
+        timestamp: Date.now(),
+      });
+      if (this.redisService) {
+        await this.redisService.set(cacheKey, fullMessage, 120);
+      }
+    }
 
     // Đẩy sự kiện tin nhắn mới vào luồng SSE
     this.chatEvent$.next({

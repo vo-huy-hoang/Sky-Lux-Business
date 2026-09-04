@@ -30,6 +30,7 @@ import {
 } from '@ant-design/icons';
 import { useAuditLogDetail, useAuditLogs } from '@/hooks/audit-logs';
 import { AuditLogItem } from '@/types/audit-log';
+import { useDebounce } from '@/hooks/use-debounce';
 
 const { Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -74,6 +75,7 @@ export default function AuditLogsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 350);
   const [actionFilter, setActionFilter] = useState<string>();
   const [entityTypeFilter, setEntityTypeFilter] = useState<string>();
   const [dateRange, setDateRange] = useState<[string | undefined, string | undefined]>([
@@ -86,13 +88,13 @@ export default function AuditLogsPage() {
     return {
       page,
       pageSize,
-      search: search.trim() || undefined,
+      search: debouncedSearch.trim() || undefined,
       action: actionFilter || undefined,
       entityType: entityTypeFilter || undefined,
       from: dateRange[0],
       to: dateRange[1],
     };
-  }, [page, pageSize, search, actionFilter, entityTypeFilter, dateRange]);
+  }, [page, pageSize, debouncedSearch, actionFilter, entityTypeFilter, dateRange]);
 
   const { data, isLoading, refetch, isFetching } = useAuditLogs(queryParams);
   const { data: auditLogDetail, isLoading: isDetailLoading } =

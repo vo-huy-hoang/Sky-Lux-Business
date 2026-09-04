@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client';
+import { apiClient, RequestOptions } from '@/lib/api-client';
 
 export interface MyKpiItem {
   target: {
@@ -10,6 +10,13 @@ export interface MyKpiItem {
 }
 
 export const kpiService = {
-  getMyKpi: (params?: { periodType?: string; date?: string }) =>
-    apiClient.get<any, MyKpiItem[]>('/kpis/me', { params }),
+  getMyKpi: (
+    params?: { periodType?: string; date?: string },
+    options?: RequestOptions,
+  ) =>
+    apiClient.get<any, MyKpiItem[]>('/kpis/me', {
+      params,
+      signal: options?.signal,
+    }),
 };
+

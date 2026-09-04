@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client';
+import { apiClient, RequestOptions } from '@/lib/api-client';
 
 export interface AuthMeResponse {
   id: string;
@@ -18,7 +18,8 @@ export interface AuthMeResponse {
 }
 
 export const authService = {
-  getMe: () => apiClient.get<any, AuthMeResponse>('/auth/me'),
+  getMe: (options?: RequestOptions) =>
+    apiClient.get<any, AuthMeResponse>('/auth/me', { signal: options?.signal }),
 
   changePassword: (data: {
     currentPassword: string;

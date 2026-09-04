@@ -38,6 +38,7 @@ import { CustomerItem, CustomerType } from '@/types/customer';
 import { queryKeys } from '@/lib/query-keys';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useRouter } from 'next/navigation';
+import { useDebounce } from '@/hooks/use-debounce';
 
 const { Title, Text } = Typography;
 
@@ -55,11 +56,12 @@ function initials(name?: string) {
 export default function CustomersPage() {
   const router = useRouter();
   const hasRole = useAuthStore((state) => state.hasRole);
-  const isCeoAdmin = hasRole('CEO_ADMIN') || hasRole('SUPER_ADMIN');
+  const isCeoAdmin = hasRole(['CEO_ADMIN', 'SUPER_ADMIN']);
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 350);
   const [customerType, setCustomerType] = useState<CustomerType | undefined>();
   const [status, setStatus] = useState<string | undefined>();
 
@@ -67,23 +69,27 @@ export default function CustomersPage() {
     queryKey: queryKeys.customers.list({
       page,
       limit: pageSize,
-      search: search || undefined,
+      search: debouncedSearch || undefined,
       customerType,
       status,
     }),
-    queryFn: () =>
-      customersService.getCustomers({
-        page,
-        limit: pageSize,
-        search: search || undefined,
-        customerType,
-        status,
-      }),
+    queryFn: ({ signal }) =>
+      customersService.getCustomers(
+        {
+          page,
+          limit: pageSize,
+          search: debouncedSearch || undefined,
+          customerType,
+          status,
+        },
+        { signal },
+      ),
   });
 
   const { data: summaryData, isLoading: isLoadingSummary } = useQuery({
     queryKey: queryKeys.customers.summary(),
-    queryFn: () => customersService.getCustomers({ page: 1, limit: 100 }),
+    queryFn: ({ signal }) =>
+      customersService.getCustomers({ page: 1, limit: 100 }, { signal }),
   });
 
   const deleteMutation = useMutation({
@@ -176,7 +182,7 @@ export default function CustomersPage() {
         const primary = record.contacts?.find((contact) => contact.isPrimary) || record.contacts?.[0];
         if (!primary) return <Text type="secondary">-</Text>;
         return (
-          <Space orientation="vertical" size={0}>
+          <div className="flex flex-col">
             <Space size={6}>
               <Text>{primary.name}</Text>
               {primary.isPrimary && <StarFilled style={{ color: '#D6A51F', fontSize: 12 }} />}
@@ -184,7 +190,7 @@ export default function CustomersPage() {
             <Text type="secondary" className="text-xs">
               {primary.position || primary.phone || '-'}
             </Text>
-          </Space>
+          </div>
         );
       },
     },

@@ -19,12 +19,12 @@ import {
   IdcardOutlined,
   PictureOutlined,
 } from '@ant-design/icons';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersService } from '@/services/users.service';
-import { rbacService } from '@/services/rbac.service';
 import { useRbacStore } from '../store';
 import { useShallow } from 'zustand/react/shallow';
 import { queryKeys } from '@/lib/query-keys';
+import { useUserRoles } from '@/hooks/use-users';
 
 
 export default function UserModal() {
@@ -42,10 +42,7 @@ export default function UserModal() {
 
 
   // 1. Fetch Roles for Selection
-  const { data: rolesData } = useQuery({
-    queryKey: queryKeys.users.roles(),
-    queryFn: () => rbacService.getRoles({ search: '' }),
-  });
+  const { data: rolesData } = useUserRoles('');
   const roles = rolesData || [];
 
   // Reset/Set Form Values on Open

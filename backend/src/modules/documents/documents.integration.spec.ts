@@ -104,7 +104,9 @@ describe('Documents Module (Integration)', () => {
         {
           provide: DataSource,
           useValue: {
-            transaction: jest.fn().mockImplementation((cb) => cb({ save: jest.fn() })),
+            transaction: jest
+              .fn()
+              .mockImplementation((cb) => cb({ save: jest.fn() })),
           },
         },
       ],

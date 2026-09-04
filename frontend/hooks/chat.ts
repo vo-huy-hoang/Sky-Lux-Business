@@ -1,6 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Cookies from 'js-cookie';
+import { useUIStore } from '@/lib/stores/ui-store';
+import { useAuthStore } from '@/lib/stores/auth-store';
+import { useChatUIStore } from '@/lib/stores/chat-ui-store';
+
+
 import { chatService } from '@/services/chat.service';
 import { API_BASE_URL } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
@@ -13,28 +18,45 @@ import {
   MarkReadPayload,
 } from '@/types/chat';
 
-const appendMessageToCache = (newMessage: Message) => (old?: Message[]) => {
-  if (!old) return [newMessage];
-  if (old.some((msg) => msg.id === newMessage.id)) return old;
+export const appendMessageToCache = (newMessage: Message) => (old: Message[] = []): Message[] => {
+  // 1. Nếu đã có tin nhắn tạm mang clientMessageId này, thay thế tại chỗ
+  if (
+    newMessage.clientMessageId &&
+    old.some((msg) => msg.clientMessageId === newMessage.clientMessageId)
+  ) {
+    return old.map((msg) =>
+      msg.clientMessageId === newMessage.clientMessageId
+        ? ({ ...newMessage, status: 'sent' as const })
+        : msg,
+    );
+  }
+
+  // 2. Chống lặp nếu đã tồn tại ID thật
+  if (old.some((msg) => msg.id === newMessage.id)) {
+    return old;
+  }
+
+  // 3. Tin nhắn mới từ người khác: Nối vào cuối danh sách
   return [...old, newMessage];
 };
 
-const removeMessageFromCache = (messageId: string) => (old?: Message[]) => {
-  if (!old) return [];
-  return old.filter((msg) => msg.id !== messageId);
+export const removeMessageFromCache = (messageIdOrClientId: string) => (old: Message[] = []): Message[] => {
+  return old.filter(
+    (msg) => msg.id !== messageIdOrClientId && msg.clientMessageId !== messageIdOrClientId,
+  );
 };
 
 export const useConversations = () => {
   return useQuery({
     queryKey: queryKeys.chat.conversations(),
-    queryFn: () => chatService.getConversations(),
+    queryFn: ({ signal }) => chatService.getConversations({ signal }),
   });
 };
 
 export const useConversationDetail = (id: string) => {
   return useQuery({
     queryKey: queryKeys.chat.conversation(id),
-    queryFn: () => chatService.getConversationDetail(id),
+    queryFn: ({ signal }) => chatService.getConversationDetail(id, { signal }),
     enabled: !!id,
   });
 };
@@ -42,10 +64,11 @@ export const useConversationDetail = (id: string) => {
 export const useConversationMessages = (id: string) => {
   return useQuery({
     queryKey: queryKeys.chat.messages(id),
-    queryFn: () => chatService.getConversationMessages(id),
+    queryFn: ({ signal }) => chatService.getConversationMessages(id, { signal }),
     enabled: !!id,
   });
 };
+
 
 export const useCreateConversation = () => {
   const queryClient = useQueryClient();
@@ -58,30 +81,129 @@ export const useCreateConversation = () => {
   });
 };
 
+export interface SendMessageParams {
+  content: string;
+  clientMessageId?: string;
+}
+
 export const useSendMessage = (conversationId: string) => {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (content: string) =>
-      chatService.sendMessage(conversationId, content),
-    onSuccess: (newMessage) => {
-      // Cập nhật nóng tin nhắn mới vào lịch sử chat trong cache
+  const addFailedMessage = useChatUIStore((state) => state.addFailedMessage);
+  const removeFailedMessage = useChatUIStore((state) => state.removeFailedMessage);
+
+  return useMutation<
+    Message,
+    Error,
+    string | SendMessageParams,
+    { previousMessages?: Message[]; tempId: string; clientMessageId: string }
+  >({
+    mutationFn: (variables) => {
+      const content = typeof variables === 'string' ? variables : variables.content;
+      const clientMessageId = typeof variables === 'string' ? undefined : variables.clientMessageId;
+      return chatService.sendMessage(conversationId, content, clientMessageId);
+    },
+    onMutate: async (variables) => {
+      const content = typeof variables === 'string' ? variables : variables.content;
+      const clientMessageId =
+        (typeof variables !== 'string' && variables.clientMessageId) ||
+        (typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `cm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
+
+      // 1. Cancel bất kỳ refetch nào đang chạy để tránh đè lên bản ghi optimistic
+      await queryClient.cancelQueries({ queryKey: queryKeys.chat.messages(conversationId) });
+
+      // 2. Chụp snapshot cache hiện tại
+      const previousMessages = queryClient.getQueryData<Message[]>(
+        queryKeys.chat.messages(conversationId),
+      );
+
+      const currentUser = useAuthStore.getState().user;
+      const tempId = `temp-${clientMessageId}`;
+
+      const optimisticMessage: Message = {
+        id: tempId,
+        clientMessageId,
+        organizationId: currentUser?.organizationId || '',
+        conversationId,
+        senderId: currentUser?.id || '',
+        content,
+        createdAt: new Date().toISOString(),
+        sender: {
+          id: currentUser?.id || '',
+          fullName: currentUser?.fullName || 'Tôi',
+          email: currentUser?.email || '',
+          employeeCode: currentUser?.employeeCode || '',
+        },
+        status: 'sending',
+      };
+
+      // 3. Đưa tin nhắn vào cache ngay lập tức (0ms delay)
       queryClient.setQueryData<Message[]>(
         queryKeys.chat.messages(conversationId),
-        appendMessageToCache(newMessage),
+        (old = []) => [...old, optimisticMessage],
       );
-      // Invalidate danh sách hội thoại để sắp xếp lại theo tin nhắn mới nhất
+
+      return { previousMessages, tempId, clientMessageId };
+    },
+    onError: (_err, variables, context) => {
+      const content = typeof variables === 'string' ? variables : variables.content;
+      if (context?.clientMessageId) {
+        // Lưu vào hàng đợi tin lỗi trong Zustand
+        addFailedMessage({
+          clientMessageId: context.clientMessageId,
+          conversationId,
+          content,
+          failedAt: Date.now(),
+        });
+
+        // Đổi trạng thái tin nhắn trong cache sang 'failed'
+        queryClient.setQueryData<Message[]>(
+          queryKeys.chat.messages(conversationId),
+          (old = []) =>
+            old.map((msg) =>
+              msg.id === context.tempId || msg.clientMessageId === context.clientMessageId
+                ? { ...msg, status: 'failed' }
+                : msg,
+            ),
+        );
+      }
+    },
+    onSuccess: (savedMessage, _variables, context) => {
+      if (context?.clientMessageId) {
+        removeFailedMessage(context.clientMessageId);
+      }
+
+      // 4. Reconcile: Thay thế tin nhắn tạm bằng tin nhắn chính thức từ server
+      queryClient.setQueryData<Message[]>(
+        queryKeys.chat.messages(conversationId),
+        (old = []) => {
+          const withoutTemp = old.filter(
+            (msg) => msg.id !== context?.tempId && msg.clientMessageId !== context?.clientMessageId,
+          );
+          if (withoutTemp.some((msg) => msg.id === savedMessage.id)) {
+            return withoutTemp.map((msg) =>
+              msg.id === savedMessage.id ? ({ ...savedMessage, status: 'sent' as const }) : msg,
+            );
+          }
+          return [...withoutTemp, { ...savedMessage, status: 'sent' as const }];
+        },
+      );
+
       queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
     },
   });
 };
 
+
 export const useDossierConversation = (dossierId: string) => {
   return useQuery({
-    queryKey: ['dossier-conversation', dossierId],
-    queryFn: () => chatService.getDossierConversation(dossierId),
+    queryKey: queryKeys.chat.dossierConversation(dossierId),
+    queryFn: ({ signal }) => chatService.getDossierConversation(dossierId, { signal }),
     enabled: !!dossierId,
   });
 };
+
 
 export const useDeleteMessage = (conversationId: string) => {
   const queryClient = useQueryClient();
@@ -100,23 +222,56 @@ export const useDeleteMessage = (conversationId: string) => {
 };
 
 /**
+
+ * Thuật toán Exponential Backoff with Full Jitter theo chuẩn AWS Architecture
+ * - Attempt 0: Fast Immediate Retry (0ms) cho sự cố giật mạng nhẹ.
+ * - Attempt >= 1: delay = random(0, min(maxDelay, baseDelay * 2^(attempt - 1)))
+ */
+export function calculateBackoffWithJitter(
+  attempt: number,
+  baseDelay = 500,
+  maxDelay = 5000,
+): number {
+  if (attempt <= 0) return 0;
+  const exponential = Math.min(maxDelay, baseDelay * Math.pow(2, attempt - 1));
+  return Math.floor(Math.random() * exponential);
+}
+
+/**
  * Custom Hook lắng nghe tin nhắn thời gian thực qua Server-Sent Events (SSE)
- * tự động cập nhật cache của TanStack Query khi có tin mới hoặc tin bị xóa
+ * tự động cập nhật cache của TanStack Query khi có tin mới hoặc tin bị xóa.
+ * Trang bị Exponential Backoff + Full Jitter và trạng thái phục hồi tự động qua Zustand.
  */
 export const useChatRealtime = (conversationId?: string) => {
   const queryClient = useQueryClient();
   const [typingUsers, setTypingUsers] = useState<{ userId: string; fullName: string; expiresAt: number }[]>([]);
-  const [tokenTrigger, setTokenTrigger] = useState(Cookies.get('access_token') || '');
+  const authAccessToken = useAuthStore((state) => state.accessToken);
+  const [tokenTrigger, setTokenTrigger] = useState(authAccessToken || Cookies.get('access_token') || '');
 
-  // Synchronize token trigger state if cookies change
+  const attemptRef = useRef(0);
+  const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const connectRef = useRef<() => void>(() => {});
+
+  const setConnectionStatus = useUIStore((state) => state.setConnectionStatus);
+  const setChatStatus = useUIStore((state) => state.setChatStatus);
+  const setReconnectAttempt = useUIStore((state) => state.setReconnectAttempt);
+  const reconnectTrigger = useUIStore((state) => state.reconnectTrigger);
+
+
   useEffect(() => {
-    const interval = setInterval(() => {
-      const currentToken = Cookies.get('access_token') || '';
-      if (currentToken !== tokenTrigger) {
-        setTokenTrigger(currentToken);
+    if (typeof window === 'undefined') return;
+    const handleTokenRefreshed = (e: Event) => {
+      const customEvt = e as CustomEvent<{ accessToken: string }>;
+      const newToken = customEvt.detail?.accessToken || Cookies.get('access_token') || '';
+      if (newToken && newToken !== tokenTrigger) {
+        setTokenTrigger(newToken);
       }
-    }, 5000);
-    return () => clearInterval(interval);
+    };
+    window.addEventListener('skylux:token-refreshed', handleTokenRefreshed);
+    return () => {
+      window.removeEventListener('skylux:token-refreshed', handleTokenRefreshed);
+    };
   }, [tokenTrigger]);
 
   // Periodic cleanup of expired typing indicators (Receiver GC)
@@ -132,149 +287,293 @@ export const useChatRealtime = (conversationId?: string) => {
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (!conversationId) return;
+  const connect = useCallback(() => {
+    if (typeof window === 'undefined') return;
+
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
 
     const token = Cookies.get('access_token');
-    if (!token) return;
+    if (!token) {
+      setChatStatus('idle');
+      setConnectionStatus('connected');
+      return;
+    }
 
-    // Khởi tạo luồng kết nối EventSource nhận tin nhắn mới
-    const eventSource = new EventSource(
-      `${API_BASE_URL}/conversations/stream?token=${token}`,
-    );
+    try {
+      setChatStatus('reconnecting');
+      // Khởi tạo luồng kết nối EventSource nhận tin nhắn mới
+      const eventSource = new EventSource(
+        `${API_BASE_URL}/conversations/stream?token=${token}`,
+      );
+      eventSourceRef.current = eventSource;
 
-    eventSource.onmessage = (event) => {
-      try {
-        const chatEvent = JSON.parse(event.data) as ChatEvent;
+      eventSource.onopen = () => {
+        attemptRef.current = 0;
+        setReconnectAttempt(0);
+        setChatStatus('connected');
+        setConnectionStatus('connected');
+        queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
+      };
 
-        if (chatEvent.type === 'message.created') {
-          const newMessage = chatEvent.payload as Message;
-          // Chỉ cập nhật cache tin nhắn nếu tin thuộc cuộc hội thoại hiện tại đang xem
-          if (newMessage.conversationId === conversationId) {
-            queryClient.setQueryData<Message[]>(
-              ['conversation-messages', conversationId],
-              appendMessageToCache(newMessage),
-            );
+      eventSource.onmessage = (event) => {
+        try {
+          const chatEvent = JSON.parse(event.data) as ChatEvent;
+
+          if (chatEvent.type === 'message.created') {
+            const newMessage = chatEvent.payload as Message;
+            if (newMessage.conversationId === conversationId) {
+              queryClient.setQueryData<Message[]>(
+                queryKeys.chat.messages(conversationId),
+                appendMessageToCache(newMessage),
+              );
+            }
+            queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
+          } else if (chatEvent.type === 'message.deleted') {
+            const { id, conversationId: msgConversationId } = chatEvent.payload as {
+              id: string;
+              conversationId: string;
+            };
+            if (msgConversationId === conversationId) {
+              queryClient.setQueryData<Message[]>(
+                queryKeys.chat.messages(conversationId),
+                removeMessageFromCache(id),
+              );
+            }
+            queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
+          } else if (chatEvent.type === 'member.joined') {
+            const { conversationId: joinedConvId, member } = chatEvent.payload as {
+              conversationId: string;
+              member: ConversationMember;
+            };
+            if (joinedConvId === conversationId) {
+              queryClient.setQueryData<ConversationMember[]>(
+                queryKeys.chat.participants(conversationId),
+                (old) => {
+                  if (!old) return [member];
+                  if (old.some((m) => m.id === member.id)) return old;
+                  return [...old, member];
+                },
+              );
+            }
+          } else if (chatEvent.type === 'member.left') {
+            const { conversationId: leftConvId, userId } = chatEvent.payload as {
+              conversationId: string;
+              userId: string;
+            };
+            if (leftConvId === conversationId) {
+              queryClient.setQueryData<ConversationMember[]>(
+                queryKeys.chat.participants(conversationId),
+                (old) => {
+                  if (!old) return [];
+                  return old.filter((m) => m.userId !== userId);
+                },
+              );
+            }
+          } else if (chatEvent.type === 'message.read') {
+            const { conversationId: readConvId, userId, messageId, readAt } = chatEvent.payload as {
+              conversationId: string;
+              userId: string;
+              messageId: string;
+              readAt: string;
+            };
+            if (readConvId === conversationId) {
+              queryClient.setQueryData<ConversationMember[]>(
+                queryKeys.chat.participants(conversationId),
+                (old) => {
+                  if (!old) return [];
+                  return old.map((m) =>
+                    m.userId === userId
+                      ? { ...m, lastReadMessageId: messageId, lastReadAt: readAt }
+                      : m,
+                  );
+                },
+              );
+            }
+          } else if (chatEvent.type === 'typing.start') {
+            const { conversationId: typingConvId, userId, fullName } = chatEvent.payload as {
+              conversationId: string;
+              userId: string;
+              fullName: string;
+            };
+            if (typingConvId === conversationId) {
+              setTypingUsers((prev) => {
+                const expiresAt = Date.now() + 6000;
+                const filtered = prev.filter((u) => u.userId !== userId);
+                return [...filtered, { userId, fullName, expiresAt }];
+              });
+            }
+          } else if (chatEvent.type === 'typing.stop') {
+            const { conversationId: typingConvId, userId } = chatEvent.payload as {
+              conversationId: string;
+              userId: string;
+            };
+            if (typingConvId === conversationId) {
+              setTypingUsers((prev) => prev.filter((u) => u.userId !== userId));
+            }
+          } else if (chatEvent.type === 'unread_count') {
+            queryClient.invalidateQueries({ queryKey: queryKeys.chat.unreadCount() });
+          } else if (chatEvent.type === 'conversation.updated') {
+            queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
+            if ((chatEvent.payload as { conversationId: string })?.conversationId === conversationId) {
+              queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversation(conversationId) });
+            }
           }
-          // Float hội thoại có hoạt động mới lên trên cùng
-          queryClient.invalidateQueries({ queryKey: ['conversations'] });
-        } else if (chatEvent.type === 'message.deleted') {
-          const { id, conversationId: msgConversationId } = chatEvent.payload as {
-            id: string;
-            conversationId: string;
-          };
-          // Xóa tin nhắn khỏi cache nếu thuộc cuộc hội thoại hiện tại đang xem
-          if (msgConversationId === conversationId) {
-            queryClient.setQueryData<Message[]>(
-              ['conversation-messages', conversationId],
-              removeMessageFromCache(id),
-            );
-          }
-          // Cập nhật danh sách cuộc hội thoại để thay đổi preview tin nhắn cuối
-          queryClient.invalidateQueries({ queryKey: ['conversations'] });
-        } else if (chatEvent.type === 'member.joined') {
-          const { conversationId: joinedConvId, member } = chatEvent.payload as {
-            conversationId: string;
-            member: ConversationMember;
-          };
-          // Thêm thành viên mới vào danh sách cache nếu thuộc cuộc hội thoại đang xem
-          if (joinedConvId === conversationId) {
-            queryClient.setQueryData<ConversationMember[]>(
-              ['conversation-participants', conversationId],
-              (old) => {
-                if (!old) return [member];
-                if (old.some((m) => m.id === member.id)) return old;
-                return [...old, member];
-              },
-            );
-          }
-        } else if (chatEvent.type === 'member.left') {
-          const { conversationId: leftConvId, userId } = chatEvent.payload as {
-            conversationId: string;
-            userId: string;
-          };
-          // Xóa thành viên khỏi danh sách cache nếu thuộc cuộc hội thoại đang xem
-          if (leftConvId === conversationId) {
-            queryClient.setQueryData<ConversationMember[]>(
-              ['conversation-participants', conversationId],
-              (old) => {
-                if (!old) return [];
-                return old.filter((m) => m.userId !== userId);
-              },
-            );
-          }
-        } else if (chatEvent.type === 'message.read') {
-          const { conversationId: readConvId, userId, messageId, readAt } = chatEvent.payload as {
-            conversationId: string;
-            userId: string;
-            messageId: string;
-            readAt: string;
-          };
-          // Cập nhật trạng thái đã đọc của thành viên trong cache nếu thuộc cuộc hội thoại đang xem
-          if (readConvId === conversationId) {
-            queryClient.setQueryData<ConversationMember[]>(
-              ['conversation-participants', conversationId],
-              (old) => {
-                if (!old) return [];
-                return old.map((m) =>
-                  m.userId === userId
-                    ? { ...m, lastReadMessageId: messageId, lastReadAt: readAt }
-                    : m,
-                );
-              },
-            );
-          }
-        } else if (chatEvent.type === 'typing.start') {
-          const { conversationId: typingConvId, userId, fullName } = chatEvent.payload as {
-            conversationId: string;
-            userId: string;
-            fullName: string;
-          };
-          if (typingConvId === conversationId) {
-            setTypingUsers((prev) => {
-              const expiresAt = Date.now() + 6000; // Keep active for 6 seconds
-              const filtered = prev.filter((u) => u.userId !== userId);
-              return [...filtered, { userId, fullName, expiresAt }];
-            });
-          }
-        } else if (chatEvent.type === 'typing.stop') {
-          const { conversationId: typingConvId, userId } = chatEvent.payload as {
-            conversationId: string;
-            userId: string;
-          };
-          if (typingConvId === conversationId) {
-            setTypingUsers((prev) => prev.filter((u) => u.userId !== userId));
-          }
-        } else if (chatEvent.type === 'unread_count') {
-          // Invalidate cache thông báo tin nhắn chưa đọc
-          queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
-        } else if (chatEvent.type === 'conversation.updated') {
+        } catch (err) {
+          console.error('Lỗi phân giải tin nhắn SSE:', err);
+        }
+      };
+
+      eventSource.onerror = () => {
+        eventSource.close();
+        eventSourceRef.current = null;
+
+        const currentToken = Cookies.get('access_token') || '';
+        if (currentToken && currentToken !== token) {
+          setTokenTrigger(currentToken);
+          return;
+        }
+
+        // Full Jitter Exponential Backoff
+        const nextAttempt = attemptRef.current + 1;
+        attemptRef.current = nextAttempt;
+        setReconnectAttempt(nextAttempt);
+
+        // Giới hạn tối đa 5 lần thử lại tự động: dừng vòng lặp và chuyển sang chế độ chờ nút bấm thủ công
+        if (nextAttempt > 5) {
+          setChatStatus('reconnect_failed');
+          setConnectionStatus('reconnect_failed');
+          return;
+        }
+
+        setChatStatus('reconnecting');
+        setConnectionStatus('reconnecting');
+
+        // Khi tab đang ẩn: tạm hoãn retry để tiết kiệm tài nguyên mạng và socket
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+          return;
+        }
+
+        const delay = calculateBackoffWithJitter(nextAttempt);
+
+        if (retryTimerRef.current) {
+          clearTimeout(retryTimerRef.current);
+        }
+        retryTimerRef.current = setTimeout(() => {
+          connectRef.current();
+        }, delay);
+      };
+    } catch {
+      setChatStatus('reconnecting');
+      setConnectionStatus('reconnecting');
+    }
+  }, [conversationId, queryClient, setConnectionStatus, setChatStatus, setReconnectAttempt]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
+
+  // Lắng nghe tín hiệu kích hoạt kết nối lại thủ công từ Header banner
+  useEffect(() => {
+    if (reconnectTrigger > 0) {
+      attemptRef.current = 0;
+      setReconnectAttempt(0);
+      setChatStatus('reconnecting');
+      setConnectionStatus('reconnecting');
+      connectRef.current();
+    }
+  }, [reconnectTrigger, setConnectionStatus, setChatStatus, setReconnectAttempt]);
+
+  // Online / Offline System Event Listeners for Fast Recovery
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleOnline = () => {
+      // Mạng có lại: Lập tức reset attempt về 0 và thử kết nối lại ngay tức thì (0ms)
+      attemptRef.current = 0;
+      setReconnectAttempt(0);
+      setChatStatus('reconnecting');
+      setConnectionStatus('reconnecting');
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+      }
+      connectRef.current();
+    };
+
+    const handleOffline = () => {
+      setChatStatus('offline');
+      setConnectionStatus('offline');
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    };
+
+    // Page Visibility API: Quản lý vòng đời kết nối khi người dùng ẩn/hiện tab
+    const handleVisibilityChange = () => {
+      if (typeof document === 'undefined') return;
+      if (document.visibilityState === 'visible') {
+        if (!eventSourceRef.current) {
+          attemptRef.current = 0;
+          setReconnectAttempt(0);
+          setChatStatus('reconnecting');
+          setConnectionStatus('reconnecting');
+          connectRef.current();
+        } else {
           queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
-          if ((chatEvent.payload as { conversationId: string })?.conversationId === conversationId) {
-            queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversation(conversationId) });
+          if (conversationId) {
+            queryClient.invalidateQueries({ queryKey: queryKeys.chat.messages(conversationId) });
           }
         }
-      } catch (err) {
-        console.error('Lỗi phân giải tin nhắn SSE:', err);
+      } else {
+        if (retryTimerRef.current) {
+          clearTimeout(retryTimerRef.current);
+          retryTimerRef.current = null;
+        }
       }
     };
 
-    eventSource.onerror = () => {
-      const currentToken = Cookies.get('access_token') || '';
-      if (currentToken && currentToken !== token) {
-        setTokenTrigger(currentToken);
-      }
-    };
-
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      eventSource.close();
-      setTypingUsers([]); // Reset typing status on switching conversation or unmounting
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [conversationId, queryClient, tokenTrigger]);
+  }, [conversationId, queryClient, setChatStatus, setConnectionStatus, setReconnectAttempt]);
+
+  useEffect(() => {
+    connect();
+
+    return () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      setTypingUsers([]);
+      // Lazy-scoped: khi rời khỏi màn hình Chat, trả trạng thái chat về idle
+      setChatStatus('idle');
+      setConnectionStatus('connected');
+      setReconnectAttempt(0);
+    };
+  }, [connect, authAccessToken, tokenTrigger, setConnectionStatus, setChatStatus, setReconnectAttempt]);
+
 
   return { typingUsers };
 };
+
 
 /**
  * Hook lấy danh sách thành viên trong cuộc hội thoại
@@ -282,10 +581,11 @@ export const useChatRealtime = (conversationId?: string) => {
 export const useConversationParticipants = (conversationId: string) => {
   return useQuery({
     queryKey: queryKeys.chat.participants(conversationId),
-    queryFn: () => chatService.getParticipants(conversationId),
+    queryFn: ({ signal }) => chatService.getParticipants(conversationId, { signal }),
     enabled: !!conversationId,
   });
 };
+
 
 /**
  * Hook đánh dấu đã đọc tin nhắn trong cuộc hội thoại

@@ -56,7 +56,7 @@ export function useUploadDossierDocument() {
         queryKey: documentKeys.dossierList(dossierId),
       });
       queryClient.invalidateQueries({
-        queryKey: ['dossier-detail', dossierId],
+        queryKey: queryKeys.dossiers.detail(dossierId),
       });
     },
   });
@@ -89,7 +89,7 @@ export function useDeleteDocument() {
           queryKey: documentKeys.dossierList(variables.dossierId),
         });
         queryClient.invalidateQueries({
-          queryKey: ['dossier-detail', variables.dossierId],
+          queryKey: queryKeys.dossiers.detail(variables.dossierId),
         });
       }
     },
@@ -148,7 +148,7 @@ export function useDocumentVersions(
 ) {
   return useQuery({
     queryKey: documentKeys.versions(id, params),
-    queryFn: () => documentsService.getDocumentVersions(id, params),
+    queryFn: () => documentsService.getDocumentVersions(id, ...(params ? [params] : [])),
     enabled: Boolean(id) && (options?.enabled ?? true),
   });
 }

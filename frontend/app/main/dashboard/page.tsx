@@ -11,7 +11,6 @@ import {
   Progress,
   Row,
   Skeleton,
-  Space,
   Table,
   Tag,
   Typography,
@@ -43,7 +42,9 @@ import { DossierItem } from '@/types/dossier';
 import { useOperatorDashboard, useSalesDashboard } from '@/hooks/dashboards';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { queryKeys } from '@/lib/query-keys';
+import { WidgetErrorBoundary } from '@/components/common/widget-error-boundary';
 import dynamic from 'next/dynamic';
+
 
 
 const CeoDashboard = dynamic(() => import('@/components/ceo/CeoDashboard'), {
@@ -142,7 +143,7 @@ function OperationalDashboard() {
     isError: isDossierError,
   } = useQuery({
     queryKey: queryKeys.dossiers.list({ page: 1, limit: 100 }),
-    queryFn: () => dossiersService.getDossiers({ page: 1, limit: 100 }),
+    queryFn: ({ signal }) => dossiersService.getDossiers({ page: 1, limit: 100 }, { signal }),
   });
 
 
@@ -252,12 +253,12 @@ function OperationalDashboard() {
       title: 'Khách hàng',
       key: 'customer',
       render: (_: unknown, record: DossierItem) => (
-        <Space orientation="vertical" size={0}>
+        <div className="flex flex-col">
           <Text strong>{record.customer?.displayName || record.name}</Text>
           <Text type="secondary" className="text-xs">
             {record.route || '-'}
           </Text>
-        </Space>
+        </div>
       ),
     },
     {
@@ -412,114 +413,123 @@ function OperationalDashboard() {
 
       <Row gutter={[16, 16]}>
         <Col xs={24} xl={14}>
-          <Card
-            className="skylux-card h-full"
-            title={<span className="font-bold text-slate-900">Hồ sơ tạo theo ngày</span>}
-          >
-            <div className="h-[288px]">
-              {isLoadingDossiers ? (
-                <Skeleton active paragraph={{ rows: 8 }} />
-              ) : dossiers.length ? (
-                <Bar data={barData} options={barOptions} />
-              ) : (
-                <Empty description="Chưa có dữ liệu hồ sơ để hiển thị biểu đồ" />
-              )}
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} md={12} xl={5}>
-          <Card
-            className="skylux-card h-full"
-            title={<span className="font-bold text-slate-900">Hồ sơ theo trạng thái</span>}
-          >
-            <div className="relative h-[260px]">
-              {isLoadingDossiers ? (
-                <Skeleton active paragraph={{ rows: 6 }} />
-              ) : doughnutLabels.length ? (
-                <>
-                  <Doughnut
-                    data={doughnutData}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      cutout: '66%',
-                      plugins: { legend: { display: false } },
-                    }}
-                  />
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="text-xs text-slate-500">Tổng số</div>
-                      <div className="text-3xl font-bold text-slate-900">{dossiers.length}</div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <Empty description="Chưa có dữ liệu trạng thái" />
-              )}
-            </div>
-            <div className="mt-4 space-y-2">
-              {doughnutLabels.map((status) => {
-                const config = getStatus(status);
-                return (
-                  <div key={status} className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-2">
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ background: config.color }}
-                      />
-                      {config.label}
-                    </span>
-                    <span className="font-semibold text-slate-800">{statusCounts[status]}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} md={12} xl={5}>
-          <Card
-            className="skylux-card h-full"
-            title={<span className="font-bold text-slate-900">Tình trạng công việc</span>}
-          >
-            {isLoadingTasks ? (
-              <Skeleton active paragraph={{ rows: 6 }} />
-            ) : tasksBreakdown.length ? (
-              <div className="space-y-3 pt-1">
-                {tasksBreakdown.map((item) => (
-                  <div key={item.status} className="flex items-center justify-between border-b border-[var(--color-divider)] pb-3 last:border-b-0">
-                    <span className="text-sm text-[var(--color-text-muted)]">{taskStatusLabels[item.status] || item.status}</span>
-                    <span className="text-base font-bold tabular-nums text-[var(--color-primary-900)]">{item.count}</span>
-                  </div>
-                ))}
+          <WidgetErrorBoundary title="Hồ sơ tạo theo ngày">
+            <Card
+              className="skylux-card h-full"
+              title={<span className="font-bold text-slate-900">Hồ sơ tạo theo ngày</span>}
+            >
+              <div className="h-[288px]">
+                {isLoadingDossiers ? (
+                  <Skeleton active paragraph={{ rows: 8 }} />
+                ) : dossiers.length ? (
+                  <Bar data={barData} options={barOptions} />
+                ) : (
+                  <Empty description="Chưa có dữ liệu hồ sơ để hiển thị biểu đồ" />
+                )}
               </div>
-            ) : (
-              <Empty description="Chưa có dữ liệu công việc từ API" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            )}
-          </Card>
+            </Card>
+          </WidgetErrorBoundary>
+        </Col>
+        <Col xs={24} md={12} xl={5}>
+          <WidgetErrorBoundary title="Hồ sơ theo trạng thái">
+            <Card
+              className="skylux-card h-full"
+              title={<span className="font-bold text-slate-900">Hồ sơ theo trạng thái</span>}
+            >
+              <div className="relative h-[260px]">
+                {isLoadingDossiers ? (
+                  <Skeleton active paragraph={{ rows: 6 }} />
+                ) : doughnutLabels.length ? (
+                  <>
+                    <Doughnut
+                      data={doughnutData}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '66%',
+                        plugins: { legend: { display: false } },
+                      }}
+                    />
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="text-xs text-slate-500">Tổng số</div>
+                        <div className="text-3xl font-bold text-slate-900">{dossiers.length}</div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <Empty description="Chưa có dữ liệu trạng thái" />
+                )}
+              </div>
+              <div className="mt-4 space-y-2">
+                {doughnutLabels.map((status) => {
+                  const config = getStatus(status);
+                  return (
+                    <div key={status} className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ background: config.color }}
+                        />
+                        {config.label}
+                      </span>
+                      <span className="font-semibold text-slate-800">{statusCounts[status]}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          </WidgetErrorBoundary>
+        </Col>
+        <Col xs={24} md={12} xl={5}>
+          <WidgetErrorBoundary title="Tình trạng công việc">
+            <Card
+              className="skylux-card h-full"
+              title={<span className="font-bold text-slate-900">Tình trạng công việc</span>}
+            >
+              {isLoadingTasks ? (
+                <Skeleton active paragraph={{ rows: 6 }} />
+              ) : tasksBreakdown.length ? (
+                <div className="space-y-3 pt-1">
+                  {tasksBreakdown.map((item) => (
+                    <div key={item.status} className="flex items-center justify-between border-b border-[var(--color-divider)] pb-3 last:border-b-0">
+                      <span className="text-sm text-[var(--color-text-muted)]">{taskStatusLabels[item.status] || item.status}</span>
+                      <span className="text-base font-bold tabular-nums text-[var(--color-primary-900)]">{item.count}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <Empty description="Chưa có dữ liệu công việc từ API" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              )}
+            </Card>
+          </WidgetErrorBoundary>
         </Col>
       </Row>
 
-      <Card
-        className="skylux-card"
-        title={<span className="font-bold text-slate-900">Hồ sơ gần đây</span>}
-        extra={
-          <Link href="/main/dossiers">
-            <Button type="link" className="font-semibold text-[var(--color-primary-700)]">
-              Xem tất cả hồ sơ <ArrowRightOutlined />
-            </Button>
-          </Link>
-        }
-      >
-        <Table
-          dataSource={dossiers.slice(0, 8)}
-          columns={columns}
-          rowKey="id"
-          loading={isLoadingDossiers}
-          pagination={false}
-          className="skylux-table"
-          scroll={{ x: 860 }}
-        />
-      </Card>
+      <WidgetErrorBoundary title="Hồ sơ gần đây">
+        <Card
+          className="skylux-card"
+          title={<span className="font-bold text-slate-900">Hồ sơ gần đây</span>}
+          extra={
+            <Link href="/main/dossiers">
+              <Button type="link" className="font-semibold text-[var(--color-primary-700)]">
+                Xem tất cả hồ sơ <ArrowRightOutlined />
+              </Button>
+            </Link>
+          }
+        >
+          <Table
+            dataSource={dossiers.slice(0, 8)}
+            columns={columns}
+            rowKey="id"
+            loading={isLoadingDossiers}
+            pagination={false}
+            className="skylux-table"
+            scroll={{ x: 860 }}
+          />
+        </Card>
+      </WidgetErrorBoundary>
+
 
       <div className="flex justify-end">
         <Link href="/main/imports">

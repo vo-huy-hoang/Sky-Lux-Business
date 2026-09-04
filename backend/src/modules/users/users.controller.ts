@@ -34,7 +34,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  @RequirePermissions('user.manage')
+  @RequirePermissions('user.view')
   @ApiOperation({
     summary: 'Lấy danh sách người dùng phân trang và lọc (API-USERS-001)',
   })
@@ -50,7 +50,7 @@ export class UsersController {
   }
 
   @Get(':id')
-  @RequirePermissions('user.manage')
+  @RequirePermissions('user.view')
   @ApiOperation({
     summary: 'Lấy chi tiết người dùng theo ID (API-USERS-002)',
   })

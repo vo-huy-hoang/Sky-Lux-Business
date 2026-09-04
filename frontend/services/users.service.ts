@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client';
+import { apiClient, RequestOptions } from '@/lib/api-client';
 import {
   UserItem,
   QueryUserParams,
@@ -11,15 +11,20 @@ export const usersService = {
   /**
    * API-USERS-001: Lấy danh sách người dùng phân trang và lọc
    */
-  getUsers: (params?: QueryUserParams) => {
-    return apiClient.get<any, PaginatedUsersResponse>('/users', { params });
+  getUsers: (params?: QueryUserParams, options?: RequestOptions) => {
+    return apiClient.get<any, PaginatedUsersResponse>('/users', {
+      params,
+      signal: options?.signal,
+    });
   },
 
   /**
    * API-USERS-002: Lấy chi tiết thông tin người dùng theo ID
    */
-  getUser: (id: string) => {
-    return apiClient.get<any, UserItem>(`/users/${id}`);
+  getUser: (id: string, options?: RequestOptions) => {
+    return apiClient.get<any, UserItem>(`/users/${id}`, {
+      signal: options?.signal,
+    });
   },
 
   /**

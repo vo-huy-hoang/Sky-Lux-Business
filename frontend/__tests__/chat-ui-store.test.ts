@@ -60,4 +60,45 @@ describe('useChatUIStore (Zustand Chat UI Store)', () => {
     useChatUIStore.getState().setIsCreateGroupModalOpen(false);
     expect(useChatUIStore.getState().isCreateGroupModalOpen).toBe(false);
   });
+
+  it('should manage failed messages queue for optimistic retry', () => {
+    expect(useChatUIStore.getState().failedMessages).toEqual({});
+
+    const failedMsg1 = {
+      clientMessageId: 'cm-1',
+      conversationId: 'conv-100',
+      content: 'Tin nhắn gửi lỗi 1',
+      failedAt: Date.now(),
+    };
+    const failedMsg2 = {
+      clientMessageId: 'cm-2',
+      conversationId: 'conv-100',
+      content: 'Tin nhắn gửi lỗi 2',
+      failedAt: Date.now(),
+    };
+    const failedMsg3 = {
+      clientMessageId: 'cm-3',
+      conversationId: 'conv-200',
+      content: 'Tin nhắn gửi lỗi khác',
+      failedAt: Date.now(),
+    };
+
+    useChatUIStore.getState().addFailedMessage(failedMsg1);
+    useChatUIStore.getState().addFailedMessage(failedMsg2);
+    useChatUIStore.getState().addFailedMessage(failedMsg3);
+
+    const conv100Failed = useChatUIStore.getState().getFailedMessagesForConversation('conv-100');
+    expect(conv100Failed).toHaveLength(2);
+    expect(conv100Failed.map((m) => m.clientMessageId)).toEqual(['cm-1', 'cm-2']);
+
+    // Remove single message on successful retry
+    useChatUIStore.getState().removeFailedMessage('cm-1');
+    expect(useChatUIStore.getState().getFailedMessagesForConversation('conv-100')).toHaveLength(1);
+
+    // Clear failed messages for conversation
+    useChatUIStore.getState().clearFailedMessages('conv-100');
+    expect(useChatUIStore.getState().getFailedMessagesForConversation('conv-100')).toHaveLength(0);
+    expect(useChatUIStore.getState().getFailedMessagesForConversation('conv-200')).toHaveLength(1);
+  });
 });
+

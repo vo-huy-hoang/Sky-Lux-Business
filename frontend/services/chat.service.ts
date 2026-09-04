@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client';
+import { apiClient, RequestOptions } from '@/lib/api-client';
 import {
   Conversation,
   Message,
@@ -12,8 +12,10 @@ export const chatService = {
   /**
    * API-CHAT-001: Lấy danh sách các cuộc hội thoại
    */
-  getConversations: () => {
-    return apiClient.get<any, Conversation[]>('/conversations');
+  getConversations: (options?: RequestOptions) => {
+    return apiClient.get<any, Conversation[]>('/conversations', {
+      signal: options?.signal,
+    });
   },
 
   /**
@@ -26,29 +28,40 @@ export const chatService = {
   /**
    * API-CHAT-003: Lấy chi tiết một cuộc hội thoại
    */
-  getConversationDetail: (id: string) => {
-    return apiClient.get<any, Conversation>(`/conversations/${id}`);
+  getConversationDetail: (id: string, options?: RequestOptions) => {
+    return apiClient.get<any, Conversation>(`/conversations/${id}`, {
+      signal: options?.signal,
+    });
   },
 
   /**
    * Lấy lịch sử tin nhắn của cuộc hội thoại
    */
-  getConversationMessages: (id: string) => {
-    return apiClient.get<any, Message[]>(`/conversations/${id}/messages`);
+  getConversationMessages: (id: string, options?: RequestOptions) => {
+    return apiClient.get<any, Message[]>(`/conversations/${id}/messages`, {
+      signal: options?.signal,
+    });
   },
 
   /**
-   * Gửi tin nhắn vào cuộc hội thoại
+   * Gửi tin nhắn vào cuộc hội thoại (Hỗ trợ clientMessageId chống gửi trùng)
    */
-  sendMessage: (id: string, content: string) => {
-    return apiClient.post<any, Message>(`/conversations/${id}/messages`, { content });
+  sendMessage: (id: string, content: string, clientMessageId?: string) => {
+    return apiClient.post<any, Message>(`/conversations/${id}/messages`, {
+      content,
+      clientMessageId,
+    });
   },
+
 
   /**
    * API-CHAT-004: Lấy cuộc hội thoại liên kết với hồ sơ tour
    */
-  getDossierConversation: (dossierId: string) => {
-    return apiClient.get<any, Conversation | null>(`/dossiers/${dossierId}/conversation`);
+  getDossierConversation: (dossierId: string, options?: RequestOptions) => {
+    return apiClient.get<any, Conversation | null>(
+      `/dossiers/${dossierId}/conversation`,
+      { signal: options?.signal },
+    );
   },
 
   /**
@@ -68,9 +81,13 @@ export const chatService = {
   /**
    * Lấy danh sách thành viên trong cuộc hội thoại (API-PARTICIPANT-002)
    */
-  getParticipants: (conversationId: string) => {
-    return apiClient.get<any, ConversationMember[]>(`/conversations/${conversationId}/participants`);
+  getParticipants: (conversationId: string, options?: RequestOptions) => {
+    return apiClient.get<any, ConversationMember[]>(
+      `/conversations/${conversationId}/participants`,
+      { signal: options?.signal },
+    );
   },
+
 
   /**
    * Thêm thành viên vào cuộc hội thoại (API-PARTICIPANT-003)

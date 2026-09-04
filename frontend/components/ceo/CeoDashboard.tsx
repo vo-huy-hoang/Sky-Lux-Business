@@ -41,8 +41,12 @@ import { dossiersService } from '@/services/dossiers.service';
 import { usersService } from '@/services/users.service';
 import { DossierItem } from '@/types/dossier';
 import { UserItem } from '@/types/user';
+import { CeoMonthlyTrendItem } from '@/types/dashboard';
+import { useCeoDashboard, useCeoMonthlyTrend } from '@/hooks/dashboards';
 import { useFilterStore } from '@/lib/stores/filter-store';
 import { queryKeys } from '@/lib/query-keys';
+import { WidgetErrorBoundary } from '@/components/common/widget-error-boundary';
+
 
 
 
@@ -55,6 +59,8 @@ ChartJS.register(
   PointElement,
   Tooltip,
 );
+
+
 
 const { Text } = Typography;
 
@@ -150,25 +156,19 @@ export default function CeoDashboard() {
     data: overview,
     isLoading: isLoadingOverview,
     isError: isOverviewError,
-  } = useQuery({
-    queryKey: queryKeys.dashboards.ceo({ periodType: 'MONTHLY' }),
-    queryFn: () => dashboardsService.getCeoDashboard({ periodType: 'MONTHLY' }),
-  });
+  } = useCeoDashboard({ periodType: 'MONTHLY' });
 
-  const { data: dossierResponse, isLoading: isLoadingDossiers } = useQuery({
+  const { data: dossierResponse, isLoading: isLoadingDossiers } = useQuery<{ items: DossierItem[]; total: number }>({
     queryKey: queryKeys.dossiers.list({ page: 1, limit: 6 }),
-    queryFn: () => dossiersService.getDossiers({ page: 1, limit: 6 }),
+    queryFn: ({ signal }) => dossiersService.getDossiers({ page: 1, limit: 6 }, { signal }),
   });
 
-  const { data: userResponse, isLoading: isLoadingUsers } = useQuery({
+  const { data: userResponse, isLoading: isLoadingUsers } = useQuery<{ data: UserItem[] } | UserItem[]>({
     queryKey: queryKeys.users.list({ page: 1, pageSize: 50 }),
-    queryFn: () => usersService.getUsers({ page: 1, pageSize: 50 }),
+    queryFn: ({ signal }) => usersService.getUsers({ page: 1, pageSize: 50 }, { signal }),
   });
 
-  const { data: monthlyTrend = [], isLoading: isLoadingTrend } = useQuery({
-    queryKey: queryKeys.dashboards.ceoMonthlyTrend(selectedYear),
-    queryFn: () => dashboardsService.getCeoMonthlyTrend(selectedYear),
-  });
+  const { data: monthlyTrend = [], isLoading: isLoadingTrend } = useCeoMonthlyTrend(selectedYear);
 
 
   const dossiers = dossierResponse?.items || [];
@@ -176,21 +176,21 @@ export default function CeoDashboard() {
     ? userResponse
     : userResponse?.data || [];
   const activeSales = users.filter(
-    (user) => user.status === 'ACTIVE' && user.roles?.some((role) => role.code === 'SALES'),
+    (user: UserItem) => user.status === 'ACTIVE' && user.roles?.some((role: { code: string }) => role.code === 'SALES'),
   ).length;
   const funnel = overview?.funnel || [];
-  const funnelMap = new Map(funnel.map((item) => [item.status, item.count]));
-  const totalDossiers = funnel.reduce((sum, item) => sum + item.count, 0);
+  const funnelMap = new Map<string, number>(funnel.map((item: { status: string; count: number }) => [item.status, item.count]));
+  const totalDossiers = funnel.reduce((sum: number, item: { status: string; count: number }) => sum + item.count, 0);
   const pendingCount = (funnelMap.get('SUBMITTED') || 0) + (funnelMap.get('IN_REVIEW') || 0);
   const latestDossiers = dossiers.slice(0, 6);
   const costBreakdown = overview?.costBreakdown || [];
 
   const lineData = {
-    labels: monthlyTrend.map((month) => month.label),
+    labels: monthlyTrend.map((month: CeoMonthlyTrendItem) => month.label),
     datasets: [
       {
         label: 'Doanh thu',
-        data: monthlyTrend.map((t) => t.totalRevenue),
+        data: monthlyTrend.map((t: CeoMonthlyTrendItem) => t.totalRevenue),
         borderColor: '#0F3D2E',
         backgroundColor: '#0F3D2E',
         pointBackgroundColor: '#FFFFFF',
@@ -201,7 +201,7 @@ export default function CeoDashboard() {
       },
       {
         label: 'Lợi nhuận',
-        data: monthlyTrend.map((t) => t.totalProfit),
+        data: monthlyTrend.map((t: CeoMonthlyTrendItem) => t.totalProfit),
         borderColor: '#D4AF37',
         backgroundColor: '#D4AF37',
         pointBackgroundColor: '#FFFFFF',
@@ -239,10 +239,10 @@ export default function CeoDashboard() {
   };
 
   const costData = {
-    labels: costBreakdown.map((item) => item.categoryName),
+    labels: costBreakdown.map((item: { categoryName: string; amount: number }) => item.categoryName),
     datasets: [
       {
-        data: costBreakdown.map((item) => item.amount),
+        data: costBreakdown.map((item: { categoryName: string; amount: number }) => item.amount),
         backgroundColor: ['#0F3D2E', '#2C7459', '#D4AF37', '#5B80C6', '#7C59C8', '#14A9B5'],
         borderColor: '#FFFFFF',
         borderWidth: 3,
@@ -325,86 +325,96 @@ export default function CeoDashboard() {
       </Row>
 
       <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,.85fr)_minmax(260px,.7fr)]">
-        <Card className="ceo-card" title="Doanh thu và lợi nhuận theo tháng">
-          <div className="h-[286px]">
-            {isLoadingTrend ? <Skeleton active paragraph={{ rows: 7 }} /> : <Line data={lineData} options={lineOptions} />}
-          </div>
+        <WidgetErrorBoundary title="Doanh thu và lợi nhuận theo tháng">
+          <Card className="ceo-card" title="Doanh thu và lợi nhuận theo tháng">
+            <div className="h-[286px]">
+              {isLoadingTrend ? <Skeleton active paragraph={{ rows: 7 }} /> : <Line data={lineData} options={lineOptions} />}
+            </div>
+          </Card>
+        </WidgetErrorBoundary>
 
-        </Card>
-
-        <Card className="ceo-card" title="Cơ cấu chi phí theo dịch vụ">
-          {costBreakdown.length ? (
-            <>
-              <div className="h-[190px]"><Doughnut data={costData} options={costOptions} /></div>
-              <div className="mt-3 space-y-2">
-                {costBreakdown.slice(0, 5).map((item, index) => (
-                  <div key={item.categoryName} className="flex items-center justify-between gap-3 text-xs">
-                    <span className="min-w-0 truncate text-[var(--ceo-text-muted)]">
-                      <i className="mr-2 inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: costData.datasets[0].backgroundColor[index] }} />
-                      {item.categoryName}
-                    </span>
-                    <span className="shrink-0 font-semibold [font-variant-numeric:tabular-nums]">{formatCompactCurrency(item.amount)}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có chi phí đã duyệt từ API" />
-          )}
-        </Card>
-
-        <Card className="ceo-card" title="Hồ sơ theo trạng thái">
-          <div className="space-y-1">
-            {funnel.length ? funnel.map((item) => {
-              const meta = statusMeta(item.status);
-              return (
-                <div key={item.status} className="flex items-center justify-between border-b border-[var(--ceo-divider)] py-2.5 last:border-0">
-                  <span className="text-sm text-[var(--ceo-text-muted)]">{meta.label}</span>
-                  <span className="font-bold [font-variant-numeric:tabular-nums]" style={{ color: meta.color }}>{item.count}</span>
+        <WidgetErrorBoundary title="Cơ cấu chi phí theo dịch vụ">
+          <Card className="ceo-card" title="Cơ cấu chi phí theo dịch vụ">
+            {costBreakdown.length ? (
+              <>
+                <div className="h-[190px]"><Doughnut data={costData} options={costOptions} /></div>
+                <div className="mt-3 space-y-2">
+                  {costBreakdown.slice(0, 5).map((item: { categoryName: string; amount: number }, index: number) => (
+                    <div key={item.categoryName} className="flex items-center justify-between gap-3 text-xs">
+                      <span className="min-w-0 truncate text-[var(--ceo-text-muted)]">
+                        <i className="mr-2 inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: costData.datasets[0].backgroundColor[index] }} />
+                        {item.categoryName}
+                      </span>
+                      <span className="shrink-0 font-semibold [font-variant-numeric:tabular-nums]">{formatCompactCurrency(item.amount)}</span>
+                    </div>
+                  ))}
                 </div>
-              );
-            }) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hồ sơ" />}
-          </div>
-          <Link href="/main/dossiers" className="mt-3 flex items-center justify-center gap-2 border-t border-[var(--ceo-divider)] pt-3 text-sm font-semibold text-[var(--ceo-primary-700)]">
-            Xem hồ sơ toàn hệ thống <ArrowRightOutlined />
-          </Link>
-        </Card>
+              </>
+            ) : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có chi phí đã duyệt từ API" />
+            )}
+          </Card>
+        </WidgetErrorBoundary>
+
+        <WidgetErrorBoundary title="Hồ sơ theo trạng thái">
+          <Card className="ceo-card" title="Hồ sơ theo trạng thái">
+            <div className="space-y-1">
+              {funnel.length ? funnel.map((item: { status: string; count: number }) => {
+                const meta = statusMeta(item.status);
+                return (
+                  <div key={item.status} className="flex items-center justify-between border-b border-[var(--ceo-divider)] py-2.5 last:border-0">
+                    <span className="text-sm text-[var(--ceo-text-muted)]">{meta.label}</span>
+                    <span className="font-bold [font-variant-numeric:tabular-nums]" style={{ color: meta.color }}>{item.count}</span>
+                  </div>
+                );
+              }) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hồ sơ" />}
+            </div>
+            <Link href="/main/dossiers" className="mt-3 flex items-center justify-center gap-2 border-t border-[var(--ceo-divider)] pt-3 text-sm font-semibold text-[var(--ceo-primary-700)]">
+              Xem hồ sơ toàn hệ thống <ArrowRightOutlined />
+            </Link>
+          </Card>
+        </WidgetErrorBoundary>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">
-        <Card
-          className="ceo-card"
-          title="Hồ sơ toàn hệ thống - Cập nhật gần nhất"
-          extra={<Button type="link" href="/main/dossiers">Xem tất cả</Button>}
-        >
-          <Table
-            rowKey="id"
-            dataSource={latestDossiers}
-            columns={dossierColumns}
-            loading={isLoadingDossiers}
-            pagination={false}
-            className="ceo-table"
-            scroll={{ x: 930 }}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hồ sơ từ API" /> }}
-          />
-        </Card>
+        <WidgetErrorBoundary title="Hồ sơ toàn hệ thống - Cập nhật gần nhất">
+          <Card
+            className="ceo-card"
+            title="Hồ sơ toàn hệ thống - Cập nhật gần nhất"
+            extra={<Button type="link" href="/main/dossiers">Xem tất cả</Button>}
+          >
+            <Table
+              rowKey="id"
+              dataSource={latestDossiers}
+              columns={dossierColumns}
+              loading={isLoadingDossiers}
+              pagination={false}
+              className="ceo-table"
+              scroll={{ x: 930 }}
+              locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hồ sơ từ API" /> }}
+            />
+          </Card>
+        </WidgetErrorBoundary>
 
-        <Card className="ceo-card" title="Top khách hàng theo doanh thu">
-          {overview?.vipCustomers?.length ? (
-            <div className="space-y-1">
-              {overview.vipCustomers.map((customer, index) => (
-                <div key={`${customer.customerName}-${index}`} className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--ceo-divider)] py-3 last:border-0">
-                  <span className={`ceo-rank ceo-rank-${Math.min(index + 1, 3)}`}>{index + 1}</span>
-                  <span className="truncate text-sm font-semibold">{customer.customerName}</span>
-                  <span className="text-sm font-semibold text-[var(--ceo-primary-700)] [font-variant-numeric:tabular-nums]">{formatCompactCurrency(customer.spend)}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có doanh thu khách hàng từ API" />
-          )}
-        </Card>
+        <WidgetErrorBoundary title="Top khách hàng theo doanh thu">
+          <Card className="ceo-card" title="Top khách hàng theo doanh thu">
+            {overview?.vipCustomers?.length ? (
+              <div className="space-y-1">
+                {overview.vipCustomers.map((customer: { customerName: string; spend: number }, index: number) => (
+                  <div key={`${customer.customerName}-${index}`} className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--ceo-divider)] py-3 last:border-0">
+                    <span className={`ceo-rank ceo-rank-${Math.min(index + 1, 3)}`}>{index + 1}</span>
+                    <span className="truncate text-sm font-semibold">{customer.customerName}</span>
+                    <span className="text-sm font-semibold text-[var(--ceo-primary-700)] [font-variant-numeric:tabular-nums]">{formatCompactCurrency(customer.spend)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có doanh thu khách hàng từ API" />
+            )}
+          </Card>
+        </WidgetErrorBoundary>
       </div>
+
     </div>
   );
 }

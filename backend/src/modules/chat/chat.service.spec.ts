@@ -214,6 +214,43 @@ describe('ChatService', () => {
       expect(res).toBeDefined();
       expect(res.id).toBe('msg-1');
     });
+
+    it('should return cached message on duplicate clientMessageId without saving twice', async () => {
+      const mockConv = {
+        id: 'conv-1',
+        organizationId: 'org-1',
+        members: [{ userId: 'user-1' }],
+      };
+      mockConversationRepo.findOne.mockResolvedValueOnce(mockConv);
+      mockMessageRepo.findOne.mockResolvedValueOnce({
+        id: 'msg-idempotent-1',
+        content: 'hello idempotency',
+        senderId: 'user-1',
+        organizationId: 'org-1',
+        conversationId: 'conv-1',
+      });
+
+      // Lần 1: gửi với clientMessageId
+      const res1 = await service.sendMessage(
+        mockUser,
+        'conv-1',
+        'hello idempotency',
+        'client-uuid-999',
+      );
+      expect(res1.id).toBe('msg-idempotent-1');
+      const saveCount = mockMessageRepo.save.mock.calls.length;
+
+      // Lần 2: gửi lại với CÙNG clientMessageId (giả lập mạng lag bấm 2 lần)
+      const res2 = await service.sendMessage(
+        mockUser,
+        'conv-1',
+        'hello idempotency',
+        'client-uuid-999',
+      );
+      expect(res2.id).toBe('msg-idempotent-1');
+      // Không được gọi save thêm lần nào nữa!
+      expect(mockMessageRepo.save.mock.calls.length).toBe(saveCount);
+    });
   });
 
   describe('deleteMessage', () => {

@@ -11,6 +11,7 @@ import {
   App,
   Divider,
   Spin,
+  Alert,
 } from 'antd';
 import {
   MailOutlined,
@@ -18,8 +19,14 @@ import {
   EyeInvisibleOutlined,
   EyeTwoTone,
   ArrowRightOutlined,
+  LineChartOutlined,
+  GlobalOutlined,
+  SendOutlined,
+  ClockCircleOutlined,
   RightOutlined,
 } from '@ant-design/icons';
+
+import { useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { LoginResponse } from '@/types/auth';
@@ -143,10 +150,25 @@ function LoginForm() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const setAuth = useAuthStore((state) => state.setAuth);
+  const lockoutSeconds = useAuthStore((state) => state.lockoutSeconds);
+  const setLockoutSeconds = useAuthStore((state) => state.setLockoutSeconds);
+  const decrementLockoutSeconds = useAuthStore(
+    (state) => state.decrementLockoutSeconds,
+  );
+
+  React.useEffect(() => {
+    if (lockoutSeconds <= 0) return;
+    const timer = setInterval(() => {
+      decrementLockoutSeconds();
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockoutSeconds, decrementLockoutSeconds]);
 
   const handleSubmit = async (values: any) => {
+    if (lockoutSeconds > 0) return;
     setLoading(true);
     try {
       const response = await apiClient.post<any, LoginResponse>(
@@ -157,13 +179,23 @@ function LoginForm() {
         },
       );
 
+      queryClient.clear();
       setAuth(response);
       message.success(`Chào mừng ${response.user.fullName} quay trở lại!`);
 
       const redirectPath = searchParams.get('redirect') || '/main/dashboard';
       router.push(redirectPath);
     } catch (err: any) {
-      message.error(err.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
+      if (err.status === 429 || err.isRateLimited) {
+        const seconds = err.lockoutSeconds || 60;
+        setLockoutSeconds(seconds);
+        message.warning(
+          err.message ||
+            `Bạn đã đăng nhập sai quá nhiều lần. Vui lòng thử lại sau ${seconds} giây.`,
+        );
+      } else {
+        message.error(err.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
+      }
     } finally {
       setLoading(false);
     }
@@ -179,6 +211,23 @@ function LoginForm() {
           Vui lòng nhập thông tin để tiếp tục
         </p>
       </div>
+
+      {lockoutSeconds > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          icon={<ClockCircleOutlined className="text-amber-600 animate-spin" />}
+          message="Tài khoản tạm thời bị giới hạn đăng nhập"
+          description={
+            <span>
+              Phát hiện nhiều lượt đăng nhập thất bại liên tiếp. Vui lòng thử lại sau{' '}
+              <strong className="text-amber-900 font-bold">{lockoutSeconds} giây</strong>.
+            </span>
+          }
+          className="mb-6 rounded-xl border border-amber-200 bg-amber-50"
+        />
+      )}
+
 
       <Form
         form={form}
@@ -242,12 +291,14 @@ function LoginForm() {
             type="primary"
             htmlType="submit"
             loading={loading}
+            disabled={lockoutSeconds > 0}
             block
             className="h-12 rounded-lg bg-[#063826] hover:bg-[#084D34] active:bg-[#052C1E] border-none text-white font-semibold text-base shadow-md transition-all duration-200 flex items-center justify-center gap-2"
           >
             <span>{loading ? 'Đang xác thực...' : 'Đăng nhập'}</span>
             {!loading && <ArrowRightOutlined className="text-sm" />}
           </Button>
+
         </Form.Item>
       </Form>
 

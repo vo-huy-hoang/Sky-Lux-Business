@@ -85,7 +85,11 @@ describe('useWorkflow hooks', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(mockHistory);
-    expect(workflowService.getWorkflowHistory).toHaveBeenCalledWith(dossierId, { page: 1 });
+    expect(workflowService.getWorkflowHistory).toHaveBeenCalledWith(
+      dossierId,
+      { page: 1 },
+      { signal: expect.anything() },
+    );
   });
 
   it('useApprovals fetches approvals', async () => {
@@ -102,8 +106,13 @@ describe('useWorkflow hooks', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(mockApprovals);
-    expect(workflowService.getApprovals).toHaveBeenCalledWith(dossierId, { status: 'PENDING' });
+    expect(workflowService.getApprovals).toHaveBeenCalledWith(
+      dossierId,
+      { status: 'PENDING' },
+      { signal: expect.anything() },
+    );
   });
+
 
   it('useSubmitDossier mutates and invalidates queries', async () => {
     (workflowService.submit as jest.Mock).mockResolvedValue(mockActionResult);

@@ -9,7 +9,7 @@ import { queryKeys } from '@/lib/query-keys';
 export function useAuditLogs(params?: QueryAuditLogParams) {
   return useQuery({
     queryKey: queryKeys.auditLogs.list(params),
-    queryFn: () => auditLogsService.getAuditLogs(params),
+    queryFn: ({ signal }) => auditLogsService.getAuditLogs(params, { signal }),
   });
 }
 
@@ -19,8 +19,9 @@ export function useAuditLogs(params?: QueryAuditLogParams) {
 export function useAuditLogDetail(id: string) {
   return useQuery({
     queryKey: queryKeys.auditLogs.detail(id),
-    queryFn: () => auditLogsService.getAuditLog(id),
+    queryFn: ({ signal }) => auditLogsService.getAuditLog(id, { signal }),
     enabled: !!id,
   });
 }
+
 

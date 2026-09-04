@@ -3,7 +3,10 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  Optional,
+  Logger,
 } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Dossier } from './entities/dossier.entity';
@@ -20,18 +23,22 @@ import { toPublicUser } from '../../common/utils/public-user';
 
 @Injectable()
 export class DossiersService {
+  private readonly logger = new Logger(DossiersService.name);
+
   constructor(
     @InjectRepository(Dossier)
     private readonly dossierRepository: Repository<Dossier>,
     @InjectRepository(Comment)
     private readonly commentRepository: Repository<Comment>,
+    @Optional()
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   async findAll(
     user: CurrentUserPayload,
     queryDto: QueryDossierDto,
   ): Promise<PaginatedResponse<Dossier>> {
-    const { page, limit, search, status, priority } = queryDto;
+    const { page, limit, search, status, priority, salesUserId } = queryDto;
     const organizationId = user.organizationId;
 
     const queryBuilder = this.dossierRepository
@@ -79,6 +86,12 @@ export class DossiersService {
 
     if (priority) {
       queryBuilder.andWhere('dossier.priority = :priority', { priority });
+    }
+
+    if (salesUserId) {
+      queryBuilder.andWhere('dossier.salesUserId = :salesUserId', {
+        salesUserId,
+      });
     }
 
     if (search) {
@@ -352,6 +365,58 @@ export class DossiersService {
     });
 
     const result = this.mapComment(commentWithUser || savedComment);
+
+    if (this.notificationsService) {
+      try {
+        const linkUrl = `/main/dossiers/${dossierId}`;
+        const snippet =
+          content.length > 80 ? `${content.slice(0, 80)}...` : content;
+        const notifiedUserIds = new Set<string>();
+
+        if (createCommentDto.parentId) {
+          const parentComment = await this.commentRepository.findOne({
+            where: {
+              id: createCommentDto.parentId,
+              organizationId: user.organizationId,
+            },
+          });
+          if (parentComment && parentComment.userId !== user.id) {
+            notifiedUserIds.add(parentComment.userId);
+            await this.notificationsService.notify({
+              organizationId: user.organizationId,
+              userId: parentComment.userId,
+              title: `Phản hồi mới trong hồ sơ ${dossier.code}`,
+              content: `${user.fullName || 'Đồng nghiệp'} đã phản hồi: "${snippet}"`,
+              type: 'DOSSIER',
+              linkUrl,
+              metadata: { dossierId, commentId: savedComment.id },
+            });
+          }
+        }
+
+        const stakeholders = [
+          dossier.salesUserId,
+          dossier.operatorUserId,
+        ].filter((id): id is string =>
+          Boolean(id && id !== user.id && !notifiedUserIds.has(id)),
+        );
+        for (const targetId of stakeholders) {
+          await this.notificationsService.notify({
+            organizationId: user.organizationId,
+            userId: targetId,
+            title: `Bình luận mới trong hồ sơ ${dossier.code}`,
+            content: `${user.fullName || 'Đồng nghiệp'}: "${snippet}"`,
+            type: 'DOSSIER',
+            linkUrl,
+            metadata: { dossierId, commentId: savedComment.id },
+          });
+        }
+      } catch (err) {
+        this.logger.error(
+          `Lỗi gửi thông báo bình luận hồ sơ ${dossierId}: ${err?.message}`,
+        );
+      }
+    }
 
     return {
       data: result,

@@ -55,11 +55,19 @@ export default function ApprovalsPage() {
 
   const submittedQuery = useQuery({
     queryKey: queryKeys.approvals.submitted({ status: EstimateStatus.SUBMITTED }),
-    queryFn: () => estimatesService.getEstimates({ page: 1, limit: 100, status: EstimateStatus.SUBMITTED }),
+    queryFn: ({ signal }) =>
+      estimatesService.getEstimates(
+        { page: 1, limit: 100, status: EstimateStatus.SUBMITTED },
+        { signal },
+      ),
   });
   const reviewingQuery = useQuery({
     queryKey: queryKeys.approvals.reviewing({ status: EstimateStatus.IN_REVIEW }),
-    queryFn: () => estimatesService.getEstimates({ page: 1, limit: 100, status: EstimateStatus.IN_REVIEW }),
+    queryFn: ({ signal }) =>
+      estimatesService.getEstimates(
+        { page: 1, limit: 100, status: EstimateStatus.IN_REVIEW },
+        { signal },
+      ),
   });
 
   const estimates = useMemo(() => {

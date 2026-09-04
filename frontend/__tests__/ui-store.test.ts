@@ -58,4 +58,52 @@ describe('useUIStore (Zustand Global UI Store)', () => {
     useUIStore.getState().closeModal();
     expect(useUIStore.getState().activeModalId).toBeNull();
   });
+
+  it('should manage connection status and reconnect attempts', () => {
+    expect(useUIStore.getState().connectionStatus).toBe('connected');
+    expect(useUIStore.getState().reconnectAttempt).toBe(0);
+
+    useUIStore.getState().setConnectionStatus('reconnecting');
+    useUIStore.getState().setReconnectAttempt(2);
+    expect(useUIStore.getState().connectionStatus).toBe('reconnecting');
+    expect(useUIStore.getState().reconnectAttempt).toBe(2);
+
+    useUIStore.getState().setConnectionStatus('offline');
+    expect(useUIStore.getState().connectionStatus).toBe('offline');
+
+    useUIStore.getState().setConnectionStatus('connected');
+    useUIStore.getState().setReconnectAttempt(0);
+    expect(useUIStore.getState().connectionStatus).toBe('connected');
+    expect(useUIStore.getState().reconnectAttempt).toBe(0);
+  });
+
+  it('should independently track notificationsStatus and chatStatus, computing combined connectionStatus', () => {
+    // Initial state
+    expect(useUIStore.getState().notificationsStatus).toBe('connected');
+    expect(useUIStore.getState().chatStatus).toBe('idle');
+    expect(useUIStore.getState().connectionStatus).toBe('connected');
+
+    // Chat begins reconnecting while notifications is connected
+    useUIStore.getState().setChatStatus('reconnecting');
+    expect(useUIStore.getState().chatStatus).toBe('reconnecting');
+    expect(useUIStore.getState().connectionStatus).toBe('reconnecting');
+
+    // Chat fails reconnection
+    useUIStore.getState().setChatStatus('reconnect_failed');
+    expect(useUIStore.getState().connectionStatus).toBe('reconnect_failed');
+
+    // User leaves chat screen (chat unmounts -> idle)
+    useUIStore.getState().setChatStatus('idle');
+    expect(useUIStore.getState().chatStatus).toBe('idle');
+    expect(useUIStore.getState().connectionStatus).toBe('connected');
+
+    // Notifications goes offline
+    useUIStore.getState().setNotificationsStatus('offline');
+    expect(useUIStore.getState().connectionStatus).toBe('offline');
+
+    // Notifications reconnects
+    useUIStore.getState().setNotificationsStatus('connected');
+    expect(useUIStore.getState().connectionStatus).toBe('connected');
+  });
 });
+

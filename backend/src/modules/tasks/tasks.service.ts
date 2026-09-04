@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Task } from './entities/task.entity';
@@ -26,13 +27,26 @@ export class TasksService {
     private readonly dossiersService: DossiersService,
     private readonly redisService: RedisService,
     private readonly dataSource: DataSource,
+    @Optional()
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   async findAll(
     user: CurrentUserPayload,
     queryDto: QueryTaskDto,
   ): Promise<any> {
-    const { page, limit, search, dossierId, assignedTo, status, priority, dueFrom, dueTo, overdue } = queryDto;
+    const {
+      page,
+      limit,
+      search,
+      dossierId,
+      assignedTo,
+      status,
+      priority,
+      dueFrom,
+      dueTo,
+      overdue,
+    } = queryDto;
     const organizationId = user.organizationId;
 
     const queryHash = crypto
@@ -77,10 +91,13 @@ export class TasksService {
     }
 
     if (overdue) {
-      queryBuilder.andWhere('task.dueAt < :now AND task.status != :completedStatus', { 
-        now: new Date(),
-        completedStatus: TaskStatus.COMPLETED 
-      });
+      queryBuilder.andWhere(
+        'task.dueAt < :now AND task.status != :completedStatus',
+        {
+          now: new Date(),
+          completedStatus: TaskStatus.COMPLETED,
+        },
+      );
     }
 
     if (search) {
@@ -99,7 +116,7 @@ export class TasksService {
     const totalPages = Math.ceil(total / limit);
 
     const response = {
-      data: items.map(task => this.toTaskResponseDto(task)),
+      data: items.map((task) => this.toTaskResponseDto(task)),
       meta: {
         page,
         limit,
@@ -140,7 +157,7 @@ export class TasksService {
 
     const response = {
       data: this.toTaskResponseDto(task),
-      meta: {}
+      meta: {},
     };
 
     await this.redisService.set(cacheKey, response, 60);
@@ -179,14 +196,31 @@ export class TasksService {
     this.recalculateTaskProgress(task);
 
     const savedTask = await this.taskRepository.save(task);
-
+    if (
+      this.notificationsService &&
+      savedTask.assignedTo &&
+      savedTask.assignedTo !== user.id
+    ) {
+      try {
+        await this.notificationsService.notify({
+          organizationId: user.organizationId,
+          userId: savedTask.assignedTo,
+          title: `Công việc mới được giao: ${savedTask.title}`,
+          content: `${user.fullName || 'Quản lý'} đã giao công việc "${savedTask.title}" cho bạn.`,
+          type: 'TASK',
+          linkUrl: '/main/tasks',
+          metadata: { taskId: savedTask.id, dossierId: savedTask.dossierId },
+        });
+      } catch (err: any) {
+        // Không để lỗi gửi thông báo làm gián đoạn việc lưu công việc
+      }
+    }
     await this.redisService.delByPattern(
-      `skylux:tasks::api:tasks:org:${user.organizationId}:*`
+      `skylux:tasks::api:tasks:org:${user.organizationId}:*`,
     );
-
     return {
       data: this.toTaskResponseDto(savedTask),
-      meta: {}
+      meta: {},
     };
   }
 
@@ -203,10 +237,10 @@ export class TasksService {
         checklistItems: true,
       },
     });
-
     if (!task) {
       throw new NotFoundException(`Không tìm thấy công việc với ID "${id}"`);
     }
+    const previousAssignee = task.assignedTo;
 
     const {
       status,
@@ -263,42 +297,66 @@ export class TasksService {
     this.recalculateTaskProgress(task);
 
     const savedTask = await this.taskRepository.save(task);
-
+    if (
+      this.notificationsService &&
+      savedTask.assignedTo &&
+      savedTask.assignedTo !== user.id &&
+      savedTask.assignedTo !== previousAssignee
+    ) {
+      try {
+        await this.notificationsService.notify({
+          organizationId: user.organizationId,
+          userId: savedTask.assignedTo,
+          title: `Công việc được chuyển giao: ${savedTask.title}`,
+          content: `${user.fullName || 'Quản lý'} đã phân công công việc "${savedTask.title}" cho bạn.`,
+          type: 'TASK',
+          linkUrl: '/main/tasks',
+          metadata: { taskId: savedTask.id, dossierId: savedTask.dossierId },
+        });
+      } catch (err: any) {
+        // Không để lỗi gửi thông báo làm gián đoạn việc cập nhật công việc
+      }
+    }
     await this.redisService.delByPattern(
-      `skylux:tasks::api:tasks:org:${user.organizationId}:*`
+      `skylux:tasks::api:tasks:org:${user.organizationId}:*`,
     );
     await this.redisService.delByPattern(
-      `skylux:tasks::api:tasks:id:${id}:org:${user.organizationId}:*`
+      `skylux:tasks::api:tasks:id:${id}:org:${user.organizationId}:*`,
     );
-
     return {
       data: this.toTaskResponseDto(savedTask),
-      meta: {}
+      meta: {},
     };
   }
 
   async remove(user: CurrentUserPayload, id: string): Promise<any> {
     const taskData = await this.findOne(user, id);
-    const task = await this.taskRepository.findOne({ where: { id, organizationId: user.organizationId } });
-    
+    const task = await this.taskRepository.findOne({
+      where: { id, organizationId: user.organizationId },
+    });
+
     if (task) {
       await this.taskRepository.softRemove(task);
-      
+
       await this.redisService.delByPattern(
-        `skylux:tasks::api:tasks:org:${user.organizationId}:*`
+        `skylux:tasks::api:tasks:org:${user.organizationId}:*`,
       );
       await this.redisService.delByPattern(
-        `skylux:tasks::api:tasks:id:${id}:org:${user.organizationId}:*`
+        `skylux:tasks::api:tasks:id:${id}:org:${user.organizationId}:*`,
       );
     }
 
     return {
       data: { deleted: true },
-      meta: {}
+      meta: {},
     };
   }
 
-  async startTask(user: CurrentUserPayload, id: string, dto: TaskActionDto): Promise<any> {
+  async startTask(
+    user: CurrentUserPayload,
+    id: string,
+    dto: TaskActionDto,
+  ): Promise<any> {
     // We reuse findOne which handles cache and returns { data, meta }
     // But we need the actual entity to update
     const task = await this.taskRepository.findOne({
@@ -318,19 +376,23 @@ export class TasksService {
     const savedTask = await this.taskRepository.save(task);
 
     await this.redisService.delByPattern(
-      `skylux:tasks::api:tasks:org:${user.organizationId}:*`
+      `skylux:tasks::api:tasks:org:${user.organizationId}:*`,
     );
     await this.redisService.delByPattern(
-      `skylux:tasks::api:tasks:id:${id}:org:${user.organizationId}:*`
+      `skylux:tasks::api:tasks:id:${id}:org:${user.organizationId}:*`,
     );
 
     return {
       data: this.toTaskResponseDto(savedTask),
-      meta: {}
+      meta: {},
     };
   }
 
-  async completeTask(user: CurrentUserPayload, id: string, dto: TaskActionDto): Promise<any> {
+  async completeTask(
+    user: CurrentUserPayload,
+    id: string,
+    dto: TaskActionDto,
+  ): Promise<any> {
     const task = await this.taskRepository.findOne({
       where: { id, organizationId: user.organizationId },
       relations: { dossier: true, assignee: true, checklistItems: true },
@@ -349,19 +411,23 @@ export class TasksService {
     const savedTask = await this.taskRepository.save(task);
 
     await this.redisService.delByPattern(
-      `skylux:tasks::api:tasks:org:${user.organizationId}:*`
+      `skylux:tasks::api:tasks:org:${user.organizationId}:*`,
     );
     await this.redisService.delByPattern(
-      `skylux:tasks::api:tasks:id:${id}:org:${user.organizationId}:*`
+      `skylux:tasks::api:tasks:id:${id}:org:${user.organizationId}:*`,
     );
 
     return {
       data: this.toTaskResponseDto(savedTask),
-      meta: {}
+      meta: {},
     };
   }
 
-  async requestExtension(user: CurrentUserPayload, id: string, dto: TaskExtensionRequestDto): Promise<any> {
+  async requestExtension(
+    user: CurrentUserPayload,
+    id: string,
+    dto: TaskExtensionRequestDto,
+  ): Promise<any> {
     const task = await this.taskRepository.findOne({
       where: { id, organizationId: user.organizationId },
       relations: { dossier: true, assignee: true, checklistItems: true },
@@ -378,15 +444,15 @@ export class TasksService {
     const savedTask = await this.taskRepository.save(task);
 
     await this.redisService.delByPattern(
-      `skylux:tasks::api:tasks:org:${user.organizationId}:*`
+      `skylux:tasks::api:tasks:org:${user.organizationId}:*`,
     );
     await this.redisService.delByPattern(
-      `skylux:tasks::api:tasks:id:${id}:org:${user.organizationId}:*`
+      `skylux:tasks::api:tasks:id:${id}:org:${user.organizationId}:*`,
     );
 
     return {
       data: this.toTaskResponseDto(savedTask),
-      meta: {}
+      meta: {},
     };
   }
 
@@ -407,19 +473,23 @@ export class TasksService {
       createdBy: task.createdBy,
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
-      assignee: task.assignee ? {
-        id: task.assignee.id,
-        fullName: task.assignee.fullName,
-        email: task.assignee.email,
-        avatarUrl: task.assignee.avatarUrl,
-      } : undefined,
-      dossier: task.dossier ? {
-        id: task.dossier.id,
-        name: task.dossier.name,
-        code: task.dossier.code,
-        status: task.dossier.status,
-      } : undefined,
-      checklistItems: task.checklistItems?.map(item => ({
+      assignee: task.assignee
+        ? {
+            id: task.assignee.id,
+            fullName: task.assignee.fullName,
+            email: task.assignee.email,
+            avatarUrl: task.assignee.avatarUrl,
+          }
+        : undefined,
+      dossier: task.dossier
+        ? {
+            id: task.dossier.id,
+            name: task.dossier.name,
+            code: task.dossier.code,
+            status: task.dossier.status,
+          }
+        : undefined,
+      checklistItems: task.checklistItems?.map((item) => ({
         id: item.id,
         title: item.title,
         isCompleted: item.isCompleted,
