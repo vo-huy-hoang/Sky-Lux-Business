@@ -23,6 +23,9 @@ describe('TasksController', () => {
     create: jest.fn(),
     update: jest.fn(),
     remove: jest.fn(),
+    startTask: jest.fn(),
+    completeTask: jest.fn(),
+    requestExtension: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -126,6 +129,45 @@ describe('TasksController', () => {
       await controller.remove(mockUserPayload, 'task-uuid');
 
       expect(service.remove).toHaveBeenCalledWith(mockUserPayload, 'task-uuid');
+    });
+  });
+
+  describe('startTask', () => {
+    it('should call service.startTask and return task', async () => {
+      const mockTask = { data: { id: 'task-uuid', status: 'IN_PROGRESS' }, meta: {} };
+      mockTasksService.startTask.mockResolvedValue(mockTask);
+      const dto = { comment: 'Start now' };
+
+      const result = await controller.startTask(mockUserPayload, 'task-uuid', dto);
+
+      expect(service.startTask).toHaveBeenCalledWith(mockUserPayload, 'task-uuid', dto);
+      expect(result).toEqual(mockTask);
+    });
+  });
+
+  describe('completeTask', () => {
+    it('should call service.completeTask and return task', async () => {
+      const mockTask = { data: { id: 'task-uuid', status: 'COMPLETED' }, meta: {} };
+      mockTasksService.completeTask.mockResolvedValue(mockTask);
+      const dto = { comment: 'Done' };
+
+      const result = await controller.completeTask(mockUserPayload, 'task-uuid', dto);
+
+      expect(service.completeTask).toHaveBeenCalledWith(mockUserPayload, 'task-uuid', dto);
+      expect(result).toEqual(mockTask);
+    });
+  });
+
+  describe('requestExtension', () => {
+    it('should call service.requestExtension and return task', async () => {
+      const mockTask = { data: { id: 'task-uuid', dueAt: '2026-10-10' }, meta: {} };
+      mockTasksService.requestExtension.mockResolvedValue(mockTask);
+      const dto = { dueDate: '2026-10-10', reason: 'Need more time' };
+
+      const result = await controller.requestExtension(mockUserPayload, 'task-uuid', dto);
+
+      expect(service.requestExtension).toHaveBeenCalledWith(mockUserPayload, 'task-uuid', dto);
+      expect(result).toEqual(mockTask);
     });
   });
 });
