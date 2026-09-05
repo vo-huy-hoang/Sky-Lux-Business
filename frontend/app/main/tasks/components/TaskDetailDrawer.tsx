@@ -8,8 +8,10 @@ import {
   Select,
   Skeleton,
   Typography,
+  Input,
+  Button,
 } from 'antd';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { tasksService } from '@/services/tasks.service';
 import { queryKeys } from '@/lib/query-keys';
 import { useTaskDetail } from '@/hooks/use-tasks';
@@ -34,8 +36,15 @@ export default function TaskDetailDrawer({
 }: TaskDetailDrawerProps) {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
+  const [newItemTitle, setNewItemTitle] = React.useState('');
 
   const { data: task, isLoading } = useTaskDetail(taskId);
+
+  const { data: checklistItems = [], isLoading: isLoadingChecklist } = useQuery({
+    queryKey: queryKeys.tasks.checklist(taskId || ''),
+    queryFn: () => tasksService.getChecklist(taskId!),
+    enabled: !!taskId,
+  });
 
   const updateTask = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateTaskInput }) =>
@@ -50,12 +59,40 @@ export default function TaskDetailDrawer({
       message.error(error.message || 'Không thể cập nhật công việc'),
   });
 
+  const addChecklistMutation = useMutation({
+    mutationFn: (title: string) =>
+      tasksService.addChecklistItem(taskId!, { title }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.checklist(taskId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(taskId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      setNewItemTitle('');
+      message.success('Đã thêm việc phụ');
+    },
+    onError: (error: Error) =>
+      message.error(error.message || 'Không thể thêm việc phụ'),
+  });
+
+  const updateChecklistMutation = useMutation({
+    mutationFn: ({ itemId, isCompleted }: { itemId: string; isCompleted: boolean }) =>
+      tasksService.updateChecklistItem(taskId!, itemId, { isCompleted }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.checklist(taskId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(taskId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+    },
+    onError: (error: Error) =>
+      message.error(error.message || 'Không thể cập nhật việc phụ'),
+  });
+
   const updateChecklist = (item: TaskChecklistItem, checked: boolean) => {
-    if (!task) return;
-    const checklistItems = (task.checklistItems || []).map((current: TaskChecklistItem) =>
-      current.id === item.id ? { ...current, isCompleted: checked } : current,
-    );
-    updateTask.mutate({ id: task.id, data: { checklistItems } });
+    updateChecklistMutation.mutate({ itemId: item.id!, isCompleted: checked });
+  };
+
+  const handleAddChecklistItem = () => {
+    if (newItemTitle.trim()) {
+      addChecklistMutation.mutate(newItemTitle.trim());
+    }
   };
 
   const priorityConfig = task ? priorityMeta[(task.priority || 'MEDIUM') as TaskPriority] : undefined;
@@ -147,26 +184,48 @@ export default function TaskDetailDrawer({
               </Text>
             </div>
 
-            {task.checklistItems?.length ? (
-              <div className="space-y-2">
-                {task.checklistItems.map((item: TaskChecklistItem) => (
+            {isLoadingChecklist ? (
+              <Skeleton active paragraph={{ rows: 2 }} title={false} />
+            ) : checklistItems.length ? (
+              <div className="space-y-2 mb-4">
+                {checklistItems.map((item: TaskChecklistItem) => (
                   <Checkbox
-                    key={item.id || item.title}
+                    key={item.id}
                     checked={item.isCompleted}
-                    disabled={updateTask.isPending}
+                    disabled={updateChecklistMutation.isPending}
                     onChange={(event) =>
                       updateChecklist(item, event.target.checked)
                     }
                   >
-                    {item.title}
+                    <span className={item.isCompleted ? 'line-through text-slate-400' : ''}>
+                      {item.title}
+                    </span>
                   </Checkbox>
                 ))}
               </div>
             ) : (
-              <div className="rounded-lg border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500">
+              <div className="rounded-lg border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500 mb-4">
                 Công việc này chưa có danh sách việc phụ.
               </div>
             )}
+
+            <div className="flex gap-2 mt-2">
+              <Input
+                placeholder="Thêm việc phụ mới..."
+                value={newItemTitle}
+                onChange={(e) => setNewItemTitle(e.target.value)}
+                onPressEnter={handleAddChecklistItem}
+                disabled={addChecklistMutation.isPending}
+              />
+              <Button
+                type="primary"
+                onClick={handleAddChecklistItem}
+                loading={addChecklistMutation.isPending}
+                disabled={!newItemTitle.trim()}
+              >
+                Thêm
+              </Button>
+            </div>
           </div>
         </div>
       )}

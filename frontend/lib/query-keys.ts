@@ -61,13 +61,13 @@ export const queryKeys = {
     detail: (id?: string) => [...queryKeys.estimates.details(), id || ''] as const,
   },
 
-  // 5. TASKS
   tasks: {
     all: ['tasks'] as const,
     lists: () => [...queryKeys.tasks.all, 'list'] as const,
     list: (filters?: Record<string, any>) => [...queryKeys.tasks.lists(), filters || {}] as const,
     details: () => [...queryKeys.tasks.all, 'detail'] as const,
     detail: (id?: string) => [...queryKeys.tasks.details(), id || ''] as const,
+    checklist: (taskId?: string) => [...queryKeys.tasks.detail(taskId), 'checklist'] as const,
   },
 
   // 6. APPROVALS & WORKFLOW ACTIONS

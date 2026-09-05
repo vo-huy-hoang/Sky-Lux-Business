@@ -91,3 +91,14 @@ export interface TaskExtensionRequestInput {
   dueDate: string;
   reason?: string;
 }
+
+export interface CreateChecklistItemInput {
+  title: string;
+  sortOrder?: number;
+}
+
+export interface UpdateChecklistItemInput {
+  title?: string;
+  isCompleted?: boolean;
+  sortOrder?: number;
+}
