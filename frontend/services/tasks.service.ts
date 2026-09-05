@@ -1,10 +1,13 @@
 import { apiClient, RequestOptions } from '@/lib/api-client';
 import {
-  CreateTaskInput,
   PaginatedTasksResponse,
   QueryTaskParams,
   TaskActionInput,
   TaskExtensionRequestInput,
+  CreateChecklistItemInput,
+  CreateTaskInput,
+  UpdateChecklistItemInput,
+  TaskChecklistItem,
   TaskItem,
   UpdateTaskInput,
 } from '@/types/task';
@@ -37,4 +40,13 @@ export const tasksService = {
 
   requestExtension: (id: string, data: TaskExtensionRequestInput) =>
     apiClient.post<any, TaskItem>(`/tasks/${id}/request-extension`, data),
+
+  getChecklist: (taskId: string) =>
+    apiClient.get<any, TaskChecklistItem[]>(`/tasks/${taskId}/checklist`),
+
+  addChecklistItem: (taskId: string, data: CreateChecklistItemInput) =>
+    apiClient.post<any, TaskItem>(`/tasks/${taskId}/checklist`, data),
+
+  updateChecklistItem: (taskId: string, itemId: string, data: UpdateChecklistItemInput) =>
+    apiClient.patch<any, TaskItem>(`/tasks/${taskId}/checklist/${itemId}`, data),
 };

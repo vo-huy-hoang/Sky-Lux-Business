@@ -13,6 +13,8 @@ import { PaginatedResponse } from '../../common/interfaces/api-response.interfac
 import { TaskStatus } from '../../common/enums';
 import { TaskActionDto } from './dto/task-action.dto';
 import { TaskExtensionRequestDto } from './dto/task-extension-request.dto';
+import { CreateChecklistItemDto } from './dto/create-checklist-item.dto';
+import { UpdateChecklistItemDto } from './dto/update-checklist-item.dto';
 import { RedisService } from '../../common/redis/redis.service';
 import { DataSource } from 'typeorm';
 import * as crypto from 'crypto';
@@ -449,6 +451,104 @@ export class TasksService {
     await this.redisService.delByPattern(
       `skylux:tasks::api:tasks:id:${id}:org:${user.organizationId}:*`,
     );
+
+    return {
+      data: this.toTaskResponseDto(savedTask),
+      meta: {},
+    };
+  }
+
+  async getChecklist(user: CurrentUserPayload, taskId: string): Promise<any> {
+    const organizationId = user.organizationId;
+    
+    const task = await this.taskRepository.findOne({
+      where: { id: taskId, organizationId },
+    });
+    
+    if (!task) {
+      throw new NotFoundException(`Không tìm thấy công việc với ID "${taskId}"`);
+    }
+
+    const items = await this.checklistItemRepository.find({
+      where: { taskId },
+      order: { sortOrder: 'ASC' },
+    });
+
+    return {
+      data: items.map(item => ({
+        id: item.id,
+        title: item.title,
+        isCompleted: item.isCompleted,
+        sortOrder: item.sortOrder,
+        completedAt: item.completedAt,
+      })),
+      meta: {},
+    };
+  }
+
+  async addChecklistItem(user: CurrentUserPayload, taskId: string, dto: CreateChecklistItemDto): Promise<any> {
+    const organizationId = user.organizationId;
+    
+    const task = await this.taskRepository.findOne({
+      where: { id: taskId, organizationId },
+      relations: { dossier: true, assignee: true, checklistItems: true },
+    });
+    
+    if (!task) {
+      throw new NotFoundException(`Không tìm thấy công việc với ID "${taskId}"`);
+    }
+
+    const newItem = this.checklistItemRepository.create({
+      taskId,
+      title: dto.title,
+      sortOrder: dto.sortOrder || 0,
+      isCompleted: false,
+    });
+
+    task.checklistItems.push(newItem);
+    this.recalculateTaskProgress(task);
+
+    const savedTask = await this.taskRepository.save(task);
+
+    await this.redisService.delByPattern(`skylux:tasks::api:tasks:org:${organizationId}:*`);
+    await this.redisService.delByPattern(`skylux:tasks::api:tasks:id:${taskId}:org:${organizationId}:*`);
+
+    return {
+      data: this.toTaskResponseDto(savedTask),
+      meta: {},
+    };
+  }
+
+  async updateChecklistItem(user: CurrentUserPayload, taskId: string, itemId: string, dto: UpdateChecklistItemDto): Promise<any> {
+    const organizationId = user.organizationId;
+    
+    const task = await this.taskRepository.findOne({
+      where: { id: taskId, organizationId },
+      relations: { dossier: true, assignee: true, checklistItems: true },
+    });
+    
+    if (!task) {
+      throw new NotFoundException(`Không tìm thấy công việc với ID "${taskId}"`);
+    }
+
+    const item = task.checklistItems.find(i => i.id === itemId);
+    if (!item) {
+      throw new NotFoundException(`Không tìm thấy việc phụ với ID "${itemId}"`);
+    }
+
+    if (dto.title !== undefined) item.title = dto.title;
+    if (dto.sortOrder !== undefined) item.sortOrder = dto.sortOrder;
+    if (dto.isCompleted !== undefined) {
+      item.isCompleted = dto.isCompleted;
+      item.completedAt = dto.isCompleted ? new Date() : undefined;
+    }
+
+    this.recalculateTaskProgress(task);
+
+    const savedTask = await this.taskRepository.save(task);
+
+    await this.redisService.delByPattern(`skylux:tasks::api:tasks:org:${organizationId}:*`);
+    await this.redisService.delByPattern(`skylux:tasks::api:tasks:id:${taskId}:org:${organizationId}:*`);
 
     return {
       data: this.toTaskResponseDto(savedTask),

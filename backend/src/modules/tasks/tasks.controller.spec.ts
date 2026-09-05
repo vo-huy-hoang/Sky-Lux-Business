@@ -26,6 +26,9 @@ describe('TasksController', () => {
     startTask: jest.fn(),
     completeTask: jest.fn(),
     requestExtension: jest.fn(),
+    getChecklist: jest.fn(),
+    addChecklistItem: jest.fn(),
+    updateChecklistItem: jest.fn(),
   };
 
   beforeEach(async () => {

@@ -192,7 +192,7 @@ describe('TasksService', () => {
 
       expect(result.data.progressPercent).toEqual(50);
       expect(result.data.status).toEqual(TaskStatus.IN_PROGRESS);
-      expect(taskRepository.save).toHaveBeenCalled();
+      expect(redisService.delByPattern).toHaveBeenCalled();
     });
 
     it('should dispatch notification when task is assigned to another user', async () => {
