@@ -1,9 +1,11 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { Button, Tag } from 'antd';
 import {
   CheckCircleOutlined,
+  EditOutlined,
   LockOutlined,
   MessageOutlined,
   RocketOutlined,
@@ -13,6 +15,7 @@ import {
 import { DossierWorkflowAction } from '../types';
 
 export interface DossierWorkflowActionBarProps {
+  dossierId?: string;
   dossierStatus?: string;
   isDrawer?: boolean;
   canOperate: boolean;
@@ -26,6 +29,7 @@ export interface DossierWorkflowActionBarProps {
 }
 
 export function DossierWorkflowActionBar({
+  dossierId,
   dossierStatus,
   isDrawer = false,
   canOperate,
@@ -60,6 +64,19 @@ export function DossierWorkflowActionBar({
           </Tag>
         ) : (
           <>
+            {/* Direct link to Edit Import for rapid navigation */}
+            {dossierId && (
+              <Link href={`/main/dossiers/${dossierId}/edit-import`}>
+                <Button
+                  size={isDrawer ? 'middle' : 'large'}
+                  icon={<EditOutlined />}
+                  className="border-slate-300 text-slate-700 hover:text-slate-900"
+                >
+                  Sửa dự toán
+                </Button>
+              </Link>
+            )}
+
             {/* Operator / CEO actions */}
             {canOperate &&
               (dossierStatus === 'SUBMITTED' ||
@@ -158,3 +175,5 @@ export function DossierWorkflowActionBar({
     </div>
   );
 }
+
+export default DossierWorkflowActionBar;

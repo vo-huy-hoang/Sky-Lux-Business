@@ -16,4 +16,6 @@ const nextConfig: NextConfig = {
 };
 
 
+// Next.js config with dynamic routes support
 export default nextConfig;
+
