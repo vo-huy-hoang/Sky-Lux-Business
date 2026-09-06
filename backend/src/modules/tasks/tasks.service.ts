@@ -460,13 +460,15 @@ export class TasksService {
 
   async getChecklist(user: CurrentUserPayload, taskId: string): Promise<any> {
     const organizationId = user.organizationId;
-    
+
     const task = await this.taskRepository.findOne({
       where: { id: taskId, organizationId },
     });
-    
+
     if (!task) {
-      throw new NotFoundException(`Không tìm thấy công việc với ID "${taskId}"`);
+      throw new NotFoundException(
+        `Không tìm thấy công việc với ID "${taskId}"`,
+      );
     }
 
     const items = await this.checklistItemRepository.find({
@@ -475,7 +477,7 @@ export class TasksService {
     });
 
     return {
-      data: items.map(item => ({
+      data: items.map((item) => ({
         id: item.id,
         title: item.title,
         isCompleted: item.isCompleted,
@@ -486,16 +488,22 @@ export class TasksService {
     };
   }
 
-  async addChecklistItem(user: CurrentUserPayload, taskId: string, dto: CreateChecklistItemDto): Promise<any> {
+  async addChecklistItem(
+    user: CurrentUserPayload,
+    taskId: string,
+    dto: CreateChecklistItemDto,
+  ): Promise<any> {
     const organizationId = user.organizationId;
-    
+
     const task = await this.taskRepository.findOne({
       where: { id: taskId, organizationId },
       relations: { dossier: true, assignee: true, checklistItems: true },
     });
-    
+
     if (!task) {
-      throw new NotFoundException(`Không tìm thấy công việc với ID "${taskId}"`);
+      throw new NotFoundException(
+        `Không tìm thấy công việc với ID "${taskId}"`,
+      );
     }
 
     const newItem = this.checklistItemRepository.create({
@@ -510,8 +518,12 @@ export class TasksService {
 
     const savedTask = await this.taskRepository.save(task);
 
-    await this.redisService.delByPattern(`skylux:tasks::api:tasks:org:${organizationId}:*`);
-    await this.redisService.delByPattern(`skylux:tasks::api:tasks:id:${taskId}:org:${organizationId}:*`);
+    await this.redisService.delByPattern(
+      `skylux:tasks::api:tasks:org:${organizationId}:*`,
+    );
+    await this.redisService.delByPattern(
+      `skylux:tasks::api:tasks:id:${taskId}:org:${organizationId}:*`,
+    );
 
     return {
       data: this.toTaskResponseDto(savedTask),
@@ -519,19 +531,26 @@ export class TasksService {
     };
   }
 
-  async updateChecklistItem(user: CurrentUserPayload, taskId: string, itemId: string, dto: UpdateChecklistItemDto): Promise<any> {
+  async updateChecklistItem(
+    user: CurrentUserPayload,
+    taskId: string,
+    itemId: string,
+    dto: UpdateChecklistItemDto,
+  ): Promise<any> {
     const organizationId = user.organizationId;
-    
+
     const task = await this.taskRepository.findOne({
       where: { id: taskId, organizationId },
       relations: { dossier: true, assignee: true, checklistItems: true },
     });
-    
+
     if (!task) {
-      throw new NotFoundException(`Không tìm thấy công việc với ID "${taskId}"`);
+      throw new NotFoundException(
+        `Không tìm thấy công việc với ID "${taskId}"`,
+      );
     }
 
-    const item = task.checklistItems.find(i => i.id === itemId);
+    const item = task.checklistItems.find((i) => i.id === itemId);
     if (!item) {
       throw new NotFoundException(`Không tìm thấy việc phụ với ID "${itemId}"`);
     }
@@ -547,8 +566,12 @@ export class TasksService {
 
     const savedTask = await this.taskRepository.save(task);
 
-    await this.redisService.delByPattern(`skylux:tasks::api:tasks:org:${organizationId}:*`);
-    await this.redisService.delByPattern(`skylux:tasks::api:tasks:id:${taskId}:org:${organizationId}:*`);
+    await this.redisService.delByPattern(
+      `skylux:tasks::api:tasks:org:${organizationId}:*`,
+    );
+    await this.redisService.delByPattern(
+      `skylux:tasks::api:tasks:id:${taskId}:org:${organizationId}:*`,
+    );
 
     return {
       data: this.toTaskResponseDto(savedTask),
