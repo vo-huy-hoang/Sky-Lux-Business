@@ -15,6 +15,7 @@ import {
   DossierSummaryCards,
   DossierWorkflowActionBar,
   DossierWorkflowTimeline,
+  OperatorNotesCard,
   estimateStatusMeta,
   useDossierWorkflowActions,
 } from './detail';
@@ -135,10 +136,12 @@ export default function DossierDetailView({
           estimate={estimate}
           estimateLoading={estimateQuery.isLoading}
           dossierId={dossierId}
+          dossier={dossier}
           isLocked={dossier?.status === 'LOCKED'}
         />
 
         <aside className="space-y-4">
+          <OperatorNotesCard estimate={estimate} dossier={dossier} />
           <DossierWorkflowTimeline
             workflowHistory={workflowHistory}
             estimate={estimate}
@@ -149,9 +152,11 @@ export default function DossierDetailView({
 
       {/* 5. Thanh nút bấm thao tác cố định theo vai trò */}
       <DossierWorkflowActionBar
+        dossierId={dossierId}
         dossierStatus={dossierStatus}
         isDrawer={isDrawer}
         canOperate={canOperate}
+
         isSales={isSales}
         isCeoAdmin={isCeoAdmin}
         isActionLoading={workflow.isActionLoading}

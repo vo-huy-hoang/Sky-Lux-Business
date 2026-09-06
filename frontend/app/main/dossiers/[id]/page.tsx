@@ -12,13 +12,15 @@ export default function DossierDetailPage() {
   const user = useAuthStore((state) => state.user);
   const hasRole = useAuthStore((state) => state.hasRole);
   const isOperator = hasRole('OPERATOR');
+  const isSales = hasRole('SALES');
   const isCeoAdmin = hasRole('CEO_ADMIN') || hasRole('SUPER_ADMIN');
+  const canAccess = isOperator || isSales || isCeoAdmin;
 
   useEffect(() => {
-    if (user && !isOperator && !isCeoAdmin) {
+    if (user && !canAccess) {
       router.replace('/main/dossiers');
     }
-  }, [user, isOperator, isCeoAdmin, router]);
+  }, [user, canAccess, router]);
 
   if (!user) {
     return (
@@ -28,20 +30,20 @@ export default function DossierDetailPage() {
     );
   }
 
-  if (!isOperator && !isCeoAdmin) {
+  if (!canAccess) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center p-6">
         <Result
           status="403"
           title="Không có quyền truy cập"
-          subTitle="Trang thẩm định chi tiết hồ sơ tour này chỉ dành cho Bộ phận Điều hành (Operator) và Ban Giám Đốc (CEO). Nhân viên kinh doanh vui lòng theo dõi hồ sơ tại danh sách 'Hồ sơ của tôi'."
+          subTitle="Bạn không có quyền truy cập trang chi tiết hồ sơ tour này."
           extra={
             <Button
               type="primary"
               onClick={() => router.replace('/main/dossiers')}
               className="skylux-primary-button"
             >
-              Quay lại Hồ sơ của tôi
+              Quay lại danh sách hồ sơ
             </Button>
           }
         />

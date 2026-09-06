@@ -287,9 +287,9 @@ export function isPathAccessible(
 ): boolean {
   if (!pathname || pathname === '/main') return true;
 
-  // Trường hợp đặc biệt: Trang chi tiết thẩm định hồ sơ tour chỉ dành riêng cho Operator và CEO/Admin
+  // Cho phép Operator, Sales, CEO/Admin và Super Admin truy cập trang chi tiết hồ sơ tour
   if (pathname.startsWith('/main/dossiers/')) {
-    return !!(ctx.isOperator || ctx.isCeoAdmin || ctx.isSuperAdmin);
+    return !!(ctx.isOperator || ctx.isSales || ctx.isCeoAdmin || ctx.isSuperAdmin);
   }
 
   // Khớp chính xác route dài nhất

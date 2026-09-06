@@ -22,6 +22,7 @@ import {
   getAccessibleRoutes,
   getRouteMeta,
   getActiveMenuKey,
+  isPathAccessible,
   UserContext,
 } from '@/lib/routes.config';
 
@@ -150,5 +151,40 @@ describe('routes.config - Permission-Driven Dynamic Navigation', () => {
 
     const supplierMeta = getRouteMeta('/main/suppliers', operatorCtx);
     expect(supplierMeta.title).toBe('Nhà cung cấp');
+  });
+
+  it('isPathAccessible: allows /main/dossiers/[id] for OPERATOR, SALES, CEO/Admin and denies unauthorized roles', () => {
+    const salesCtx: UserContext = {
+      isOperator: false,
+      isSales: true,
+      isCeoAdmin: false,
+      isSuperAdmin: false,
+    };
+
+    const operatorCtx: UserContext = {
+      isOperator: true,
+      isSales: false,
+      isCeoAdmin: false,
+      isSuperAdmin: false,
+    };
+
+    const ceoCtx: UserContext = {
+      isOperator: false,
+      isSales: false,
+      isCeoAdmin: true,
+      isSuperAdmin: false,
+    };
+
+    const unauthorizedCtx: UserContext = {
+      isOperator: false,
+      isSales: false,
+      isCeoAdmin: false,
+      isSuperAdmin: false,
+    };
+
+    expect(isPathAccessible('/main/dossiers/dc6c0291-7bbd-4514', salesCtx)).toBe(true);
+    expect(isPathAccessible('/main/dossiers/dc6c0291-7bbd-4514', operatorCtx)).toBe(true);
+    expect(isPathAccessible('/main/dossiers/dc6c0291-7bbd-4514', ceoCtx)).toBe(true);
+    expect(isPathAccessible('/main/dossiers/dc6c0291-7bbd-4514', unauthorizedCtx)).toBe(false);
   });
 });
