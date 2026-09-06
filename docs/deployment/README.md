@@ -425,6 +425,26 @@ server {
 
     client_max_body_size 30m;
 
+    # Realtime Server-Sent Events (SSE: Chat & Notifications)
+    location ~ ^/api/(notifications/stream|conversations/stream|chat/conversations/[^/]+/stream) {
+        proxy_pass http://backend:3001;
+        proxy_http_version 1.1;
+
+        proxy_set_header Connection '';
+        proxy_buffering off;
+        proxy_cache off;
+        chunked_transfer_encoding off;
+
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 24h;
+        proxy_read_timeout 24h;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
     location /api/ {
         proxy_pass http://backend:3001;
         proxy_http_version 1.1;
@@ -433,6 +453,10 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
     }
 
     location / {
