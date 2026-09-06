@@ -451,7 +451,7 @@ export const useChatRealtime = (conversationId?: string) => {
         setChatStatus('reconnecting');
         setConnectionStatus('reconnecting');
 
-        // Khi tab đang ẩn: tạm hoãn retry để tiết kiệm tài nguyên mạng và socket
+        // Khi tab đang ẩn: tạm hoãn retry để tiết kiệm tài nguyên mạng và kết nối SSE
         if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
           return;
         }
