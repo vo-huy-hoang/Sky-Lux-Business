@@ -11,7 +11,12 @@ import { RedisModule } from '../../common/redis/redis.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Document, DocumentType, DocumentVersion, Dossier]),
+    TypeOrmModule.forFeature([
+      Document,
+      DocumentType,
+      DocumentVersion,
+      Dossier,
+    ]),
     StorageModule,
     RedisModule,
   ],
