@@ -142,13 +142,15 @@ apiClient.interceptors.response.use(
       if (!refreshToken) {
         processQueue(error, null);
         isRefreshing = false;
-        Cookies.remove('access_token', { path: '/' });
-        Cookies.remove('refresh_token', { path: '/' });
-        Cookies.remove('access_token');
-        Cookies.remove('refresh_token');
-        if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/login')) {
-          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-          window.location.href = '/auth/login';
+        if (error.response?.status === 401) {
+          Cookies.remove('access_token', { path: '/' });
+          Cookies.remove('refresh_token', { path: '/' });
+          Cookies.remove('access_token');
+          Cookies.remove('refresh_token');
+          if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/login')) {
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+            window.location.href = '/auth/login';
+          }
         }
         return Promise.reject(error);
       }
@@ -179,13 +181,15 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       } catch (refreshErr) {
         processQueue(refreshErr, null);
-        Cookies.remove('access_token', { path: '/' });
-        Cookies.remove('refresh_token', { path: '/' });
-        Cookies.remove('access_token');
-        Cookies.remove('refresh_token');
-        if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/login')) {
-          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-          window.location.href = '/auth/login';
+        if (error.response?.status === 401) {
+          Cookies.remove('access_token', { path: '/' });
+          Cookies.remove('refresh_token', { path: '/' });
+          Cookies.remove('access_token');
+          Cookies.remove('refresh_token');
+          if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/login')) {
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+            window.location.href = '/auth/login';
+          }
         }
         return Promise.reject(refreshErr);
       } finally {
