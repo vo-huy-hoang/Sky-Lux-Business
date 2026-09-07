@@ -9,8 +9,11 @@ import {
   RiseOutlined,
   TeamOutlined,
   WarningOutlined,
+  WalletOutlined,
+  PayCircleOutlined,
 } from '@ant-design/icons';
 import { date, money } from '../types';
+import { useDossierFinanceSummary } from '@/hooks/use-payments';
 
 const { Text } = Typography;
 
@@ -74,6 +77,9 @@ export function DossierSummaryCards({
   meta,
   isDrawer = false,
 }: DossierSummaryCardsProps) {
+  const financeSummaryQuery = useDossierFinanceSummary(dossier?.id);
+  const financeSummary = financeSummaryQuery.data?.data;
+
   return (
     <Row gutter={[12, 12]}>
       <Col xs={24} md={12} xl={isDrawer ? 12 : 6}>
@@ -157,6 +163,24 @@ export function DossierSummaryCards({
           value={money(profit, estimate?.currency)}
           sub={`${margin}%`}
           icon={<RiseOutlined />}
+        />
+      </Col>
+      <Col xs={24} md={12} xl={isDrawer ? 12 : 6}>
+        <SummaryCard
+          label="Đã thu (Khách trả)"
+          value={money(financeSummary?.totalPaid || 0, estimate?.currency)}
+          sub="Tổng cộng từ các lần thanh toán"
+          icon={<WalletOutlined />}
+          tone="green"
+        />
+      </Col>
+      <Col xs={24} md={12} xl={isDrawer ? 12 : 6}>
+        <SummaryCard
+          label="Công nợ còn lại"
+          value={money(financeSummary?.remainingDebt || 0, estimate?.currency)}
+          sub="Dựa trên tổng dự toán (cost)"
+          icon={<PayCircleOutlined />}
+          tone="gold"
         />
       </Col>
     </Row>

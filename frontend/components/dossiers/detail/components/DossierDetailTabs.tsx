@@ -4,6 +4,7 @@ import React, { useMemo } from 'react';
 import { Card, Empty, Skeleton, Tabs } from 'antd';
 import DossierDocumentsTab from '@/components/documents/DossierDocumentsTab';
 import { DossierComments } from '@/app/main/dossiers/components/DossierComments';
+import DossierPaymentsTab from './DossierPaymentsTab';
 import { useDossierUIStore } from '../stores/useDossierUIStore';
 import { DossierCostTable } from './DossierCostTable';
 import { CostSummaryTable, calculateCostSummaryRows } from './CostSummaryTable';
@@ -101,6 +102,16 @@ export function DossierDetailTabs({
               label: 'Trao đổi',
               children: (
                 <DossierComments
+                  dossierId={dossierId}
+                  isLocked={isLocked}
+                />
+              ),
+            },
+            {
+              key: 'payments',
+              label: 'Thanh toán',
+              children: (
+                <DossierPaymentsTab
                   dossierId={dossierId}
                   isLocked={isLocked}
                 />

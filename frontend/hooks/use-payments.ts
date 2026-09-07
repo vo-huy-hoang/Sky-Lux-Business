@@ -1,0 +1,19 @@
+import { useQuery } from '@tanstack/react-query';
+import { paymentsService } from '@/services/payments.service';
+import { queryKeys } from '@/lib/query-keys';
+
+export function useDossierPayments(dossierId: string | null | undefined) {
+  return useQuery({
+    queryKey: queryKeys.payments.dossierPayments(dossierId || ''),
+    queryFn: ({ signal }) => paymentsService.getPaymentsByDossier(dossierId!, { signal }),
+    enabled: !!dossierId,
+  });
+}
+
+export function useDossierFinanceSummary(dossierId: string | null | undefined) {
+  return useQuery({
+    queryKey: queryKeys.payments.financeSummary(dossierId || ''),
+    queryFn: ({ signal }) => paymentsService.getFinanceSummary(dossierId!, { signal }),
+    enabled: !!dossierId,
+  });
+}

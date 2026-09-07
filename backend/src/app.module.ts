@@ -31,6 +31,7 @@ import { EstimatesModule } from './modules/estimates/estimates.module';
 import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { TasksModule } from './modules/tasks/tasks.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { KpisModule } from './modules/kpis/kpis.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ReportsModule } from './modules/reports/reports.module';
@@ -101,6 +102,7 @@ import { CustomThrottlerGuard } from './common/throttler/custom-throttler.guard'
     ApprovalsModule,
     DocumentsModule,
     TasksModule,
+    PaymentsModule,
     KpisModule,
     NotificationsModule,
     ReportsModule,
