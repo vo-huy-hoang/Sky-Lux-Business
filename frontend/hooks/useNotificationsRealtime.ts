@@ -10,7 +10,7 @@ import { useNotificationStore } from '@/lib/stores/notification-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { NotificationItem, NotificationQuery } from '@/types/notification';
-import { calculateBackoffWithJitter } from '@/hooks/chat';
+import { calculateBackoffWithJitter } from '@/lib/backoff';
 
 /**
  * Hook kết nối luồng Server-Sent Events (SSE) nhận thông báo thời gian thực

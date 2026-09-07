@@ -13,6 +13,7 @@ import {
   App,
 } from 'antd';
 import {
+  ArrowLeftOutlined,
   FileExcelFilled,
   InfoCircleOutlined,
   CloseCircleFilled,
@@ -457,9 +458,18 @@ export default function EditImportDossierPage() {
     <div className="space-y-4 pb-28">
       {/* 1. Page Header Title */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-900 tracking-tight mb-0">
-          Chỉnh sửa dữ liệu nhập - {dossier.code}
-        </h1>
+        <div className="flex items-center gap-3">
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={() => router.push(`/main/dossiers/${dossier.id}`)}
+            className="rounded-xl border-slate-200 text-slate-700 hover:text-slate-900 font-medium"
+          >
+            Chi tiết hồ sơ
+          </Button>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight mb-0">
+            Chỉnh sửa dữ liệu nhập - {dossier.code}
+          </h1>
+        </div>
       </div>
 
       {/* 2. Top Warning Notification Banner */}

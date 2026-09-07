@@ -2,8 +2,13 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Breadcrumb, Button, Space, Tag } from 'antd';
-import { ArrowLeftOutlined, FilePdfOutlined } from '@ant-design/icons';
+import { Breadcrumb, Button, Space, Tag, message } from 'antd';
+import {
+  ArrowLeftOutlined,
+  FilePdfOutlined,
+  EditOutlined,
+  DownloadOutlined,
+} from '@ant-design/icons';
 
 export interface DossierHeaderProps {
   dossier: any;
@@ -18,6 +23,8 @@ export function DossierHeader({
   isOperator = false,
   isCeoAdmin = false,
 }: DossierHeaderProps) {
+  const isLocked = dossier?.status === 'LOCKED';
+
   if (isDrawer) {
     return (
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
@@ -27,6 +34,16 @@ export function DossierHeader({
           </h3>
           {dossier && <Tag color="blue">{dossier.code}</Tag>}
         </div>
+
+        {dossier?.id && !isLocked && (
+          <Space size="small">
+            <Link href={`/main/dossiers/${dossier.id}/edit-import`}>
+              <Button size="small" icon={<EditOutlined />}>
+                Sửa dự toán
+              </Button>
+            </Link>
+          </Space>
+        )}
       </div>
     );
   }
@@ -60,10 +77,27 @@ export function DossierHeader({
           {dossier && <Tag>{dossier.code}</Tag>}
         </div>
       </div>
-      <Space>
+      <Space wrap>
         <Link href="/main/dossiers">
           <Button icon={<ArrowLeftOutlined />}>Quay lại danh sách</Button>
         </Link>
+        {dossier?.id && !isLocked && (
+          <Link href={`/main/dossiers/${dossier.id}/edit-import`}>
+            <Button
+              icon={<EditOutlined />}
+              className="border-emerald-600 text-emerald-800 hover:text-emerald-900 font-semibold"
+            >
+              Sửa dự toán
+            </Button>
+          </Link>
+        )}
+        <Button
+          icon={<DownloadOutlined />}
+          onClick={() => message.info('Đang chuẩn bị file Excel dự toán gốc để tải xuống...')}
+          title="Tải file Excel dự toán gốc đính kèm"
+        >
+          Tải file gốc
+        </Button>
         <Button icon={<FilePdfOutlined />} disabled title="Chưa có API xuất PDF">
           Xuất PDF
         </Button>
@@ -71,3 +105,5 @@ export function DossierHeader({
     </div>
   );
 }
+
+export default DossierHeader;

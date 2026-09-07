@@ -6,8 +6,6 @@ import {
   Button,
   Card,
   Col,
-  Descriptions,
-  Drawer,
   Empty,
   Input,
   Row,
@@ -15,14 +13,12 @@ import {
   Skeleton,
   Space,
   Table,
-  Tabs,
   Tag,
   Typography,
 } from 'antd';
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
-  ExportOutlined,
   EyeOutlined,
   FileExcelOutlined,
   FolderOpenOutlined,
@@ -34,8 +30,6 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useDossiersList } from '@/hooks/dossiers';
 import { DossierItem } from '@/types/dossier';
-import DossierDetailView from '@/components/dossiers/DossierDetailView';
-import { DossierComments } from './components/DossierComments';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useDebounce } from '@/hooks/use-debounce';
 
@@ -106,7 +100,6 @@ function DossiersContent() {
   const debouncedSearch = useDebounce(search, 350);
   const [status, setStatus] = useState<string | undefined>(statusParam);
   const [priority, setPriority] = useState<string>();
-  const [selectedDossierId, setSelectedDossierId] = useState<string | null>(null);
 
   const { data, isLoading, refetch } = useDossiersList({
     page,
@@ -126,11 +119,6 @@ function DossiersContent() {
       needsCare: items.filter((item: DossierItem) => item.status === 'NEED_CHANGES').length,
     };
   }, [data]);
-
-  const selectedDossier = useMemo(
-    () => data?.items?.find((item: DossierItem) => item.id === selectedDossierId),
-    [data?.items, selectedDossierId],
-  );
 
   const columns = [
     {
@@ -235,13 +223,11 @@ function DossiersContent() {
       key: 'actions',
       width: 150,
       render: (_: unknown, record: DossierItem) => (
-        <Button
-          icon={<EyeOutlined />}
-          className="skylux-outline-button"
-          onClick={() => setSelectedDossierId(record.id)}
-        >
-          Xem chi tiết
-        </Button>
+        <Link href={`/main/dossiers/${record.id}`}>
+          <Button icon={<EyeOutlined />} className="skylux-outline-button">
+            Xem chi tiết
+          </Button>
+        </Link>
       ),
     },
   ];
@@ -426,110 +412,6 @@ function DossiersContent() {
           }}
         />
       </Card>
-
-      <Drawer
-        title={
-          <div className="flex items-center justify-between w-full pr-4">
-            <Space>
-              <FolderOpenOutlined className="text-[#004230]" />
-              <span className="font-bold text-slate-800">Chi tiết hồ sơ tour</span>
-            </Space>
-            {selectedDossierId && (isOperator || isCeoAdmin) && (
-              <Link href={`/main/dossiers/${selectedDossierId}`} target="_blank">
-                <Button type="link" size="small" icon={<ExportOutlined />}>
-                  Mở toàn trang ↗
-                </Button>
-              </Link>
-            )}
-          </div>
-        }
-        styles={{ wrapper: { width: isOperator || isCeoAdmin ? 1000 : 720, maxWidth: '100vw' } }}
-        open={!!selectedDossierId}
-        onClose={() => setSelectedDossierId(null)}
-        destroyOnClose
-      >
-        {selectedDossierId && (
-          isOperator || isCeoAdmin ? (
-            <DossierDetailView
-              dossierId={selectedDossierId}
-              isDrawer={true}
-              onClose={() => {
-                setSelectedDossierId(null);
-                refetch();
-              }}
-            />
-          ) : selectedDossier ? (
-            <div className="space-y-4">
-              <Card className="skylux-card">
-                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <Title level={3} style={{ margin: 0 }}>
-                      {selectedDossier.name}
-                    </Title>
-                    <Text type="secondary">{selectedDossier.route || '-'}</Text>
-                  </div>
-                  <Tag className={getStatus(selectedDossier.status).className}>
-                    {getStatus(selectedDossier.status).label}
-                  </Tag>
-                </div>
-              </Card>
-
-              <Tabs
-                defaultActiveKey="info"
-                items={[
-                  {
-                    key: 'info',
-                    label: 'Thông tin chung',
-                    children: (
-                      <Descriptions bordered column={2} size="small">
-                        <Descriptions.Item label="Mã hồ sơ">
-                          {selectedDossier.code}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Khách hàng">
-                          {selectedDossier.customer?.displayName ||
-                            selectedDossier.customer?.code ||
-                            selectedDossier.customerId ||
-                            '-'}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Ngày bắt đầu">
-                          {compactDate(selectedDossier.startDate)}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Ngày kết thúc">
-                          {compactDate(selectedDossier.endDate)}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Sales phụ trách">
-                          {selectedDossier.salesUser?.fullName || '-'}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Điều hành phụ trách">
-                          {selectedDossier.operatorUser?.fullName || '-'}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Độ ưu tiên">
-                          {selectedDossier.priority || '-'}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Cập nhật cuối">
-                          {formatDate(selectedDossier.updatedAt)}
-                        </Descriptions.Item>
-                      </Descriptions>
-                    ),
-                  },
-                  {
-                    key: 'comments',
-                    label: 'Trao đổi',
-                    children: (
-                      <DossierComments
-                        dossierId={selectedDossier.id}
-                        isLocked={selectedDossier.status === 'LOCKED'}
-                      />
-                    ),
-                  },
-                ]}
-              />
-            </div>
-          ) : (
-            <Empty description="Chưa có dữ liệu chi tiết hồ sơ" />
-          )
-        )}
-      </Drawer>
     </div>
   );
 }

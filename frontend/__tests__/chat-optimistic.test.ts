@@ -198,13 +198,26 @@ describe('Phase 22: Cache-First Optimistic UI & Idempotency Key in Chat', () => 
     // Simulate onSuccess
     useChatUIStore.getState().removeFailedMessage(clientMessageId);
 
+    // Reconcile: Replace-in-place
     queryClient.setQueryData<Message[]>(
       queryKeys.chat.messages(conversationId),
       (old = []) => {
-        const withoutTemp = old.filter(
-          (msg) => msg.id !== tempId && msg.clientMessageId !== clientMessageId,
+        const exists = old.some(
+          (msg) =>
+            msg.id === serverMessage.id ||
+            msg.id === tempId ||
+            msg.clientMessageId === clientMessageId,
         );
-        return [...withoutTemp, { ...serverMessage, status: 'sent' }];
+        if (exists) {
+          return old.map((msg) =>
+            msg.id === serverMessage.id ||
+            msg.id === tempId ||
+            msg.clientMessageId === clientMessageId
+              ? { ...serverMessage, status: 'sent' as const }
+              : msg,
+          );
+        }
+        return [...old, { ...serverMessage, status: 'sent' as const }];
       },
     );
 
@@ -218,6 +231,105 @@ describe('Phase 22: Cache-First Optimistic UI & Idempotency Key in Chat', () => 
     expect(
       useChatUIStore.getState().getFailedMessagesForConversation(conversationId),
     ).toHaveLength(0);
+  });
+
+  it('Phase 33: should preserve exact message ordering (Replace-in-place) when SSE arrives BEFORE HTTP response (Race Condition)', () => {
+    const clientMessageId = 'client-uuid-race-condition';
+    const tempId = `temp-${clientMessageId}`;
+
+    // Ban đầu: Tin nhắn 1 (đã gửi), Tin nhắn 2 (đang gửi tạm), Tin nhắn 3 (từ đồng nghiệp)
+    const initialList: Message[] = [
+      {
+        id: 'msg-1',
+        organizationId: 'org-1',
+        conversationId,
+        senderId: 'user-me',
+        content: 'Tin nhắn 1',
+        createdAt: '2026-09-02T10:00:00Z',
+        sender: { id: 'user-me', fullName: 'Tôi', email: 'me@skylux.vn', employeeCode: 'EMP001' },
+        status: 'sent',
+      },
+      {
+        id: tempId,
+        clientMessageId,
+        organizationId: 'org-1',
+        conversationId,
+        senderId: 'user-me',
+        content: 'Tin nhắn 2 (của tôi đang gửi)',
+        createdAt: '2026-09-02T10:01:00Z',
+        sender: { id: 'user-me', fullName: 'Tôi', email: 'me@skylux.vn', employeeCode: 'EMP001' },
+        status: 'sending',
+      },
+      {
+        id: 'msg-3',
+        organizationId: 'org-1',
+        conversationId,
+        senderId: 'user-other',
+        content: 'Tin nhắn 3 (từ đồng nghiệp)',
+        createdAt: '2026-09-02T10:02:00Z',
+        sender: { id: 'user-other', fullName: 'Đồng nghiệp', email: 'other@skylux.vn', employeeCode: 'EMP002' },
+        status: 'sent',
+      },
+    ];
+
+    queryClient.setQueryData(queryKeys.chat.messages(conversationId), initialList);
+
+    // Kịch bản Race Condition:
+    // 1. SSE message.created bay đến TRƯỚC phản hồi HTTP
+    const serverMessageFromSSE: Message = {
+      id: 'msg-2-real-uuid',
+      clientMessageId,
+      organizationId: 'org-1',
+      conversationId,
+      senderId: 'user-me',
+      content: 'Tin nhắn 2 (của tôi đang gửi)',
+      createdAt: '2026-09-02T10:01:05Z',
+      sender: { id: 'user-me', fullName: 'Tôi', email: 'me@skylux.vn', employeeCode: 'EMP001' },
+      status: 'sent',
+    };
+
+    // useChatRealtime xử lý SSE bằng appendMessageToCache: thay thế tại chỗ
+    queryClient.setQueryData<Message[]>(
+      queryKeys.chat.messages(conversationId),
+      appendMessageToCache(serverMessageFromSSE),
+    );
+
+    const afterSSE = queryClient.getQueryData<Message[]>(queryKeys.chat.messages(conversationId))!;
+    expect(afterSSE).toHaveLength(3);
+    expect(afterSSE[1].id).toBe('msg-2-real-uuid');
+    expect(afterSSE[1].status).toBe('sent');
+    expect(afterSSE[2].id).toBe('msg-3'); // Vị trí tin nhắn 3 không đổi
+
+    // 2. HTTP response trả về SAU: onSuccess của useSendMessage chạy
+    const serverMessageFromHTTP = serverMessageFromSSE;
+    queryClient.setQueryData<Message[]>(
+      queryKeys.chat.messages(conversationId),
+      (old = []) => {
+        const exists = old.some(
+          (msg) =>
+            msg.id === serverMessageFromHTTP.id ||
+            msg.id === tempId ||
+            msg.clientMessageId === clientMessageId,
+        );
+        if (exists) {
+          return old.map((msg) =>
+            msg.id === serverMessageFromHTTP.id ||
+            msg.id === tempId ||
+            msg.clientMessageId === clientMessageId
+              ? { ...serverMessageFromHTTP, status: 'sent' as const }
+              : msg,
+          );
+        }
+        return [...old, { ...serverMessageFromHTTP, status: 'sent' as const }];
+      },
+    );
+
+    const afterHTTP = queryClient.getQueryData<Message[]>(queryKeys.chat.messages(conversationId))!;
+    expect(afterHTTP).toHaveLength(3);
+    // KHẲNG ĐỊNH: Tin nhắn 2 vẫn nằm vững chắc ở index 1, KHÔNG bị nhảy xuống cuối mảng sau tin 3!
+    expect(afterHTTP[0].id).toBe('msg-1');
+    expect(afterHTTP[1].id).toBe('msg-2-real-uuid');
+    expect(afterHTTP[2].id).toBe('msg-3');
   });
 
   it('Phase 26: should update canonical queryKeys.chat.messages when another user sends an SSE message', () => {
