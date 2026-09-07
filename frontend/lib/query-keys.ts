@@ -196,5 +196,17 @@ export const queryKeys = {
     unreadCount: () => [...queryKeys.notifications.all, 'unread-count'] as const,
     detail: (id?: string) => [...queryKeys.notifications.all, 'detail', id || ''] as const,
   },
+
+  // 19. PAYMENTS & DEBT
+  payments: {
+    all: ['payments'] as const,
+    lists: () => [...queryKeys.payments.all, 'list'] as const,
+    dossierPayments: (dossierId?: string) =>
+      [...queryKeys.payments.lists(), 'dossier', dossierId || ''] as const,
+    details: () => [...queryKeys.payments.all, 'detail'] as const,
+    detail: (id?: string) => [...queryKeys.payments.details(), id || ''] as const,
+    financeSummary: (dossierId?: string) =>
+      [...queryKeys.payments.all, 'finance-summary', dossierId || ''] as const,
+  },
 };
 
