@@ -25,11 +25,8 @@ describe('NotificationsController', () => {
       .mockReturnValue(of({ data: { type: 'test' } })),
     getUnreadCount: jest.fn().mockResolvedValue({ unreadCount: 2 }),
     findAll: jest.fn().mockResolvedValue({
-      items: [],
-      total: 0,
-      page: 1,
-      limit: 20,
-      totalPages: 0,
+      data: [],
+      meta: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
     }),
     findOne: jest.fn().mockResolvedValue({ id: 'notif-1', title: 'Thông báo' }),
     create: jest.fn().mockResolvedValue({ id: 'notif-1', title: 'Mới' }),
@@ -83,7 +80,7 @@ describe('NotificationsController', () => {
 
   it('findAll should return paginated notifications', async () => {
     const res = await controller.findAll(mockUser, { page: 1, limit: 10 });
-    expect(res.total).toBe(0);
+    expect(res.meta.total).toBe(0);
     expect(mockService.findAll).toHaveBeenCalledWith(mockUser, {
       page: 1,
       limit: 10,

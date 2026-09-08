@@ -32,7 +32,7 @@ export default function OperatorRevenue() {
     queryFn: ({ signal }) => dossiersService.getDossiers({ page: 1, limit: 100 }, { signal }),
   });
 
-  const dossiers = useMemo(() => dossiersQuery.data?.items || [], [dossiersQuery.data?.items]);
+  const dossiers = useMemo(() => dossiersQuery.data?.data || [], [dossiersQuery.data?.data]);
   const statusCounts = useMemo(() => dossiers.reduce<Record<string, number>>((total, item) => ({ ...total, [item.status]: (total[item.status] || 0) + 1 }), {}), [dossiers]);
 
   const salesSummary = useMemo(() => salesSummaryQuery.data || [], [salesSummaryQuery.data]);
@@ -92,7 +92,7 @@ export default function OperatorRevenue() {
         </Card>
         <Card className="op-card" title="Tình trạng hồ sơ">
           <div className="relative h-[206px]">
-            {loading ? <Skeleton active /> : donutKeys.length ? <><Doughnut data={donut} options={{ responsive: true, maintainAspectRatio: false, cutout: '67%', plugins: { legend: { display: false } } }} /><div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"><Text className="text-xs text-[var(--op-text-muted)]">Tổng</Text><strong className="text-[28px] text-[var(--op-primary-900)]">{dossiersQuery.data?.total || dossiers.length}</strong><Text className="text-xs text-[var(--op-text-muted)]">hồ sơ</Text></div></> : <Empty description="Chưa có dữ liệu" />}
+            {loading ? <Skeleton active /> : donutKeys.length ? <><Doughnut data={donut} options={{ responsive: true, maintainAspectRatio: false, cutout: '67%', plugins: { legend: { display: false } } }} /><div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"><Text className="text-xs text-[var(--op-text-muted)]">Tổng</Text><strong className="text-[28px] text-[var(--op-primary-900)]">{dossiersQuery.data?.meta?.total || dossiers.length}</strong><Text className="text-xs text-[var(--op-text-muted)]">hồ sơ</Text></div></> : <Empty description="Chưa có dữ liệu" />}
           </div>
           <div className="mt-3 space-y-2">
             {donutKeys.map((key, index) => <div key={key} className="flex items-center justify-between text-sm"><span className="flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full" style={{ background: statusTone[index % statusTone.length] }} />{statusLabels[key] || key}</span><strong>{statusCounts[key]}</strong></div>)}
@@ -110,4 +110,3 @@ export default function OperatorRevenue() {
     </div>
   );
 }
-

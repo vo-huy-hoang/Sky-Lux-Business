@@ -4,12 +4,12 @@ import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
 import { Payment } from './entities/payment.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
-import { Estimate } from '../estimates/entities/estimate.entity';
+import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Payment, Dossier, Estimate]),
+    TypeOrmModule.forFeature([Payment, Dossier, EstimateCostLine]),
     NotificationsModule,
   ],
   controllers: [PaymentsController],

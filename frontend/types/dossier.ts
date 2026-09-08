@@ -90,9 +90,11 @@ export interface QueryDossierParams {
 }
 
 export interface PaginatedDossiersResponse {
-  items: DossierItem[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+  data: DossierItem[];
+  meta: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 }

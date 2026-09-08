@@ -104,13 +104,13 @@ export default function OperatorDashboard() {
     page: 1,
     limit: 6,
   });
-  const recentDossiers = recentDossiersResponse?.items || [];
+  const recentDossiers = recentDossiersResponse?.data || [];
 
   const { data: urgentTasksResponse, isLoading: isLoadingTasks } = useQuery({
     queryKey: queryKeys.tasks.list({ page: 1, limit: 5, status: 'IN_PROGRESS' }),
     queryFn: ({ signal }) => tasksService.getTasks({ page: 1, limit: 5, status: 'IN_PROGRESS' }, { signal }),
   });
-  const urgentTasks = urgentTasksResponse?.items || [];
+  const urgentTasks = urgentTasksResponse?.data || [];
 
   // 3. Tính toán các chỉ số thống kê từ dữ liệu backend tổng hợp
   const totalMonthRevenue = useMemo(() => {
@@ -538,4 +538,3 @@ export default function OperatorDashboard() {
     </div>
   );
 }
-

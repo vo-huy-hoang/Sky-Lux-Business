@@ -27,9 +27,8 @@ import {
 } from '@ant-design/icons';
 
 import { useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
+import { authService } from '@/services/auth.service';
 import { useAuthStore } from '@/lib/stores/auth-store';
-import { LoginResponse } from '@/types/auth';
 
 function LoginLogo() {
   const [failed, setFailed] = useState(false);
@@ -171,13 +170,10 @@ function LoginForm() {
     if (lockoutSeconds > 0) return;
     setLoading(true);
     try {
-      const response = await apiClient.post<any, LoginResponse>(
-        '/auth/login',
-        {
-          email: values.email,
-          password: values.password,
-        },
-      );
+      const response = await authService.login({
+        email: values.email,
+        password: values.password,
+      });
 
       queryClient.clear();
       setAuth(response);

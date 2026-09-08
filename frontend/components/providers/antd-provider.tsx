@@ -43,7 +43,7 @@ export function AntdProvider({ children }: { children: React.ReactNode }) {
             colorBgContainer: '#FFFFFF',
             borderRadius: 8,
             fontFamily:
-              'Inter, var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
           },
           components: {
             Button: {

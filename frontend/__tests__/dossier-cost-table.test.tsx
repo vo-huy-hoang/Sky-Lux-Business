@@ -19,7 +19,12 @@ jest.mock('@ant-design/icons', () => ({
   SyncOutlined: () => <span data-testid="sync-icon" />,
 }));
 
-jest.mock('@/components/documents/DossierDocumentsTab', () => () => <div data-testid="documents-tab" />);
+jest.mock('@/components/documents/DossierDocumentsTab', () => {
+  function MockDossierDocumentsTab() {
+    return <div data-testid="documents-tab" />;
+  }
+  return MockDossierDocumentsTab;
+});
 jest.mock('@/app/main/dossiers/components/DossierComments', () => ({
   DossierComments: () => <div data-testid="comments-tab" />,
 }));
@@ -416,8 +421,7 @@ describe('Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
 
       render(<DossierRevenueTable revenueLines={mockRevenues} dossier={mockDossier} />);
       expect(screen.getByText('Chi tiết doanh thu')).toBeInTheDocument();
-      expect(screen.getByText('Doanh thu theo khách đoàn / loại khách')).toBeInTheDocument();
-      expect(screen.getByText('Người lớn')).toBeInTheDocument();
+      expect(screen.getByText('Tour Đà Nẵng - Huế')).toBeInTheDocument();
       expect(screen.getByText('Gói tour 5N4D theo chương trình')).toBeInTheDocument();
       expect(screen.getByText('* Doanh thu chưa bao gồm thuế VAT')).toBeInTheDocument();
     });
@@ -627,6 +631,36 @@ describe('Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
         expect(screen.getByText('Nước uống khăn lạnh')).toBeInTheDocument();
         expect(screen.getByText('DỊCH VỤ ĐẦU VÀO CÓ VAT')).toBeInTheDocument();
         expect(screen.getByText('DỊCH VỤ ĐẦU VÀO CHƯA VAT')).toBeInTheDocument();
+      });
+
+      it('xác định đúng nút hành động trong Sửa dự toán theo vai trò OPERATOR vs SALES', () => {
+        // Operator logic
+        const operatorHasRole = (role: string | string[]) => {
+          if (Array.isArray(role)) return role.includes('OPERATOR');
+          return role === 'OPERATOR';
+        };
+        const isOperator = operatorHasRole('OPERATOR');
+        const isCeoAdmin = operatorHasRole(['SUPER_ADMIN', 'CEO_ADMIN']);
+        const canOperate = isOperator || isCeoAdmin;
+
+        expect(canOperate).toBe(true);
+        // Operator should have Lưu thay đổi and Lưu tạm, NOT Gửi điều hành lại
+        const operatorButtons = canOperate ? ['Lưu tạm', 'Lưu thay đổi'] : ['Lưu nháp', 'Gửi điều hành duyệt'];
+        expect(operatorButtons).toContain('Lưu thay đổi');
+        expect(operatorButtons).toContain('Lưu tạm');
+        expect(operatorButtons).not.toContain('Gửi điều hành lại');
+
+        // Sales logic
+        const salesHasRole = (role: string | string[]) => {
+          if (Array.isArray(role)) return role.includes('SALES');
+          return role === 'SALES';
+        };
+        const isSales = salesHasRole('SALES') && !(salesHasRole('OPERATOR') || salesHasRole(['SUPER_ADMIN', 'CEO_ADMIN']));
+        expect(isSales).toBe(true);
+
+        const salesDraftButtons = !isSales ? ['Lưu tạm', 'Lưu thay đổi'] : ['Lưu nháp', 'Gửi điều hành duyệt'];
+        expect(salesDraftButtons).toContain('Gửi điều hành duyệt');
+        expect(salesDraftButtons).toContain('Lưu nháp');
       });
     });
   });

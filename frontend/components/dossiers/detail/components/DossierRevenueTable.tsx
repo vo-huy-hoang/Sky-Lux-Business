@@ -33,90 +33,13 @@ export function DossierRevenueTable({
     return revenues.reduce((sum, line) => sum + (Number(line.quantity) || 0), 0);
   }, [revenues]);
 
-  // Phân nhóm doanh thu theo loại khách (Người lớn, Trẻ em, Em bé)
-  const passengerSummary = useMemo(() => {
-    const groups = new Map<string, { key: string; type: string; quantity: number; amount: number }>();
-    revenues.forEach((line) => {
-      const type = line.passengerType?.name || line.passengerType?.code || 'Chưa phân loại';
-      const current = groups.get(type) || { key: type, type, quantity: 0, amount: 0 };
-      const subtotal =
-        (Number(line.quantity) || 0) *
-        (Number(line.multiplier) || 1) *
-        (Number(line.unitPrice) || 0);
-      const gross = Number(line.grossAmount) || subtotal;
-      current.quantity += Number(line.quantity || 0);
-      current.amount += gross;
-      groups.set(type, current);
-    });
-    return Array.from(groups.values());
-  }, [revenues]);
+
 
   const tourDurationText = calculateTourDuration(dossier?.startDate, dossier?.endDate);
 
   return (
     <div className={`space-y-4 ${className}`}>
-      {/* 1. Bảng Doanh thu theo loại khách (Pax summary) */}
-      {passengerSummary.length > 0 && (
-        <div className="border border-slate-200/90 rounded-2xl p-4 bg-white shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <TeamOutlined className="text-emerald-700 text-sm" />
-              <h3 className="text-xs font-bold text-slate-900 mb-0 uppercase tracking-tight">
-                Doanh thu theo khách đoàn / loại khách
-              </h3>
-            </div>
-            <span className="text-[11px] text-slate-500">
-              Tổng số khách: <strong className="text-emerald-800 font-mono">{totalPax} Pax</strong>
-            </span>
-          </div>
-
-          <div className="w-full overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50/90 text-slate-700 font-bold text-[11px] uppercase tracking-wider border-b border-slate-200">
-                  <th className="py-2 px-2 text-center w-12 font-bold">STT</th>
-                  <th className="py-2 px-3 text-left font-bold">Loại khách</th>
-                  <th className="py-2 px-3 text-right w-36 font-bold">Số lượng (Pax)</th>
-                  <th className="py-2 px-3 text-right w-44 font-bold">Thành tiền</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-800">
-                {passengerSummary.map((item, idx) => (
-                  <tr key={item.key} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-2 px-2 text-center font-mono text-slate-500 text-[11px]">
-                      {idx + 1}
-                    </td>
-                    <td className="py-2 px-3 font-semibold text-slate-800 text-xs">
-                      {item.type}
-                    </td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 text-xs">
-                      {item.quantity}
-                    </td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-emerald-800 text-xs">
-                      {formatCurrency(item.amount)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-emerald-50/60 font-bold border-t-2 border-emerald-200 text-slate-900">
-                  <td colSpan={2} className="py-2.5 px-3 uppercase text-xs text-emerald-900">
-                    TỔNG CỘNG
-                  </td>
-                  <td className="py-2.5 px-3 text-right font-mono font-extrabold text-xs text-emerald-900">
-                    {totalPax}
-                  </td>
-                  <td className="py-2.5 px-3 text-right font-mono font-extrabold text-xs text-emerald-900">
-                    {formatCurrency(totalRevenue)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* 2. Bảng Chi tiết Doanh thu tour */}
+      {/* Bảng Chi tiết Doanh thu tour */}
       <div className="border border-slate-200/90 rounded-2xl p-4 bg-white shadow-sm overflow-hidden">
         <div className="pb-3 mb-2 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-2">

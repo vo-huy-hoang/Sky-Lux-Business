@@ -117,11 +117,8 @@ describe('SuppliersService', () => {
         { organizationId: 'org-uuid' },
       );
       expect(result).toEqual({
-        items: [mockSupplier],
-        total: 1,
-        page: 1,
-        limit: 20,
-        totalPages: 1,
+        data: [mockSupplier],
+        meta: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
       });
     });
 
@@ -151,8 +148,8 @@ describe('SuppliersService', () => {
         '(supplier.code ILIKE :keyword OR supplier.name ILIKE :keyword OR supplier.phone ILIKE :keyword OR supplier.email ILIKE :keyword OR supplier.taxCode ILIKE :keyword OR supplier.contactName ILIKE :keyword)',
         { keyword: '%ABC%' },
       );
-      expect(result.page).toEqual(2);
-      expect(result.limit).toEqual(10);
+      expect(result.meta.page).toEqual(2);
+      expect(result.meta.pageSize).toEqual(10);
     });
   });
 

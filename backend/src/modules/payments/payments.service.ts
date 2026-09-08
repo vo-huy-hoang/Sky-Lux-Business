@@ -8,12 +8,18 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Payment } from './entities/payment.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
-import { Estimate } from '../estimates/entities/estimate.entity';
+import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { RedisService } from '../../common/redis/redis.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  EstimateStatus,
+  PaymentDirection,
+  PaymentMethod,
+  PaymentStatus,
+} from '../../common/enums';
 
 @Injectable()
 export class PaymentsService {
@@ -22,8 +28,8 @@ export class PaymentsService {
     private readonly paymentRepository: Repository<Payment>,
     @InjectRepository(Dossier)
     private readonly dossierRepository: Repository<Dossier>,
-    @InjectRepository(Estimate)
-    private readonly estimateRepository: Repository<Estimate>,
+    @InjectRepository(EstimateCostLine)
+    private readonly costLineRepository: Repository<EstimateCostLine>,
     private readonly redisService: RedisService,
     @Optional()
     private readonly notificationsService?: NotificationsService,
@@ -51,7 +57,7 @@ export class PaymentsService {
 
     const payments = await this.paymentRepository.find({
       where: { dossierId, organizationId },
-      order: { paidAt: 'DESC', createdAt: 'DESC' },
+      order: { paymentDate: 'DESC', createdAt: 'DESC' },
     });
 
     const response = {
@@ -115,10 +121,17 @@ export class PaymentsService {
     }
 
     const payment = this.paymentRepository.create({
-      ...dto,
+      amount: dto.amount,
       dossierId,
       organizationId,
-      paidAt: dto.paidAt ? new Date(dto.paidAt) : new Date(),
+      paymentDate: this.toDateOnly(dto.paidAt),
+      paymentMethod:
+        (dto.method as PaymentMethod) || PaymentMethod.BANK_TRANSFER,
+      paymentDirection:
+        dto.paymentDirection || PaymentDirection.CUSTOMER_RECEIPT,
+      status: PaymentStatus.PAID,
+      referenceCode: dto.referenceCode,
+      note: dto.note,
       createdBy: user.id,
     });
 
@@ -141,7 +154,7 @@ export class PaymentsService {
           linkUrl: `/main/dossiers/${dossierId}`,
           metadata: { dossierId, paymentId: savedPayment.id },
         });
-      } catch (e) {
+      } catch {
         // Ignore notification errors
       }
     }
@@ -176,13 +189,15 @@ export class PaymentsService {
     }
 
     if (dto.amount !== undefined) payment.amount = dto.amount;
-    if (dto.paidAt !== undefined) payment.paidAt = new Date(dto.paidAt);
-    if (dto.method !== undefined) payment.method = dto.method;
+    if (dto.paidAt !== undefined)
+      payment.paymentDate = this.toDateOnly(dto.paidAt);
+    if (dto.method !== undefined)
+      payment.paymentMethod = dto.method as PaymentMethod;
+    if (dto.paymentDirection !== undefined)
+      payment.paymentDirection = dto.paymentDirection;
     if (dto.referenceCode !== undefined)
       payment.referenceCode = dto.referenceCode;
     if (dto.note !== undefined) payment.note = dto.note;
-
-    payment.updatedBy = user.id;
 
     const savedPayment = await this.paymentRepository.save(payment);
 
@@ -223,20 +238,34 @@ export class PaymentsService {
       .select('SUM(payment.amount)', 'totalPaid')
       .where('payment.dossier_id = :dossierId', { dossierId })
       .andWhere('payment.organization_id = :organizationId', { organizationId })
+      .andWhere('payment.payment_direction = :direction', {
+        direction: PaymentDirection.CUSTOMER_RECEIPT,
+      })
+      .andWhere('payment.status != :cancelledStatus', {
+        cancelledStatus: PaymentStatus.CANCELLED,
+      })
       .getRawOne();
 
-    const { totalCost } = await this.estimateRepository
+    const { totalCost } = await this.costLineRepository
       .createQueryBuilder('estimate')
-      .select('SUM(estimate.price * estimate.quantity)', 'totalCost')
-      .where('estimate.dossier_id = :dossierId', { dossierId })
-      .andWhere('estimate.organization_id = :organizationId', {
+      .innerJoin('estimate.estimate', 'estimateHeader')
+      .select('COALESCE(SUM(estimate.netAmount), 0)', 'totalCost')
+      .where('estimate.organizationId = :organizationId', { organizationId })
+      .andWhere('estimateHeader.dossierId = :dossierId', { dossierId })
+      .andWhere('estimateHeader.organizationId = :organizationId', {
         organizationId,
       })
-      .andWhere('estimate.is_active = true') // Adjust based on your schema logic
+      .andWhere('estimateHeader.status = :estimateStatus', {
+        estimateStatus: EstimateStatus.APPROVED,
+      })
       .getRawOne();
 
-    const parsedTotalPaid = parseFloat(totalPaid || '0');
-    const parsedTotalCost = parseFloat(totalCost || '0');
+    const parsedTotalPaid = Number(
+      (totalPaid as string | number | null | undefined) ?? 0,
+    );
+    const parsedTotalCost = Number(
+      (totalCost as string | number | null | undefined) ?? 0,
+    );
     const remainingDebt = parsedTotalCost - parsedTotalPaid;
 
     const summary = {
@@ -278,15 +307,29 @@ export class PaymentsService {
       organizationId: payment.organizationId,
       dossierId: payment.dossierId,
       amount: Number(payment.amount),
-      paidAt: payment.paidAt,
-      method: payment.method,
+      // Keep the existing FE contract while exposing the canonical fields.
+      paidAt: payment.paymentDate,
+      method: payment.paymentMethod,
+      paymentDate: payment.paymentDate,
+      paymentMethod: payment.paymentMethod,
+      paymentDirection: payment.paymentDirection,
+      status: payment.status,
+      dueDate: payment.dueDate,
+      documentId: payment.documentId,
       referenceCode: payment.referenceCode,
       note: payment.note,
       createdAt: payment.createdAt,
       updatedAt: payment.updatedAt,
       createdBy: payment.createdBy,
-      updatedBy: payment.updatedBy,
     };
+  }
+
+  private toDateOnly(value?: string): string {
+    if (!value) {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    return new Date(value).toISOString().slice(0, 10);
   }
 
   private formatCurrency(amount: number): string {

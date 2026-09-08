@@ -110,6 +110,7 @@ export const queryKeys = {
   // 10. REVENUE & REPORTS
   reports: {
     all: ['reports'] as const,
+    saved: (params?: Record<string, any>) => [...queryKeys.reports.all, 'saved', params || {}] as const,
     dashboard: (params?: Record<string, any>) => [...queryKeys.reports.all, 'dashboard', params || {}] as const,
     revenue: (period?: string, params?: Record<string, any>) =>
       [...queryKeys.reports.all, 'revenue', period || 'month', params || {}] as const,
@@ -209,4 +210,3 @@ export const queryKeys = {
       [...queryKeys.payments.all, 'finance-summary', dossierId || ''] as const,
   },
 };
-

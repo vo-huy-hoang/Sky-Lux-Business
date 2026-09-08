@@ -79,7 +79,10 @@ export function extractExplanation(line: EstimateCostLine): string {
   return '';
 }
 
-export function classifyCategory(line: EstimateCostLine): {
+export function classifyCategory(line: {
+  description?: string;
+  serviceCategory?: { name?: string };
+}): {
   code: string;
   title: string;
   order: number;

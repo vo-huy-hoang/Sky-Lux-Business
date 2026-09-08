@@ -94,7 +94,15 @@ export const customersService = {
   ) => {
     return apiClient.get<
       any,
-      { data: DossierItem[]; meta: { page: number; pageSize: number; total: number; totalPages: number } }
+      {
+        data: DossierItem[];
+        meta: {
+          page: number;
+          pageSize: number;
+          total: number;
+          totalPages: number;
+        };
+      }
     >(`/customers/${customerId}/dossiers`, { params, signal: options?.signal });
   },
 };

@@ -321,13 +321,13 @@ export default function SuppliersPage() {
       <Card>
         <Table
           columns={columns}
-          dataSource={data?.items || []}
+          dataSource={data?.data || []}
           rowKey="id"
           loading={isLoading || isFetching}
           pagination={{
             current: page,
             pageSize: pageSize,
-            total: data?.total || 0,
+            total: data?.meta?.total || 0,
             showSizeChanger: true,
             pageSizeOptions: ['10', '20', '50', '100'],
             showTotal: (total, range) =>

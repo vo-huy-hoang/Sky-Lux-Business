@@ -43,9 +43,9 @@ export default function DossierDetailView({
   const workflowHistory = workflowHistoryQuery.data?.data || [];
 
   const currentEstimate = useMemo(() => {
-    const estimateList = estimatesQuery.data?.items || [];
+    const estimateList = estimatesQuery.data?.data || [];
     return [...estimateList].sort((a, b) => b.versionNo - a.versionNo)[0];
-  }, [estimatesQuery.data?.items]);
+  }, [estimatesQuery.data?.data]);
 
   const estimateQuery = useEstimateDetail(currentEstimate?.id);
 

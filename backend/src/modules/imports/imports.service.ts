@@ -151,10 +151,13 @@ export class ImportsService {
     });
 
     return {
-      items,
-      total,
-      page,
-      limit,
+      data: items,
+      meta: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     };
   }
 
@@ -173,10 +176,13 @@ export class ImportsService {
     });
 
     return {
-      items,
-      total,
-      page,
-      limit,
+      data: items,
+      meta: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     };
   }
 

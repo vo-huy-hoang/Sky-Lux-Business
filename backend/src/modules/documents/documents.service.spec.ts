@@ -182,10 +182,10 @@ describe('DocumentsService', () => {
       expect(dossierRepo.findOne).toHaveBeenCalledWith({
         where: { id: 'dossier-uuid-1', organizationId: orgId },
       });
-      expect(result.items).toHaveLength(1);
-      expect(result.total).toBe(1);
-      expect((result.items[0] as any).objectKey).toBeUndefined();
-      expect((result.items[0].uploader as any)?.passwordHash).toBeUndefined();
+      expect(result.data).toHaveLength(1);
+      expect(result.meta.total).toBe(1);
+      expect((result.data[0] as any).objectKey).toBeUndefined();
+      expect((result.data[0].uploader as any)?.passwordHash).toBeUndefined();
     });
 
     it('should throw NotFoundException if dossier does not exist in tenant', async () => {

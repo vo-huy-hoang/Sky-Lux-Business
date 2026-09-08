@@ -57,11 +57,13 @@ export interface QueryTaskParams {
 }
 
 export interface PaginatedTasksResponse {
-  items: TaskItem[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+  data: TaskItem[];
+  meta: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 export interface CreateTaskInput {

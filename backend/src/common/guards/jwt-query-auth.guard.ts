@@ -28,6 +28,9 @@ export class JwtQueryAuthGuard implements CanActivate {
         throw new Error('JWT_SECRET is not configured');
       }
       const payload = await this.jwtService.verifyAsync(token, { secret });
+      if (payload.stream !== true) {
+        throw new UnauthorizedException('Stream token không hợp lệ');
+      }
       request.user = payload;
       return true;
     } catch {

@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Button, Card, DatePicker, Empty, Select, Table, Typography } from 'antd';
+import { Button, Card, DatePicker, Empty, Select, Table, Typography, message } from 'antd';
 import { BarChartOutlined, CustomerServiceOutlined, EyeOutlined, FileExcelOutlined, FilePdfOutlined, TeamOutlined, WalletOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import dayjs, { Dayjs } from 'dayjs';
 import { dashboardsService } from '@/services/dashboards.service';
 import { queryKeys } from '@/lib/query-keys';
+import { reportsService } from '@/services/reports.service';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -25,6 +26,7 @@ const reportTypes = [
 ];
 
 export default function ReportsPage() {
+  const [messageApi, contextHolder] = message.useMessage();
   const [reportType, setReportType] = useState('REVENUE');
   const [dates, setDates] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')]);
   const dashboard = useQuery({
@@ -35,6 +37,10 @@ export default function ReportsPage() {
         { signal },
       ),
   });
+  const savedReports = useQuery({
+    queryKey: queryKeys.reports.saved({ page: 1, pageSize: 10 }),
+    queryFn: ({ signal }) => reportsService.getSaved({ page: 1, pageSize: 10 }, { signal }),
+  });
 
 
   const preview = dashboard.data?.costBreakdown?.map((item, index) => ({
@@ -44,7 +50,22 @@ export default function ReportsPage() {
   })) || [];
   const totalCost = preview.reduce((sum, item) => sum + item.cost, 0);
 
+  const saveReport = async () => {
+    try {
+      await reportsService.createSaved({
+        name: `${reportTypes.find((type) => type.key === reportType)?.label || 'Báo cáo'} - ${dates[0].format('MM/YYYY')}`,
+        reportType,
+        filters: { from: dates[0].format('YYYY-MM-DD'), to: dates[1].format('YYYY-MM-DD') },
+      });
+      await savedReports.refetch();
+      messageApi.success('Đã lưu báo cáo');
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : 'Không thể lưu báo cáo');
+    }
+  };
+
   return <div className="space-y-4">
+    {contextHolder}
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
       {reportTypes.map((type) => <button key={type.key} type="button" onClick={() => setReportType(type.key)} className={`cursor-pointer rounded-lg border bg-white p-4 text-left transition-colors ${reportType === type.key ? 'border-[var(--ceo-primary-700)] ring-2 ring-[rgb(11_107_79_/_0.08)]' : 'border-[var(--ceo-border)] hover:border-[var(--ceo-primary-700)]'}`}>
         <span className="ceo-metric-icon mb-3 bg-[var(--ceo-primary-soft)] text-[var(--ceo-primary-600)]">{type.icon}</span><span className="block text-sm font-bold">{type.label}</span><span className="mt-1 block text-xs leading-5 text-[var(--ceo-text-muted)]">{type.description}</span>
@@ -62,7 +83,7 @@ export default function ReportsPage() {
             <label className="space-y-2"><span className="block text-xs font-semibold">Mảng / Dịch vụ</span><Select className="w-full" value="ALL" disabled options={[{ label: 'Tất cả', value: 'ALL' }]} /></label>
             <label className="space-y-2"><span className="block text-xs font-semibold">Trạng thái hồ sơ</span><Select className="w-full" value="ALL" disabled options={[{ label: 'Tất cả', value: 'ALL' }]} /></label>
           </div>
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3"><Button icon={<EyeOutlined />} className="skylux-primary-button" onClick={() => dashboard.refetch()}>Xem trước</Button><Button icon={<FileExcelOutlined />} disabled title="Backend báo cáo chưa hoàn thiện">Xuất Excel</Button><Button icon={<FilePdfOutlined />} disabled title="Backend báo cáo chưa hoàn thiện">Xuất PDF</Button></div>
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4"><Button icon={<EyeOutlined />} className="skylux-primary-button" onClick={() => dashboard.refetch()}>Xem trước</Button><Button onClick={saveReport}>Lưu báo cáo</Button><Button icon={<FileExcelOutlined />} disabled title="Chưa có API xuất Excel">Xuất Excel</Button><Button icon={<FilePdfOutlined />} disabled title="Chưa có API xuất PDF">Xuất PDF</Button></div>
         </Card>
 
         <Card className="ceo-card" title={`Xem trước: ${reportTypes.find((type) => type.key === reportType)?.label}`} extra={<Text className="text-xs text-[var(--ceo-text-muted)]">{dates[0].format('DD/MM/YYYY')} - {dates[1].format('DD/MM/YYYY')}</Text>}>
@@ -73,7 +94,7 @@ export default function ReportsPage() {
         </Card>
       </div>
 
-      <aside className="space-y-4"><Card className="ceo-card" title="Báo cáo đã lưu gần đây"><div className="ceo-empty-panel min-h-[240px]"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Backend báo cáo hiện chưa trả danh sách đã lưu" /></div></Card><Card className="ceo-card" title="Lịch xuất báo cáo định kỳ"><div className="ceo-empty-panel min-h-[240px]"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có API lịch xuất định kỳ" /></div><Button block className="mt-3 skylux-primary-button" disabled>Tạo lịch xuất mới</Button></Card></aside>
+      <aside className="space-y-4"><Card className="ceo-card" title="Báo cáo đã lưu gần đây">{savedReports.isLoading ? <div className="ceo-empty-panel min-h-[240px]">Đang tải...</div> : savedReports.data?.data?.length ? <div className="space-y-2">{savedReports.data.data.map((report) => <div key={report.id} className="rounded-md border border-[var(--ceo-divider)] p-3"><div className="font-semibold">{report.name}</div><div className="mt-1 text-xs text-[var(--ceo-text-muted)]">{report.reportType} · {new Date(report.createdAt).toLocaleDateString('vi-VN')}</div></div>)}</div> : <div className="ceo-empty-panel min-h-[240px]"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có báo cáo đã lưu" /></div>}</Card><Card className="ceo-card" title="Lịch xuất báo cáo định kỳ"><div className="ceo-empty-panel min-h-[240px]"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có API lịch xuất định kỳ" /></div><Button block className="mt-3 skylux-primary-button" disabled>Tạo lịch xuất mới</Button></Card></aside>
     </div>
   </div>;
 }

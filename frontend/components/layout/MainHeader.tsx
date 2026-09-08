@@ -21,6 +21,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useNotificationStore } from '@/lib/stores/notification-store';
+import { authService } from '@/services/auth.service';
 import type { UserContext } from '@/lib/routes.config';
 
 const { Header } = Layout;
@@ -54,10 +55,14 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
 
   const { isCeoAdmin } = userCtx;
 
-  const handleLogout = () => {
-    queryClient.clear();
-    logout();
-    router.push('/auth/login');
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+    } finally {
+      queryClient.clear();
+      logout();
+      router.push('/auth/login');
+    }
   };
 
   const userDropdownItems: MenuProps['items'] = [

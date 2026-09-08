@@ -1,4 +1,4 @@
-import { message } from 'antd';
+import { App } from 'antd';
 import {
   useApproveDossier,
   useRequestChangesDossier,
@@ -21,6 +21,7 @@ export function useDossierWorkflowActions({
   onClose,
   refetchAll,
 }: UseDossierWorkflowActionsProps) {
+  const { message } = App.useApp();
   const modalAction = useDossierUIStore((s) => s.modalAction);
   const actionNote = useDossierUIStore((s) => s.actionNote);
   const setModalAction = useDossierUIStore((s) => s.setModalAction);

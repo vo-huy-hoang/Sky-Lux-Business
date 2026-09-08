@@ -5,12 +5,17 @@ export interface PaymentItem {
   amount: number;
   paidAt: string;
   method: string;
+  paymentDate?: string;
+  paymentMethod?: string;
+  paymentDirection?: 'CUSTOMER_RECEIPT' | 'SUPPLIER_PAYMENT';
+  status?: 'PENDING' | 'PARTIAL' | 'PAID' | 'OVERDUE' | 'CANCELLED';
+  dueDate?: string;
+  documentId?: string;
   referenceCode?: string;
   note?: string;
   createdAt: string;
   updatedAt: string;
   createdBy?: string;
-  updatedBy?: string;
 }
 
 export interface PaginatedPaymentsResponse {
@@ -24,6 +29,7 @@ export interface CreatePaymentInput {
   amount: number;
   paidAt?: string;
   method?: string;
+  paymentDirection?: 'CUSTOMER_RECEIPT' | 'SUPPLIER_PAYMENT';
   referenceCode?: string;
   note?: string;
 }
@@ -32,6 +38,7 @@ export interface UpdatePaymentInput {
   amount?: number;
   paidAt?: string;
   method?: string;
+  paymentDirection?: 'CUSTOMER_RECEIPT' | 'SUPPLIER_PAYMENT';
   referenceCode?: string;
   note?: string;
 }

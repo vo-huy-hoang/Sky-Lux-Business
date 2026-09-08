@@ -88,11 +88,13 @@ export class DocumentsService {
     const totalPages = Math.ceil(total / limit);
 
     return {
-      items: items.map((doc) => this.toDocumentResponse(doc)),
-      total,
-      page,
-      limit,
-      totalPages,
+      data: items.map((doc) => this.toDocumentResponse(doc)),
+      meta: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages,
+      },
     };
   }
 

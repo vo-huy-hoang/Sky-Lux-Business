@@ -60,6 +60,20 @@ describe('Phase 24: Distributed Throttler & Auth Shield (Frontend)', () => {
     });
   });
 
+  it('does not refresh the token for a 403 permission error', async () => {
+    const interceptor = (apiClient.interceptors.response as any).handlers[0].rejected;
+    const error = {
+      isAxiosError: true,
+      config: { url: '/users' },
+      response: {
+        status: 403,
+        data: { message: 'Missing required permissions [user.manage]' },
+      },
+    };
+
+    await expect(interceptor(error)).rejects.toMatchObject({ status: 403 });
+  });
+
   describe('useAuthStore hasRole Multi-Role support', () => {
     it('should return true when single role matches', () => {
       useAuthStore.setState({
@@ -113,4 +127,3 @@ describe('Phase 24: Distributed Throttler & Auth Shield (Frontend)', () => {
     });
   });
 });
-

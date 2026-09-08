@@ -64,16 +64,18 @@ export class CustomersService {
     const totalPages = Math.ceil(total / limit);
 
     return {
-      items: items.map((customer) => {
+      data: items.map((customer) => {
         customer.assignedSales = toPublicUser(
           customer.assignedSales,
         ) as typeof customer.assignedSales;
         return customer;
       }),
-      total,
-      page,
-      limit,
-      totalPages,
+      meta: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages,
+      },
     };
   }
 

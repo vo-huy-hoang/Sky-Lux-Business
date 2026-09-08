@@ -105,11 +105,8 @@ describe('CustomersService', () => {
         'customer',
       );
       expect(result).toEqual({
-        items: mockCustomers,
-        total: 1,
-        page: 1,
-        limit: 20,
-        totalPages: 1,
+        data: mockCustomers,
+        meta: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
       });
     });
   });

@@ -11,10 +11,12 @@ import {
   Skeleton,
   Empty,
   App,
+  Tag,
 } from 'antd';
 import {
   ArrowLeftOutlined,
   FileExcelFilled,
+  FileExcelOutlined,
   InfoCircleOutlined,
   CloseCircleFilled,
   SendOutlined,
@@ -23,12 +25,16 @@ import {
   EditOutlined,
   FileTextOutlined,
   WarningFilled,
+  CheckCircleOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { dossiersService } from '@/services/dossiers.service';
 import { estimatesService } from '@/services/estimates.service';
 import { suppliersService } from '@/services/suppliers.service';
 import { EstimateStatus, EstimateRevenueLine, EstimateCostLine } from '@/types/estimate';
+import { classifyCategory } from '@/components/dossiers/detail/components/DossierCostTable';
+import { parseVatRate } from '@/components/dossiers/detail/utils';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 function formatCurrency(amount?: number | string) {
   if (amount === undefined || amount === null) return '0';
@@ -71,6 +77,7 @@ interface EditableCostRow {
   note: string;
   status: 'VALID' | 'WARNING' | 'ERROR';
   warningMessage?: string;
+  serviceCategory?: { name?: string };
 }
 
 export default function EditImportDossierPage() {
@@ -79,6 +86,11 @@ export default function EditImportDossierPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const dossierId = params?.id as string;
+
+  const hasRole = useAuthStore((state) => state.hasRole);
+  const isOperator = hasRole('OPERATOR');
+  const isCeoAdmin = hasRole(['SUPER_ADMIN', 'CEO_ADMIN']);
+  const canOperate = isOperator || isCeoAdmin;
 
   // 1. Fetch Dossier Info
   const { data: dossier, isLoading: isLoadingDossier } = useQuery({
@@ -95,10 +107,10 @@ export default function EditImportDossierPage() {
   });
 
   const latestEstimateItem = useMemo(() => {
-    const list = estimatesData?.items || [];
+    const list = estimatesData?.data || [];
     if (list.length === 0) return null;
     return [...list].sort((a, b) => (b.versionNo || 0) - (a.versionNo || 0))[0];
-  }, [estimatesData?.items]);
+  }, [estimatesData?.data]);
 
   // 3. Fetch Full Estimate Detail
   const { data: estimate, isLoading: isLoadingDetail } = useQuery({
@@ -205,27 +217,35 @@ export default function EditImportDossierPage() {
   // Compute base cost rows from database or reference template
   const defaultCostRows: EditableCostRow[] = useMemo(() => {
     if (estimate?.costLines && estimate.costLines.length > 0) {
-      return estimate.costLines.map((line: EstimateCostLine, idx: number) => ({
-        id: line.id || `cost-${idx + 1}`,
-        stt: idx + 1,
-        description: line.description || 'Chi phí',
-        supplierId: line.supplierId,
-        supplierName: line.supplier?.displayName || line.supplier?.name,
-        quantity: Number(line.quantity) || 1,
-        multiplier: Number(line.multiplier) || 1,
-        unit: line.unit?.name || 'PAX',
-        unitPrice: Number(line.unitPrice) || 0,
-        vatRate: Number(line.vatRate) || 0,
-        sourceAmount: line.note?.includes('Số tiền nguồn:') ? Number(line.netAmount) : undefined,
-        note: line.note || '-',
-        status: idx === 1 ? 'WARNING' : idx === 4 ? 'ERROR' : 'VALID',
-        warningMessage:
-          idx === 1
-            ? 'Đơn giá chênh lệch so với dữ liệu chuẩn.'
-            : idx === 4
-            ? 'Chưa chọn nhà cung cấp.'
-            : undefined,
-      }));
+      return estimate.costLines.map((line: EstimateCostLine, idx: number) => {
+        const extractedSupplier = (() => {
+          if (line.supplier?.displayName) return line.supplier.displayName;
+          if (line.supplier?.name) return line.supplier.name;
+          if (line.note) {
+            const matchNcc = line.note.match(/Nhà cung cấp:\s*([^;]+)/i);
+            if (matchNcc) return matchNcc[1].trim();
+          }
+          return undefined;
+        })();
+
+        return {
+          id: line.id || `cost-${idx + 1}`,
+          stt: idx + 1,
+          description: line.description || 'Chi phí',
+          supplierId: line.supplierId,
+          supplierName: extractedSupplier,
+          quantity: Number(line.quantity) || 1,
+          multiplier: Number(line.multiplier) || 1,
+          unit: line.unit?.name || 'PAX',
+          unitPrice: Number(line.unitPrice) || 0,
+          vatRate: Number(line.vatRate) || 0,
+          sourceAmount: line.note?.includes('Số tiền nguồn:') ? Number(line.netAmount) : undefined,
+          note: line.note || '-',
+          serviceCategory: line.serviceCategory,
+          status: 'VALID',
+          warningMessage: undefined,
+        };
+      });
     }
     return [
       {
@@ -291,9 +311,9 @@ export default function EditImportDossierPage() {
         unit: 'PACKAGE',
         unitPrice: 0,
         vatRate: 10,
-        note: 'Thiếu dữ liệu',
-        status: 'ERROR',
-        warningMessage: 'Chưa chọn nhà cung cấp.',
+        note: 'Chưa có nhà cung cấp',
+        status: 'VALID',
+        warningMessage: undefined,
       },
     ];
   }, [estimate]);
@@ -307,11 +327,12 @@ export default function EditImportDossierPage() {
 
   // Mutations to save changes
   const saveMutation = useMutation({
-    mutationFn: async (submitStatus?: EstimateStatus) => {
+    mutationFn: async (options?: { submitStatus?: EstimateStatus; navigateBack?: boolean }) => {
       if (!latestEstimateItem?.id) {
         throw new Error('Chưa tìm thấy bản dự toán để lưu');
       }
 
+      const submitStatus = options?.submitStatus;
       const payload = {
         status: submitStatus || latestEstimateItem.status,
         note: operatorNote || undefined,
@@ -336,18 +357,25 @@ export default function EditImportDossierPage() {
         })),
       };
 
-      return estimatesService.updateEstimate(latestEstimateItem.id, payload as any);
+      const res = await estimatesService.updateEstimate(latestEstimateItem.id, payload as any);
+      return { res, options };
     },
-    onSuccess: (_, submitStatus) => {
+    onSuccess: ({ options }) => {
       setLastSavedTime(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }));
-      if (submitStatus === EstimateStatus.SUBMITTED) {
-        message.success('Đã gửi lại điều hành xem xét thành công!');
-        router.push(`/main/dossiers/${dossierId}`);
-      } else {
-        message.success('Đã lưu nháp dữ liệu nhập thành công');
-      }
       queryClient.invalidateQueries({ queryKey: ['dossier', dossierId] });
       queryClient.invalidateQueries({ queryKey: ['estimate-detail', latestEstimateItem?.id] });
+
+      if (options?.submitStatus === EstimateStatus.SUBMITTED) {
+        message.success('Đã gửi điều hành xem xét thành công!');
+        router.push(`/main/dossiers/${dossierId}`);
+      } else if (options?.navigateBack) {
+        message.success('Đã lưu thay đổi dự toán thành công!');
+        router.push(`/main/dossiers/${dossierId}`);
+      } else {
+        message.success(
+          canOperate ? 'Đã lưu tạm dự toán thành công' : 'Đã lưu nháp dữ liệu nhập thành công'
+        );
+      }
     },
     onError: (err: any) => {
       message.error(err?.message || 'Có lỗi xảy ra khi lưu dữ liệu nhập');
@@ -370,6 +398,52 @@ export default function EditImportDossierPage() {
     );
   }, [costRows]);
 
+  // Categorize cost lines into Section I (VAT) and Section II (NO VAT) matching DossierCostTable
+  const { costVatSections, costNoVatItems, totalCostVat, totalCostNoVatSum, grandTotalCost } = useMemo(() => {
+    const vatMap = new Map<string, { code: string; title: string; order: number; items: EditableCostRow[] }>();
+    const noVatList: EditableCostRow[] = [];
+
+    costRows.forEach((row) => {
+      const isVat = parseVatRate(row.vatRate) > 0;
+      if (isVat) {
+        const cat = classifyCategory(row);
+        const group = vatMap.get(cat.title) || { code: cat.code, title: cat.title, order: cat.order, items: [] };
+        group.items.push(row);
+        vatMap.set(cat.title, group);
+      } else {
+        noVatList.push(row);
+      }
+    });
+
+    const sections = Array.from(vatMap.values()).sort((a, b) => a.order - b.order);
+
+    const calcItemAmount = (row: EditableCostRow) => {
+      if (row.status === 'ERROR') return 0;
+      if (row.sourceAmount !== undefined) return row.sourceAmount;
+      return row.quantity * row.multiplier * row.unitPrice * (1 + (row.vatRate || 0) / 100);
+    };
+
+    let tVat = 0;
+    sections.forEach((sec) => {
+      sec.items.forEach((item) => {
+        tVat += calcItemAmount(item);
+      });
+    });
+
+    let tNoVat = 0;
+    noVatList.forEach((item) => {
+      tNoVat += calcItemAmount(item);
+    });
+
+    return {
+      costVatSections: sections,
+      costNoVatItems: noVatList,
+      totalCostVat: tVat,
+      totalCostNoVatSum: tNoVat,
+      grandTotalCost: tVat + tNoVat,
+    };
+  }, [costRows]);
+
   // Handlers for revenue row changes
   const handleRevenuePriceChange = (id: string, newPriceVal?: string | number | null) => {
     const newPrice = typeof newPriceVal === 'number' ? newPriceVal : parseCurrency(newPriceVal);
@@ -388,14 +462,14 @@ export default function EditImportDossierPage() {
 
   // Handlers for cost row changes
   const handleCostSupplierChange = (id: string, supplierName: string) => {
-    const selectedSupplier = suppliersData?.items?.find((s) => s.name === supplierName);
+    const selectedSupplier = suppliersData?.data?.find((s) => s.name === supplierName);
     setEditedCost((prev) => ({
       ...prev,
       [id]: {
         ...(prev[id] || {}),
         supplierName,
         supplierId: selectedSupplier?.id,
-        status: supplierName ? 'VALID' : 'ERROR',
+        status: 'VALID',
       },
     }));
   };
@@ -439,7 +513,7 @@ export default function EditImportDossierPage() {
     );
   }
 
-  const supplierOptions = (suppliersData?.items || []).map((s) => ({
+  const supplierOptions = (suppliersData?.data || []).map((s) => ({
     label: s.name,
     value: s.name,
   }));
@@ -453,6 +527,132 @@ export default function EditImportDossierPage() {
       { label: 'VN Guide', value: 'VN Guide' },
     );
   }
+
+  const renderCostRow = (row: EditableCostRow, type: 'vat' | 'novat') => {
+    const rowTotal =
+      row.sourceAmount !== undefined
+        ? row.sourceAmount
+        : row.quantity * row.multiplier * row.unitPrice * (1 + (row.vatRate || 0) / 100);
+    const isWarning = row.status === 'WARNING';
+    const isError = row.status === 'ERROR';
+
+    const hoverBg = isError
+      ? 'bg-red-50/50 hover:bg-red-50/80'
+      : isWarning
+      ? 'bg-amber-50/40 hover:bg-amber-50/70'
+      : type === 'vat'
+      ? 'hover:bg-sky-50/40 bg-white'
+      : 'hover:bg-amber-50/40 bg-white';
+
+    return (
+      <tr
+        key={row.id}
+        className={`transition-colors duration-100 ${hoverBg}`}
+      >
+        <td className="py-2 px-2 text-center font-mono text-[11px] text-slate-600 border-r border-slate-200">
+          {row.stt}
+        </td>
+        <td className="py-2 px-3 font-medium text-slate-900 text-xs border-r border-slate-200">
+          {row.description}
+        </td>
+        <td className="py-2 px-2 border-r border-slate-200">
+          <Select
+            size="small"
+            placeholder="Chọn nhà cung cấp"
+            value={row.supplierName || undefined}
+            onChange={(val) => handleCostSupplierChange(row.id, val)}
+            className={`w-full text-xs ${
+              isError ? 'border-red-400 rounded-md ring-1 ring-red-400/30' : ''
+            }`}
+            options={supplierOptions}
+          />
+        </td>
+        <td className="py-2 px-2 text-center font-mono font-semibold text-slate-800 text-xs border-r border-slate-200">
+          {row.quantity}
+        </td>
+        <td className="py-2 px-2 text-center font-mono text-slate-600 text-xs border-r border-slate-200">
+          {row.unit}
+        </td>
+        <td className="py-2 px-2 text-right border-r border-slate-200">
+          <InputNumber<number>
+            size="small"
+            value={row.unitPrice}
+            onChange={(val) => handleCostPriceChange(row.id, val ?? 0)}
+            formatter={(value) =>
+              value !== undefined && value !== null
+                ? `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+                : ''
+            }
+            parser={(displayValue) => (displayValue ? Number(displayValue.replace(/\D/g, '')) : 0)}
+            controls={false}
+            className={`w-full text-right font-mono font-medium text-xs h-7 rounded-md [&_input]:text-right ${
+              isError
+                ? 'border-red-400 bg-white text-red-700'
+                : isWarning
+                ? 'border-amber-400 bg-amber-50/50 text-amber-900'
+                : 'border-slate-200 text-slate-800'
+            }`}
+          />
+        </td>
+        <td className="py-2 px-2 text-center border-r border-slate-200">
+          <Select
+            size="small"
+            value={row.vatRate}
+            onChange={(val) => handleCostVatChange(row.id, val)}
+            className="w-14 text-xs"
+            options={[
+              { label: '0', value: 0 },
+              { label: '8', value: 8 },
+              { label: '10', value: 10 },
+            ]}
+          />
+        </td>
+        <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 text-xs border-r border-slate-200">
+          {isError ? (
+            <span className="inline-block border border-red-300 rounded px-2 py-0.5 text-red-600 bg-white">
+              0
+            </span>
+          ) : (
+            formatCurrency(rowTotal)
+          )}
+        </td>
+        <td className="py-2 px-2 border-r border-slate-200">
+          <span
+            className={`truncate block max-w-[120px] font-medium text-xs ${
+              isError
+                ? 'text-red-500 font-semibold'
+                : isWarning
+                ? 'text-amber-600 font-semibold'
+                : 'text-slate-400'
+            }`}
+            title={row.note}
+          >
+            {row.note}
+          </span>
+        </td>
+        <td className="py-2 px-2 text-center">
+          {row.status === 'VALID' && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Hợp lệ
+            </span>
+          )}
+          {row.status === 'WARNING' && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600">
+              <WarningFilled className="text-[10px]" />
+              Cảnh báo
+            </span>
+          )}
+          {row.status === 'ERROR' && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+              Lỗi
+            </span>
+          )}
+        </td>
+      </tr>
+    );
+  };
 
   return (
     <div className="space-y-4 pb-28">
@@ -513,20 +713,21 @@ export default function EditImportDossierPage() {
             <div>
               <span className="text-[11px] text-slate-400 block mb-0.5 font-medium">Tổng dòng</span>
               <div className="text-sm font-bold text-slate-800">
-                {revenueRows.length + costRows.length + 32} dòng
+                {revenueRows.length + costRows.length} dòng
               </div>
             </div>
             <div>
               <span className="text-[11px] text-slate-400 block mb-0.5 font-medium">Dòng hợp lệ</span>
               <div className="text-sm font-bold text-emerald-600">
                 {revenueRows.filter((r) => r.status === 'VALID').length +
-                  costRows.filter((c) => c.status === 'VALID').length + 32} dòng
+                  costRows.filter((c) => c.status === 'VALID').length} dòng
               </div>
             </div>
             <div>
               <span className="text-[11px] text-slate-400 block mb-0.5 font-medium">Dòng lỗi</span>
               <div className="text-sm font-bold text-red-500">
-                4 dòng
+                {revenueRows.filter((r) => r.status === 'ERROR').length +
+                  costRows.filter((c) => c.status === 'ERROR').length} dòng
               </div>
             </div>
           </div>
@@ -652,145 +853,125 @@ export default function EditImportDossierPage() {
           </div>
 
           {/* SECTION 2: CHI PHÍ */}
-          <div className="border border-slate-100 rounded-2xl p-4 bg-white shadow-sm">
-            <div className="flex items-center gap-2.5 pb-3 mb-3 border-b border-slate-100">
-              <h2 className="text-xs font-bold text-slate-900 mb-0">2. Chi phí</h2>
-              <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 font-semibold px-2 py-0.5 rounded-md">
-                Chỉnh sửa trực tiếp trên bảng
-              </span>
+          <div className="border border-slate-200/90 rounded-2xl bg-white shadow-sm overflow-hidden">
+            {/* Header Bar: Title & Summary badges */}
+            <div className="p-4 bg-white border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100/80">
+                  <FileExcelOutlined className="text-base" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-bold text-slate-900 mb-0 uppercase tracking-tight">
+                      2. Chi phí theo hạng mục
+                    </h3>
+                    <Tag color="green" className="text-[10px] font-semibold px-2 py-0.5 rounded-full border-0 bg-emerald-50 text-emerald-700">
+                      Chỉnh sửa trực tiếp trên bảng
+                    </Tag>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mb-0 mt-0.5">
+                    Phân loại theo dịch vụ đầu vào có VAT và chưa VAT
+                  </p>
+                </div>
+              </div>
+
+              {/* Quick Summary Pill Counters */}
+              <div className="flex items-center gap-2 text-xs">
+                <div className="px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-100/80 text-sky-900 font-medium text-[11px]">
+                  Có VAT: <span className="font-mono font-bold">{formatCurrency(totalCostVat)}</span>
+                </div>
+                <div className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-100/80 text-amber-900 font-medium text-[11px]">
+                  Chưa VAT: <span className="font-mono font-bold">{formatCurrency(totalCostNoVatSum)}</span>
+                </div>
+                <div className="px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-100/80 text-rose-900 font-bold text-[11px]">
+                  Tổng chi phí: <span className="font-mono font-bold">{formatCurrency(grandTotalCost)}</span>
+                </div>
+              </div>
             </div>
 
+            {/* Main Spreadsheet Table */}
             <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
+              <table className="w-full border-collapse text-left text-xs">
                 <thead>
-                  <tr className="border-b border-slate-100 text-slate-400 text-[11px] font-medium">
-                    <th className="py-2.5 px-2 text-center w-10">STT</th>
-                    <th className="py-2.5 px-2 min-w-[140px]">Mô tả chi phí</th>
-                    <th className="py-2.5 px-2 min-w-[150px]">Nhà cung cấp</th>
-                    <th className="py-2.5 px-2 text-center w-16">Số lượng</th>
-                    <th className="py-2.5 px-2 text-center w-16">Đơn vị</th>
-                    <th className="py-2.5 px-2 text-right w-30">Đơn giá (VNĐ)</th>
-                    <th className="py-2.5 px-2 text-center w-16">VAT (%)</th>
-                    <th className="py-2.5 px-2 text-right w-30">Thành tiền (VNĐ)</th>
-                    <th className="py-2.5 px-2 min-w-[110px]">Ghi chú</th>
+                  <tr className="bg-slate-100 text-slate-800 font-bold text-[11px] uppercase tracking-wider border-b border-slate-300">
+                    <th className="py-2.5 px-2 text-center w-10 border-r border-slate-300">STT</th>
+                    <th className="py-2.5 px-2.5 min-w-[140px] border-r border-slate-300">Mô tả chi phí</th>
+                    <th className="py-2.5 px-2.5 min-w-[150px] border-r border-slate-300">Nhà cung cấp</th>
+                    <th className="py-2.5 px-1.5 text-center w-14 border-r border-slate-300">SL</th>
+                    <th className="py-2.5 px-1.5 text-center w-14 border-r border-slate-300">ĐVT</th>
+                    <th className="py-2.5 px-2 text-right w-28 border-r border-slate-300">Đơn giá (VNĐ)</th>
+                    <th className="py-2.5 px-1.5 text-center w-16 border-r border-slate-300">VAT (%)</th>
+                    <th className="py-2.5 px-2.5 text-right w-32 border-r border-slate-300">Thành tiền (VNĐ)</th>
+                    <th className="py-2.5 px-2 min-w-[110px] border-r border-slate-300">Ghi chú</th>
                     <th className="py-2.5 px-2 text-center w-24">Trạng thái</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {costRows.map((row) => {
-                    const rowTotal =
-                      row.sourceAmount !== undefined
-                        ? row.sourceAmount
-                        : row.quantity * row.multiplier * row.unitPrice * (1 + row.vatRate / 100);
-                    const isWarning = row.status === 'WARNING';
-                    const isError = row.status === 'ERROR';
-                    return (
-                      <tr
-                        key={row.id}
-                        className={`transition-colors ${
-                          isError
-                            ? 'bg-red-50/50 hover:bg-red-50/80'
-                            : isWarning
-                            ? 'bg-amber-50/40 hover:bg-amber-50/70'
-                            : 'hover:bg-slate-50/70'
-                        }`}
-                      >
-                        <td className="py-2.5 px-2 text-center text-slate-400 font-medium">{row.stt}</td>
-                        <td className="py-2.5 px-2 font-medium text-slate-800">{row.description}</td>
-                        <td className="py-2.5 px-2">
-                          <Select
-                            size="small"
-                            placeholder="Chọn nhà cung cấp"
-                            value={row.supplierName || undefined}
-                            onChange={(val) => handleCostSupplierChange(row.id, val)}
-                            className={`w-full text-xs ${
-                              isError ? 'border-red-400 rounded-md ring-1 ring-red-400/30' : ''
-                            }`}
-                            options={supplierOptions}
-                          />
+                <tbody className="divide-y divide-slate-200/90 text-slate-800">
+                  {/* PHẦN I: DỊCH VỤ ĐẦU VÀO CÓ VAT */}
+                  <tr className="bg-[#D9EAF7] text-slate-900 font-bold border-y border-sky-300">
+                    <td className="py-2 px-2 text-center font-bold border-r border-sky-200">I</td>
+                    <td colSpan={9} className="py-2 px-3 tracking-wide uppercase font-bold text-xs">
+                      DỊCH VỤ ĐẦU VÀO CÓ VAT
+                    </td>
+                  </tr>
+
+                  {costVatSections.map((sec, secIdx) => (
+                    <React.Fragment key={sec.title}>
+                      <tr className="bg-[#EAF3FA] text-slate-900 font-semibold border-y border-sky-200/80">
+                        <td className="py-1.5 px-2 text-center font-bold text-[11px] text-sky-900 border-r border-slate-300">
+                          {sec.code}
                         </td>
-                        <td className="py-2.5 px-2 text-center font-semibold text-slate-800">{row.quantity}</td>
-                        <td className="py-2.5 px-2 text-center text-slate-500 font-medium">{row.unit}</td>
-                        <td className="py-2.5 px-2 text-right">
-                          <InputNumber<number>
-                            size="small"
-                            value={row.unitPrice}
-                            onChange={(val) => handleCostPriceChange(row.id, val ?? 0)}
-                            formatter={(value) => (value !== undefined && value !== null ? `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '')}
-                            parser={(displayValue) => (displayValue ? Number(displayValue.replace(/\D/g, '')) : 0)}
-                            controls={false}
-                            className={`w-full text-right font-mono font-medium text-xs h-7 rounded-md [&_input]:text-right ${
-                              isError
-                                ? 'border-red-400 bg-white text-red-700'
-                                : isWarning
-                                ? 'border-amber-400 bg-amber-50/50 text-amber-900'
-                                : 'border-slate-200 text-slate-800'
-                            }`}
-                          />
+                        <td className="py-1.5 px-3 font-bold text-xs text-sky-950 uppercase border-r border-slate-300">
+                          {sec.title}
                         </td>
-                        <td className="py-2.5 px-2 text-center">
-                          <Select
-                            size="small"
-                            value={row.vatRate}
-                            onChange={(val) => handleCostVatChange(row.id, val)}
-                            className="w-14 text-xs"
-                            options={[
-                              { label: '0', value: 0 },
-                              { label: '8', value: 8 },
-                              { label: '10', value: 10 },
-                            ]}
-                          />
+                        <td className="py-1.5 px-3 text-[11px] font-bold text-sky-800 uppercase border-r border-slate-300">
+                          {secIdx === 0 ? 'NHÀ CUNG CẤP' : ''}
                         </td>
-                        <td className="py-2.5 px-2 text-right font-mono font-semibold">
-                          {isError ? (
-                            <span className="inline-block border border-red-300 rounded px-2 py-0.5 text-red-600 bg-white">
-                              0
-                            </span>
-                          ) : (
-                            <span className="text-slate-900">{formatCurrency(rowTotal)}</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-2">
-                          <span
-                            className={`truncate block max-w-[120px] font-medium ${
-                              isError ? 'text-red-500 font-semibold' : isWarning ? 'text-amber-600 font-semibold' : 'text-slate-400'
-                            }`}
-                          >
-                            {row.note}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-2 text-center">
-                          {row.status === 'VALID' && (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                              Hợp lệ
-                            </span>
-                          )}
-                          {row.status === 'WARNING' && (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600">
-                              <WarningFilled className="text-[10px]" />
-                              Cảnh báo
-                            </span>
-                          )}
-                          {row.status === 'ERROR' && (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-600">
-                              <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                              Lỗi
-                            </span>
-                          )}
-                        </td>
+                        <td className="border-r border-slate-300" />
+                        <td className="border-r border-slate-300" />
+                        <td className="border-r border-slate-300" />
+                        <td className="border-r border-slate-300" />
+                        <td className="border-r border-slate-300" />
+                        <td className="border-r border-slate-300" />
+                        <td />
                       </tr>
-                    );
-                  })}
+                      {sec.items.map((row) => renderCostRow(row, 'vat'))}
+                    </React.Fragment>
+                  ))}
+
+                  {/* PHẦN II: DỊCH VỤ ĐẦU VÀO CHƯA VAT */}
+                  <tr className="bg-[#FFF2CC] text-amber-950 font-bold border-y border-amber-300">
+                    <td className="py-2 px-2 text-center font-bold border-r border-amber-200">II</td>
+                    <td colSpan={9} className="py-2 px-3 tracking-wide uppercase font-bold text-xs">
+                      DỊCH VỤ ĐẦU VÀO CHƯA VAT
+                    </td>
+                  </tr>
+                  {costNoVatItems.map((row) => renderCostRow(row, 'novat'))}
                 </tbody>
+
+                {/* Footer Row: TỔNG CỘNG */}
+                <tfoot>
+                  <tr className="bg-[#FCE4D6] text-slate-900 font-bold border-t-2 border-slate-400">
+                    <td
+                      colSpan={7}
+                      className="py-2.5 px-3 text-center font-extrabold uppercase tracking-wider text-xs border-r border-slate-300"
+                    >
+                      TỔNG CỘNG
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-extrabold text-sm text-slate-950 border-r border-slate-300">
+                      {formatCurrency(grandTotalCost)}
+                    </td>
+                    <td colSpan={2} className="py-2.5 px-3" />
+                  </tr>
+                </tfoot>
               </table>
             </div>
 
-            {/* Total Cost Footer */}
-            <div className="flex items-center justify-end gap-6 pt-3 mt-2 border-t border-slate-100 text-xs">
-              <span className="text-slate-500 font-medium">Tổng chi phí (chưa VAT):</span>
-              <span className="font-bold text-slate-900 font-mono text-sm">
-                {formatCurrency(totalCostNoVat)}
+            {/* Footer Note Bar */}
+            <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+              <span className="italic">* Bảng chiết tính chi phí đầu vào theo định dạng chuẩn file mẫu 1908 DỰ TRÙ - APP.xlsx</span>
+              <span className="font-medium text-slate-500">
+                Tổng cộng: {costRows.length} hạng mục dịch vụ
               </span>
             </div>
           </div>
@@ -908,24 +1089,54 @@ export default function EditImportDossierPage() {
             Hủy
           </Button>
 
-          <Button
-            icon={<SendOutlined />}
-            loading={saveMutation.isPending}
-            onClick={() => saveMutation.mutate(EstimateStatus.SUBMITTED)}
-            className="h-10 rounded-xl border-emerald-700 text-emerald-700 font-semibold text-xs px-4 hover:bg-emerald-50"
-          >
-            Gửi điều hành lại
-          </Button>
+          {canOperate ? (
+            <>
+              <Button
+                icon={<SaveOutlined />}
+                loading={saveMutation.isPending}
+                onClick={() => saveMutation.mutate({ navigateBack: false })}
+                className="h-10 rounded-xl border-slate-300 text-slate-700 font-semibold text-xs px-4 hover:border-emerald-700 hover:text-emerald-700"
+              >
+                Lưu tạm
+              </Button>
 
-          <Button
-            type="primary"
-            icon={<SaveOutlined />}
-            loading={saveMutation.isPending}
-            onClick={() => saveMutation.mutate(undefined)}
-            className="h-10 rounded-xl bg-[#063826] hover:bg-[#084D34] text-white font-semibold text-xs px-5 border-none shadow-md"
-          >
-            Lưu nháp
-          </Button>
+              <Button
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                loading={saveMutation.isPending}
+                onClick={() => saveMutation.mutate({ navigateBack: true })}
+                className="h-10 rounded-xl bg-[#063826] hover:bg-[#084D34] text-white font-semibold text-xs px-5 border-none shadow-md"
+              >
+                Lưu thay đổi
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                icon={<SaveOutlined />}
+                loading={saveMutation.isPending}
+                onClick={() => saveMutation.mutate({ navigateBack: false })}
+                className="h-10 rounded-xl border-slate-300 text-slate-700 font-semibold text-xs px-4"
+              >
+                Lưu nháp
+              </Button>
+
+              <Button
+                type="primary"
+                icon={<SendOutlined />}
+                loading={saveMutation.isPending}
+                onClick={() =>
+                  saveMutation.mutate({
+                    submitStatus: EstimateStatus.SUBMITTED,
+                    navigateBack: true,
+                  })
+                }
+                className="h-10 rounded-xl bg-[#063826] hover:bg-[#084D34] text-white font-semibold text-xs px-5 border-none shadow-md"
+              >
+                {dossier?.status === 'NEED_CHANGES' ? 'Gửi điều hành lại' : 'Gửi điều hành duyệt'}
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </div>
