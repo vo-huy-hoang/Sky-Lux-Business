@@ -109,9 +109,9 @@ export default function CustomersPage() {
   };
 
   const summary = useMemo(() => {
-    const items = summaryData?.items || [];
+    const items = summaryData?.data || [];
     return {
-      total: summaryData?.total || 0,
+      total: summaryData?.meta?.total || 0,
       active: items.filter((item) => item.status === 'ACTIVE').length,
       business: items.filter((item) => item.customerType === 'BUSINESS').length,
       individual: items.filter((item) => item.customerType === 'INDIVIDUAL').length,
@@ -375,7 +375,7 @@ export default function CustomersPage() {
 
       <Card className="skylux-card">
         <Table
-          dataSource={data?.items || []}
+          dataSource={data?.data || []}
           columns={columns}
           rowKey="id"
           loading={isLoading}
@@ -385,10 +385,10 @@ export default function CustomersPage() {
           pagination={{
             current: page,
             pageSize,
-            total: data?.total || 0,
+            total: data?.meta?.total || 0,
             showSizeChanger: true,
             pageSizeOptions: ['10', '20', '50'],
-            showTotal: (total) => `Hiển thị ${data?.items?.length || 0} trong tổng số ${total} khách hàng`,
+            showTotal: (total) => `Hiển thị ${data?.data?.length || 0} trong tổng số ${total} khách hàng`,
             onChange: (nextPage, nextPageSize) => {
               setPage(nextPage);
               setPageSize(nextPageSize);

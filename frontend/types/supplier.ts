@@ -52,9 +52,11 @@ export interface QuerySupplierParams {
 }
 
 export interface PaginatedSuppliersResponse {
-  items: SupplierItem[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+  data: SupplierItem[];
+  meta: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 }

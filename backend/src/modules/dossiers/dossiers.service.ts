@@ -119,11 +119,13 @@ export class DossiersService {
     });
 
     return {
-      items,
-      total,
-      page,
-      limit,
-      totalPages,
+      data: items,
+      meta: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages,
+      },
     };
   }
 

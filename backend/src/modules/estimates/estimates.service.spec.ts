@@ -134,11 +134,8 @@ describe('EstimatesService', () => {
         { organizationId: 'org-uuid' },
       );
       expect(result).toEqual({
-        items: [mockEstimate],
-        total: 1,
-        page: 1,
-        limit: 20,
-        totalPages: 1,
+        data: [mockEstimate],
+        meta: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
       });
     });
   });

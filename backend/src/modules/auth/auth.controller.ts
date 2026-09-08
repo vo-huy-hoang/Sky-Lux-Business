@@ -20,6 +20,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Authentication')
@@ -86,6 +87,14 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Thông tin tài khoản hiện tại' })
   getMe(@CurrentUser('id') userId: string) {
     return this.authService.getMe(userId);
+  }
+
+  @Get('stream-token')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cấp token ngắn hạn cho kết nối SSE' })
+  @ApiResponse({ status: 200, description: 'Cấp stream token thành công' })
+  createStreamToken(@CurrentUser() user: CurrentUserPayload) {
+    return this.authService.createStreamToken(user);
   }
 
   @Post('change-password')

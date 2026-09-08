@@ -3,17 +3,18 @@ import { PaymentsService } from './payments.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Payment } from './entities/payment.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
-import { Estimate } from '../estimates/entities/estimate.entity';
+import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
 import { RedisService } from '../../common/redis/redis.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { Repository } from 'typeorm';
+import {
+  PaymentDirection,
+  PaymentMethod,
+  PaymentStatus,
+} from '../../common/enums';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
 describe('PaymentsService', () => {
   let service: PaymentsService;
-  let paymentRepo: Repository<Payment>;
-  let dossierRepo: Repository<Dossier>;
-  let estimateRepo: Repository<Estimate>;
-  let redisService: RedisService;
 
   const mockRepository = {
     find: jest.fn(),
@@ -24,6 +25,7 @@ describe('PaymentsService', () => {
       select: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
+      innerJoin: jest.fn().mockReturnThis(),
       getRawOne: jest.fn(),
     })),
   };
@@ -35,6 +37,7 @@ describe('PaymentsService', () => {
   };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PaymentsService,
@@ -47,7 +50,7 @@ describe('PaymentsService', () => {
           useValue: mockRepository,
         },
         {
-          provide: getRepositoryToken(Estimate),
+          provide: getRepositoryToken(EstimateCostLine),
           useValue: mockRepository,
         },
         {
@@ -64,15 +67,131 @@ describe('PaymentsService', () => {
     }).compile();
 
     service = module.get<PaymentsService>(PaymentsService);
-    paymentRepo = module.get<Repository<Payment>>(getRepositoryToken(Payment));
-    dossierRepo = module.get<Repository<Dossier>>(getRepositoryToken(Dossier));
-    estimateRepo = module.get<Repository<Estimate>>(
-      getRepositoryToken(Estimate),
-    );
-    redisService = module.get<RedisService>(RedisService);
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
+
+  it('lists payments using the schema-backed payment date and maps the FE aliases', async () => {
+    const user = createUser();
+    const payment = {
+      id: 'payment-1',
+      organizationId: 'org-1',
+      dossierId: 'dossier-1',
+      amount: '100000',
+      paymentDate: '2026-09-07',
+      paymentMethod: PaymentMethod.BANK_TRANSFER,
+      paymentDirection: PaymentDirection.CUSTOMER_RECEIPT,
+      status: PaymentStatus.PAID,
+      createdAt: new Date('2026-09-07T10:00:00Z'),
+      updatedAt: new Date('2026-09-07T10:00:00Z'),
+    } as unknown as Payment;
+
+    mockRedisService.get.mockResolvedValue(null);
+    mockRepository.findOne.mockResolvedValue({ id: 'dossier-1' });
+    mockRepository.find.mockResolvedValue([payment]);
+
+    const result = await service.getPaymentsByDossier(user, 'dossier-1');
+
+    expect(mockRepository.find).toHaveBeenCalledWith({
+      where: { dossierId: 'dossier-1', organizationId: 'org-1' },
+      order: { paymentDate: 'DESC', createdAt: 'DESC' },
+    });
+    expect(result.data[0]).toMatchObject({
+      paidAt: '2026-09-07',
+      method: PaymentMethod.BANK_TRANSFER,
+      paymentDate: '2026-09-07',
+      status: PaymentStatus.PAID,
+    });
+  });
+
+  it('creates a customer receipt without relying on paid_at/method columns', async () => {
+    const user = createUser();
+    const savedPayment = {
+      id: 'payment-1',
+      dossierId: 'dossier-1',
+      organizationId: 'org-1',
+      amount: 100000,
+      paymentDate: '2026-09-07',
+      paymentMethod: PaymentMethod.BANK_TRANSFER,
+      paymentDirection: PaymentDirection.CUSTOMER_RECEIPT,
+      status: PaymentStatus.PAID,
+    } as Payment;
+
+    mockRepository.findOne.mockResolvedValue({
+      id: 'dossier-1',
+      code: 'DOS-001',
+    });
+    mockRepository.create.mockImplementation((value) => value);
+    mockRepository.save.mockResolvedValue(savedPayment);
+    mockRedisService.delByPattern.mockResolvedValue(undefined);
+
+    const result = await service.createPayment(user, 'dossier-1', {
+      amount: 100000,
+      paidAt: '2026-09-07T10:00:00Z',
+    });
+
+    expect(mockRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paymentDate: '2026-09-07',
+        paymentMethod: PaymentMethod.BANK_TRANSFER,
+        paymentDirection: PaymentDirection.CUSTOMER_RECEIPT,
+        status: PaymentStatus.PAID,
+      }),
+    );
+    expect(result.data.id).toBe('payment-1');
+  });
+
+  it('calculates finance summary from approved estimate cost lines and customer receipts', async () => {
+    const user = createUser();
+    const paymentQueryBuilder = {
+      select: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      innerJoin: jest.fn().mockReturnThis(),
+      getRawOne: jest.fn().mockResolvedValue({ totalPaid: '100000' }),
+    };
+    const costQueryBuilder = {
+      select: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      innerJoin: jest.fn().mockReturnThis(),
+      getRawOne: jest.fn().mockResolvedValue({ totalCost: '250000' }),
+    };
+
+    mockRedisService.get.mockResolvedValue(null);
+    mockRepository.findOne.mockResolvedValue({ id: 'dossier-1' });
+    mockRepository.createQueryBuilder
+      .mockReturnValueOnce(paymentQueryBuilder)
+      .mockReturnValueOnce(costQueryBuilder);
+
+    const result = await service.getFinanceSummary(user, 'dossier-1');
+
+    expect(paymentQueryBuilder.andWhere).toHaveBeenCalledWith(
+      'payment.payment_direction = :direction',
+      { direction: PaymentDirection.CUSTOMER_RECEIPT },
+    );
+    expect(costQueryBuilder.innerJoin).toHaveBeenCalledWith(
+      'estimate.estimate',
+      'estimateHeader',
+    );
+    expect(result.data).toMatchObject({
+      totalCost: 250000,
+      totalPaid: 100000,
+      remainingDebt: 150000,
+    });
+  });
+
+  function createUser(): CurrentUserPayload {
+    return {
+      id: 'user-1',
+      organizationId: 'org-1',
+      employeeCode: 'TEST-001',
+      fullName: 'Test User',
+      email: 'test@example.com',
+      roles: [],
+      permissions: [],
+    };
+  }
 });

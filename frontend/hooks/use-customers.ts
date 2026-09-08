@@ -4,8 +4,6 @@ import { queryKeys } from '@/lib/query-keys';
 import {
   CustomerItem,
   QueryCustomerParams,
-  CreateContactInput,
-  PaginatedCustomersResponse,
 } from '@/types/customer';
 import { message } from 'antd';
 
@@ -19,12 +17,16 @@ export function useCustomersList(params?: QueryCustomerParams) {
   });
 
   const raw = query.data;
+  const legacy = raw as (typeof raw & {
+    items?: CustomerItem[];
+    total?: number;
+  }) | undefined;
   const customers: CustomerItem[] = Array.isArray(raw)
     ? raw
-    : raw?.items || (raw as any)?.data || [];
+    : raw?.data || legacy?.items || [];
   const total: number = Array.isArray(raw)
     ? raw.length
-    : raw?.total || (raw as any)?.meta?.total || customers.length;
+    : raw?.meta?.total ?? legacy?.total ?? customers.length;
 
   return {
     ...query,

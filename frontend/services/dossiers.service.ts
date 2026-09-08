@@ -3,6 +3,7 @@ import {
   DossierItem,
   DossierComment,
   DossierCommentsResponse,
+  PaginatedDossiersResponse,
   QueryDossierParams,
   CreateCommentPayload,
   QueryCommentParams,
@@ -13,10 +14,10 @@ export const dossiersService = {
    * API-DOSSIER-001: Lấy danh sách hồ sơ phân trang và tìm kiếm
    */
   getDossiers: (params?: QueryDossierParams, options?: RequestOptions) => {
-    return apiClient.get<
-      any,
-      { items: DossierItem[]; total: number; page: number; limit: number; totalPages: number }
-    >('/dossiers', { params, signal: options?.signal });
+    return apiClient.get<any, PaginatedDossiersResponse>('/dossiers', {
+      params,
+      signal: options?.signal,
+    });
   },
 
   /**

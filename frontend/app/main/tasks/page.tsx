@@ -185,7 +185,7 @@ export default function TasksPage() {
         open={createOpen}
         createStatus={createStatus}
         onClose={() => setCreateOpen(false)}
-        dossiers={dossiersData?.items || []}
+        dossiers={dossiersData?.data || []}
       />
     </div>
   );

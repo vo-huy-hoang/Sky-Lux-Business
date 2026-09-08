@@ -86,9 +86,11 @@ export interface EstimateItem {
 
 
 export interface PaginatedEstimatesResponse {
-  items: EstimateItem[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+  data: EstimateItem[];
+  meta: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 }

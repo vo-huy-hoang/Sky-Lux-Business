@@ -115,9 +115,9 @@ describe('NotificationsService', () => {
         type: 'DOSSIER',
       });
 
-      expect(res.items.length).toBe(1);
-      expect(res.total).toBe(1);
-      expect(res.totalPages).toBe(1);
+      expect(res.data.length).toBe(1);
+      expect(res.meta.total).toBe(1);
+      expect(res.meta.totalPages).toBe(1);
       expect(qb.where).toHaveBeenCalledWith(
         'notification.organizationId = :organizationId',
         {

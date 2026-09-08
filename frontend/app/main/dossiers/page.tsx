@@ -111,9 +111,13 @@ function DossiersContent() {
   });
 
   const summary = useMemo(() => {
-    const items = data?.items || [];
+    const legacyData = data as (typeof data & {
+      items?: DossierItem[];
+      total?: number;
+    }) | undefined;
+    const items = data?.data || legacyData?.items || [];
     return {
-      total: data?.total || 0,
+      total: data?.meta?.total ?? legacyData?.total ?? 0,
       waiting: items.filter((item: DossierItem) => ['DRAFT', 'SUBMITTED', 'IN_REVIEW'].includes(item.status)).length,
       approved: items.filter((item: DossierItem) => ['APPROVED', 'COMPLETED'].includes(item.status)).length,
       needsCare: items.filter((item: DossierItem) => item.status === 'NEED_CHANGES').length,
@@ -370,7 +374,7 @@ function DossiersContent() {
             <span>
               Đang hiển thị hồ sơ của nhân sự Sales:{' '}
               <strong className="text-emerald-800 underline">
-                {data?.items?.[0]?.salesUser?.fullName || 'Nhân sự đã chọn'}
+                {(data?.data?.[0] || (data as any)?.items?.[0])?.salesUser?.fullName || 'Nhân sự đã chọn'}
               </strong>
             </span>
           </div>
@@ -391,7 +395,7 @@ function DossiersContent() {
 
       <Card className={isOperator ? 'op-card op-dossier-table' : 'skylux-card'}>
         <Table
-          dataSource={data?.items || []}
+          dataSource={data?.data || (data as any)?.items || []}
           columns={visibleColumns}
           rowKey="id"
           loading={isLoading}
@@ -401,10 +405,10 @@ function DossiersContent() {
           pagination={{
             current: page,
             pageSize,
-            total: data?.total || 0,
+            total: data?.meta?.total ?? (data as any)?.total ?? 0,
             showSizeChanger: true,
             pageSizeOptions: ['10', '20', '50'],
-            showTotal: (total) => `Hiển thị ${data?.items?.length || 0} trong tổng số ${total} hồ sơ`,
+            showTotal: (total) => `Hiển thị ${data?.data?.length || (data as any)?.items?.length || 0} trong tổng số ${total} hồ sơ`,
             onChange: (nextPage, nextPageSize) => {
               setPage(nextPage);
               setPageSize(nextPageSize);

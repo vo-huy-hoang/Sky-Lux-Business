@@ -21,12 +21,12 @@ export function useTasksList(params?: QueryTaskParams) {
   });
 
   const raw = query.data;
-  const tasks: TaskItem[] = Array.isArray(raw)
-    ? raw
-    : raw?.items || (raw as any)?.data || [];
-  const total: number = Array.isArray(raw)
-    ? raw.length
-    : raw?.total || (raw as any)?.meta?.total || tasks.length;
+  const legacy = raw as (typeof raw & {
+    items?: TaskItem[];
+    total?: number;
+  }) | undefined;
+  const tasks: TaskItem[] = raw?.data || legacy?.items || [];
+  const total: number = raw?.meta?.total ?? legacy?.total ?? tasks.length;
 
   return {
     ...query,

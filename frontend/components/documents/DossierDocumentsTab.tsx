@@ -322,8 +322,8 @@ export default function DossierDocumentsTab({
     return <Skeleton active paragraph={{ rows: 6 }} />;
   }
 
-  const documentList = data?.items || [];
-  const total = data?.total || 0;
+  const documentList = data?.data || [];
+  const total = data?.meta?.total || 0;
 
   return (
     <div className="space-y-4">

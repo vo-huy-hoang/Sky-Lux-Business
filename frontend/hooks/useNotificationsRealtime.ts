@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { notification as antdNotification } from 'antd';
 import Cookies from 'js-cookie';
-import { API_BASE_URL } from '@/lib/api-client';
+import { apiClient, API_BASE_URL } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { notificationsService } from '@/services/notifications.service';
 import { useNotificationStore } from '@/lib/stores/notification-store';
@@ -50,7 +50,7 @@ export function useNotificationsRealtime() {
     };
   }, [tokenTrigger]);
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (typeof window === 'undefined') return;
 
     if (eventSourceRef.current) {
@@ -58,29 +58,19 @@ export function useNotificationsRealtime() {
       eventSourceRef.current = null;
     }
 
-    let token = Cookies.get('access_token');
-    if (!token && typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem('skylux-auth-storage');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          token = parsed?.state?.accessToken;
-          if (token) {
-            Cookies.set('access_token', token, { expires: 1, path: '/' });
-          }
-        }
-      } catch {
-        // Bỏ qua lỗi đọc localStorage
-      }
-    }
-    if (!token) {
+    let streamToken = '';
+    try {
+      const response = await apiClient.get<any, { token: string }>('/auth/stream-token');
+      streamToken = response.token;
+    } catch {
       setNotificationsStatus('connected');
       return;
     }
+    if (!streamToken) return;
 
     try {
       const eventSource = new EventSource(
-        `${API_BASE_URL}/notifications/stream?token=${token}`,
+        `${API_BASE_URL}/notifications/stream?token=${encodeURIComponent(streamToken)}`,
       );
       eventSourceRef.current = eventSource;
 
@@ -142,12 +132,6 @@ export function useNotificationsRealtime() {
       eventSource.onerror = () => {
         eventSource.close();
         eventSourceRef.current = null;
-
-        const currentToken = Cookies.get('access_token') || '';
-        if (currentToken && currentToken !== token) {
-          setTokenTrigger(currentToken);
-          return;
-        }
 
         // Full Jitter Exponential Backoff (tối đa 5 lần)
         const nextAttempt = attemptRef.current + 1;

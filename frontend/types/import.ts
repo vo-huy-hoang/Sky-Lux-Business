@@ -70,17 +70,23 @@ export interface QueryImportParams {
 }
 
 export interface PaginatedImportRowsResponse {
-  items: ImportRow[];
-  total: number;
-  page: number;
-  limit: number;
+  data: ImportRow[];
+  meta: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 export interface PaginatedImportErrorsResponse {
-  items: ImportError[];
-  total: number;
-  page: number;
-  limit: number;
+  data: ImportError[];
+  meta: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 export interface UploadImportInput {

@@ -46,8 +46,8 @@ export default function MainLayout({
 
   // Đồng bộ dữ liệu ban đầu / khi refetch từ Server vào Zustand Store
   useEffect(() => {
-    if (notificationsData?.items) {
-      syncBackendNotifications(notificationsData.items);
+    if (notificationsData?.data) {
+      syncBackendNotifications(notificationsData.data);
     }
   }, [notificationsData, syncBackendNotifications]);
 

@@ -8,15 +8,21 @@ import {
   EditOutlined,
   UserOutlined,
 } from '@ant-design/icons';
-import { ImportError, ImportRow, ImportSession } from '@/types/import';
+import {
+  ImportError,
+  ImportRow,
+  ImportSession,
+  PaginatedImportErrorsResponse,
+  PaginatedImportRowsResponse,
+} from '@/types/import';
 import { getRawValue } from '../types';
 
 const { Text } = Typography;
 
 export interface ImportPreviewTableProps {
   session?: ImportSession;
-  previewData?: { items: ImportRow[]; total: number };
-  errorsData?: { items: ImportError[] };
+  previewData?: PaginatedImportRowsResponse;
+  errorsData?: PaginatedImportErrorsResponse;
   isLoading: boolean;
   activeTab: 'ALL' | 'VALID' | 'ERROR';
   onTabChange: (tab: 'ALL' | 'VALID' | 'ERROR') => void;
@@ -116,7 +122,7 @@ export function ImportPreviewTable({
 
         if (status === 'ERROR') {
           const rowErrors =
-            errorsData?.items?.filter(
+            errorsData?.data?.filter(
               (error: ImportError) => error.rowNumber === record.rowNumber,
             ) || [];
           return (
@@ -176,7 +182,7 @@ export function ImportPreviewTable({
       />
       <Table
         columns={columns}
-        dataSource={previewData?.items || []}
+        dataSource={previewData?.data || []}
         rowKey="id"
         loading={isLoading}
         className="skylux-table"
@@ -188,7 +194,7 @@ export function ImportPreviewTable({
         pagination={{
           current: page,
           pageSize,
-          total: previewData?.total || 0,
+          total: previewData?.meta?.total || 0,
           showSizeChanger: true,
           pageSizeOptions: ['10', '20', '50'],
           onChange: onPageChange,

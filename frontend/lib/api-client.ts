@@ -103,25 +103,17 @@ apiClient.interceptors.response.use(
     };
 
     const errorData = error.response?.data as any;
-    const isPermissionDenied =
-      error.response?.status === 403 &&
-      typeof errorData?.message === 'string' &&
-      errorData.message.includes('Missing required permissions');
     const shouldRefreshToken =
       error.response?.status === 401
         ? Boolean(originalRequest && !originalRequest._retry)
-        : Boolean(isPermissionDenied && originalRequest && !originalRequest._permissionRetry);
+        : false;
 
     if (shouldRefreshToken && originalRequest) {
       if (originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh')) {
         return Promise.reject(error);
       }
 
-      if (isPermissionDenied) {
-        originalRequest._permissionRetry = true;
-      } else {
-        originalRequest._retry = true;
-      }
+      originalRequest._retry = true;
 
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
@@ -215,4 +207,3 @@ apiClient.interceptors.response.use(
     return Promise.reject(customError);
   },
 );
-

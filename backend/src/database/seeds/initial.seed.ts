@@ -127,6 +127,8 @@ export async function runInitialSeed(dataSource: DataSource) {
     { code: 'user.delete', name: 'Xóa người dùng', module: 'USER' },
     { code: 'user.manage', name: 'Quản lý người dùng', module: 'USER' },
     { code: 'role.manage', name: 'Quản lý vai trò & quyền', module: 'USER' },
+    { code: 'department.view', name: 'Xem phòng ban', module: 'USER' },
+    { code: 'department.manage', name: 'Quản lý phòng ban', module: 'USER' },
 
     // Dossiers
     { code: 'dossier.view.own', name: 'Xem hồ sơ cá nhân', module: 'DOSSIER' },
@@ -179,7 +181,9 @@ export async function runInitialSeed(dataSource: DataSource) {
     },
     { code: 'finance.manage', name: 'Quản lý thanh toán', module: 'FINANCE' },
     { code: 'report.view', name: 'Xem báo cáo', module: 'REPORT' },
+    { code: 'report.manage', name: 'Quản lý báo cáo đã lưu', module: 'REPORT' },
     { code: 'report.export', name: 'Xuất file báo cáo', module: 'REPORT' },
+    { code: 'approval.view', name: 'Xem yêu cầu phê duyệt', module: 'DOSSIER' },
     { code: 'audit.view', name: 'Xem nhật ký kiểm toán', module: 'AUDIT' },
 
     // Tasks & Chat
@@ -293,6 +297,8 @@ export async function runInitialSeed(dataSource: DataSource) {
         'master_data.view',
         'kpi.manage',
         'document.view',
+        'approval.view',
+        'department.view',
       ],
       scope: RoleScope.ALL,
     },
@@ -313,6 +319,9 @@ export async function runInitialSeed(dataSource: DataSource) {
         'chat.access',
         'master_data.view',
         'document.view',
+        'approval.view',
+        'department.view',
+        'department.manage',
       ],
       scope: RoleScope.ALL,
     },
@@ -323,7 +332,10 @@ export async function runInitialSeed(dataSource: DataSource) {
         'finance.view',
         'finance.manage',
         'report.view',
+        'report.manage',
         'report.export',
+        'approval.view',
+        'department.view',
         'task.view',
         'task.manage',
         'user.view',

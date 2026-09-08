@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Cookies from 'js-cookie';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
-import { API_BASE_URL } from '@/lib/api-client';
+import { apiClient, API_BASE_URL } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { calculateBackoffWithJitter } from '@/lib/backoff';
 import { appendMessageToCache, removeMessageFromCache } from './cache-reducers';
@@ -43,7 +43,8 @@ export const useChatRealtime = (conversationId?: string) => {
   // KHÔNG ngắt hay khởi tạo lại kết nối SSE vì đây là luồng toàn cục của User
   useEffect(() => {
     activeConversationIdRef.current = conversationId;
-    setTypingUsers([]);
+    const resetTypingUsers = window.setTimeout(() => setTypingUsers([]), 0);
+    return () => window.clearTimeout(resetTypingUsers);
   }, [conversationId]);
 
   useEffect(() => {
@@ -74,7 +75,7 @@ export const useChatRealtime = (conversationId?: string) => {
     return () => clearInterval(timer);
   }, []);
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (typeof window === 'undefined') return;
 
     if (eventSourceRef.current) {
@@ -82,18 +83,22 @@ export const useChatRealtime = (conversationId?: string) => {
       eventSourceRef.current = null;
     }
 
-    const token = Cookies.get('access_token');
-    if (!token) {
+    let streamToken = '';
+    try {
+      const response = await apiClient.get<any, { token: string }>('/auth/stream-token');
+      streamToken = response.token;
+    } catch {
       setChatStatus('idle');
       setConnectionStatus('connected');
       return;
     }
+    if (!streamToken) return;
 
     try {
       setChatStatus('reconnecting');
       // Khởi tạo luồng kết nối EventSource nhận tin nhắn mới
       const eventSource = new EventSource(
-        `${API_BASE_URL}/conversations/stream?token=${token}`,
+        `${API_BASE_URL}/conversations/stream?token=${encodeURIComponent(streamToken)}`,
       );
       eventSourceRef.current = eventSource;
 
@@ -216,12 +221,6 @@ export const useChatRealtime = (conversationId?: string) => {
       eventSource.onerror = () => {
         eventSource.close();
         eventSourceRef.current = null;
-
-        const currentToken = Cookies.get('access_token') || '';
-        if (currentToken && currentToken !== token) {
-          setTokenTrigger(currentToken);
-          return;
-        }
 
         // Full Jitter Exponential Backoff
         const nextAttempt = attemptRef.current + 1;

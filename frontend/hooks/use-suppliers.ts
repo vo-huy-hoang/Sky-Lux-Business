@@ -19,12 +19,16 @@ export function useSuppliersList(params?: QuerySupplierParams) {
   });
 
   const raw = query.data;
+  const legacy = raw as (typeof raw & {
+    items?: SupplierItem[];
+    total?: number;
+  }) | undefined;
   const suppliers: SupplierItem[] = Array.isArray(raw)
     ? raw
-    : raw?.items || (raw as any)?.data || [];
+    : raw?.data || legacy?.items || [];
   const total: number = Array.isArray(raw)
     ? raw.length
-    : raw?.total || (raw as any)?.meta?.total || suppliers.length;
+    : raw?.meta?.total ?? legacy?.total ?? suppliers.length;
 
   return {
     ...query,

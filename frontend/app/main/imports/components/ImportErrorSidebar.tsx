@@ -3,13 +3,17 @@
 import React from 'react';
 import { Card, Empty, Space, Typography } from 'antd';
 import { CloseCircleOutlined } from '@ant-design/icons';
-import { ImportError, ImportSession } from '@/types/import';
+import {
+  ImportError,
+  ImportSession,
+  PaginatedImportErrorsResponse,
+} from '@/types/import';
 
 const { Text } = Typography;
 
 export interface ImportErrorSidebarProps {
   session?: ImportSession;
-  errorsData?: { items: ImportError[] };
+  errorsData?: PaginatedImportErrorsResponse;
 }
 
 export function ImportErrorSidebar({
@@ -19,9 +23,9 @@ export function ImportErrorSidebar({
   return (
     <>
       <Card className="skylux-card" title={`Lỗi cần xử lý (${session?.errorRows || 0})`}>
-        {errorsData?.items?.length ? (
+        {errorsData?.data?.length ? (
           <div className="space-y-4">
-            {errorsData.items.slice(0, 6).map((error: ImportError, idx: number) => (
+            {errorsData.data.slice(0, 6).map((error: ImportError, idx: number) => (
               <div
                 key={error.id || `${error.rowNumber}-${error.errorCode}-${idx}`}
                 className="border-b border-[var(--color-divider)] pb-4 last:border-b-0"

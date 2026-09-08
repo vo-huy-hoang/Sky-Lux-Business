@@ -145,7 +145,7 @@ export default function ProfilePage() {
   });
 
   const kpiItems = Array.isArray(kpiData) ? kpiData : [];
-  const dossierItems: DossierItem[] = dossierData?.items || [];
+  const dossierItems: DossierItem[] = dossierData?.data || [];
   const revenueKpi = getKpiMetric(kpiItems, 'REVENUE');
   const closeRateKpi = getKpiMetric(kpiItems, 'CLOSE_RATE');
   const dossierCountKpi = getKpiMetric(kpiItems, 'DOSSIER_COUNT');

@@ -159,8 +159,8 @@ function OperationalDashboard() {
     isError: isSalesError,
   } = useSalesDashboard(undefined, { enabled: (isSales && !isOperator) || isSuperAdmin });
 
-  const dossiers = useMemo(() => dossiersData?.items || [], [dossiersData?.items]);
-  const totalDossiers = dossiersData?.total || 0;
+  const dossiers = useMemo(() => dossiersData?.data || [], [dossiersData?.data]);
+  const totalDossiers = dossiersData?.meta?.total || 0;
   const processingCount = dossiers.filter((item) =>
     ['SUBMITTED', 'IN_REVIEW', 'DRAFT'].includes(item.status),
   ).length;

@@ -71,7 +71,7 @@ export default function ApprovalsPage() {
   });
 
   const estimates = useMemo(() => {
-    const all = [...(submittedQuery.data?.items || []), ...(reviewingQuery.data?.items || [])];
+    const all = [...(submittedQuery.data?.data || []), ...(reviewingQuery.data?.data || [])];
     return all
       .filter((item) => status === 'ALL' || item.status === status)
       .filter((item) => {
@@ -82,7 +82,7 @@ export default function ApprovalsPage() {
           .some((value) => String(value).toLocaleLowerCase('vi-VN').includes(keyword));
       })
       .sort((a, b) => new Date(a.submittedAt || a.createdAt).getTime() - new Date(b.submittedAt || b.createdAt).getTime());
-  }, [reviewingQuery.data?.items, search, status, submittedQuery.data?.items]);
+  }, [reviewingQuery.data?.data, search, status, submittedQuery.data?.data]);
 
   const getFinancial = (estimate: EstimateItem) => {
     const revenue = Number(estimate.totalRevenue || 0);
@@ -125,8 +125,8 @@ export default function ApprovalsPage() {
   ];
 
   const isLoading = submittedQuery.isLoading || reviewingQuery.isLoading;
-  const submittedCount = submittedQuery.data?.total || 0;
-  const reviewingCount = reviewingQuery.data?.total || 0;
+  const submittedCount = submittedQuery.data?.meta?.total || 0;
+  const reviewingCount = reviewingQuery.data?.meta?.total || 0;
 
   return (
     <div className="space-y-4">

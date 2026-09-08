@@ -72,11 +72,13 @@ export class SuppliersService {
     const totalPages = Math.ceil(total / limit) || 1;
 
     return {
-      items,
-      total,
-      page,
-      limit,
-      totalPages,
+      data: items,
+      meta: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages,
+      },
     };
   }
 

@@ -158,7 +158,10 @@ export default function CeoDashboard() {
     isError: isOverviewError,
   } = useCeoDashboard({ periodType: 'MONTHLY' });
 
-  const { data: dossierResponse, isLoading: isLoadingDossiers } = useQuery<{ items: DossierItem[]; total: number }>({
+  const { data: dossierResponse, isLoading: isLoadingDossiers } = useQuery<{
+    data: DossierItem[];
+    meta: { page: number; pageSize: number; total: number; totalPages: number };
+  }>({
     queryKey: queryKeys.dossiers.list({ page: 1, limit: 6 }),
     queryFn: ({ signal }) => dossiersService.getDossiers({ page: 1, limit: 6 }, { signal }),
   });
@@ -171,7 +174,7 @@ export default function CeoDashboard() {
   const { data: monthlyTrend = [], isLoading: isLoadingTrend } = useCeoMonthlyTrend(selectedYear);
 
 
-  const dossiers = dossierResponse?.items || [];
+  const dossiers = dossierResponse?.data || [];
   const users: UserItem[] = Array.isArray(userResponse)
     ? userResponse
     : userResponse?.data || [];

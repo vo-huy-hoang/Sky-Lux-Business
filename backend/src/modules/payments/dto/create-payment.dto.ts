@@ -9,7 +9,7 @@ import {
   Min,
   IsDateString,
 } from 'class-validator';
-import { PaymentMethod } from '../entities/payment.entity';
+import { PaymentDirection, PaymentMethod } from '../../../common/enums';
 
 export class CreatePaymentDto {
   @ApiProperty({ description: 'Số tiền thanh toán', example: 5000000 })
@@ -34,6 +34,15 @@ export class CreatePaymentDto {
   @IsEnum(PaymentMethod, { message: 'Phương thức thanh toán không hợp lệ' })
   @IsOptional()
   method?: string;
+
+  @ApiPropertyOptional({
+    description: 'Chiều thanh toán',
+    enum: PaymentDirection,
+    default: PaymentDirection.CUSTOMER_RECEIPT,
+  })
+  @IsEnum(PaymentDirection, { message: 'Chiều thanh toán không hợp lệ' })
+  @IsOptional()
+  paymentDirection?: PaymentDirection;
 
   @ApiPropertyOptional({
     description: 'Mã giao dịch',

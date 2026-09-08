@@ -108,11 +108,8 @@ describe('DossiersService', () => {
 
       expect(repository.createQueryBuilder).toHaveBeenCalledWith('dossier');
       expect(result).toEqual({
-        items: mockDossiers,
-        total: 1,
-        page: 1,
-        limit: 20,
-        totalPages: 1,
+        data: mockDossiers,
+        meta: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
       });
     });
 
