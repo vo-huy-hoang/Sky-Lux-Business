@@ -5,6 +5,7 @@ import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import databaseConfig from './config/database.config';
 import appConfig from './config/app.config';
 import redisConfig from './config/redis.config';
+import storageConfig from './config/storage.config';
 import { BullModule } from '@nestjs/bullmq';
 
 import { AppController } from './app.controller';
@@ -30,18 +31,48 @@ import { EstimatesModule } from './modules/estimates/estimates.module';
 import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { TasksModule } from './modules/tasks/tasks.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { KpisModule } from './modules/kpis/kpis.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { ImportsModule } from './modules/imports/imports.module';
+import { DashboardsModule } from './modules/dashboards/dashboards.module';
+import { HealthModule } from './modules/health/health.module';
+import { ChatModule } from './modules/chat/chat.module';
+import { RedisModule } from './common/redis/redis.module';
+import { RedisService } from './common/redis/redis.service';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from './common/throttler/throttler-storage-redis.service';
+import { CustomThrottlerGuard } from './common/throttler/custom-throttler.guard';
 
 @Module({
   imports: [
+    RedisModule,
+    ThrottlerModule.forRootAsync({
+      imports: [RedisModule],
+      inject: [RedisService],
+      useFactory: (redisService: RedisService) => ({
+        throttlers: [
+          {
+            name: 'default',
+            ttl: 60000,
+            limit: 120,
+          },
+          {
+            name: 'auth',
+            ttl: 60000,
+            limit: 5,
+          },
+        ],
+        storage: new ThrottlerStorageRedisService(redisService),
+      }),
+    }),
+
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, appConfig, redisConfig],
+      load: [databaseConfig, appConfig, redisConfig, storageConfig],
     }),
     BullModule.forRootAsync({
       inject: [ConfigService],
@@ -71,20 +102,29 @@ import { ImportsModule } from './modules/imports/imports.module';
     ApprovalsModule,
     DocumentsModule,
     TasksModule,
+    PaymentsModule,
     KpisModule,
     NotificationsModule,
     ReportsModule,
     AuditLogsModule,
     SettingsModule,
     ImportsModule,
+    DashboardsModule,
+    HealthModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
     {
       provide: APP_GUARD,
+      useClass: CustomThrottlerGuard,
+    },
+    {
+      provide: APP_GUARD,
       useClass: JwtAuthGuard,
     },
+
     {
       provide: APP_GUARD,
       useClass: RolesGuard,

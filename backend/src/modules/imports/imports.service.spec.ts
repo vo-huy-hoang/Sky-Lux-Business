@@ -168,10 +168,8 @@ describe('ImportsService', () => {
       });
 
       expect(result).toEqual({
-        items: mockRows,
-        total: 1,
-        page: 1,
-        limit: 10,
+        data: mockRows,
+        meta: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
       });
       expect(rowRepository.findAndCount).toHaveBeenCalledWith({
         where: { sessionId: 'session-id', status: 'VALID' },
@@ -196,10 +194,8 @@ describe('ImportsService', () => {
       });
 
       expect(result).toEqual({
-        items: mockErrors,
-        total: 1,
-        page: 1,
-        limit: 10,
+        data: mockErrors,
+        meta: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
       });
     });
   });
@@ -276,6 +272,12 @@ describe('ImportsService', () => {
         importedRowsCount: 1,
       });
       expect(dataSource.transaction).toHaveBeenCalled();
+      expect(dossierRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          createdBy: 'user-id',
+          salesUserId: 'user-id',
+        }),
+      );
     });
   });
 });

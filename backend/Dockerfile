@@ -47,6 +47,7 @@ COPY --from=builder \
  --chown=nestjs:nestjs \
  /app/package*.json ./
 
+RUN mkdir -p /app/uploads/imports && chown -R nestjs:nestjs /app
 
 USER nestjs
 

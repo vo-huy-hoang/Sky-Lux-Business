@@ -18,6 +18,7 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UserStatus } from '../../common/enums';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
 @Injectable()
 export class AuthService {
@@ -78,9 +79,7 @@ export class AuthService {
       permissions,
     };
 
-    const secret =
-      this.configService.get<string>('JWT_SECRET') ||
-      'CHANGE_ME_LONG_RANDOM_SECRET';
+    const secret = this.getJwtSecret();
 
     const accessToken = await this.jwtService.signAsync(payload, {
       secret,
@@ -200,9 +199,7 @@ export class AuthService {
     userAgent?: string,
   ) {
     const { refreshToken } = refreshTokenDto;
-    const secret =
-      this.configService.get<string>('JWT_SECRET') ||
-      'CHANGE_ME_LONG_RANDOM_SECRET';
+    const secret = this.getJwtSecret();
 
     try {
       const decoded = await this.jwtService.verifyAsync(refreshToken, {
@@ -297,6 +294,14 @@ export class AuthService {
     };
   }
 
+  async createStreamToken(user: CurrentUserPayload) {
+    const token = await this.jwtService.signAsync(
+      { ...user, stream: true },
+      { secret: this.getJwtSecret(), expiresIn: '60s' },
+    );
+    return { token };
+  }
+
   async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {
     const { currentPassword, newPassword } = changePasswordDto;
 
@@ -313,6 +318,18 @@ export class AuthService {
     user.passwordHash = await bcrypt.hash(newPassword, 10);
     await this.userRepository.save(user);
 
+    // A password change invalidates every other active session, including the
+    // current refresh token. The client will sign in again with the new secret.
+    await this.revokeUserTokens(userId);
+
     return { message: 'Đổi mật khẩu thành công' };
+  }
+
+  private getJwtSecret(): string {
+    const secret = this.configService.get<string>('JWT_SECRET');
+    if (!secret) {
+      throw new Error('JWT_SECRET is not configured');
+    }
+    return secret;
   }
 }

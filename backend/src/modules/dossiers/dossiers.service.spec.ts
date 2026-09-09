@@ -13,6 +13,8 @@ import { CurrentUserPayload } from '../../common/decorators/current-user.decorat
 import { QueryDossierDto } from './dto/query-dossier.dto';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
+import { CreateCommentDto } from './dto/create-comment.dto';
+import { QueryCommentDto } from './dto/query-comment.dto';
 import { DossierStatus } from '../../common/enums';
 
 describe('DossiersService', () => {
@@ -57,6 +59,9 @@ describe('DossiersService', () => {
 
   const mockCommentRepository = {
     createQueryBuilder: jest.fn(() => mockQueryBuilder),
+    findOne: jest.fn(),
+    create: jest.fn((dto) => dto),
+    save: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -103,12 +108,26 @@ describe('DossiersService', () => {
 
       expect(repository.createQueryBuilder).toHaveBeenCalledWith('dossier');
       expect(result).toEqual({
-        items: mockDossiers,
-        total: 1,
-        page: 1,
-        limit: 20,
-        totalPages: 1,
+        data: mockDossiers,
+        meta: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
       });
+    });
+
+    it('should combine own and team visibility filters for a team-scoped user', async () => {
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([[], 0]);
+      const teamUser = {
+        ...mockUserPayload,
+        id: 'team-user-uuid',
+        departmentId: 'department-uuid',
+        permissions: ['dossier.view.team'],
+      } as unknown as CurrentUserPayload;
+
+      await service.findAll(teamUser, { page: 1, limit: 20 });
+
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('salesUser.departmentId'),
+        { departmentId: 'department-uuid' },
+      );
     });
   });
 
@@ -131,6 +150,40 @@ describe('DossiersService', () => {
         },
       });
       expect(result).toEqual(mockDossier);
+    });
+
+    it('should remove passwordHash from assigned users in the response', async () => {
+      const dossierWithUsers = {
+        ...mockDossier,
+        salesUser: {
+          id: 'sales-id',
+          fullName: 'Sales',
+          passwordHash: 'secret',
+        },
+        operatorUser: {
+          id: 'operator-id',
+          fullName: 'Operator',
+          passwordHash: 'secret',
+        },
+      } as unknown as Dossier;
+      repository.findOne.mockResolvedValue(dossierWithUsers);
+
+      const result = await service.findOne(mockUserPayload, 'dossier-uuid');
+
+      expect((result.salesUser as any).passwordHash).toBeUndefined();
+      expect((result.operatorUser as any).passwordHash).toBeUndefined();
+    });
+
+    it('should reject a user who has update permission but no dossier view scope', async () => {
+      repository.findOne.mockResolvedValue(mockDossier);
+      const updateOnlyUser = {
+        ...mockUserPayload,
+        permissions: ['dossier.update'],
+      };
+
+      await expect(
+        service.findOne(updateOnlyUser, 'dossier-uuid'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw NotFoundException if dossier is not found', async () => {
@@ -267,6 +320,163 @@ describe('DossiersService', () => {
       );
       expect(result.data).toHaveLength(1);
       expect((result.data[0].user as any).passwordHash).toBeUndefined();
+    });
+
+    it('should apply pagination and search when queryDto is provided', async () => {
+      repository.findOne.mockResolvedValue(mockDossier);
+      const mockComments = [
+        {
+          id: 'comment-1',
+          content: 'Hello search',
+          user: { id: 'u1', fullName: 'Nguyen A' },
+        },
+      ];
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([mockComments, 1]);
+
+      const queryDto: QueryCommentDto = {
+        page: 1,
+        pageSize: 10,
+        search: 'Hello',
+      };
+
+      const result = await service.findComments(
+        mockUserPayload,
+        'dossier-uuid',
+        queryDto,
+      );
+
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        'comment.content ILIKE :search',
+        { search: '%Hello%' },
+      );
+      expect(result.data).toHaveLength(1);
+      expect(result.meta).toEqual({
+        page: 1,
+        pageSize: 10,
+        total: 1,
+        totalPages: 1,
+      });
+    });
+  });
+
+  describe('createComment (API-COMMENT-002)', () => {
+    it('should create and return comment with sanitized user details', async () => {
+      repository.findOne.mockResolvedValue(mockDossier);
+      const savedComment = {
+        id: 'new-comm-uuid',
+        content: 'Bình luận thử nghiệm',
+        dossierId: 'dossier-uuid',
+        organizationId: 'org-uuid',
+      };
+      commentRepository.save.mockResolvedValue(savedComment as any);
+      commentRepository.findOne.mockResolvedValue({
+        ...savedComment,
+        user: {
+          id: 'user-uuid',
+          fullName: 'Test User',
+          passwordHash: 'secret123',
+          refreshTokenHash: 'refreshSecret',
+        },
+      } as any);
+
+      const createDto: CreateCommentDto = {
+        content: 'Bình luận thử nghiệm',
+      };
+
+      const result = await service.createComment(
+        mockUserPayload,
+        'dossier-uuid',
+        createDto,
+      );
+
+      expect(commentRepository.create).toHaveBeenCalled();
+      expect(commentRepository.save).toHaveBeenCalled();
+      expect(result.data.id).toEqual('new-comm-uuid');
+      expect((result.data.user as any).passwordHash).toBeUndefined();
+      expect((result.data.user as any).refreshTokenHash).toBeUndefined();
+    });
+
+    it('should create reply comment when valid parentId is provided', async () => {
+      repository.findOne.mockResolvedValue(mockDossier);
+      const parentComment = {
+        id: 'parent-comm-uuid',
+        content: 'Parent comment',
+        dossierId: 'dossier-uuid',
+        organizationId: 'org-uuid',
+      };
+      commentRepository.findOne
+        .mockResolvedValueOnce(parentComment as any) // check parentId
+        .mockResolvedValueOnce({
+          id: 'child-comm-uuid',
+          content: 'Child comment',
+          parentId: 'parent-comm-uuid',
+        } as any); // fetch with user
+
+      commentRepository.save.mockResolvedValue({
+        id: 'child-comm-uuid',
+        parentId: 'parent-comm-uuid',
+      } as any);
+
+      const createDto: CreateCommentDto = {
+        content: 'Child comment',
+        parentId: 'parent-comm-uuid',
+      };
+
+      const result = await service.createComment(
+        mockUserPayload,
+        'dossier-uuid',
+        createDto,
+      );
+
+      expect(commentRepository.findOne).toHaveBeenCalledWith({
+        where: {
+          id: 'parent-comm-uuid',
+          dossierId: 'dossier-uuid',
+          organizationId: 'org-uuid',
+        },
+      });
+      expect(result.data.id).toEqual('child-comm-uuid');
+    });
+
+    it('should throw BadRequestException if dossier is LOCKED', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        status: DossierStatus.LOCKED,
+      });
+
+      const createDto: CreateCommentDto = {
+        content: 'Test on locked dossier',
+      };
+
+      await expect(
+        service.createComment(mockUserPayload, 'dossier-uuid', createDto),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw NotFoundException if parent comment is not found', async () => {
+      repository.findOne.mockResolvedValue(mockDossier);
+      commentRepository.findOne.mockResolvedValue(null);
+
+      const createDto: CreateCommentDto = {
+        content: 'Test reply',
+        parentId: 'non-existent-parent',
+      };
+
+      await expect(
+        service.createComment(mockUserPayload, 'dossier-uuid', createDto),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should reject a comment containing only whitespace', async () => {
+      repository.findOne.mockResolvedValue(mockDossier);
+
+      await expect(
+        service.createComment(mockUserPayload, 'dossier-uuid', {
+          content: '   ',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(commentRepository.create).not.toHaveBeenCalled();
     });
   });
 });

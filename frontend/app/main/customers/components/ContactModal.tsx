@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import { Modal, Form, Input, Switch, message } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { customersService } from '@/services/customers.service';
+import { queryKeys } from '@/lib/query-keys';
 import { CustomerContact, CreateContactInput } from '@/types/customer';
 
 interface ContactModalProps {
@@ -47,8 +48,8 @@ export const ContactModal: React.FC<ContactModalProps> = ({
       customersService.createContact(customerId, values),
     onSuccess: () => {
       message.success('Thêm người liên hệ thành công');
-      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
-      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.detail(customerId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.all });
       onSuccess();
     },
     onError: (error: any) => {
@@ -63,8 +64,8 @@ export const ContactModal: React.FC<ContactModalProps> = ({
       customersService.updateContact(customerId, contact!.id!, values),
     onSuccess: () => {
       message.success('Cập nhật người liên hệ thành công');
-      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
-      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.detail(customerId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.all });
       onSuccess();
     },
     onError: (error: any) => {
@@ -96,9 +97,10 @@ export const ContactModal: React.FC<ContactModalProps> = ({
       onOk={handleOk}
       onCancel={onCancel}
       confirmLoading={isLoading}
+      forceRender
       okText={isEditing ? 'Lưu thay đổi' : 'Thêm liên hệ'}
       cancelText="Hủy"
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" preserve={false}>
         <Form.Item

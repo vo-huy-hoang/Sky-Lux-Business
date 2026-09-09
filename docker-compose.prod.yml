@@ -26,28 +26,8 @@ services:
     expose:
       - "3001"
 
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-      redis:
-        condition: service_healthy
-
-    networks:
-      - skylux
-
-
-  worker:
-    image: ghcr.io/${REGISTRY_OWNER:-YOUR_ORG}/skylux-backend:${APP_VERSION:-latest}
-
-    restart: unless-stopped
-
-    env_file:
-      - .env
-
-    command:
-      - node
-      - dist/worker.js
+    volumes:
+      - skylux_uploads:/app/uploads
 
     depends_on:
       postgres:
@@ -147,6 +127,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  skylux_uploads:
 
 
 

@@ -3,32 +3,49 @@
 import React, { useEffect } from 'react';
 import { Modal, Card, Checkbox, Row, Col, Space, Button, message } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { rbacService } from '@/services/rbac.service';
+import { PermissionItem, rbacService } from '@/services/rbac.service';
 import { useRbacStore } from '../store';
+import { useShallow } from 'zustand/react/shallow';
+import { queryKeys } from '@/lib/query-keys';
 
 export default function PermissionMatrixModal() {
   const queryClient = useQueryClient();
-
   const {
     isPermModalOpen,
     selectedRoleForPerms,
     selectedPermCodes,
     setSelectedPermCodes,
     closePermModal,
-  } = useRbacStore();
+  } = useRbacStore(
+    useShallow((s) => ({
+      isPermModalOpen: s.isPermModalOpen,
+      selectedRoleForPerms: s.selectedRoleForPerms,
+      selectedPermCodes: s.selectedPermCodes,
+      setSelectedPermCodes: s.setSelectedPermCodes,
+      closePermModal: s.closePermModal,
+    })),
+  );
+
 
   // 1. Fetch All Permissions
   const { data: permsData } = useQuery({
-    queryKey: ['permissions'],
-    queryFn: () => rbacService.getPermissions({ limit: 150 }),
+    queryKey: queryKeys.users.permissions(),
+    queryFn: ({ signal }) => rbacService.getPermissions({ limit: 150 }, { signal }),
   });
-  const permissionsByModule = permsData?.modules || {};
+  const permissionsByModule = (permsData || []).reduce<Record<string, PermissionItem[]>>(
+    (groups, permission) => {
+      const moduleName = permission.module || 'OTHER';
+      groups[moduleName] = [...(groups[moduleName] || []), permission];
+      return groups;
+    },
+    {},
+  );
 
   // 2. Fetch Detailed Role Permissions
   const selectedRoleId = selectedRoleForPerms?.id;
   const { data: detailedRole } = useQuery({
-    queryKey: ['role-details', selectedRoleId],
-    queryFn: () => rbacService.getRole(selectedRoleId!),
+    queryKey: queryKeys.users.roleDetail(selectedRoleId || undefined),
+    queryFn: ({ signal }) => rbacService.getRole(selectedRoleId!, { signal }),
     enabled: !!selectedRoleId,
   });
 
@@ -42,17 +59,29 @@ export default function PermissionMatrixModal() {
 
   const assignPermsMutation = useMutation({
     mutationFn: async ({ roleId, codes }: { roleId: string; codes: string[] }) => {
-      return rbacService.assignRolePermissions(roleId, codes);
+      const permissionsByCode = new Map(
+        (permsData || []).map((permission) => [permission.code, permission]),
+      );
+      return rbacService.assignRolePermissions(
+        roleId,
+        codes.flatMap((code) => {
+          const permission = permissionsByCode.get(code);
+          return permission
+            ? [{ permissionId: permission.id, scope: 'ALL' as const }]
+            : [];
+        }),
+      );
     },
     onSuccess: () => {
       message.success('Cập nhật quyền cho vai trò thành công');
       closePermModal();
-      queryClient.invalidateQueries({ queryKey: ['roles'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.roles() });
     },
     onError: (err: any) => {
       message.error(err.message || 'Lỗi khi gán quyền');
     },
   });
+
 
   return (
     <Modal
@@ -80,7 +109,7 @@ export default function PermissionMatrixModal() {
       okText="Lưu danh sách quyền"
       cancelText="Đóng"
       width={900}
-      destroyOnClose
+      destroyOnHidden
     >
       <div className="py-2 max-h-[65vh] overflow-y-auto pr-2 space-y-6">
         <div className="flex justify-between items-center bg-blue-50 p-3 rounded-xl border border-blue-100">

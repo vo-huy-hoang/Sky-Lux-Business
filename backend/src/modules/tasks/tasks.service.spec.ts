@@ -6,17 +6,24 @@ import { TasksService } from './tasks.service';
 import { Task } from './entities/task.entity';
 import { TaskChecklistItem } from './entities/task-checklist-item.entity';
 import { DossiersService } from '../dossiers/dossiers.service';
+import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { QueryTaskDto } from './dto/query-task.dto';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskStatus } from '../../common/enums';
+import { RedisService } from '../../common/redis/redis.service';
+import { DataSource } from 'typeorm';
 
 describe('TasksService', () => {
   let service: TasksService;
   let taskRepository: jest.Mocked<Repository<Task>>;
   let checklistItemRepository: jest.Mocked<Repository<TaskChecklistItem>>;
   let dossiersService: jest.Mocked<DossiersService>;
+  let notificationsService: any;
+  let redisService: jest.Mocked<RedisService>;
+  let dataSource: jest.Mocked<DataSource>;
 
   const mockUserPayload = {
     id: 'user-uuid',
@@ -48,6 +55,18 @@ describe('TasksService', () => {
     findOne: jest.fn(),
   };
 
+  const mockRedisService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delByPattern: jest.fn(),
+  };
+
+  const mockDataSource = {
+    transaction: jest
+      .fn()
+      .mockImplementation((cb) => cb({ save: jest.fn((e) => e) })),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -73,6 +92,20 @@ describe('TasksService', () => {
           provide: DossiersService,
           useValue: mockDossiersService,
         },
+        {
+          provide: NotificationsService,
+          useValue: {
+            notify: jest.fn().mockResolvedValue({}),
+          },
+        },
+        {
+          provide: RedisService,
+          useValue: mockRedisService,
+        },
+        {
+          provide: DataSource,
+          useValue: mockDataSource,
+        },
       ],
     }).compile();
 
@@ -80,6 +113,9 @@ describe('TasksService', () => {
     taskRepository = module.get(getRepositoryToken(Task));
     checklistItemRepository = module.get(getRepositoryToken(TaskChecklistItem));
     dossiersService = module.get(DossiersService);
+    notificationsService = module.get(NotificationsService);
+    redisService = module.get(RedisService);
+    dataSource = module.get(DataSource);
   });
 
   afterEach(() => {
@@ -101,13 +137,9 @@ describe('TasksService', () => {
         'task.organizationId = :organizationId',
         { organizationId: 'org-uuid' },
       );
-      expect(result).toEqual({
-        items: [mockTask],
-        total: 1,
-        page: 1,
-        limit: 20,
-        totalPages: 1,
-      });
+      expect(result.data).toBeDefined();
+      expect(result.data.length).toBe(1);
+      expect(result.meta.total).toEqual(1);
     });
   });
 
@@ -128,7 +160,7 @@ describe('TasksService', () => {
           checklistItems: { sortOrder: 'ASC' },
         },
       });
-      expect(result).toEqual(mockTask);
+      expect(result.data.id).toEqual(mockTask.id);
     });
 
     it('should throw NotFoundException if not found', async () => {
@@ -158,9 +190,35 @@ describe('TasksService', () => {
 
       const result = await service.create(mockUserPayload, createDto);
 
-      expect(result.progressPercent).toEqual(50);
-      expect(result.status).toEqual(TaskStatus.IN_PROGRESS);
-      expect(taskRepository.save).toHaveBeenCalled();
+      expect(result.data.progressPercent).toEqual(50);
+      expect(result.data.status).toEqual(TaskStatus.IN_PROGRESS);
+      expect(redisService.delByPattern).toHaveBeenCalled();
+    });
+
+    it('should dispatch notification when task is assigned to another user', async () => {
+      dossiersService.findOne.mockResolvedValue({ id: 'dossier-uuid' } as any);
+      taskRepository.save.mockImplementation((entity) =>
+        Promise.resolve({
+          ...entity,
+          id: 'task-1',
+          assignedTo: 'other-user-uuid',
+        } as any),
+      );
+
+      const createDto: CreateTaskDto = {
+        title: 'Book Flight',
+        assignedTo: 'other-user-uuid',
+      };
+
+      await service.create(mockUserPayload, createDto);
+
+      expect(notificationsService.notify).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'other-user-uuid',
+          type: 'TASK',
+          title: expect.stringContaining('Book Flight'),
+        }),
+      );
     });
   });
 
@@ -189,9 +247,9 @@ describe('TasksService', () => {
         updateDto,
       );
 
-      expect(result.progressPercent).toEqual(100);
-      expect(result.status).toEqual(TaskStatus.COMPLETED);
-      expect(result.completedAt).toBeDefined();
+      expect(result.data.progressPercent).toEqual(100);
+      expect(result.data.status).toEqual(TaskStatus.COMPLETED);
+      expect(result.data.completedAt).toBeDefined();
     });
   });
 

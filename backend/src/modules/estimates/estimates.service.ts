@@ -63,12 +63,51 @@ export class EstimatesService {
     const [items, total] = await queryBuilder.getManyAndCount();
     const totalPages = Math.ceil(total / limit);
 
+    if (items.length > 0) {
+      const estimateIds = items.map((e) => e.id);
+
+      const [revenueAgg, costAgg] = await Promise.all([
+        this.revenueLineRepository
+          .createQueryBuilder('line')
+          .select('line.estimateId', 'estimateId')
+          .addSelect('COALESCE(SUM(line.netAmount), 0)', 'totalRevenue')
+          .where('line.estimateId IN (:...estimateIds)', { estimateIds })
+          .groupBy('line.estimateId')
+          .getRawMany(),
+        this.costLineRepository
+          .createQueryBuilder('line')
+          .select('line.estimateId', 'estimateId')
+          .addSelect('COALESCE(SUM(line.netAmount), 0)', 'totalCost')
+          .where('line.estimateId IN (:...estimateIds)', { estimateIds })
+          .groupBy('line.estimateId')
+          .getRawMany(),
+      ]);
+
+      const revMap = new Map(
+        revenueAgg.map((r) => [r.estimateId, Number(r.totalRevenue)]),
+      );
+      const costMap = new Map(
+        costAgg.map((c) => [c.estimateId, Number(c.totalCost)]),
+      );
+
+      items.forEach((item) => {
+        const totalRevenue = revMap.get(item.id) || 0;
+        const totalCost = costMap.get(item.id) || 0;
+        const totalProfit = totalRevenue - totalCost;
+        (item as any).totalRevenue = totalRevenue;
+        (item as any).totalCost = totalCost;
+        (item as any).totalProfit = totalProfit;
+      });
+    }
+
     return {
-      items,
-      total,
-      page,
-      limit,
-      totalPages,
+      data: items,
+      meta: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages,
+      },
     };
   }
 
@@ -131,11 +170,18 @@ export class EstimatesService {
     });
 
     const processedCostLines = costLines.map((line) => {
-      const netAmount =
+      const calculatedNetAmount =
         Number(line.quantity || 1) *
         Number(line.multiplier || 1) *
         Number(line.unitPrice || 0);
-      const grossAmount = netAmount * (1 + Number(line.vatRate || 0) / 100);
+      const importedAmount = Number(line.sourceAmount);
+      const hasImportedAmount = Number.isFinite(importedAmount);
+      const netAmount = hasImportedAmount
+        ? importedAmount
+        : calculatedNetAmount;
+      const grossAmount = hasImportedAmount
+        ? importedAmount
+        : calculatedNetAmount * (1 + Number(line.vatRate || 0) / 100);
       return this.costLineRepository.create({
         ...line,
         organizationId,
@@ -247,11 +293,18 @@ export class EstimatesService {
 
       // Update or create input lines
       estimate.costLines = costLines.map((line) => {
-        const netAmount =
+        const calculatedNetAmount =
           Number(line.quantity || 1) *
           Number(line.multiplier || 1) *
           Number(line.unitPrice || 0);
-        const grossAmount = netAmount * (1 + Number(line.vatRate || 0) / 100);
+        const importedAmount = Number(line.sourceAmount);
+        const hasImportedAmount = Number.isFinite(importedAmount);
+        const netAmount = hasImportedAmount
+          ? importedAmount
+          : calculatedNetAmount;
+        const grossAmount = hasImportedAmount
+          ? importedAmount
+          : calculatedNetAmount * (1 + Number(line.vatRate || 0) / 100);
 
         if (line.id) {
           const existing = estimate.costLines.find((el) => el.id === line.id);

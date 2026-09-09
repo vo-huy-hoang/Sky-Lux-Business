@@ -15,6 +15,8 @@ import { EstimateCostLine } from './estimate-cost-line.entity';
 import { EstimateStatus } from '../../../common/enums';
 
 @Entity('estimates')
+@Index('idx_estimates_dossier_status', ['dossierId', 'status'])
+@Index('idx_estimates_status_approved', ['status', 'approvedAt'])
 export class Estimate extends BaseEntity {
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;

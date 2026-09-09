@@ -15,6 +15,7 @@ import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
 import { QueryDossierDto } from '../dossiers/dto/query-dossier.dto';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
+import { toPublicUser } from '../../common/utils/public-user';
 
 @Injectable()
 export class CustomersService {
@@ -63,11 +64,18 @@ export class CustomersService {
     const totalPages = Math.ceil(total / limit);
 
     return {
-      items,
-      total,
-      page,
-      limit,
-      totalPages,
+      data: items.map((customer) => {
+        customer.assignedSales = toPublicUser(
+          customer.assignedSales,
+        ) as typeof customer.assignedSales;
+        return customer;
+      }),
+      meta: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages,
+      },
     };
   }
 
@@ -83,6 +91,9 @@ export class CustomersService {
       );
     }
 
+    customer.assignedSales = toPublicUser(
+      customer.assignedSales,
+    ) as typeof customer.assignedSales;
     return customer;
   }
 
@@ -299,6 +310,8 @@ export class CustomersService {
       .leftJoinAndSelect('dossier.operatorUser', 'operatorUser')
       .leftJoinAndSelect('dossier.businessLine', 'businessLine')
       .leftJoinAndSelect('dossier.marketType', 'marketType')
+      .leftJoinAndSelect('dossier.estimates', 'estimates')
+      .leftJoinAndSelect('estimates.revenueLines', 'revenueLines')
       .where('dossier.organizationId = :organizationId', { organizationId })
       .andWhere('dossier.customerId = :customerId', { customerId });
 
@@ -323,8 +336,33 @@ export class CustomersService {
     const [items, total] = await queryBuilder.getManyAndCount();
     const totalPages = Math.ceil(total / limit);
 
+    // Compute totalRevenue for each estimate in dossiers
+    const enrichedItems = items.map((item) => {
+      if (item.estimates && item.estimates.length > 0) {
+        const enrichedEstimates = item.estimates.map((est) => {
+          const totalRev = (est.revenueLines || []).reduce((acc, line) => {
+            const lineGross = Number(line.grossAmount) || 0;
+            const lineSubtotal =
+              (Number(line.quantity) || 0) *
+              (Number(line.multiplier) || 1) *
+              (Number(line.unitPrice) || 0);
+            return acc + (lineGross > 0 ? lineGross : lineSubtotal);
+          }, 0);
+          return {
+            ...est,
+            totalRevenue: totalRev,
+          };
+        });
+        return {
+          ...item,
+          estimates: enrichedEstimates,
+        };
+      }
+      return item;
+    });
+
     return {
-      data: items,
+      data: enrichedItems,
       meta: {
         page,
         pageSize: limit,

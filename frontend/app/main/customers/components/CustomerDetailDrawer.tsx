@@ -31,6 +31,7 @@ import { customersService } from '@/services/customers.service';
 import { CustomerItem, CustomerContact } from '@/types/customer';
 import { DossierItem } from '@/types/dossier';
 import { ContactModal } from './ContactModal';
+import { queryKeys } from '@/lib/query-keys';
 
 const { Text } = Typography;
 
@@ -53,9 +54,10 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
   const [dossierPage, setDossierPage] = useState(1);
 
   // 1. Fetch chi tiết khách hàng (API-CUSTOMER-002)
+
   const { data: customer, isLoading: isLoadingCustomer } = useQuery<CustomerItem>({
-    queryKey: ['customer', customerId],
-    queryFn: () => customersService.getCustomer(customerId!),
+    queryKey: queryKeys.customers.detail(customerId || undefined),
+    queryFn: ({ signal }) => customersService.getCustomer(customerId!, { signal }),
     enabled: !!customerId && visible,
   });
 
@@ -64,12 +66,16 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
     data: DossierItem[];
     meta: { page: number; pageSize: number; total: number; totalPages: number };
   }>({
-    queryKey: ['customer-dossiers', customerId, dossierPage],
-    queryFn: () =>
-      customersService.getCustomerDossiers(customerId!, {
-        page: dossierPage,
-        limit: 10,
-      }),
+    queryKey: queryKeys.dossiers.list({ customerId: customerId || undefined, page: dossierPage, limit: 10 }),
+    queryFn: ({ signal }) =>
+      customersService.getCustomerDossiers(
+        customerId!,
+        {
+          page: dossierPage,
+          limit: 10,
+        },
+        { signal },
+      ),
     enabled: !!customerId && visible,
   });
 
@@ -79,8 +85,8 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
       customersService.deleteContact(customerId!, contactId),
     onSuccess: () => {
       message.success('Đã xóa người liên hệ');
-      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
-      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.detail(customerId || undefined) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.all });
     },
     onError: (err: any) => {
       message.error(
@@ -88,6 +94,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
       );
     },
   });
+
 
   const handleOpenCreateContact = () => {
     setSelectedContact(null);
@@ -105,7 +112,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
       dataIndex: 'name',
       key: 'name',
       render: (name: string, record: CustomerContact) => (
-        <Space direction="vertical" size={2}>
+        <div className="flex flex-col gap-0.5">
           <Space>
             <Text strong>{name}</Text>
             {record.isPrimary && (
@@ -119,14 +126,14 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
               {record.position}
             </Text>
           )}
-        </Space>
+        </div>
       ),
     },
     {
       title: 'Liên hệ',
       key: 'contactInfo',
       render: (_: any, record: CustomerContact) => (
-        <Space direction="vertical" size={2}>
+        <div className="flex flex-col gap-0.5">
           {record.phone && (
             <Text>
               <PhoneOutlined /> {record.phone}
@@ -137,7 +144,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
               <MailOutlined /> {record.email}
             </Text>
           )}
-        </Space>
+        </div>
       ),
     },
     {
@@ -215,7 +222,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
       title: 'Sales phụ trách',
       key: 'sales',
       render: (_: any, record: DossierItem) => (
-        <span>{record.salesUser?.fullName || '—'}</span>
+        <span>{record.salesUser?.fullName || '-'}</span>
       ),
     },
     {
@@ -223,7 +230,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
       dataIndex: 'createdAt',
       key: 'createdAt',
       render: (date: string) =>
-        date ? new Date(date).toLocaleDateString('vi-VN') : '—',
+        date ? new Date(date).toLocaleDateString('vi-VN') : '-',
     },
   ];
 
@@ -237,7 +244,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
         </Space>
       }
       placement="right"
-      width={720}
+      styles={{ wrapper: { width: 720, maxWidth: '100vw' } }}
       open={visible}
       onClose={onClose}
       loading={isLoadingCustomer}
@@ -272,7 +279,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
                   {customer.displayName}
                 </Descriptions.Item>
                 <Descriptions.Item label="Mã số thuế">
-                  {customer.taxCode || '—'}
+                  {customer.taxCode || '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Trạng thái">
                   <Tag
@@ -282,13 +289,18 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
                   </Tag>
                 </Descriptions.Item>
                 <Descriptions.Item label="Số điện thoại">
-                  {customer.phone || '—'}
+                  {customer.phone || '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Email">
-                  {customer.email || '—'}
+                  {customer.email || '-'}
                 </Descriptions.Item>
-                <Descriptions.Item label="Địa chỉ" span={2}>
-                  {customer.address || '—'}
+                <Descriptions.Item label="Ngày sinh nhật">
+                  {customer.dateOfBirth
+                    ? new Date(customer.dateOfBirth).toLocaleDateString('vi-VN')
+                    : '-'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Địa chỉ">
+                  {customer.address || '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Sales phụ trách" span={2}>
                   {customer.assignedSales?.fullName ? (
@@ -300,7 +312,7 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
                       </Text>
                     </Space>
                   ) : (
-                    '—'
+                    '-'
                   )}
                 </Descriptions.Item>
                 <Descriptions.Item label="Ngày tạo">

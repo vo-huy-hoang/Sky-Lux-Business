@@ -19,25 +19,31 @@ import {
   IdcardOutlined,
   PictureOutlined,
 } from '@ant-design/icons';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersService } from '@/services/users.service';
-import { rbacService } from '@/services/rbac.service';
 import { useRbacStore } from '../store';
-import { UserStatus } from '@/types/user';
+import { useShallow } from 'zustand/react/shallow';
+import { queryKeys } from '@/lib/query-keys';
+import { useUserRoles } from '@/hooks/use-users';
+
 
 export default function UserModal() {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
 
-  const { isUserModalOpen, editingUser, closeUserModal } = useRbacStore();
+  const { isUserModalOpen, editingUser, closeUserModal } = useRbacStore(
+    useShallow((s) => ({
+      isUserModalOpen: s.isUserModalOpen,
+      editingUser: s.editingUser,
+      closeUserModal: s.closeUserModal,
+    })),
+  );
   const isEditing = !!editingUser;
 
+
   // 1. Fetch Roles for Selection
-  const { data: rolesData } = useQuery({
-    queryKey: ['roles', ''],
-    queryFn: () => rbacService.getRoles({ search: '' }),
-  });
-  const roles = rolesData?.items || [];
+  const { data: rolesData } = useUserRoles('');
+  const roles = rolesData || [];
 
   // Reset/Set Form Values on Open
   useEffect(() => {
@@ -58,30 +64,26 @@ export default function UserModal() {
         form.resetFields();
         form.setFieldsValue({
           status: 'ACTIVE',
+          roleIds: [],
         });
       }
     }
   }, [isUserModalOpen, editingUser, form]);
 
-  // Mutation: Create or Update User
+  // 2. Create or Update User Mutation
   const saveUserMutation = useMutation({
-    mutationFn: async (values: any) => {
-      const payload: any = {
-        fullName: values.fullName?.trim(),
-        email: values.email?.trim(),
-        phone: values.phone?.trim() || undefined,
-        avatarUrl: values.avatarUrl?.trim() || undefined,
+    mutationFn: (values: any) => {
+      const payload = {
+        fullName: values.fullName,
+        email: values.email,
+        employeeCode: values.employeeCode,
+        phone: values.phone,
+        avatarUrl: values.avatarUrl,
+        departmentId: values.departmentId,
         roleIds: values.roleIds,
-        status: values.status as UserStatus,
+        status: values.status,
+        ...(values.password ? { password: values.password } : {}),
       };
-
-      if (values.employeeCode?.trim()) {
-        payload.employeeCode = values.employeeCode.trim();
-      }
-
-      if (values.password?.trim()) {
-        payload.password = values.password.trim();
-      }
 
       if (isEditing && editingUser) {
         return usersService.updateUser(editingUser.id, payload);
@@ -96,7 +98,7 @@ export default function UserModal() {
           : 'Tạo người dùng mới thành công',
       );
       closeUserModal();
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
     },
     onError: (err: any) => {
       message.error(err.message || 'Có lỗi xảy ra khi lưu người dùng');
@@ -125,7 +127,8 @@ export default function UserModal() {
       okText={isEditing ? 'Lưu thay đổi' : 'Tạo mới'}
       cancelText="Hủy"
       width={720}
-      destroyOnClose
+      forceRender
+      destroyOnHidden
       okButtonProps={{ className: 'bg-[#0A2540] hover:bg-[#133E68] border-none' }}
     >
       <Form
@@ -226,9 +229,9 @@ export default function UserModal() {
             >
               <Select
                 options={[
-                  { label: '🟢 Hoạt động (ACTIVE)', value: 'ACTIVE' },
-                  { label: '⚪ Chưa kích hoạt (INACTIVE)', value: 'INACTIVE' },
-                  { label: '🔴 Đang bị khóa (LOCKED)', value: 'LOCKED' },
+                  { label: 'Hoạt động (ACTIVE)', value: 'ACTIVE' },
+                  { label: 'Chưa kích hoạt (INACTIVE)', value: 'INACTIVE' },
+                  { label: 'Đang bị khóa (LOCKED)', value: 'LOCKED' },
                 ]}
               />
             </Form.Item>

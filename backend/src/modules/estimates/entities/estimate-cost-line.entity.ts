@@ -8,6 +8,7 @@ import { Unit } from '../../master-data/entities/unit.entity';
 
 @Entity('estimate_cost_lines')
 @Index('idx_cost_lines_supplier', ['organizationId', 'supplierId'])
+@Index('idx_cost_lines_estimate_id', ['estimateId'])
 export class EstimateCostLine extends BaseEntity {
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;

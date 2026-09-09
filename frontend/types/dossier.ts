@@ -11,10 +11,33 @@ export interface DossierComment {
   dossierId: string;
   userId: string;
   content: string;
-  parentId?: string;
+  parentId?: string | null;
   createdAt: string;
   updatedAt: string;
   user?: DossierCommentUser;
+}
+
+export interface DossierCommentsMeta {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface DossierCommentsResponse {
+  data: DossierComment[];
+  meta: DossierCommentsMeta;
+}
+
+export interface CreateCommentPayload {
+  content: string;
+  parentId?: string;
+}
+
+export interface QueryCommentParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
 }
 
 export interface DossierItem {
@@ -35,6 +58,7 @@ export interface DossierItem {
     id: string;
     code: string;
     displayName: string;
+    taxCode?: string;
   };
   salesUser?: {
     id: string;
@@ -46,6 +70,12 @@ export interface DossierItem {
     fullName: string;
     email: string;
   };
+  estimates?: Array<{
+    id?: string;
+    totalRevenue?: number;
+    totalCost?: number;
+    netProfit?: number;
+  }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -56,4 +86,15 @@ export interface QueryDossierParams {
   search?: string;
   status?: string;
   priority?: string;
+  salesUserId?: string;
+}
+
+export interface PaginatedDossiersResponse {
+  data: DossierItem[];
+  meta: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 }

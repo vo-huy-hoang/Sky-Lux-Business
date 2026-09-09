@@ -4,6 +4,8 @@ import { NotFoundException, ConflictException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { SuppliersService } from './suppliers.service';
 import { Supplier } from './entities/supplier.entity';
+import { SupplierType } from './entities/supplier-type.entity';
+import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { QuerySupplierDto } from './dto/query-supplier.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
@@ -11,7 +13,9 @@ import { UpdateSupplierDto } from './dto/update-supplier.dto';
 
 describe('SuppliersService', () => {
   let service: SuppliersService;
-  let repository: jest.Mocked<Repository<Supplier>>;
+  let supplierRepository: jest.Mocked<Repository<Supplier>>;
+  let supplierTypeRepository: jest.Mocked<Repository<SupplierType>>;
+  let estimateCostLineRepository: jest.Mocked<Repository<EstimateCostLine>>;
 
   const mockUserPayload = {
     id: 'user-uuid',
@@ -26,7 +30,14 @@ describe('SuppliersService', () => {
     name: 'ABC Supplier',
     organizationId: 'org-uuid',
     status: 'ACTIVE',
+    supplierTypeId: 'st-uuid',
   } as unknown as Supplier;
+
+  const mockSupplierType = {
+    id: 'st-uuid',
+    code: 'HOTEL',
+    name: 'Khách sạn',
+  } as unknown as SupplierType;
 
   const mockQueryBuilder = {
     leftJoinAndSelect: jest.fn().mockReturnThis(),
@@ -46,6 +57,14 @@ describe('SuppliersService', () => {
     softRemove: jest.fn(),
   };
 
+  const mockSupplierTypeRepository = {
+    findOne: jest.fn(),
+  };
+
+  const mockEstimateCostLineRepository = {
+    count: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -54,13 +73,23 @@ describe('SuppliersService', () => {
           provide: getRepositoryToken(Supplier),
           useValue: mockSupplierRepository,
         },
+        {
+          provide: getRepositoryToken(SupplierType),
+          useValue: mockSupplierTypeRepository,
+        },
+        {
+          provide: getRepositoryToken(EstimateCostLine),
+          useValue: mockEstimateCostLineRepository,
+        },
       ],
     }).compile();
 
     service = module.get<SuppliersService>(SuppliersService);
-    repository = module.get<Repository<Supplier>>(
-      getRepositoryToken(Supplier),
-    ) as jest.Mocked<Repository<Supplier>>;
+    supplierRepository = module.get(getRepositoryToken(Supplier));
+    supplierTypeRepository = module.get(getRepositoryToken(SupplierType));
+    estimateCostLineRepository = module.get(
+      getRepositoryToken(EstimateCostLine),
+    );
   });
 
   afterEach(() => {
@@ -80,28 +109,57 @@ describe('SuppliersService', () => {
         new QuerySupplierDto(),
       );
 
-      expect(repository.createQueryBuilder).toHaveBeenCalledWith('supplier');
+      expect(supplierRepository.createQueryBuilder).toHaveBeenCalledWith(
+        'supplier',
+      );
       expect(mockQueryBuilder.where).toHaveBeenCalledWith(
         'supplier.organizationId = :organizationId',
         { organizationId: 'org-uuid' },
       );
       expect(result).toEqual({
-        items: [mockSupplier],
-        total: 1,
-        page: 1,
-        limit: 20,
-        totalPages: 1,
+        data: [mockSupplier],
+        meta: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
       });
+    });
+
+    it('should filter by search, status, and supplierTypeId', async () => {
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([[mockSupplier], 1]);
+
+      const queryDto: QuerySupplierDto = {
+        page: 2,
+        limit: 10,
+        pageSize: 10,
+        search: 'ABC',
+        status: 'ACTIVE',
+        supplierTypeId: 'st-uuid',
+      };
+
+      const result = await service.findAll(mockUserPayload, queryDto);
+
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        'supplier.status = :status',
+        { status: 'ACTIVE' },
+      );
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        'supplier.supplierTypeId = :supplierTypeId',
+        { supplierTypeId: 'st-uuid' },
+      );
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        '(supplier.code ILIKE :keyword OR supplier.name ILIKE :keyword OR supplier.phone ILIKE :keyword OR supplier.email ILIKE :keyword OR supplier.taxCode ILIKE :keyword OR supplier.contactName ILIKE :keyword)',
+        { keyword: '%ABC%' },
+      );
+      expect(result.meta.page).toEqual(2);
+      expect(result.meta.pageSize).toEqual(10);
     });
   });
 
   describe('findOne', () => {
     it('should return supplier if found and belongs to same organizationId', async () => {
-      repository.findOne.mockResolvedValue(mockSupplier);
+      supplierRepository.findOne.mockResolvedValue(mockSupplier);
 
       const result = await service.findOne(mockUserPayload, 'sup-uuid');
 
-      expect(repository.findOne).toHaveBeenCalledWith({
+      expect(supplierRepository.findOne).toHaveBeenCalledWith({
         where: { id: 'sup-uuid', organizationId: 'org-uuid' },
         relations: { supplierType: true },
       });
@@ -109,7 +167,7 @@ describe('SuppliersService', () => {
     });
 
     it('should throw NotFoundException if not found', async () => {
-      repository.findOne.mockResolvedValue(null);
+      supplierRepository.findOne.mockResolvedValue(null);
 
       await expect(
         service.findOne(mockUserPayload, 'invalid-uuid'),
@@ -119,7 +177,7 @@ describe('SuppliersService', () => {
 
   describe('create', () => {
     it('should throw ConflictException if supplier code already exists in organization', async () => {
-      repository.findOne.mockResolvedValue(mockSupplier);
+      supplierRepository.findOne.mockResolvedValue(mockSupplier);
 
       const createDto: CreateSupplierDto = {
         code: 'SUP001',
@@ -131,30 +189,54 @@ describe('SuppliersService', () => {
       );
     });
 
-    it('should create and save supplier successfully', async () => {
-      repository.findOne.mockResolvedValue(null);
-      repository.save.mockImplementation((entity) =>
-        Promise.resolve(entity as any),
-      );
+    it('should throw NotFoundException if supplierTypeId does not exist', async () => {
+      supplierRepository.findOne.mockResolvedValue(null);
+      supplierTypeRepository.findOne.mockResolvedValue(null);
 
       const createDto: CreateSupplierDto = {
         code: 'SUP002',
         name: 'XYZ Supplier',
+        supplierTypeId: 'invalid-st-uuid',
+      };
+
+      await expect(service.create(mockUserPayload, createDto)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should create and save supplier successfully', async () => {
+      supplierRepository.findOne
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(mockSupplier);
+      supplierTypeRepository.findOne.mockResolvedValue(mockSupplierType);
+      supplierRepository.save.mockResolvedValue({
+        ...mockSupplier,
+        id: 'new-sup-uuid',
+      });
+
+      const createDto: CreateSupplierDto = {
+        code: 'SUP002',
+        name: 'XYZ Supplier',
+        supplierTypeId: 'st-uuid',
       };
 
       const result = await service.create(mockUserPayload, createDto);
 
-      expect(repository.save).toHaveBeenCalled();
-      expect(result.status).toEqual('ACTIVE');
+      expect(supplierRepository.save).toHaveBeenCalled();
+      expect(result).toEqual(mockSupplier);
     });
   });
 
   describe('update', () => {
     it('should throw ConflictException if update code conflicts with another supplier in organization', async () => {
-      repository.findOne.mockImplementation(({ where }: any) => {
-        if (where.id === 'sup-uuid') return Promise.resolve(mockSupplier);
-        return Promise.resolve({ id: 'conflicting-uuid' } as any);
-      });
+      supplierRepository.findOne.mockImplementation(
+        ({ where }: { where: { id?: string; code?: string } }) => {
+          if (where.id === 'sup-uuid') return Promise.resolve(mockSupplier);
+          if (where.code === 'SUP_CONFLICT')
+            return Promise.resolve({ id: 'other-uuid' } as Supplier);
+          return Promise.resolve(null);
+        },
+      );
 
       const updateDto: UpdateSupplierDto = { code: 'SUP_CONFLICT' };
 
@@ -163,11 +245,25 @@ describe('SuppliersService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
+    it('should throw NotFoundException if new supplierTypeId does not exist', async () => {
+      supplierRepository.findOne.mockResolvedValue(mockSupplier);
+      supplierTypeRepository.findOne.mockResolvedValue(null);
+
+      const updateDto: UpdateSupplierDto = {
+        supplierTypeId: 'nonexistent-type',
+      };
+
+      await expect(
+        service.update(mockUserPayload, 'sup-uuid', updateDto),
+      ).rejects.toThrow(NotFoundException);
+    });
+
     it('should update properties successfully', async () => {
-      repository.findOne.mockResolvedValue(mockSupplier);
-      repository.save.mockImplementation((entity) =>
-        Promise.resolve(entity as any),
-      );
+      supplierRepository.findOne.mockResolvedValue(mockSupplier);
+      supplierRepository.save.mockResolvedValue({
+        ...mockSupplier,
+        name: 'XYZ Updated',
+      });
 
       const updateDto: UpdateSupplierDto = { name: 'XYZ Updated' };
 
@@ -177,20 +273,30 @@ describe('SuppliersService', () => {
         updateDto,
       );
 
-      expect(repository.save).toHaveBeenCalled();
-      expect(result.name).toEqual('XYZ Updated');
+      expect(supplierRepository.save).toHaveBeenCalled();
+      expect(result).toEqual(mockSupplier);
     });
   });
 
   describe('remove', () => {
-    it('should find supplier and call softRemove', async () => {
-      repository.findOne.mockResolvedValue(mockSupplier);
-      repository.softRemove.mockResolvedValue(mockSupplier);
+    it('should throw ConflictException if supplier is referenced in estimate cost lines', async () => {
+      supplierRepository.findOne.mockResolvedValue(mockSupplier);
+      estimateCostLineRepository.count.mockResolvedValue(3);
+
+      await expect(service.remove(mockUserPayload, 'sup-uuid')).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('should find supplier and call softRemove when no references exist', async () => {
+      supplierRepository.findOne.mockResolvedValue(mockSupplier);
+      estimateCostLineRepository.count.mockResolvedValue(0);
+      supplierRepository.softRemove.mockResolvedValue(mockSupplier);
 
       await service.remove(mockUserPayload, 'sup-uuid');
 
-      expect(repository.findOne).toHaveBeenCalled();
-      expect(repository.softRemove).toHaveBeenCalledWith(mockSupplier);
+      expect(supplierRepository.findOne).toHaveBeenCalled();
+      expect(supplierRepository.softRemove).toHaveBeenCalledWith(mockSupplier);
     });
   });
 });

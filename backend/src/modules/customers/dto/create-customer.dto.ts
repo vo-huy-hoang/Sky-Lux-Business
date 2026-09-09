@@ -73,6 +73,14 @@ export class CreateCustomerDto {
   address?: string;
 
   @ApiPropertyOptional({
+    description: 'Ngày sinh nhật của khách hàng (định dạng YYYY-MM-DD)',
+    example: '1990-05-15',
+  })
+  @IsString({ message: 'Ngày sinh phải là một chuỗi ngày hợp lệ' })
+  @IsOptional()
+  dateOfBirth?: string;
+
+  @ApiPropertyOptional({
     description: 'ID của nhân viên kinh doanh quản lý khách hàng này',
     example: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
   })

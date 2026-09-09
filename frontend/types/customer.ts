@@ -21,6 +21,7 @@ export interface CustomerItem {
   taxCode?: string;
   phone?: string;
   email?: string;
+  dateOfBirth?: string;
   address?: string;
   status: string;
   assignedSalesId?: string;
@@ -53,9 +54,11 @@ export interface QueryCustomerParams {
 }
 
 export interface PaginatedCustomersResponse {
-  items: CustomerItem[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+  data: CustomerItem[];
+  meta: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 }

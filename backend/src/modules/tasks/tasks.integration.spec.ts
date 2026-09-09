@@ -11,6 +11,8 @@ import { CurrentUserPayload } from '../../common/decorators/current-user.decorat
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskStatus } from '../../common/enums';
+import { RedisService } from '../../common/redis/redis.service';
+import { DataSource } from 'typeorm';
 
 describe('Tasks Module (Integration)', () => {
   let controller: TasksController;
@@ -46,6 +48,18 @@ describe('Tasks Module (Integration)', () => {
     findOne: jest.fn(),
   };
 
+  const mockRedisService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delByPattern: jest.fn(),
+  };
+
+  const mockDataSource = {
+    transaction: jest
+      .fn()
+      .mockImplementation((cb) => cb({ save: jest.fn((e) => e) })),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TasksController],
@@ -71,6 +85,14 @@ describe('Tasks Module (Integration)', () => {
         {
           provide: DossiersService,
           useValue: mockDossiersService,
+        },
+        {
+          provide: RedisService,
+          useValue: mockRedisService,
+        },
+        {
+          provide: DataSource,
+          useValue: mockDataSource,
         },
       ],
     }).compile();

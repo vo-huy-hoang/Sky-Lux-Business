@@ -16,9 +16,11 @@ import { RefreshToken } from './entities/refresh-token.entity';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        secret:
-          configService.get<string>('JWT_SECRET') ||
-          'CHANGE_ME_LONG_RANDOM_SECRET',
+        secret: (() => {
+          const secret = configService.get<string>('JWT_SECRET');
+          if (!secret) throw new Error('JWT_SECRET is not configured');
+          return secret;
+        })(),
         signOptions: { expiresIn: '1d' },
       }),
     }),

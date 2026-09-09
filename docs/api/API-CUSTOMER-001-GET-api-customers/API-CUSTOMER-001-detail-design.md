@@ -65,7 +65,12 @@ Tên DTO: `PaginatedCustomerResponseDto`
   "data": [
     {
       "id": "uuid",
-      "code": "string",
+      "code": "KH001",
+      "displayName": "Nguyễn Văn A",
+      "customerType": "INDIVIDUAL",
+      "phone": "0912345678",
+      "email": "customer.a@gmail.com",
+      "dateOfBirth": "1990-05-15",
       "status": "ACTIVE",
       "createdAt": "2026-08-24T00:00:00.000Z",
       "updatedAt": "2026-08-24T00:00:00.000Z"

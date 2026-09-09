@@ -8,8 +8,22 @@ import * as xlsx from 'xlsx';
 import { ImportSession } from '../entities/import-session.entity';
 import { ImportRow } from '../entities/import-row.entity';
 import { ImportError } from '../entities/import-error.entity';
-import { ImportSessionStatus } from '../../../common/enums';
+import { ImportSessionStatus, CustomerType } from '../../../common/enums';
 import { Customer } from '../../customers/entities/customer.entity';
+import {
+  CUSTOMER_BUDGET_FORMAT,
+  isCustomerBudgetWorkbook,
+  parseCustomerBudgetWorkbook,
+} from '../customer-budget.parser';
+
+function sanitizeCellValue(value: any): string {
+  if (value === null || value === undefined) return '';
+  const str = String(value).trim();
+  if (['=', '+', '-', '@'].some((prefix) => str.startsWith(prefix))) {
+    return `'${str}`;
+  }
+  return str;
+}
 
 @Processor('import-queue')
 export class ImportProcessor extends WorkerHost {
@@ -64,12 +78,14 @@ export class ImportProcessor extends WorkerHost {
       throw new Error(`Không tìm thấy tệp tin Excel tại: ${filePath}`);
     }
 
-    const workbook = xlsx.readFile(filePath);
+    const workbook = xlsx.readFile(filePath, { cellDates: true });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
 
     // Read sheet to JSON format with empty string default values
-    const rowsData: any[] = xlsx.utils.sheet_to_json(sheet, { defval: '' });
+    const rowsData: any[] = isCustomerBudgetWorkbook(workbook)
+      ? [parseCustomerBudgetWorkbook(workbook)]
+      : xlsx.utils.sheet_to_json(sheet, { defval: '' });
 
     // Clear existing raw rows in staging
     await this.rowRepository.delete({ sessionId });
@@ -80,7 +96,7 @@ export class ImportProcessor extends WorkerHost {
       return this.rowRepository.create({
         sessionId,
         sheetName,
-        rowNumber: index + 2, // Excel rows are 1-indexed, headers are row 1
+        rowNumber: isCustomerBudgetWorkbook(workbook) ? 1 : index + 2,
         rawData: data,
         status: 'PENDING',
       });
@@ -139,9 +155,32 @@ export class ImportProcessor extends WorkerHost {
     const routeKey = mapping.routeColumn || 'Tuyến đường';
     const priorityKey = mapping.priorityColumn || 'Mức độ ưu tiên';
 
+    const customerNameKey = mapping.customerNameColumn || 'Tên khách hàng';
+    const phoneKey = mapping.phoneColumn || 'Số điện thoại';
+    const emailKey = mapping.emailColumn || 'Email';
+    const dobKey =
+      mapping.dobColumn || mapping.birthDateColumn || 'Ngày sinh nhật';
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^[0-9+\s().-]{8,20}$/;
+
+    // Track codes across rows in the same file to detect internal duplicates
+    const codeOccurrences = new Map<string, number[]>();
+    for (const r of rows) {
+      const c = String(r.rawData?.[codeKey] || '').trim();
+      if (c) {
+        if (!codeOccurrences.has(c)) {
+          codeOccurrences.set(c, []);
+        }
+        codeOccurrences.get(c)!.push(r.rowNumber);
+      }
+    }
+
     for (const row of rows) {
       const errors: string[] = [];
       const data = row.rawData;
+
+      const isCustomerBudget = data.__importFormat === CUSTOMER_BUDGET_FORMAT;
 
       // 1. Basic validation rules for Dossier import
       const code = String(data[codeKey] || '').trim();
@@ -150,35 +189,136 @@ export class ImportProcessor extends WorkerHost {
       const startDate = String(data[startDateKey] || '').trim();
       const endDate = String(data[endDateKey] || '').trim();
 
+      // Additional customer info fields if present in Excel
+      const customerName = String(
+        data[customerNameKey] !== undefined
+          ? data[customerNameKey]
+          : data['Tên khách hàng'] || '',
+      ).trim();
+      const phone = String(
+        data[phoneKey] !== undefined
+          ? data[phoneKey]
+          : data['Số điện thoại'] || data['Số ĐT'] || '',
+      ).trim();
+      const email = String(
+        data[emailKey] !== undefined ? data[emailKey] : data['Email'] || '',
+      ).trim();
+      const dob = String(
+        data[dobKey] !== undefined
+          ? data[dobKey]
+          : data['Ngày sinh nhật'] || data['Ngày sinh'] || '',
+      ).trim();
+
       if (!code) {
         errors.push(`${codeKey} không được để trống`);
+      } else if ((codeOccurrences.get(code)?.length ?? 0) > 1) {
+        errors.push(
+          `${codeKey} "${code}" bị trùng lặp tại các dòng: ${codeOccurrences.get(code)!.join(', ')} trong tệp tin`,
+        );
       }
+
       if (!name) {
         errors.push(`${nameKey} không được để trống`);
       }
-      if (!customerCode) {
+      if (!customerCode && !isCustomerBudget) {
         errors.push(`${customerKey} không được để trống`);
       }
+      if (isCustomerBudget && !customerName) {
+        errors.push(`${customerNameKey} không được để trống`);
+      }
 
-      // Check customer exist in organization
+      // Customer fields validation
+      if (email && !emailRegex.test(email)) {
+        errors.push(`${emailKey} không đúng định dạng email`);
+      }
+
+      if (phone && !phoneRegex.test(phone)) {
+        errors.push(`${phoneKey} không đúng định dạng số điện thoại`);
+      }
+
+      if (dob) {
+        const parsedDob = Date.parse(dob);
+        if (isNaN(parsedDob)) {
+          errors.push(`${dobKey} không đúng định dạng ngày hợp lệ`);
+        } else if (new Date(dob) > new Date()) {
+          errors.push(`${dobKey} không thể lớn hơn ngày hiện tại`);
+        }
+      }
+
+      // Check customer exist in organization, or auto-create if new
       let customer: Customer | null = null;
       if (customerCode) {
         customer = await this.customerRepository.findOne({
           where: { code: customerCode, organizationId: session.organizationId },
         });
         if (!customer) {
-          errors.push(
-            `Không tìm thấy khách hàng có mã "${customerCode}" trong hệ thống`,
-          );
+          // Tự động tạo mới khách hàng từ thông tin trong file Excel
+          try {
+            const nameToUse = customerName || `Khách hàng ${customerCode}`;
+            const newCustomer = this.customerRepository.create({
+              organizationId: session.organizationId,
+              code: customerCode,
+              displayName: nameToUse,
+              customerType: CustomerType.INDIVIDUAL,
+              phone: phone || undefined,
+              email: email || undefined,
+              dateOfBirth:
+                dob && !isNaN(Date.parse(dob))
+                  ? new Date(dob).toISOString().slice(0, 10)
+                  : undefined,
+              status: 'ACTIVE',
+            });
+            customer = await this.customerRepository.save(newCustomer);
+          } catch (createErr: any) {
+            errors.push(
+              `Không thể tự động tạo mới khách hàng "${customerCode}": ${createErr?.message || 'Lỗi lưu dữ liệu'}`,
+            );
+          }
+        }
+      } else if (isCustomerBudget) {
+        if (email) {
+          customer = await this.customerRepository.findOne({
+            where: { email, organizationId: session.organizationId },
+          });
+        }
+        if (!customer && phone) {
+          customer = await this.customerRepository.findOne({
+            where: { phone, organizationId: session.organizationId },
+          });
+        }
+        if (!customer && customerName) {
+          customer = await this.customerRepository.findOne({
+            where: {
+              displayName: customerName,
+              organizationId: session.organizationId,
+            },
+          });
         }
       }
 
-      // Date parsing validation
-      if (startDate && isNaN(Date.parse(startDate))) {
-        errors.push(`${startDateKey} không đúng định dạng YYYY-MM-DD`);
+      // Date parsing & logical order validation
+      let validStartDate = false;
+      let validEndDate = false;
+      if (startDate) {
+        if (isNaN(Date.parse(startDate))) {
+          errors.push(`${startDateKey} không đúng định dạng YYYY-MM-DD`);
+        } else {
+          validStartDate = true;
+        }
       }
-      if (endDate && isNaN(Date.parse(endDate))) {
-        errors.push(`${endDateKey} không đúng định dạng YYYY-MM-DD`);
+      if (endDate) {
+        if (isNaN(Date.parse(endDate))) {
+          errors.push(`${endDateKey} không đúng định dạng YYYY-MM-DD`);
+        } else {
+          validEndDate = true;
+        }
+      }
+      if (validStartDate && validEndDate) {
+        if (new Date(startDate) > new Date(endDate)) {
+          errors.push(
+            `${endDateKey} (${endDate}) không thể trước ${startDateKey} (${startDate})`,
+          );
+        }
       }
 
       if (errors.length > 0) {
@@ -197,14 +337,14 @@ export class ImportProcessor extends WorkerHost {
         );
         await this.errorRepository.save(errorEntities);
       } else {
-        // Save normalized data structure for Dossier migration
+        // Save normalized data structure for Dossier & Customer migration (with formula sanitization)
         validRowsCount++;
         row.status = 'VALID';
         row.normalizedData = {
-          code,
-          name,
+          code: sanitizeCellValue(code),
+          name: sanitizeCellValue(name),
           customerId: customer?.id,
-          route: String(data[routeKey] || '').trim(),
+          route: sanitizeCellValue(String(data[routeKey] || '').trim()),
           startDate: startDate
             ? new Date(startDate).toISOString().slice(0, 10)
             : undefined,
@@ -212,6 +352,24 @@ export class ImportProcessor extends WorkerHost {
             ? new Date(endDate).toISOString().slice(0, 10)
             : undefined,
           priority: data[priorityKey] || 'MEDIUM',
+          ...(customerName
+            ? { customerName: sanitizeCellValue(customerName) }
+            : {}),
+          ...(phone ? { phone: sanitizeCellValue(phone) } : {}),
+          ...(email ? { email: sanitizeCellValue(email) } : {}),
+          ...(dob && !isNaN(Date.parse(dob))
+            ? { dateOfBirth: new Date(dob).toISOString().slice(0, 10) }
+            : {}),
+          ...(isCustomerBudget
+            ? {
+                importFormat: CUSTOMER_BUDGET_FORMAT,
+                businessLineCode: data.__businessLineCode,
+                marketTypeCode: data.__marketTypeCode,
+                revenueLines: data.__revenueLines,
+                costLines: data.__costLines,
+                sourceSummary: data.__sourceSummary,
+              }
+            : {}),
         };
       }
 

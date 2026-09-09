@@ -57,10 +57,13 @@ Tên DTO: `DocumentResponseDto`
 
 ```json
 {
+  "success": true,
+  "statusCode": 200,
+  "message": "Operation successful",
   "data": {
     "deleted": true
   },
-  "meta": {}
+  "timestamp": "2026-08-24T00:00:00.000Z"
 }
 ```
 
@@ -74,7 +77,7 @@ Tên DTO: `DocumentResponseDto`
 
 - Không tin dữ liệu `organizationId` từ client; tenant lấy từ authenticated context.
 - Không trả TypeORM Entity trực tiếp sang frontend.
-- Response dùng format thống nhất `{ data, meta }`.
+- Response dùng envelope thống nhất của backend.
 - Path param phải là UUID hợp lệ hoặc slug/code hợp lệ theo business rule.
 - Body DTO phải dùng whitelist/forbidNonWhitelisted để chặn field lạ.
 - Download private file phải kiểm tra tenant/permission trước khi tạo signed URL ngắn hạn.

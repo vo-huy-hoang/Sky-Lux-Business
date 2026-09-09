@@ -20,6 +20,8 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -27,6 +29,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  @Throttle({ auth: { limit: 5, ttl: 60000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Đăng nhập hệ thống (API-AUTH-001)' })
@@ -37,6 +40,10 @@ export class AuthController {
   @ApiResponse({
     status: 401,
     description: 'Email hoặc mật khẩu không chính xác',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Đăng nhập thất bại quá nhiều lần, tạm thời bị giới hạn',
   })
   login(@Body() loginDto: LoginDto, @Req() req: Request) {
     const ipAddress = req.ip;
@@ -80,6 +87,14 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Thông tin tài khoản hiện tại' })
   getMe(@CurrentUser('id') userId: string) {
     return this.authService.getMe(userId);
+  }
+
+  @Get('stream-token')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cấp token ngắn hạn cho kết nối SSE' })
+  @ApiResponse({ status: 200, description: 'Cấp stream token thành công' })
+  createStreamToken(@CurrentUser() user: CurrentUserPayload) {
+    return this.authService.createStreamToken(user);
   }
 
   @Post('change-password')

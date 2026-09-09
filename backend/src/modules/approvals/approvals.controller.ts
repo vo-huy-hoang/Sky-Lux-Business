@@ -1,45 +1,30 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-} from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { ApprovalsService } from './approvals.service';
-import { CreateApprovalDto } from './dto/create-approval.dto';
-import { UpdateApprovalDto } from './dto/update-approval.dto';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { WorkflowListQueryDto } from './dto/workflow-list-query.dto';
 
 @Controller('approvals')
 export class ApprovalsController {
   constructor(private readonly approvalsService: ApprovalsService) {}
 
-  @Post()
-  create(@Body() createApprovalDto: CreateApprovalDto) {
-    return this.approvalsService.create(createApprovalDto);
-  }
-
   @Get()
-  findAll() {
-    return this.approvalsService.findAll();
+  @RequirePermissions('approval.view')
+  findAll(
+    @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser('id') userId: string,
+    @Query() query: WorkflowListQueryDto,
+  ) {
+    return this.approvalsService.findAll(organizationId, userId, query);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.approvalsService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(
-    @Param('id') id: string,
-    @Body() updateApprovalDto: UpdateApprovalDto,
+  @RequirePermissions('approval.view')
+  findOne(
+    @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.approvalsService.update(+id, updateApprovalDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.approvalsService.remove(+id);
+    return this.approvalsService.findOne(organizationId, userId, id);
   }
 }

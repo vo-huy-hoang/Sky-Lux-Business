@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client';
+import { apiClient, RequestOptions } from '@/lib/api-client';
 import {
   CustomerItem,
   CustomerContact,
@@ -13,17 +13,20 @@ export const customersService = {
   /**
    * API-CUSTOMER-001: Lấy danh sách khách hàng phân trang và tìm kiếm
    */
-  getCustomers: (params?: QueryCustomerParams) => {
+  getCustomers: (params?: QueryCustomerParams, options?: RequestOptions) => {
     return apiClient.get<any, PaginatedCustomersResponse>('/customers', {
       params,
+      signal: options?.signal,
     });
   },
 
   /**
    * API-CUSTOMER-002: Lấy chi tiết khách hàng theo ID
    */
-  getCustomer: (id: string) => {
-    return apiClient.get<any, CustomerItem>(`/customers/${id}`);
+  getCustomer: (id: string, options?: RequestOptions) => {
+    return apiClient.get<any, CustomerItem>(`/customers/${id}`, {
+      signal: options?.signal,
+    });
   },
 
   /**
@@ -87,10 +90,19 @@ export const customersService = {
   getCustomerDossiers: (
     customerId: string,
     params?: QueryDossierParams,
+    options?: RequestOptions,
   ) => {
     return apiClient.get<
       any,
-      { data: DossierItem[]; meta: { page: number; pageSize: number; total: number; totalPages: number } }
-    >(`/customers/${customerId}/dossiers`, { params });
+      {
+        data: DossierItem[];
+        meta: {
+          page: number;
+          pageSize: number;
+          total: number;
+          totalPages: number;
+        };
+      }
+    >(`/customers/${customerId}/dossiers`, { params, signal: options?.signal });
   },
 };

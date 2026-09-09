@@ -26,6 +26,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { usersService } from '@/services/users.service';
 import { useRbacStore } from '../store';
+import { useShallow } from 'zustand/react/shallow';
+import { queryKeys } from '@/lib/query-keys';
 
 export default function UserDetailDrawer() {
   const queryClient = useQueryClient();
@@ -36,14 +38,24 @@ export default function UserDetailDrawer() {
     closeUserDetail,
     openEditUser,
     openUserRoles,
-  } = useRbacStore();
+  } = useRbacStore(
+    useShallow((s) => ({
+      isUserDrawerOpen: s.isUserDrawerOpen,
+      selectedUserForDetail: s.selectedUserForDetail,
+      closeUserDetail: s.closeUserDetail,
+      openEditUser: s.openEditUser,
+      openUserRoles: s.openUserRoles,
+    })),
+  );
 
   const userId = selectedUserForDetail?.id;
 
+
+
   // 1. Fetch Fresh User Details (API-USERS-002)
   const { data: userDetail, isLoading } = useQuery({
-    queryKey: ['user-detail', userId],
-    queryFn: () => usersService.getUser(userId!),
+    queryKey: queryKeys.users.detail(userId || undefined),
+    queryFn: ({ signal }) => usersService.getUser(userId!, { signal }),
     enabled: !!userId && isUserDrawerOpen,
   });
 
@@ -54,8 +66,7 @@ export default function UserDetailDrawer() {
     mutationFn: (id: string) => usersService.lockUser(id),
     onSuccess: () => {
       message.success('Đã khóa tài khoản thành công');
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      queryClient.invalidateQueries({ queryKey: ['user-detail', userId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
     },
     onError: (err: any) => {
       message.error(err.message || 'Lỗi khi khóa tài khoản');
@@ -67,13 +78,13 @@ export default function UserDetailDrawer() {
     mutationFn: (id: string) => usersService.unlockUser(id),
     onSuccess: () => {
       message.success('Đã mở khóa tài khoản thành công');
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      queryClient.invalidateQueries({ queryKey: ['user-detail', userId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
     },
     onError: (err: any) => {
       message.error(err.message || 'Lỗi khi mở khóa tài khoản');
     },
   });
+
 
   // 4. Delete Mutation (API-USERS-007)
   const deleteMutation = useMutation({
@@ -81,7 +92,7 @@ export default function UserDetailDrawer() {
     onSuccess: () => {
       message.success('Đã xóa người dùng thành công');
       closeUserDetail();
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
     },
     onError: (err: any) => {
       message.error(err.message || 'Lỗi khi xóa người dùng');
@@ -94,7 +105,7 @@ export default function UserDetailDrawer() {
     <Drawer
       title="Chi tiết hồ sơ nhân viên"
       placement="right"
-      width={540}
+      styles={{ wrapper: { width: 540, maxWidth: '100vw' } }}
       onClose={closeUserDetail}
       open={isUserDrawerOpen}
       extra={

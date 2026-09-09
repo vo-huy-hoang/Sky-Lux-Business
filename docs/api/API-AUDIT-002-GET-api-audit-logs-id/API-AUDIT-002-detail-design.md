@@ -41,15 +41,9 @@ Tên DTO: `AuditLogParamsDto`
 
 ### 4.2 Query DTO
 
-Tên DTO: `AuditLogQueryDto`
+Tên DTO: `N/A` (API không có query parameters)
 
-- `actorUserId?: string`
-- `action?: string`
-- `entityType?: string`
-- `entityId?: string`
-- `from?: string`
-- `to?: string`
-- `requestId?: string`
+- Không có.
 
 ### 4.3 Request Body DTO
 
@@ -65,10 +59,24 @@ Tên DTO: `AuditLogResponseDto`
 {
   "data": {
     "id": "uuid",
-    "code": "string",
-    "status": "ACTIVE",
+    "organizationId": "uuid",
+    "actorUserId": "uuid",
+    "action": "UPDATE_DOSSIER",
+    "entityType": "dossier",
+    "entityId": "uuid",
+    "beforeData": null,
+    "afterData": { "status": "APPROVED" },
+    "ipAddress": "192.0.2.10",
+    "userAgent": "Mozilla/5.0",
+    "requestId": "uuid",
     "createdAt": "2026-08-24T00:00:00.000Z",
-    "updatedAt": "2026-08-24T00:00:00.000Z"
+    "updatedAt": "2026-08-24T00:00:00.000Z",
+    "actor": {
+      "id": "uuid",
+      "fullName": "Nguyen Van A",
+      "email": "a@example.com",
+      "avatarUrl": null
+    }
   },
   "meta": {}
 }

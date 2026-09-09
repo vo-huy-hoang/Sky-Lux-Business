@@ -1,23 +1,35 @@
-import { apiClient } from '@/lib/api-client';
-import { DossierItem, DossierComment, QueryDossierParams } from '@/types/dossier';
+import { apiClient, RequestOptions } from '@/lib/api-client';
+import {
+  DossierItem,
+  DossierComment,
+  DossierCommentsResponse,
+  PaginatedDossiersResponse,
+  QueryDossierParams,
+  CreateCommentPayload,
+  QueryCommentParams,
+} from '@/types/dossier';
 
 export const dossiersService = {
   /**
    * API-DOSSIER-001: Lấy danh sách hồ sơ phân trang và tìm kiếm
    */
-  getDossiers: (params?: QueryDossierParams) => {
-    return apiClient.get<
-      any,
-      { items: DossierItem[]; total: number; page: number; limit: number; totalPages: number }
-    >('/dossiers', { params });
+  getDossiers: (params?: QueryDossierParams, options?: RequestOptions) => {
+    return apiClient.get<any, PaginatedDossiersResponse>('/dossiers', {
+      params,
+      signal: options?.signal,
+    });
   },
 
   /**
    * API-DOSSIER-002: Lấy chi tiết hồ sơ theo ID
    */
-  getDossier: (id: string) => {
-    return apiClient.get<any, DossierItem>(`/dossiers/${id}`);
+  getDossier: (id: string, options?: RequestOptions) => {
+    return options?.signal
+      ? apiClient.get<any, DossierItem>(`/dossiers/${id}`, { signal: options.signal })
+      : apiClient.get<any, DossierItem>(`/dossiers/${id}`);
   },
+
+
 
   /**
    * API-DOSSIER-003: Cập nhật metadata hồ sơ
@@ -29,7 +41,18 @@ export const dossiersService = {
   /**
    * API-COMMENT-001: Lấy danh sách bình luận của hồ sơ tour
    */
-  getDossierComments: (dossierId: string) => {
-    return apiClient.get<any, DossierComment[]>(`/dossiers/${dossierId}/comments`);
+  getDossierComments: (dossierId: string, params?: QueryCommentParams, options?: RequestOptions) => {
+    return apiClient.get<any, DossierCommentsResponse>(
+      `/dossiers/${dossierId}/comments`,
+      { params, signal: options?.signal },
+    );
+  },
+
+
+  /**
+   * API-COMMENT-002: Tạo bình luận cho hồ sơ tour
+   */
+  createDossierComment: (dossierId: string, payload: CreateCommentPayload) => {
+    return apiClient.post<any, DossierComment>(`/dossiers/${dossierId}/comments`, payload);
   },
 };
