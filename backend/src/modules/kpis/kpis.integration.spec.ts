@@ -9,6 +9,7 @@ import { Dossier } from '../dossiers/entities/dossier.entity';
 import { Estimate } from '../estimates/entities/estimate.entity';
 import { EstimateRevenueLine } from '../estimates/entities/estimate-revenue-line.entity';
 import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
+import { User } from '../users/entities/user.entity';
 import { KpiMetric, KpiPeriodType } from '../../common/enums';
 
 describe('KPIs Module (Integration)', () => {
@@ -47,6 +48,11 @@ describe('KPIs Module (Integration)', () => {
     createQueryBuilder: jest.fn(),
   };
 
+  const mockUserRepository = {
+    findOne: jest.fn(),
+    createQueryBuilder: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [KpisController],
@@ -75,6 +81,10 @@ describe('KPIs Module (Integration)', () => {
         {
           provide: getRepositoryToken(EstimateCostLine),
           useValue: mockCostLineRepository,
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: mockUserRepository,
         },
       ],
     }).compile();
@@ -134,16 +144,18 @@ describe('KPIs Module (Integration)', () => {
         andWhere: jest.fn().mockReturnThis(),
         getCount: jest.fn().mockResolvedValue(4),
       };
-      mockDossierRepository.createQueryBuilder.mockReturnValue(mockQueryBuilder);
+      mockDossierRepository.createQueryBuilder.mockReturnValue(
+        mockQueryBuilder,
+      );
 
       const result = await controller.findMyKpi(orgA, userA, {
         periodType: KpiPeriodType.MONTHLY,
         date: '2026-08-15',
       });
 
-      expect(result).toHaveLength(1);
-      expect(result[0].actualValue).toBe(4);
-      expect(result[0].achievementRate).toBe(80);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].actualValue).toBe(4);
+      expect(result.data[0].achievementRate).toBe(80);
       expect(mockResultRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           actualValue: 4,

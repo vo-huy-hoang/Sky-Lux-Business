@@ -150,6 +150,9 @@ export async function runInitialSeed(dataSource: DataSource) {
     // Tasks & Chat
     { code: 'task.manage', name: 'Quản lý công việc', module: 'TASK' },
     { code: 'chat.access', name: 'Sử dụng hệ thống chat', module: 'CHAT' },
+    { code: 'kpi.view', name: 'Xem KPI cá nhân', module: 'KPI' },
+    { code: 'kpi.view.team', name: 'Xem KPI phòng ban', module: 'KPI' },
+    { code: 'kpi.view.all', name: 'Xem toàn bộ KPI', module: 'KPI' },
     { code: 'kpi.manage', name: 'Quản lý chỉ tiêu KPI', module: 'KPI' },
   ];
 
@@ -201,6 +204,32 @@ export async function runInitialSeed(dataSource: DataSource) {
           rpRepo.create({
             roleId: targetRole.id,
             permissionId: perm.id,
+            scope: RoleScope.ALL,
+          }),
+        );
+      }
+    }
+  }
+
+  // KPI permissions for non-admin roles. Admin roles above already receive all permissions.
+  const rolePermissionMap: Record<string, string[]> = {
+    SALES: ['kpi.view'],
+    OPERATOR: ['kpi.view', 'kpi.view.team'],
+  };
+  for (const [roleCode, permissionCodes] of Object.entries(rolePermissionMap)) {
+    for (const permissionCode of permissionCodes) {
+      const targetRole = roleMap[roleCode];
+      const permission = permMap[permissionCode];
+      if (!targetRole || !permission) continue;
+
+      const exists = await rpRepo.findOne({
+        where: { roleId: targetRole.id, permissionId: permission.id },
+      });
+      if (!exists) {
+        await rpRepo.save(
+          rpRepo.create({
+            roleId: targetRole.id,
+            permissionId: permission.id,
             scope: RoleScope.ALL,
           }),
         );

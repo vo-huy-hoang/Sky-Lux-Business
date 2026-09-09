@@ -77,7 +77,7 @@ Mỗi folder là một `LEVEL 2` trong file Excel, mỗi folder chứa một fil
 | Sky-Lux-084 | Phase 1 | API Documents (MOD-DOCUMENT) | `API-DOCUMENT-005-GET-api-documents-id-download-url` | [API-DOCUMENT-005-detail-design.md](./API-DOCUMENT-005-GET-api-documents-id-download-url/API-DOCUMENT-005-detail-design.md) |
 | Sky-Lux-086 | Phase 1 | API Comments (MOD-COMMENT) | `API-COMMENT-001-GET-api-dossiers-id-comments` | [API-COMMENT-001-detail-design.md](./API-COMMENT-001-GET-api-dossiers-id-comments/API-COMMENT-001-detail-design.md) |
 | Sky-Lux-087 | Phase 1 | API Comments (MOD-COMMENT) | `API-COMMENT-002-POST-api-dossiers-id-comments` | [API-COMMENT-002-detail-design.md](./API-COMMENT-002-POST-api-dossiers-id-comments/API-COMMENT-002-detail-design.md) |
-| Sky-Lux-089 | Phase 1 | API KPI (MOD-KPI) | `API-KPI-001-GET-api-kpi-me` | [API-KPI-001-detail-design.md](./API-KPI-001-GET-api-kpi-me/API-KPI-001-detail-design.md) |
+| Sky-Lux-089 | Phase 1 | API KPI (MOD-KPI) | `API-KPI-001-GET-api-kpis-me` | [API-KPI-001-detail-design.md](./API-KPI-001-GET-api-kpi-me/API-KPI-001-detail-design.md) |
 | Sky-Lux-091 | Phase 1 | API Dashboard (MOD-DASHBOARD) | `API-DASHBOARD-001-GET-api-dashboard-sales` | [API-DASHBOARD-001-detail-design.md](./API-DASHBOARD-001-GET-api-dashboard-sales/API-DASHBOARD-001-detail-design.md) |
 | Sky-Lux-092 | Phase 1 | API Dashboard (MOD-DASHBOARD) | `API-DASHBOARD-002-GET-api-dashboard-operator` | [API-DASHBOARD-002-detail-design.md](./API-DASHBOARD-002-GET-api-dashboard-operator/API-DASHBOARD-002-detail-design.md) |
 | Sky-Lux-093 | Phase 1 | API Dashboard (MOD-DASHBOARD) | `API-DASHBOARD-003-GET-api-dashboard-ceo` | [API-DASHBOARD-003-detail-design.md](./API-DASHBOARD-003-GET-api-dashboard-ceo/API-DASHBOARD-003-detail-design.md) |

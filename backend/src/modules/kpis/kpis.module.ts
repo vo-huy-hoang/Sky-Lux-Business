@@ -8,6 +8,7 @@ import { Dossier } from '../dossiers/entities/dossier.entity';
 import { Estimate } from '../estimates/entities/estimate.entity';
 import { EstimateRevenueLine } from '../estimates/entities/estimate-revenue-line.entity';
 import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
+import { User } from '../users/entities/user.entity';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entit
       Estimate,
       EstimateRevenueLine,
       EstimateCostLine,
+      User,
     ]),
   ],
   controllers: [KpisController],
