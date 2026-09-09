@@ -1,17 +1,15 @@
 'use client';
 
 import React, { useMemo } from 'react';
-
-
-import { Avatar, Button, Card, Col, DatePicker, Empty, Progress, Row, Select, Skeleton, Table, Tag, Typography } from 'antd';
-
+import { Avatar, Button, Card, Col, DatePicker, Empty, Progress, Row, Select, Skeleton, Table, Tag, Typography, Tabs } from 'antd';
 import { CheckCircleOutlined, DownloadOutlined, QuestionCircleOutlined, RiseOutlined, StarOutlined, TeamOutlined, TrophyOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useOperatorSalesSummary } from '@/hooks/dashboards';
 import { useFilterStore } from '@/lib/stores/filter-store';
 import { OperatorSalesSummaryItem } from '@/types/dashboard';
+import KpiDashboard from './components/KpiDashboard';
 
-const { Text } = Typography;
+const { Title, Text } = Typography;
 
 function money(value?: number | null) {
   return `${new Intl.NumberFormat('vi-VN').format(value || 0)} đ`;
@@ -40,7 +38,7 @@ function Metric({ label, value, hint, icon, tone = 'green', loading }: { label: 
   );
 }
 
-export default function KpiPage() {
+function SalesPerformance() {
   const dateString = useFilterStore((state) => state.dateString);
   const setDateString = useFilterStore((state) => state.setDateString);
   const period = dayjs(dateString);
@@ -130,7 +128,7 @@ export default function KpiPage() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 mt-4">
       <div className="ceo-toolbar grid-cols-1 md:grid-cols-[280px_280px_1fr_auto]">
         <DatePicker picker="month" value={period} onChange={(value) => value && setDateString(value.format('YYYY-MM-DD'))} format="MM/YYYY" allowClear={false} aria-label="Tháng KPI" />
         <Select value="ALL" options={[{ label: 'Tất cả phòng ban Sales', value: 'ALL' }]} disabled aria-label="Phòng ban" />
@@ -228,3 +226,36 @@ export default function KpiPage() {
   );
 }
 
+export default function KpiPage() {
+  return (
+    <div className="space-y-6">
+      {/* Header Banner */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+        <div>
+          <Title level={3} style={{ marginBottom: 2, color: '#0F172A' }}>
+            Bảng điều khiển KPI (KPI Dashboard)
+          </Title>
+          <Text type="secondary" className="text-sm">
+            Theo dõi, phân tích tiến độ hoàn thành mục tiêu KPI của cá nhân và phòng ban.
+          </Text>
+        </div>
+      </div>
+
+      <Tabs 
+        defaultActiveKey="1" 
+        items={[
+          {
+            key: '1',
+            label: 'Bảng điều khiển KPI',
+            children: <KpiDashboard />
+          },
+          {
+            key: '2',
+            label: 'Xếp hạng hiệu suất Sales',
+            children: <SalesPerformance />
+          }
+        ]} 
+      />
+    </div>
+  );
+}

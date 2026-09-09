@@ -1,4 +1,4 @@
-# API-KPI-001-GET-api-kpi-me Detail Design
+# API-KPI-001-GET-api-kpis-me Detail Design
 
 ## 1. Tổng quan
 
@@ -7,9 +7,9 @@
 | Task ID | Sky-Lux-089 |
 | Level 0 | Lap trinh Backend API (Tasks, Finance, KPI & Ops) |
 | Level 1 | API KPI (MOD-KPI) |
-| Level 2 | API-KPI-001-GET-api-kpi-me |
+| Level 2 | API-KPI-001-GET-api-kpis-me |
 | Method | GET |
-| Endpoint | `/api/kpi/me` |
+| Endpoint | `/api/kpis/me` |
 | Phase | Phase 1 |
 | Mục tiêu | KPI ca nhan Sales |
 | Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
@@ -19,14 +19,14 @@
 ## 2. Authorization
 
 - Cần xác thực: Có, yêu cầu JWT access token hợp lệ.
-- Permission đề xuất: `kpi.view`
+- Permission bắt buộc: `kpi.view`
 - Tenant scope: Backend lấy `organizationId` từ authenticated context, không nhận scope quyết định từ client.
 - Role scope gợi ý: Sales chỉ xem dữ liệu own/team theo permission; Operator xem assigned/team; CEO/Admin xem all theo permission.
 
 ## 3. Redis Cache
 
 - Chính sách: Nên dùng Redis cache.
-- Cache key đề xuất: `skylux:kpi::api:kpi:me:org:{organizationId}:user:{userId}:hash:{queryHash}`
+- Cache key đề xuất: `skylux:kpi::api:kpis:me:org:{organizationId}:user:{userId}:hash:{queryHash}`
 - TTL đề xuất: `300s`
 - Invalidation: Khi KPI target, dossier, revenue/payment thay đổi.
 - Lưu ý: cache key phải bao gồm tenant, user scope và hash của query/filter để tránh rò dữ liệu giữa user/organization.
@@ -43,11 +43,9 @@ Tên DTO: `N/A`
 
 Tên DTO: `KpiQueryDto`
 
-- `periodType?: string`
-- `periodStart?: string`
-- `periodEnd?: string`
-- `departmentId?: string`
-- `userId?: string`
+- `periodType?: KpiPeriodType`
+- `periodStart?: string` (YYYY-MM-DD)
+- `periodEnd?: string` (YYYY-MM-DD)
 
 ### 4.3 Request Body DTO
 
@@ -63,24 +61,18 @@ Tên DTO: `PaginatedKpiResponseDto`
 {
   "data": [
     {
-      "id": "uuid",
-      "code": "string",
-      "status": "ACTIVE",
-      "createdAt": "2026-08-24T00:00:00.000Z",
-      "updatedAt": "2026-08-24T00:00:00.000Z"
+      "target": { "id": "uuid", "metricCode": "REVENUE", "targetValue": 100000000 },
+      "actualValue": 85000000,
+      "achievementRate": 85
     }
   ],
-  "meta": {
-    "page": 1,
-    "pageSize": 20,
-    "total": 1
-  }
+  "meta": { "page": 1, "pageSize": 20, "total": 1, "totalPages": 1 }
 }
 ```
 
 ### 4.5 Data Model liên quan
 
-- Entity/aggregate chính: `Kpi`
+- Entity/aggregate chính: `KpiTarget` và `KpiResult`
 - Các field hệ thống nên có: `id`, `organizationId`, `createdAt`, `updatedAt`, `createdById`, `updatedById`.
 - Không expose field nhạy cảm như password hash, refresh token hash, private storage key hoặc internal cost rule nếu user không có permission.
 

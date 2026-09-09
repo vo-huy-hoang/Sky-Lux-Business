@@ -696,7 +696,7 @@ Backend tính từ transaction hợp lệ.
 Sales:
 
 ```http
-GET /api/kpi/me
+GET /api/kpis/me
 ```
 
 Operator/CEO:

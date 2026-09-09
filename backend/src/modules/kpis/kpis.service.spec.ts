@@ -7,6 +7,7 @@ import { Dossier } from '../dossiers/entities/dossier.entity';
 import { Estimate } from '../estimates/entities/estimate.entity';
 import { EstimateRevenueLine } from '../estimates/entities/estimate-revenue-line.entity';
 import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
+import { User } from '../users/entities/user.entity';
 import { KpiMetric, KpiPeriodType } from '../../common/enums';
 
 describe('KpisService', () => {
@@ -17,6 +18,7 @@ describe('KpisService', () => {
   let estimateRepository: any;
   let revenueLineRepository: any;
   let costLineRepository: any;
+  let userRepository: any;
 
   beforeEach(async () => {
     targetRepository = {
@@ -42,6 +44,11 @@ describe('KpisService', () => {
     };
 
     costLineRepository = {
+      createQueryBuilder: jest.fn(),
+    };
+
+    userRepository = {
+      findOne: jest.fn(),
       createQueryBuilder: jest.fn(),
     };
 
@@ -71,6 +78,10 @@ describe('KpisService', () => {
         {
           provide: getRepositoryToken(EstimateCostLine),
           useValue: costLineRepository,
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: userRepository,
         },
       ],
     }).compile();
@@ -105,9 +116,9 @@ describe('KpisService', () => {
         periodType: KpiPeriodType.MONTHLY,
       });
 
-      expect(result).toHaveLength(1);
-      expect(result[0].actualValue).toBe(5);
-      expect(result[0].achievementRate).toBe(50);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].actualValue).toBe(5);
+      expect(result.data[0].achievementRate).toBe(50);
     });
   });
 });

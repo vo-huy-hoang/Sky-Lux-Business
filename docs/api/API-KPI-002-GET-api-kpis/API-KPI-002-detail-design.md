@@ -19,7 +19,7 @@
 ## 2. Authorization
 
 - Cần xác thực: Có, yêu cầu JWT access token hợp lệ.
-- Permission đề xuất: `kpi.view`
+- Permission bắt buộc: `kpi.view`; phạm vi `kpi.view.team` hoặc `kpi.view.all` mở rộng dữ liệu xem được.
 - Tenant scope: Backend lấy `organizationId` từ authenticated context, không nhận scope quyết định từ client.
 - Role scope gợi ý: Sales chỉ xem dữ liệu own/team theo permission; Operator xem assigned/team; CEO/Admin xem all theo permission.
 
@@ -43,11 +43,13 @@ Tên DTO: `N/A`
 
 Tên DTO: `KpiQueryDto`
 
-- `periodType?: string`
-- `periodStart?: string`
-- `periodEnd?: string`
-- `departmentId?: string`
-- `userId?: string`
+- `periodType?: KpiPeriodType`
+- `periodStart?: string` (YYYY-MM-DD)
+- `periodEnd?: string` (YYYY-MM-DD)
+- `departmentId?: string` (UUID)
+- `userId?: string` (UUID, chỉ áp dụng khi có quyền team/all)
+- `page?: number` (mặc định 1)
+- `pageSize?: number` (mặc định 20, tối đa 100)
 
 ### 4.3 Request Body DTO
 
@@ -63,24 +65,18 @@ Tên DTO: `PaginatedKpiResponseDto`
 {
   "data": [
     {
-      "id": "uuid",
-      "code": "string",
-      "status": "ACTIVE",
-      "createdAt": "2026-08-24T00:00:00.000Z",
-      "updatedAt": "2026-08-24T00:00:00.000Z"
+      "target": { "id": "uuid", "userId": "uuid", "metricCode": "REVENUE", "targetValue": 100000000 },
+      "actualValue": 85000000,
+      "achievementRate": 85
     }
   ],
-  "meta": {
-    "page": 1,
-    "pageSize": 20,
-    "total": 1
-  }
+  "meta": { "page": 1, "pageSize": 20, "total": 1, "totalPages": 1 }
 }
 ```
 
 ### 4.5 Data Model liên quan
 
-- Entity/aggregate chính: `Kpi`
+- Entity/aggregate chính: `KpiTarget` và `KpiResult`
 - Các field hệ thống nên có: `id`, `organizationId`, `createdAt`, `updatedAt`, `createdById`, `updatedById`.
 - Không expose field nhạy cảm như password hash, refresh token hash, private storage key hoặc internal cost rule nếu user không có permission.
 

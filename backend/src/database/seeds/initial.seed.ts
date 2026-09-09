@@ -190,6 +190,9 @@ export async function runInitialSeed(dataSource: DataSource) {
     { code: 'task.view', name: 'Xem công việc', module: 'TASK' },
     { code: 'task.manage', name: 'Quản lý công việc', module: 'TASK' },
     { code: 'chat.access', name: 'Sử dụng hệ thống chat', module: 'CHAT' },
+    { code: 'kpi.view', name: 'Xem KPI cá nhân', module: 'KPI' },
+    { code: 'kpi.view.team', name: 'Xem KPI phòng ban', module: 'KPI' },
+    { code: 'kpi.view.all', name: 'Xem toàn bộ KPI', module: 'KPI' },
     { code: 'kpi.manage', name: 'Quản lý chỉ tiêu KPI', module: 'KPI' },
 
     // Dashboards
@@ -296,6 +299,7 @@ export async function runInitialSeed(dataSource: DataSource) {
         'chat.access',
         'master_data.view',
         'kpi.manage',
+        'kpi.view',
         'document.view',
         'approval.view',
         'department.view',
@@ -318,6 +322,8 @@ export async function runInitialSeed(dataSource: DataSource) {
         'user.view',
         'chat.access',
         'master_data.view',
+        'kpi.view',
+        'kpi.view.team',
         'document.view',
         'approval.view',
         'department.view',

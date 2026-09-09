@@ -49,10 +49,11 @@ Tên DTO: `N/A`
 
 Tên DTO: `KpiPostRequestDto`
 
-- `periodType: string`
+- `periodType: KpiPeriodType`
+- `metricCode: KpiMetric`
 - `periodStart: string`
 - `periodEnd: string`
-- `userId?: string`
+- `userId: string` (UUID của user có role `SALES` trong cùng organization)
 - `targetValue: number`
 
 ### 4.4 Response DTO
@@ -63,8 +64,13 @@ Tên DTO: `KpiResponseDto`
 {
   "data": {
     "id": "uuid",
-    "code": "string",
-    "status": "ACTIVE",
+    "organizationId": "uuid",
+    "userId": "uuid",
+    "metricCode": "REVENUE",
+    "periodType": "MONTHLY",
+    "periodStart": "2026-08-01",
+    "periodEnd": "2026-08-31",
+    "targetValue": 100000000,
     "createdAt": "2026-08-24T00:00:00.000Z",
     "updatedAt": "2026-08-24T00:00:00.000Z"
   },
@@ -74,7 +80,7 @@ Tên DTO: `KpiResponseDto`
 
 ### 4.5 Data Model liên quan
 
-- Entity/aggregate chính: `Kpi`
+- Entity/aggregate chính: `KpiTarget`
 - Các field hệ thống nên có: `id`, `organizationId`, `createdAt`, `updatedAt`, `createdById`, `updatedById`.
 - Không expose field nhạy cảm như password hash, refresh token hash, private storage key hoặc internal cost rule nếu user không có permission.
 
@@ -84,6 +90,7 @@ Tên DTO: `KpiResponseDto`
 - Không trả TypeORM Entity trực tiếp sang frontend.
 - Response dùng format thống nhất `{ data, meta }`.
 - Body DTO phải dùng whitelist/forbidNonWhitelisted để chặn field lạ.
+- Không tạo trùng cùng `organizationId + userId + metricCode + periodType + periodStart + periodEnd`.
 
 ## 6. Service Flow
 
