@@ -1,10 +1,4 @@
-import {
-  IsObject,
-  IsOptional,
-  IsString,
-  Length,
-  MaxLength,
-} from 'class-validator';
+import { IsObject, IsOptional, IsString, Length } from 'class-validator';
 
 export class CreateReportDto {
   @IsString()
