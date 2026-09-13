@@ -213,7 +213,8 @@ export class KpisService {
       access?.roles?.some((role) =>
         ['SUPER_ADMIN', 'CEO_ADMIN'].includes(role),
       ) || access?.permissions?.includes('kpi.view.all');
-    const canViewTeam = canViewAll || access?.permissions?.includes('kpi.view.team');
+    const canViewTeam =
+      canViewAll || access?.permissions?.includes('kpi.view.team');
 
     if (queryDto.userId && canViewTeam) {
       query.andWhere('target.userId = :filterUserId', {
@@ -449,8 +450,12 @@ export class KpisService {
   }
 
   private validatePeriodRange(periodStart: string, periodEnd: string) {
-    if (new Date(`${periodStart}T00:00:00Z`) > new Date(`${periodEnd}T00:00:00Z`)) {
-      throw new BadRequestException('periodStart phải nhỏ hơn hoặc bằng periodEnd');
+    if (
+      new Date(`${periodStart}T00:00:00Z`) > new Date(`${periodEnd}T00:00:00Z`)
+    ) {
+      throw new BadRequestException(
+        'periodStart phải nhỏ hơn hoặc bằng periodEnd',
+      );
     }
   }
 

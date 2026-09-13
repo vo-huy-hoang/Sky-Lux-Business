@@ -62,3 +62,54 @@ export interface PaginatedCustomersResponse {
     totalPages: number;
   };
 }
+
+export type CustomerActivityType =
+  | 'CALL'
+  | 'QUOTE_SENT'
+  | 'CUSTOMER_RESPONSE'
+  | 'BROCHURE_SENT'
+  | 'NOTE'
+  | 'CUSTOMER_CREATED'
+  | 'CUSTOMER_UPDATED'
+  | 'CUSTOMER_DELETED'
+  | 'DOSSIER_CREATED'
+  | 'DOSSIER_UPDATED';
+
+export interface CustomerActivityActor {
+  id: string;
+  fullName: string;
+  email?: string;
+  avatarUrl?: string;
+}
+
+export interface CustomerActivityItem {
+  id: string;
+  customerId: string;
+  type: CustomerActivityType | string;
+  title: string;
+  description?: string;
+  occurredAt: string;
+  actorUserId?: string;
+  actor?: CustomerActivityActor;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QueryCustomerActivityParams {
+  page?: number;
+  limit?: number;
+  type?: CustomerActivityType;
+  from?: string;
+  to?: string;
+}
+
+export interface PaginatedCustomerActivitiesResponse {
+  data: CustomerActivityItem[];
+  meta: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}

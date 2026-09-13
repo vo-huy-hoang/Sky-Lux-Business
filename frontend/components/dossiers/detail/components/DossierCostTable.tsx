@@ -31,41 +31,6 @@ export interface CostSubCategory {
   subTotal: number;
 }
 
-export const DEFAULT_SAMPLE_COST_LINES: CostTableRowItem[] = [
-  // 1.1 VÉ THAM QUAN
-  { id: 'sample-1', stt: '', content: 'Hội An - Người lớn', explanation: '', quantity: 30, unit: 1, unitPrice: 80000, totalAmount: 2400000 },
-  { id: 'sample-2', stt: '', content: 'Hội An Trẻ em', explanation: '', quantity: 4, unit: 1, unitPrice: 60000, totalAmount: 240000 },
-  { id: 'sample-3', stt: '', content: 'Đại Nội Huế', explanation: '', quantity: 30, unit: 1, unitPrice: 80000, totalAmount: 2400000 },
-  { id: 'sample-4', stt: '', content: 'Bà Nà', explanation: '', quantity: 30, unit: 1, unitPrice: 1150000, totalAmount: 34500000 },
-  { id: 'sample-5', stt: '', content: 'Bà Nà Trẻ em', explanation: '', quantity: 4, unit: 1, unitPrice: 950000, totalAmount: 3800000 },
-
-  // 1.2 KHÁCH SẠN
-  { id: 'sample-6', stt: '1', content: 'KHÁCH SẠN MƯỜNG THANH', explanation: 'Đà Nẵng', quantity: 15, unit: 1, unitPrice: 1000000, totalAmount: 15000000 },
-  { id: 'sample-7', stt: '', content: 'KHÁCH SẠN HƯƠNG GIANG', explanation: 'Huế', quantity: 15, unit: 1, unitPrice: 950000, totalAmount: 14250000 },
-
-  // 1.3 ĂN UỐNG
-  { id: 'sample-8', stt: '1', content: 'Trưa ngày 30/07', explanation: 'NH MADAM LÂN', quantity: 30, unit: 1, unitPrice: 200000, totalAmount: 6000000 },
-  { id: 'sample-9', stt: '', content: 'Ăn trưa phát sinh 1', explanation: '', quantity: 2, unit: 1, unitPrice: 200001, totalAmount: 400002 },
-  { id: 'sample-10', stt: '', content: 'Ăn trưa phát sinh 2', explanation: '', quantity: 2, unit: 1, unitPrice: 200002, totalAmount: 400004 },
-  { id: 'sample-11', stt: '', content: 'Tối ngày 30/07', explanation: 'NH CƠM NIÊU VIỆT', quantity: 30, unit: 1, unitPrice: 200000, totalAmount: 6000000 },
-
-  // 1.4 VẬN CHUYỂN
-  { id: 'sample-12', stt: '1', content: 'XE 45 CHỖ', explanation: 'TRIỆU BẢO Ý', quantity: 1, unit: 1, unitPrice: 25920000, totalAmount: 25920000 },
-
-  // 1.5 CÁC DỊCH VỤ KHÁC
-  { id: 'sample-13', stt: '', content: 'GALA DINNER', explanation: 'MƯỜNG THANH', quantity: 1, unit: 1, unitPrice: 10000000, totalAmount: 10000000 },
-  { id: 'sample-14', stt: '', content: 'TEAM BUILDING', explanation: 'DUY HẢI EVENT', quantity: 1, unit: 1, unitPrice: 70000000, totalAmount: 70000000 },
-  { id: 'sample-15', stt: '', content: 'HỘI NGHỊ', explanation: 'KS ROYAL', quantity: 1, unit: 1, unitPrice: 5000000, totalAmount: 5000000 },
-
-  // II. CHƯA VAT
-  { id: 'sample-16', stt: '1', content: 'Khăn +Nước', explanation: '', quantity: 30, unit: 3, unitPrice: 10000, totalAmount: 900000 },
-  { id: 'sample-17', stt: '3', content: 'Hướng dẫn viên du lịch', explanation: '', quantity: 1, unit: 3, unitPrice: 700000, totalAmount: 2100000 },
-  { id: 'sample-18', stt: '4', content: 'Băng Rôn', explanation: '', quantity: 1, unit: 1, unitPrice: 500000, totalAmount: 500000 },
-  { id: 'sample-19', stt: '5', content: 'Mũ Du Lịch', explanation: '', quantity: 30, unit: 1, unitPrice: 20000, totalAmount: 600000 },
-  { id: 'sample-20', stt: '6', content: 'Lưu đêm hdv', explanation: '', quantity: 1, unit: 2, unitPrice: 300000, totalAmount: 600000 },
-  { id: 'sample-21', stt: '7', content: 'Bảo hiểm Du lịch trong nước', explanation: '120tr/vụ/ngày', quantity: 30, unit: 1, unitPrice: 5000, totalAmount: 150000 },
-];
-
 export function extractExplanation(line: EstimateCostLine): string {
   if (line.supplier?.displayName) return line.supplier.displayName;
   if (line.supplier?.name) return line.supplier.name;
@@ -116,61 +81,7 @@ export interface DossierCostTableProps {
 export function DossierCostTable({ costLines = [], className = '' }: DossierCostTableProps) {
   // Categorize lines into Section I (VAT) and Section II (NO VAT)
   const { vatSections, noVatItems, totalVat, totalNoVat, grandTotal } = useMemo(() => {
-    if (costLines.length === 0) {
-      // Build from default sample
-      const vatMap = new Map<string, { code: string; title: string; order: number; items: CostTableRowItem[] }>();
-      const noVatList: CostTableRowItem[] = [];
-
-      DEFAULT_SAMPLE_COST_LINES.forEach((item, idx) => {
-        if (idx < 15) {
-          let code = '1.1';
-          let title = 'VÉ THAM QUAN';
-          let order = 1;
-          if (idx >= 5 && idx < 7) {
-            code = '1.2';
-            title = 'KHÁCH SẠN';
-            order = 2;
-          } else if (idx >= 7 && idx < 11) {
-            code = '1.2b';
-            title = 'ĂN UỐNG';
-            order = 3;
-          } else if (idx >= 11 && idx < 12) {
-            code = '1.3';
-            title = 'VẬN CHUYỂN';
-            order = 4;
-          } else if (idx >= 12) {
-            code = '1.4';
-            title = 'CÁC DỊCH VỤ KHÁC';
-            order = 5;
-          }
-          const group = vatMap.get(title) || { code, title, order, items: [] };
-          group.items.push(item);
-          vatMap.set(title, group);
-        } else {
-          noVatList.push(item);
-        }
-      });
-
-      const sections = Array.from(vatMap.values()).sort((a, b) => a.order - b.order).map(sec => ({
-        code: sec.code,
-        title: sec.title,
-        items: sec.items,
-        subTotal: sec.items.reduce((sum, it) => sum + it.totalAmount, 0),
-      }));
-
-      const tVat = sections.reduce((sum, s) => sum + s.subTotal, 0);
-      const tNoVat = noVatList.reduce((sum, it) => sum + it.totalAmount, 0);
-
-      return {
-        vatSections: sections,
-        noVatItems: noVatList,
-        totalVat: tVat,
-        totalNoVat: tNoVat,
-        grandTotal: tVat + tNoVat,
-      };
-    }
-
-    // Process dynamic lines from database
+    // Process only cost lines received from the database/API.
     const vatMap = new Map<string, { code: string; title: string; order: number; items: CostTableRowItem[] }>();
     const noVatList: CostTableRowItem[] = [];
 
@@ -230,7 +141,7 @@ export function DossierCostTable({ costLines = [], className = '' }: DossierCost
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-xs font-bold text-slate-900 mb-0 uppercase tracking-tight">
-                Chi phí theo hạng mục (Dự trù mẫu)
+                Chi phí theo hạng mục
               </h3>
               <Tag color="green" className="text-[10px] font-semibold px-2 py-0.5 rounded-full border-0 bg-emerald-50 text-emerald-700">
                 Chuẩn Excel APP
@@ -282,6 +193,14 @@ export function DossierCostTable({ costLines = [], className = '' }: DossierCost
                 DỊCH VỤ ĐẦU VÀO CÓ VAT
               </td>
             </tr>
+
+            {vatSections.length === 0 && noVatItems.length === 0 && (
+              <tr>
+                <td colSpan={7} className="py-8 text-center text-slate-400 italic">
+                  Chưa có dữ liệu chi phí từ hệ thống
+                </td>
+              </tr>
+            )}
 
             {vatSections.map((sec, secIdx) => (
               <React.Fragment key={sec.title}>

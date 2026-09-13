@@ -88,6 +88,8 @@ export const queryKeys = {
     list: (filters?: Record<string, any>) => [...queryKeys.customers.lists(), filters || {}] as const,
     details: () => [...queryKeys.customers.all, 'detail'] as const,
     detail: (id?: string) => [...queryKeys.customers.details(), id || ''] as const,
+    activities: (id?: string, params?: Record<string, any>) =>
+      [...queryKeys.customers.detail(id), 'activities', params || {}] as const,
     summary: () => [...queryKeys.customers.all, 'summary'] as const,
   },
 

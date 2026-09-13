@@ -16,6 +16,11 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { QueryUserDto } from './dto/query-user.dto';
 import { AssignRolesDto } from './dto/assign-roles.dto';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  AuditAction,
+  AuditEntityType,
+} from '../audit-logs/audit-event.constants';
 
 @Injectable()
 export class UsersService {
@@ -28,6 +33,7 @@ export class UsersService {
     private readonly roleRepository: Repository<Role>,
     @InjectRepository(Department)
     private readonly departmentRepository: Repository<Department>,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   /**
@@ -130,8 +136,19 @@ export class UsersService {
   /**
    * API-USERS-002: Lấy chi tiết thông tin người dùng theo ID
    */
-  async findOne(organizationId: string, id: string) {
+  async findOne(organizationId: string, id: string, actorUserId?: string) {
     const user = await this.findUserOrFail(organizationId, id, true);
+
+    if (actorUserId) {
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId,
+        action: AuditAction.USER_VIEWED,
+        entityType: AuditEntityType.USER,
+        entityId: id,
+        afterData: { fields: ['email', 'phone', 'department', 'roles'] },
+      });
+    }
 
     return {
       data: this.sanitizeUser(user),
@@ -141,7 +158,11 @@ export class UsersService {
   /**
    * API-USERS-003: Tạo người dùng mới
    */
-  async create(organizationId: string, createUserDto: CreateUserDto) {
+  async create(
+    organizationId: string,
+    createUserDto: CreateUserDto,
+    actorUserId?: string,
+  ) {
     const {
       email,
       fullName,
@@ -230,9 +251,18 @@ export class UsersService {
 
     const savedUser = await this.userRepository.save(user);
 
-    return {
-      data: this.sanitizeUser(savedUser),
-    };
+    if (actorUserId) {
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId,
+        action: AuditAction.USER_CREATED,
+        entityType: AuditEntityType.USER,
+        entityId: savedUser.id,
+        afterData: this.auditSnapshot(savedUser),
+      });
+    }
+
+    return { data: this.sanitizeUser(savedUser) };
   }
 
   /**
@@ -242,8 +272,11 @@ export class UsersService {
     organizationId: string,
     id: string,
     updateUserDto: UpdateUserDto,
+    actorUserId?: string,
   ) {
     const user = await this.findUserOrFail(organizationId, id, true);
+    const beforeData = this.auditSnapshot(user);
+    const previousRoleIds = (user.roles ?? []).map((role) => role.id).sort();
 
     const {
       email,
@@ -339,6 +372,32 @@ export class UsersService {
 
     const updatedUser = await this.userRepository.save(user);
 
+    if (actorUserId) {
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId,
+        action: AuditAction.USER_UPDATED,
+        entityType: AuditEntityType.USER,
+        entityId: id,
+        beforeData,
+        afterData: this.auditSnapshot(updatedUser),
+      });
+      const nextRoleIds = (updatedUser.roles ?? [])
+        .map((role) => role.id)
+        .sort();
+      if (JSON.stringify(previousRoleIds) !== JSON.stringify(nextRoleIds)) {
+        await this.auditLogsService.record({
+          organizationId,
+          actorUserId,
+          action: AuditAction.USER_ROLES_CHANGED,
+          entityType: AuditEntityType.USER,
+          entityId: id,
+          beforeData: { roleIds: previousRoleIds },
+          afterData: { roleIds: nextRoleIds },
+        });
+      }
+    }
+
     return {
       data: this.sanitizeUser(updatedUser),
     };
@@ -347,7 +406,7 @@ export class UsersService {
   /**
    * API-USERS-005: Khóa tài khoản người dùng và thu hồi mọi phiên đăng nhập
    */
-  async lockUser(organizationId: string, id: string) {
+  async lockUser(organizationId: string, id: string, actorUserId?: string) {
     const user = await this.findUserOrFail(organizationId, id, true);
 
     user.status = UserStatus.LOCKED;
@@ -359,6 +418,18 @@ export class UsersService {
       { isRevoked: true },
     );
 
+    if (actorUserId) {
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId,
+        action: AuditAction.USER_UPDATED,
+        entityType: AuditEntityType.USER,
+        entityId: id,
+        beforeData: { status: UserStatus.ACTIVE },
+        afterData: { status: UserStatus.LOCKED },
+      });
+    }
+
     return {
       message: 'Đã khóa tài khoản và thu hồi tất cả phiên đăng nhập thành công',
       data: this.sanitizeUser(savedUser),
@@ -368,11 +439,23 @@ export class UsersService {
   /**
    * API-USERS-006: Mở khóa tài khoản người dùng
    */
-  async unlockUser(organizationId: string, id: string) {
+  async unlockUser(organizationId: string, id: string, actorUserId?: string) {
     const user = await this.findUserOrFail(organizationId, id, true);
 
     user.status = UserStatus.ACTIVE;
     const savedUser = await this.userRepository.save(user);
+
+    if (actorUserId) {
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId,
+        action: AuditAction.USER_UPDATED,
+        entityType: AuditEntityType.USER,
+        entityId: id,
+        beforeData: { status: UserStatus.LOCKED },
+        afterData: { status: UserStatus.ACTIVE },
+      });
+    }
 
     return {
       message: 'Đã mở khóa tài khoản thành công',
@@ -383,8 +466,9 @@ export class UsersService {
   /**
    * API-USERS-007: Xóa người dùng (Soft delete)
    */
-  async remove(organizationId: string, id: string) {
+  async remove(organizationId: string, id: string, actorUserId?: string) {
     const user = await this.findUserOrFail(organizationId, id, false);
+    const beforeData = this.auditSnapshot(user);
 
     // Thu hồi toàn bộ phiên đăng nhập trước khi xóa
     await this.refreshTokenRepository.update(
@@ -393,6 +477,17 @@ export class UsersService {
     );
 
     await this.userRepository.softRemove(user);
+
+    if (actorUserId) {
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId,
+        action: AuditAction.USER_DELETED,
+        entityType: AuditEntityType.USER,
+        entityId: id,
+        beforeData,
+      });
+    }
 
     return {
       message: 'Đã xóa người dùng thành công',
@@ -407,6 +502,7 @@ export class UsersService {
     id: string,
     assignRolesDto: AssignRolesDto,
     organizationId: string,
+    actorUserId?: string,
   ): Promise<{ message: string }> {
     const user = await this.findUserOrFail(organizationId, id, true);
 
@@ -423,9 +519,34 @@ export class UsersService {
       );
     }
 
+    const previousRoleIds = (user.roles ?? []).map((role) => role.id).sort();
     user.roles = roles;
     await this.userRepository.save(user);
 
+    if (actorUserId) {
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId,
+        action: AuditAction.USER_ROLES_CHANGED,
+        entityType: AuditEntityType.USER,
+        entityId: id,
+        beforeData: { roleIds: previousRoleIds },
+        afterData: { roleIds: roles.map((role) => role.id).sort() },
+      });
+    }
+
     return { message: 'Gán vai trò cho nhân viên thành công' };
+  }
+
+  private auditSnapshot(user: User): Record<string, unknown> {
+    return {
+      employeeCode: user.employeeCode,
+      fullName: user.fullName,
+      email: user.email,
+      phone: user.phone ?? null,
+      departmentId: user.departmentId ?? null,
+      status: user.status,
+      roleIds: (user.roles ?? []).map((role) => role.id).sort(),
+    };
   }
 }

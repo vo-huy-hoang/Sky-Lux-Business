@@ -19,7 +19,9 @@ export class QueryMyKpiDto {
   periodEnd?: string;
 
   /** @deprecated Dùng periodStart/periodEnd thay cho date. */
-  @ApiPropertyOptional({ description: 'Ngày tham chiếu cũ để tương thích client' })
+  @ApiPropertyOptional({
+    description: 'Ngày tham chiếu cũ để tương thích client',
+  })
   @IsOptional()
   @IsDateString()
   date?: string;

@@ -4,6 +4,7 @@ import {
   IsString,
   IsUUID,
   IsObject,
+  MaxLength,
 } from 'class-validator';
 
 export class CreateAuditLogDto {
@@ -18,6 +19,11 @@ export class CreateAuditLogDto {
   @IsNotEmpty({ message: 'action không được để trống' })
   @IsString({ message: 'action phải là chuỗi ký tự' })
   action: string;
+
+  @IsOptional()
+  @IsString({ message: 'description phải là chuỗi ký tự' })
+  @MaxLength(500, { message: 'description không được dài quá 500 ký tự' })
+  description?: string;
 
   @IsNotEmpty({ message: 'entityType không được để trống' })
   @IsString({ message: 'entityType phải là chuỗi ký tự' })

@@ -16,6 +16,11 @@ import { UpdateContactDto } from './dto/update-contact.dto';
 import { QueryDossierDto } from '../dossiers/dto/query-dossier.dto';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
 import { toPublicUser } from '../../common/utils/public-user';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  AuditAction,
+  AuditEntityType,
+} from '../audit-logs/audit-event.constants';
 
 @Injectable()
 export class CustomersService {
@@ -26,6 +31,7 @@ export class CustomersService {
     private readonly contactRepository: Repository<CustomerContact>,
     @InjectRepository(Dossier)
     private readonly dossierRepository: Repository<Dossier>,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   async findAll(
@@ -79,7 +85,11 @@ export class CustomersService {
     };
   }
 
-  async findOne(organizationId: string, id: string): Promise<Customer> {
+  async findOne(
+    organizationId: string,
+    id: string,
+    actorUserId?: string,
+  ): Promise<Customer> {
     const customer = await this.customerRepository.findOne({
       where: { id, organizationId },
       relations: { contacts: true, assignedSales: true },
@@ -94,12 +104,25 @@ export class CustomersService {
     customer.assignedSales = toPublicUser(
       customer.assignedSales,
     ) as typeof customer.assignedSales;
+    if (actorUserId) {
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId,
+        action: AuditAction.CUSTOMER_VIEWED,
+        entityType: AuditEntityType.CUSTOMER,
+        entityId: id,
+        afterData: {
+          fields: ['phone', 'email', 'address', 'dateOfBirth', 'contacts'],
+        },
+      });
+    }
     return customer;
   }
 
   async create(
     organizationId: string,
     createCustomerDto: CreateCustomerDto,
+    actorUserId?: string,
   ): Promise<Customer> {
     const { code, contacts, ...customerData } = createCustomerDto;
 
@@ -130,15 +153,30 @@ export class CustomersService {
       contacts: contactEntities,
     });
 
-    return this.customerRepository.save(customer);
+    const savedCustomer = await this.customerRepository.save(customer);
+    if (actorUserId) {
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId,
+        action: AuditAction.CUSTOMER_CREATED,
+        entityType: AuditEntityType.CUSTOMER,
+        entityId: savedCustomer.id,
+        afterData: this.auditSnapshot(savedCustomer),
+      });
+    }
+    return savedCustomer;
   }
 
   async update(
     organizationId: string,
     id: string,
     updateCustomerDto: UpdateCustomerDto,
+    actorUserId?: string,
   ): Promise<Customer> {
     const customer = await this.findOne(organizationId, id);
+    const beforeData = this.auditSnapshot(customer);
+    const previousStatus = customer.status;
+    const previousAssignee = customer.assignedSalesId;
 
     const { code, contacts, ...customerData } = updateCustomerDto;
 
@@ -188,12 +226,87 @@ export class CustomersService {
 
     Object.assign(customer, customerData);
 
-    return this.customerRepository.save(customer);
+    const updatedCustomer = await this.customerRepository.save(customer);
+    if (actorUserId) {
+      const afterData = this.auditSnapshot(updatedCustomer);
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId,
+        action: AuditAction.CUSTOMER_UPDATED,
+        entityType: AuditEntityType.CUSTOMER,
+        entityId: id,
+        beforeData,
+        afterData,
+      });
+      if (previousStatus !== updatedCustomer.status) {
+        await this.auditLogsService.record({
+          organizationId,
+          actorUserId,
+          action: AuditAction.CUSTOMER_STATUS_CHANGED,
+          entityType: AuditEntityType.CUSTOMER,
+          entityId: id,
+          beforeData: { status: previousStatus },
+          afterData: { status: updatedCustomer.status },
+        });
+      }
+      if (previousAssignee !== updatedCustomer.assignedSalesId) {
+        await this.auditLogsService.record({
+          organizationId,
+          actorUserId,
+          action: AuditAction.CUSTOMER_ASSIGNEE_CHANGED,
+          entityType: AuditEntityType.CUSTOMER,
+          entityId: id,
+          beforeData: { assignedSalesId: previousAssignee ?? null },
+          afterData: {
+            assignedSalesId: updatedCustomer.assignedSalesId ?? null,
+          },
+        });
+      }
+    }
+    return updatedCustomer;
   }
 
-  async remove(organizationId: string, id: string): Promise<void> {
+  async remove(
+    organizationId: string,
+    id: string,
+    actorUserId?: string,
+  ): Promise<void> {
     const customer = await this.findOne(organizationId, id);
     await this.customerRepository.softRemove(customer);
+    if (actorUserId) {
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId,
+        action: AuditAction.CUSTOMER_DELETED,
+        entityType: AuditEntityType.CUSTOMER,
+        entityId: id,
+        beforeData: this.auditSnapshot(customer),
+      });
+    }
+  }
+
+  private auditSnapshot(customer: Customer): Record<string, unknown> {
+    return {
+      code: customer.code,
+      customerType: customer.customerType,
+      displayName: customer.displayName,
+      taxCode: customer.taxCode,
+      assignedSalesId: customer.assignedSalesId ?? null,
+      status: customer.status,
+      contactCount: customer.contacts?.length ?? undefined,
+    };
+  }
+
+  private auditContactSnapshot(
+    contact: CustomerContact,
+  ): Record<string, unknown> {
+    return {
+      name: contact.name,
+      email: contact.email ?? null,
+      phone: contact.phone ?? null,
+      position: contact.position ?? null,
+      isPrimary: contact.isPrimary,
+    };
   }
 
   /**
@@ -203,6 +316,7 @@ export class CustomersService {
     organizationId: string,
     customerId: string,
     createContactDto: CreateContactDto,
+    actorUserId?: string,
   ) {
     // 1. Kiểm tra khách hàng tồn tại trong tổ chức
     await this.findOne(organizationId, customerId);
@@ -224,6 +338,20 @@ export class CustomersService {
 
     const savedContact = await this.contactRepository.save(contact);
 
+    if (actorUserId) {
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId,
+        action: AuditAction.CUSTOMER_UPDATED,
+        entityType: AuditEntityType.CUSTOMER,
+        entityId: customerId,
+        afterData: {
+          contactId: savedContact.id,
+          contact: this.auditContactSnapshot(savedContact),
+        },
+      });
+    }
+
     return {
       data: savedContact,
     };
@@ -237,6 +365,7 @@ export class CustomersService {
     customerId: string,
     contactId: string,
     updateContactDto: UpdateContactDto,
+    actorUserId?: string,
   ) {
     const contact = await this.contactRepository.findOne({
       where: { id: contactId, customerId, organizationId },
@@ -256,8 +385,24 @@ export class CustomersService {
       );
     }
 
+    const beforeData = this.auditContactSnapshot(contact);
     Object.assign(contact, updateContactDto);
     const updatedContact = await this.contactRepository.save(contact);
+
+    if (actorUserId) {
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId,
+        action: AuditAction.CUSTOMER_UPDATED,
+        entityType: AuditEntityType.CUSTOMER,
+        entityId: customerId,
+        beforeData: { contactId, contact: beforeData },
+        afterData: {
+          contactId,
+          contact: this.auditContactSnapshot(updatedContact),
+        },
+      });
+    }
 
     return {
       data: updatedContact,
@@ -271,6 +416,7 @@ export class CustomersService {
     organizationId: string,
     customerId: string,
     contactId: string,
+    actorUserId?: string,
   ) {
     const contact = await this.contactRepository.findOne({
       where: { id: contactId, customerId, organizationId },
@@ -282,7 +428,20 @@ export class CustomersService {
       );
     }
 
+    const beforeData = this.auditContactSnapshot(contact);
     await this.contactRepository.softRemove(contact);
+
+    if (actorUserId) {
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId,
+        action: AuditAction.CUSTOMER_UPDATED,
+        entityType: AuditEntityType.CUSTOMER,
+        entityId: customerId,
+        beforeData: { contactId, contact: beforeData },
+        afterData: { contactId, deleted: true },
+      });
+    }
 
     return {
       message: 'Đã xóa người liên hệ thành công',

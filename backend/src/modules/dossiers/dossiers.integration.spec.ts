@@ -13,6 +13,7 @@ import { QueryCommentDto } from './dto/query-comment.dto';
 import { DossierStatus } from '../../common/enums';
 import { DossierWorkflowService } from '../approvals/dossier-workflow.service';
 import { DocumentsService } from '../documents/documents.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 describe('Dossiers Module (Integration)', () => {
   let controller: DossiersController;
@@ -92,6 +93,10 @@ describe('Dossiers Module (Integration)', () => {
             findByDossier: jest.fn(),
             uploadForDossier: jest.fn(),
           },
+        },
+        {
+          provide: AuditLogsService,
+          useValue: { record: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

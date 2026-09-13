@@ -49,6 +49,179 @@ const actionColorMap: Record<string, string> = {
   EXPORT: 'geekblue',
 };
 
+const actionDescriptionMap: Record<string, string> = {
+  CUSTOMER_CREATED: 'Tạo khách hàng',
+  CUSTOMER_UPDATED: 'Cập nhật thông tin khách hàng',
+  CUSTOMER_DELETED: 'Xóa khách hàng',
+  CUSTOMER_STATUS_CHANGED: 'Thay đổi trạng thái khách hàng',
+  CUSTOMER_ASSIGNEE_CHANGED: 'Thay đổi nhân viên phụ trách khách hàng',
+  CUSTOMER_VIEWED: 'Xem thông tin khách hàng',
+  SENSITIVE_DATA_VIEWED: 'Xem thông tin được phân quyền',
+  CUSTOMER_LIST_EXPORTED: 'Xuất danh sách khách hàng',
+  DOSSIER_CREATED: 'Tạo hồ sơ tour',
+  DOSSIER_UPDATED: 'Cập nhật hồ sơ tour',
+  DOSSIER_DELETED: 'Xóa hồ sơ tour',
+  DOSSIER_STATUS_CHANGED: 'Thay đổi trạng thái hồ sơ tour',
+  DOSSIER_ASSIGNEE_CHANGED: 'Thay đổi nhân viên phụ trách hồ sơ tour',
+  DOSSIER_VIEWED: 'Xem thông tin hồ sơ tour',
+  ESTIMATE_CREATED: 'Tạo báo giá',
+  ESTIMATE_UPDATED: 'Cập nhật báo giá',
+  ESTIMATE_DELETED: 'Xóa báo giá',
+  ESTIMATE_STATUS_CHANGED: 'Thay đổi trạng thái báo giá',
+  ESTIMATE_VALUE_CHANGED: 'Thay đổi giá trị báo giá',
+  ESTIMATE_VIEWED: 'Xem thông tin báo giá',
+  IMPORT_UPLOADED: 'Tải tệp dữ liệu lên để nhập',
+  IMPORT_CONFIRMED: 'Xác nhận nhập dữ liệu',
+  USER_CREATED: 'Tạo tài khoản người dùng',
+  USER_UPDATED: 'Cập nhật tài khoản người dùng',
+  USER_DELETED: 'Xóa tài khoản người dùng',
+  USER_ROLES_CHANGED: 'Thay đổi vai trò người dùng',
+  USER_VIEWED: 'Xem thông tin tài khoản',
+  ROLE_CREATED: 'Tạo vai trò',
+  ROLE_UPDATED: 'Cập nhật vai trò',
+  ROLE_DELETED: 'Xóa vai trò',
+  ROLE_PERMISSIONS_CHANGED: 'Thay đổi quyền của vai trò',
+  CREATE_DOSSIER: 'Tạo hồ sơ tour',
+  UPDATE_ESTIMATE: 'Cập nhật báo giá',
+  DELETE_CUSTOMER: 'Xóa khách hàng',
+  UPDATE_ROLE: 'Cập nhật vai trò',
+};
+
+const auditFieldLabelMap: Record<string, string> = {
+  fields: 'Thông tin đã xem',
+  customer: 'Khách hàng',
+  passengers: 'Hành khách',
+  estimates: 'Báo giá',
+  assignment: 'Phân công',
+  supplierCosts: 'Chi phí nhà cung cấp',
+  revenueLines: 'Khoản thu',
+  costLines: 'Khoản chi',
+  contacts: 'Người liên hệ',
+  email: 'Email',
+  phone: 'Số điện thoại',
+  address: 'Địa chỉ',
+  dateOfBirth: 'Ngày sinh',
+  status: 'Trạng thái',
+  assignedSalesId: 'Nhân viên kinh doanh phụ trách',
+  assignedOperatorId: 'Điều hành viên phụ trách',
+  roleIds: 'Vai trò',
+  permissionIds: 'Quyền truy cập',
+  totalAmount: 'Tổng giá trị',
+  totalRevenue: 'Tổng doanh thu',
+  workflowAction: 'Thao tác quy trình',
+  deleted: 'Đã xóa',
+  code: 'Mã',
+  name: 'Tên',
+  description: 'Mô tả',
+};
+
+const auditValueLabelMap: Record<string, string> = {
+  customer: 'Khách hàng',
+  passengers: 'Hành khách',
+  estimates: 'Báo giá',
+  assignment: 'Phân công',
+  supplierCosts: 'Chi phí nhà cung cấp',
+  revenueLines: 'Khoản thu',
+  costLines: 'Khoản chi',
+  email: 'Email',
+  phone: 'Số điện thoại',
+  address: 'Địa chỉ',
+  contacts: 'Người liên hệ',
+};
+
+const entityTypeLabelMap: Record<string, string> = {
+  dossier: 'Hồ sơ tour',
+  customer: 'Khách hàng',
+  supplier: 'Nhà cung cấp',
+  estimate: 'Báo giá',
+  document: 'Tài liệu',
+  task: 'Công việc',
+  payment: 'Thanh toán',
+  user: 'Tài khoản người dùng',
+  role: 'Vai trò',
+  import_session: 'Lần nhập dữ liệu',
+};
+
+function getEntityTypeLabel(type: string): string {
+  return entityTypeLabelMap[type] || type || 'Không xác định';
+}
+
+function getAuditFieldLabel(key: string): string {
+  if (auditFieldLabelMap[key]) return auditFieldLabelMap[key];
+
+  return key
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/^./, (character) => character.toUpperCase());
+}
+
+function formatAuditValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return 'Chưa có';
+  if (typeof value === 'boolean') return value ? 'Có' : 'Không';
+  if (typeof value === 'number') return value.toLocaleString('vi-VN');
+  if (typeof value === 'string') {
+    return auditValueLabelMap[value] || value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => formatAuditValue(item)).join(', ');
+  }
+  if (typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, nestedValue]) => `${getAuditFieldLabel(key)}: ${formatAuditValue(nestedValue)}`)
+      .join('; ');
+  }
+  return String(value);
+}
+
+function getAuditDataEntries(data?: Record<string, any> | null) {
+  if (!data) return [];
+
+  return Object.entries(data).map(([key, value]) => ({
+    label: getAuditFieldLabel(key),
+    value: formatAuditValue(value),
+  }));
+}
+
+function AuditDataSummary({
+  data,
+  emptyMessage,
+}: {
+  data?: Record<string, any> | null;
+  emptyMessage: string;
+}) {
+  const entries = getAuditDataEntries(data);
+
+  if (!entries.length) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+        {emptyMessage}
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      {entries.map((entry, index) => (
+        <div
+          key={entry.label}
+          className={`grid grid-cols-[minmax(140px,0.4fr)_minmax(0,1fr)] gap-4 px-4 py-3 text-sm ${
+            index > 0 ? 'border-t border-slate-100' : ''
+          }`}
+        >
+          <Text type="secondary" className="font-medium">
+            {entry.label}
+          </Text>
+          <Text className="break-words text-slate-700">{entry.value}</Text>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function getActionDescription(action: string, description?: string | null): string {
+  return description || actionDescriptionMap[action] || 'Thao tác hệ thống';
+}
+
 function getActionColor(action: string): string {
   const upper = action?.toUpperCase() || '';
   for (const [key, color] of Object.entries(actionColorMap)) {
@@ -168,12 +341,23 @@ export default function AuditLogsPage() {
       title: 'Hành động',
       dataIndex: 'action',
       key: 'action',
-      width: 150,
-      render: (action: string) => (
-        <Tag color={getActionColor(action)} className="font-semibold text-xs">
-          {action}
-        </Tag>
-      ),
+      width: 260,
+      render: (action: string, record) => {
+        const description = getActionDescription(
+          record.action,
+          record.description,
+        );
+        return (
+          <Tooltip title={`Mã thao tác: ${record.action}`}>
+            <Tag
+              color={getActionColor(action)}
+              className="font-semibold text-xs whitespace-normal"
+            >
+              {description}
+            </Tag>
+          </Tooltip>
+        );
+      },
     },
     {
       title: 'Đối tượng',
@@ -181,9 +365,11 @@ export default function AuditLogsPage() {
       key: 'entityType',
       width: 130,
       render: (type: string) => (
-        <Tag color="blue" className="text-xs">
-          {type}
-        </Tag>
+        <Tooltip title={`Mã đối tượng: ${type}`}>
+          <Tag color="blue" className="text-xs">
+            {getEntityTypeLabel(type)}
+          </Tag>
+        </Tooltip>
       ),
     },
     {
@@ -262,13 +448,14 @@ export default function AuditLogsPage() {
               className="w-full"
               options={[
                 { label: 'Tất cả hành động', value: '' },
-                { label: 'CREATE', value: 'CREATE' },
-                { label: 'UPDATE', value: 'UPDATE' },
-                { label: 'DELETE', value: 'DELETE' },
-                { label: 'LOCK', value: 'LOCK' },
-                { label: 'APPROVE', value: 'APPROVE' },
-                { label: 'SUBMIT', value: 'SUBMIT' },
-                { label: 'EXPORT', value: 'EXPORT' },
+                { label: 'Tạo mới', value: 'CREATE' },
+                { label: 'Cập nhật', value: 'UPDATE' },
+                { label: 'Xóa', value: 'DELETE' },
+                { label: 'Khóa', value: 'LOCK' },
+                { label: 'Phê duyệt', value: 'APPROVE' },
+                { label: 'Gửi duyệt', value: 'SUBMIT' },
+                { label: 'Xuất dữ liệu', value: 'EXPORT' },
+                { label: 'Xem thông tin', value: 'VIEWED' },
               ]}
             />
           </Col>
@@ -284,15 +471,15 @@ export default function AuditLogsPage() {
               className="w-full"
               options={[
                 { label: 'Tất cả đối tượng', value: '' },
-                { label: 'dossier', value: 'dossier' },
-                { label: 'customer', value: 'customer' },
-                { label: 'supplier', value: 'supplier' },
-                { label: 'estimate', value: 'estimate' },
-                { label: 'document', value: 'document' },
-                { label: 'task', value: 'task' },
-                { label: 'payment', value: 'payment' },
-                { label: 'user', value: 'user' },
-                { label: 'role', value: 'role' },
+                { label: 'Hồ sơ tour', value: 'dossier' },
+                { label: 'Khách hàng', value: 'customer' },
+                { label: 'Nhà cung cấp', value: 'supplier' },
+                { label: 'Báo giá', value: 'estimate' },
+                { label: 'Tài liệu', value: 'document' },
+                { label: 'Công việc', value: 'task' },
+                { label: 'Thanh toán', value: 'payment' },
+                { label: 'Tài khoản người dùng', value: 'user' },
+                { label: 'Vai trò', value: 'role' },
               ]}
             />
           </Col>
@@ -322,7 +509,7 @@ export default function AuditLogsPage() {
         title={
           <div className="flex items-center gap-2">
             <HistoryOutlined />
-            <span>Danh sách nhật ký kiểm toán (API-AUDIT-001)</span>
+            <span>Danh sách nhật ký hoạt động (API-AUDIT-001)</span>
             <Tag color="blue">{total} bản ghi</Tag>
           </div>
         }
@@ -348,12 +535,12 @@ export default function AuditLogsPage() {
         />
       </Card>
 
-      {/* Drawer Chi tiết Nhật ký kiểm toán (API-AUDIT-002) */}
+      {/* Drawer Chi tiết Nhật ký hoạt động (API-AUDIT-002) */}
       <Drawer
         title={
           <div className="flex items-center gap-2">
             <HistoryOutlined />
-            <span>Chi tiết nhật ký kiểm toán (API-AUDIT-002)</span>
+            <span>Chi tiết nhật ký hoạt động (API-AUDIT-002)</span>
           </div>
         }
         placement="right"
@@ -386,12 +573,22 @@ export default function AuditLogsPage() {
                 </Space>
               </Descriptions.Item>
               <Descriptions.Item label="Hành động">
-                <Tag color={getActionColor(detailLog.action)}>
-                  {detailLog.action}
-                </Tag>
+                <Space orientation="vertical" size={2}>
+                  <Tag color={getActionColor(detailLog.action)}>
+                    {getActionDescription(
+                      detailLog.action,
+                      detailLog.description,
+                    )}
+                  </Tag>
+                  <Text type="secondary" code className="text-xs">
+                    {detailLog.action}
+                  </Text>
+                </Space>
               </Descriptions.Item>
               <Descriptions.Item label="Loại đối tượng">
-                <Tag color="blue">{detailLog.entityType}</Tag>
+                <Tag color="blue">
+                  {getEntityTypeLabel(detailLog.entityType)}
+                </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="Mã đối tượng">
                 <Text copyable code>
@@ -413,36 +610,26 @@ export default function AuditLogsPage() {
               </Descriptions.Item>
             </Descriptions>
 
-            {/* Before / After Data JSON Diff Viewer */}
+            {/* Human-readable before / after summary */}
             <div className="space-y-4">
               <div>
                 <Text strong className="text-sm block mb-1">
-                  Dữ liệu trước thay đổi (Before Data):
+                  Thông tin trước thao tác
                 </Text>
-                {detailLog.beforeData ? (
-                  <pre className="p-3 bg-slate-900 text-emerald-400 rounded-lg text-xs overflow-auto max-h-64 font-mono">
-                    {JSON.stringify(detailLog.beforeData, null, 2)}
-                  </pre>
-                ) : (
-                  <div className="p-3 bg-slate-50 border border-slate-100 rounded-md text-xs text-slate-400 italic">
-                    Không có dữ liệu trước thay đổi (Thao tác tạo mới hoặc ghi log cơ bản)
-                  </div>
-                )}
+                <AuditDataSummary
+                  data={detailLog.beforeData}
+                  emptyMessage="Không có thông tin trước thao tác này."
+                />
               </div>
 
               <div>
                 <Text strong className="text-sm block mb-1">
-                  Dữ liệu sau thay đổi (After Data):
+                  Thông tin sau thao tác
                 </Text>
-                {detailLog.afterData ? (
-                  <pre className="p-3 bg-slate-900 text-emerald-400 rounded-lg text-xs overflow-auto max-h-64 font-mono">
-                    {JSON.stringify(detailLog.afterData, null, 2)}
-                  </pre>
-                ) : (
-                  <div className="p-3 bg-slate-50 border border-slate-100 rounded-md text-xs text-slate-400 italic">
-                    Không có dữ liệu sau thay đổi
-                  </div>
-                )}
+                <AuditDataSummary
+                  data={detailLog.afterData}
+                  emptyMessage="Không có thông tin sau thao tác này."
+                />
               </div>
             </div>
           </div>

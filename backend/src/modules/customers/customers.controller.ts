@@ -19,6 +19,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { CustomersService } from './customers.service';
+import { CustomerActivitiesService } from './customer-activities.service';
 import { QueryCustomerDto } from './dto/query-customer.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
@@ -27,13 +28,17 @@ import { UpdateContactDto } from './dto/update-contact.dto';
 import { QueryDossierDto } from '../dossiers/dto/query-dossier.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { QueryCustomerActivityDto } from './dto/query-customer-activity.dto';
 
 @ApiTags('Customers')
 @ApiBearerAuth('JWT-auth')
 @Controller('customers')
 @RequirePermissions('customer.manage')
 export class CustomersController {
-  constructor(private readonly customersService: CustomersService) {}
+  constructor(
+    private readonly customersService: CustomersService,
+    private readonly customerActivitiesService: CustomerActivitiesService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -57,8 +62,11 @@ export class CustomersController {
   findOne(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') actorUserId?: string,
   ) {
-    return this.customersService.findOne(organizationId, id);
+    return actorUserId
+      ? this.customersService.findOne(organizationId, id, actorUserId)
+      : this.customersService.findOne(organizationId, id);
   }
 
   @Post()
@@ -67,8 +75,15 @@ export class CustomersController {
   create(
     @CurrentUser('organizationId') organizationId: string,
     @Body() createCustomerDto: CreateCustomerDto,
+    @CurrentUser('id') actorUserId?: string,
   ) {
-    return this.customersService.create(organizationId, createCustomerDto);
+    return actorUserId
+      ? this.customersService.create(
+          organizationId,
+          createCustomerDto,
+          actorUserId,
+        )
+      : this.customersService.create(organizationId, createCustomerDto);
   }
 
   @Patch(':id')
@@ -79,8 +94,16 @@ export class CustomersController {
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateCustomerDto: UpdateCustomerDto,
+    @CurrentUser('id') actorUserId?: string,
   ) {
-    return this.customersService.update(organizationId, id, updateCustomerDto);
+    return actorUserId
+      ? this.customersService.update(
+          organizationId,
+          id,
+          updateCustomerDto,
+          actorUserId,
+        )
+      : this.customersService.update(organizationId, id, updateCustomerDto);
   }
 
   @Delete(':id')
@@ -91,8 +114,11 @@ export class CustomersController {
   remove(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') actorUserId?: string,
   ) {
-    return this.customersService.remove(organizationId, id);
+    return actorUserId
+      ? this.customersService.remove(organizationId, id, actorUserId)
+      : this.customersService.remove(organizationId, id);
   }
 
   @Post(':id/contacts')
@@ -105,12 +131,20 @@ export class CustomersController {
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() createContactDto: CreateContactDto,
+    @CurrentUser('id') actorUserId?: string,
   ) {
-    return this.customersService.createContact(
-      organizationId,
-      id,
-      createContactDto,
-    );
+    return actorUserId
+      ? this.customersService.createContact(
+          organizationId,
+          id,
+          createContactDto,
+          actorUserId,
+        )
+      : this.customersService.createContact(
+          organizationId,
+          id,
+          createContactDto,
+        );
   }
 
   @Patch(':id/contacts/:contactId')
@@ -125,13 +159,22 @@ export class CustomersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Param('contactId', ParseUUIDPipe) contactId: string,
     @Body() updateContactDto: UpdateContactDto,
+    @CurrentUser('id') actorUserId?: string,
   ) {
-    return this.customersService.updateContact(
-      organizationId,
-      id,
-      contactId,
-      updateContactDto,
-    );
+    return actorUserId
+      ? this.customersService.updateContact(
+          organizationId,
+          id,
+          contactId,
+          updateContactDto,
+          actorUserId,
+        )
+      : this.customersService.updateContact(
+          organizationId,
+          id,
+          contactId,
+          updateContactDto,
+        );
   }
 
   @Delete(':id/contacts/:contactId')
@@ -145,8 +188,16 @@ export class CustomersController {
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('contactId', ParseUUIDPipe) contactId: string,
+    @CurrentUser('id') actorUserId?: string,
   ) {
-    return this.customersService.removeContact(organizationId, id, contactId);
+    return actorUserId
+      ? this.customersService.removeContact(
+          organizationId,
+          id,
+          contactId,
+          actorUserId,
+        )
+      : this.customersService.removeContact(organizationId, id, contactId);
   }
 
   @Get(':id/dossiers')
@@ -165,6 +216,27 @@ export class CustomersController {
     @Query() queryDto: QueryDossierDto,
   ) {
     return this.customersService.findCustomerDossiers(
+      organizationId,
+      id,
+      queryDto,
+    );
+  }
+
+  @Get(':id/activities')
+  @ApiOperation({
+    summary: 'Lấy lịch sử hoạt động của khách hàng (API-CUSTOMER-006)',
+  })
+  @ApiParam({ name: 'id', description: 'Customer UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lấy lịch sử hoạt động của khách hàng thành công',
+  })
+  findCustomerActivities(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() queryDto: QueryCustomerActivityDto,
+  ) {
+    return this.customerActivitiesService.findByCustomer(
       organizationId,
       id,
       queryDto,

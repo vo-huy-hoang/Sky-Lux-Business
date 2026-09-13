@@ -6,9 +6,11 @@ import { AuthService } from './auth.service';
 import { User } from '../users/entities/user.entity';
 import { RolePermission } from '../permissions/entities/role-permission.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
 describe('AuthService', () => {
   let service: AuthService;
+  let testingModule: TestingModule;
 
   beforeEach(async () => {
     const mockRepository = {
@@ -22,7 +24,7 @@ describe('AuthService', () => {
       getMany: jest.fn().mockResolvedValue([]),
     };
 
-    const module: TestingModule = await Test.createTestingModule({
+    testingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         {
@@ -60,10 +62,44 @@ describe('AuthService', () => {
       ],
     }).compile();
 
-    service = module.get<AuthService>(AuthService);
+    service = testingModule.get<AuthService>(AuthService);
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('createStreamToken signs a fresh short-lived token without inherited JWT claims', async () => {
+    const jwtService = testingModule.get<JwtService>(JwtService);
+    const configService = testingModule.get<ConfigService>(ConfigService);
+    jest.spyOn(configService, 'get').mockReturnValue('test-jwt-secret');
+    jest.spyOn(jwtService, 'signAsync').mockResolvedValue('stream-token');
+
+    const user: CurrentUserPayload = {
+      id: 'user-1',
+      organizationId: 'organization-1',
+      departmentId: 'department-1',
+      employeeCode: 'EMP001',
+      fullName: 'Test User',
+      email: 'test@example.com',
+      roles: ['SALES'],
+      permissions: ['chat.access'],
+    };
+
+    const authenticatedUser = {
+      ...user,
+      exp: 1_800_000_000,
+      iat: 1_799_999_940,
+    };
+
+    await expect(
+      service.createStreamToken(authenticatedUser as CurrentUserPayload),
+    ).resolves.toEqual({
+      token: 'stream-token',
+    });
+    expect(jwtService.signAsync).toHaveBeenCalledWith(
+      { ...user, stream: true },
+      { secret: 'test-jwt-secret', expiresIn: '60s' },
+    );
   });
 });

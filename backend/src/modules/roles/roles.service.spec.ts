@@ -8,6 +8,7 @@ import {
 import { DataSource, Repository, EntityManager } from 'typeorm';
 import { RolesService } from './roles.service';
 import { Role } from './entities/role.entity';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 describe('RolesService', () => {
   let service: RolesService;
@@ -54,6 +55,10 @@ describe('RolesService', () => {
         {
           provide: DataSource,
           useValue: mockDataSource,
+        },
+        {
+          provide: AuditLogsService,
+          useValue: { record: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

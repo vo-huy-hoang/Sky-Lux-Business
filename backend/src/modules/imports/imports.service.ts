@@ -34,6 +34,11 @@ import {
   ImportSessionStatus,
 } from '../../common/enums';
 import { CUSTOMER_BUDGET_FORMAT } from './customer-budget.parser';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  AuditAction,
+  AuditEntityType,
+} from '../audit-logs/audit-event.constants';
 
 @Injectable()
 export class ImportsService {
@@ -53,6 +58,7 @@ export class ImportsService {
     @InjectQueue('import-queue')
     private readonly importQueue: Queue,
     private readonly dataSource: DataSource,
+    private readonly auditLogsService: AuditLogsService,
   ) {
     // Ensure upload directory exists
     if (!fs.existsSync(this.uploadDir)) {
@@ -111,6 +117,19 @@ export class ImportsService {
       sessionId: savedSession.id,
       filePath,
       templateType: uploadImportDto.templateType,
+    });
+
+    await this.auditLogsService.record({
+      organizationId,
+      actorUserId: userId,
+      action: AuditAction.IMPORT_UPLOADED,
+      entityType: AuditEntityType.IMPORT_SESSION,
+      entityId: savedSession.id,
+      afterData: {
+        fileName: savedSession.fileName,
+        fileSize: savedSession.fileSize,
+        templateId: savedSession.templateId ?? null,
+      },
     });
 
     return savedSession;
@@ -232,7 +251,7 @@ export class ImportsService {
     return { message: 'Tiến trình kiểm duyệt đang được chạy lại dưới nền' };
   }
 
-  async confirm(organizationId: string, id: string) {
+  async confirm(organizationId: string, id: string, actorUserId?: string) {
     const session = await this.findOne(organizationId, id);
 
     // Reject if session contains error rows
@@ -496,6 +515,18 @@ export class ImportsService {
       // Update session status to CONFIRMED
       session.status = ImportSessionStatus.CONFIRMED;
       await transactionalEntityManager.save(ImportSession, session);
+    });
+
+    await this.auditLogsService.record({
+      organizationId,
+      actorUserId: actorUserId ?? session.uploadedBy,
+      action: AuditAction.IMPORT_CONFIRMED,
+      entityType: AuditEntityType.IMPORT_SESSION,
+      entityId: id,
+      afterData: {
+        status: ImportSessionStatus.CONFIRMED,
+        importedRowsCount: validRows.length,
+      },
     });
 
     return {

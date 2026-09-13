@@ -20,6 +20,11 @@ import { CurrentUserPayload } from '../../common/decorators/current-user.decorat
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
 import { DossierStatus } from '../../common/enums';
 import { toPublicUser } from '../../common/utils/public-user';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  AuditAction,
+  AuditEntityType,
+} from '../audit-logs/audit-event.constants';
 
 @Injectable()
 export class DossiersService {
@@ -30,6 +35,7 @@ export class DossiersService {
     private readonly dossierRepository: Repository<Dossier>,
     @InjectRepository(Comment)
     private readonly commentRepository: Repository<Comment>,
+    private readonly auditLogsService: AuditLogsService,
     @Optional()
     private readonly notificationsService?: NotificationsService,
   ) {}
@@ -129,7 +135,11 @@ export class DossiersService {
     };
   }
 
-  async findOne(user: CurrentUserPayload, id: string): Promise<Dossier> {
+  async findOne(
+    user: CurrentUserPayload,
+    id: string,
+    logSensitiveView = true,
+  ): Promise<Dossier> {
     const organizationId = user.organizationId;
     const dossier = await this.dossierRepository.findOne({
       where: { id, organizationId },
@@ -182,6 +192,19 @@ export class DossiersService {
       dossier.operatorUser,
     ) as typeof dossier.operatorUser;
 
+    if (logSensitiveView) {
+      await this.auditLogsService.record({
+        organizationId: user.organizationId,
+        actorUserId: user.id,
+        action: AuditAction.DOSSIER_VIEWED,
+        entityType: AuditEntityType.DOSSIER,
+        entityId: id,
+        afterData: {
+          fields: ['customer', 'passengers', 'estimates', 'assignment'],
+        },
+      });
+    }
+
     return dossier;
   }
 
@@ -209,7 +232,16 @@ export class DossiersService {
       createdBy: user.id,
     });
 
-    return this.dossierRepository.save(dossier);
+    const savedDossier = await this.dossierRepository.save(dossier);
+    await this.auditLogsService.record({
+      organizationId,
+      actorUserId: user.id,
+      action: AuditAction.DOSSIER_CREATED,
+      entityType: AuditEntityType.DOSSIER,
+      entityId: savedDossier.id,
+      afterData: this.auditSnapshot(savedDossier),
+    });
+    return savedDossier;
   }
 
   async update(
@@ -217,7 +249,11 @@ export class DossiersService {
     id: string,
     updateDossierDto: UpdateDossierDto,
   ): Promise<Dossier> {
-    const dossier = await this.findOne(user, id);
+    const dossier = await this.findOne(user, id, false);
+    const beforeData = this.auditSnapshot(dossier);
+    const previousStatus = dossier.status;
+    const previousSalesUserId = dossier.salesUserId;
+    const previousOperatorUserId = dossier.operatorUserId;
     if (dossier.status === DossierStatus.LOCKED) {
       throw new BadRequestException('Không thể chỉnh sửa hồ sơ khi đã bị khóa');
     }
@@ -241,11 +277,53 @@ export class DossiersService {
 
     Object.assign(dossier, updateData);
 
-    return this.dossierRepository.save(dossier);
+    const updatedDossier = await this.dossierRepository.save(dossier);
+    const afterData = this.auditSnapshot(updatedDossier);
+    await this.auditLogsService.record({
+      organizationId: user.organizationId,
+      actorUserId: user.id,
+      action: AuditAction.DOSSIER_UPDATED,
+      entityType: AuditEntityType.DOSSIER,
+      entityId: id,
+      beforeData,
+      afterData,
+    });
+    if (previousStatus !== updatedDossier.status) {
+      await this.auditLogsService.record({
+        organizationId: user.organizationId,
+        actorUserId: user.id,
+        action: AuditAction.DOSSIER_STATUS_CHANGED,
+        entityType: AuditEntityType.DOSSIER,
+        entityId: id,
+        beforeData: { status: previousStatus },
+        afterData: { status: updatedDossier.status },
+      });
+    }
+    if (
+      previousSalesUserId !== updatedDossier.salesUserId ||
+      previousOperatorUserId !== updatedDossier.operatorUserId
+    ) {
+      await this.auditLogsService.record({
+        organizationId: user.organizationId,
+        actorUserId: user.id,
+        action: AuditAction.DOSSIER_ASSIGNEE_CHANGED,
+        entityType: AuditEntityType.DOSSIER,
+        entityId: id,
+        beforeData: {
+          salesUserId: previousSalesUserId ?? null,
+          operatorUserId: previousOperatorUserId ?? null,
+        },
+        afterData: {
+          salesUserId: updatedDossier.salesUserId ?? null,
+          operatorUserId: updatedDossier.operatorUserId ?? null,
+        },
+      });
+    }
+    return updatedDossier;
   }
 
   async remove(user: CurrentUserPayload, id: string): Promise<void> {
-    const dossier = await this.findOne(user, id);
+    const dossier = await this.findOne(user, id, false);
     if (
       dossier.status === DossierStatus.APPROVED ||
       dossier.status === DossierStatus.COMPLETED ||
@@ -256,6 +334,31 @@ export class DossiersService {
       );
     }
     await this.dossierRepository.softRemove(dossier);
+    await this.auditLogsService.record({
+      organizationId: user.organizationId,
+      actorUserId: user.id,
+      action: AuditAction.DOSSIER_DELETED,
+      entityType: AuditEntityType.DOSSIER,
+      entityId: id,
+      beforeData: this.auditSnapshot(dossier),
+    });
+  }
+
+  private auditSnapshot(dossier: Dossier): Record<string, unknown> {
+    return {
+      code: dossier.code,
+      name: dossier.name,
+      customerId: dossier.customerId,
+      businessLineId: dossier.businessLineId ?? null,
+      marketTypeId: dossier.marketTypeId ?? null,
+      salesUserId: dossier.salesUserId ?? null,
+      operatorUserId: dossier.operatorUserId ?? null,
+      status: dossier.status,
+      priority: dossier.priority,
+      route: dossier.route ?? null,
+      startDate: dossier.startDate ?? null,
+      endDate: dossier.endDate ?? null,
+    };
   }
 
   /**
@@ -267,7 +370,7 @@ export class DossiersService {
     queryDto?: QueryCommentDto,
   ) {
     // 1. Xác thực hồ sơ và quyền truy cập
-    await this.findOne(user, dossierId);
+    await this.findOne(user, dossierId, false);
 
     // 2. Truy vấn danh sách bình luận
     const queryBuilder = this.commentRepository
@@ -320,7 +423,7 @@ export class DossiersService {
     createCommentDto: CreateCommentDto,
   ) {
     // 1. Xác thực hồ sơ và kiểm tra trạng thái
-    const dossier = await this.findOne(user, dossierId);
+    const dossier = await this.findOne(user, dossierId, false);
     if (dossier.status === DossierStatus.LOCKED) {
       throw new BadRequestException(
         'Không thể thêm bình luận khi hồ sơ đã bị khóa',

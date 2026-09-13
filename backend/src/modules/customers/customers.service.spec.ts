@@ -13,6 +13,7 @@ import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
 import { QueryDossierDto } from '../dossiers/dto/query-dossier.dto';
 import { CustomerType } from '../../common/enums';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 describe('CustomersService', () => {
   let service: CustomersService;
@@ -71,6 +72,10 @@ describe('CustomersService', () => {
         {
           provide: getRepositoryToken(Dossier),
           useValue: mockDossierRepository,
+        },
+        {
+          provide: AuditLogsService,
+          useValue: { record: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

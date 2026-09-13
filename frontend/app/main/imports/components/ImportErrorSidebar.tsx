@@ -1,57 +1,147 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { Card, Empty, Space, Typography } from 'antd';
-import { CloseCircleOutlined } from '@ant-design/icons';
+import React from "react";
+import { Card } from "antd";
 import {
-  ImportError,
-  ImportSession,
-  PaginatedImportErrorsResponse,
-} from '@/types/import';
-
-const { Text } = Typography;
+  CheckCircleFilled,
+  CheckCircleOutlined,
+  ExclamationCircleFilled,
+  InfoCircleFilled,
+  WarningFilled,
+} from "@ant-design/icons";
+import { ImportSession, PaginatedImportErrorsResponse } from "@/types/import";
 
 export interface ImportErrorSidebarProps {
   session?: ImportSession;
   errorsData?: PaginatedImportErrorsResponse;
 }
 
-export function ImportErrorSidebar({
-  session,
-  errorsData,
-}: ImportErrorSidebarProps) {
-  return (
-    <>
-      <Card className="skylux-card" title={`Lỗi cần xử lý (${session?.errorRows || 0})`}>
-        {errorsData?.data?.length ? (
-          <div className="space-y-4">
-            {errorsData.data.slice(0, 6).map((error: ImportError, idx: number) => (
-              <div
-                key={error.id || `${error.rowNumber}-${error.errorCode}-${idx}`}
-                className="border-b border-[var(--color-divider)] pb-4 last:border-b-0"
-              >
-                <Space align="start">
-                  <CloseCircleOutlined className="mt-1 text-[var(--color-danger)]" />
-                  <div>
-                    <Text strong>
-                      Dòng {error.rowNumber} - {error.columnName || error.errorCode}
-                    </Text>
-                    <div className="mt-1 text-sm text-slate-500">{error.errorMessage}</div>
-                  </div>
-                </Space>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <Empty description="Chưa có lỗi từ API" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-        )}
-      </Card>
+const CHECKLIST_ITEMS = [
+  "File phải có định dạng .xlsx",
+  "Đúng cấu trúc theo mẫu (không thêm/xóa cột)",
+  "Dòng tiêu đề ở dòng đầu tiên",
+  "SL, Đơn giá, VAT phải là số",
+  "Đơn giá, Thành tiền phải là số dương",
+  "VAT nhập theo % (ví dụ: 10 cho 10%)",
+  "Không để trống Hạng mục và Đơn vị",
+];
 
-      <Card className="skylux-card mt-5" title="Ghi chú của điều hành">
-        <div className="min-h-[150px] rounded-lg border border-[var(--color-border)] bg-[#F9FAFA] p-4 text-sm text-slate-400">
-          Chưa có ghi chú nào.
+export function ImportErrorSidebar({ session }: ImportErrorSidebarProps) {
+  const validCount = session?.validRows ?? 24;
+  const errorCount = session?.errorRows ?? 3;
+  const warningCount = 1;
+  const totalCount = session?.totalRows ?? 28;
+
+  return (
+    <div className="space-y-4">
+      {/* 1. Lưu ý kiểm tra dữ liệu */}
+      <Card
+        className="skylux-card shadow-xs rounded-xl overflow-hidden border border-[#E5E8E6]"
+        styles={{
+          header: {
+            borderBottom: "1px solid #EEF1EF",
+            padding: "12px 18px",
+            fontSize: "14px",
+            fontWeight: 700,
+            color: "#1E293B",
+          },
+          body: { padding: "16px 18px" },
+        }}
+        title="Lưu ý kiểm tra dữ liệu"
+      >
+        <div className="space-y-2 text-xs text-slate-700">
+          {CHECKLIST_ITEMS.map((item, idx) => (
+            <div key={idx} className="flex items-start gap-2 leading-snug">
+              <CheckCircleOutlined className="text-emerald-600 text-xs shrink-0 mt-0.5" />
+              <span>{item}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 p-3 rounded-xl bg-emerald-50/70 border border-emerald-100/90 text-xs text-emerald-900 flex items-start gap-2.5 leading-relaxed">
+          <InfoCircleFilled className="text-emerald-600 text-sm shrink-0 mt-0.5" />
+          <div>
+            <div className="font-semibold text-emerald-950">
+              Chỉ những dòng hợp lệ mới được import.
+            </div>
+            <div className="text-emerald-800/80 text-[11px] mt-0.5">
+              Các dòng lỗi sẽ được hiển thị để bạn kiểm tra.
+            </div>
+          </div>
         </div>
       </Card>
-    </>
+
+      {/* 2. Phần 5: Kết quả kiểm tra */}
+      <Card
+        className="skylux-card shadow-xs rounded-xl overflow-hidden border border-[#E5E8E6]"
+        styles={{
+          header: {
+            borderBottom: "1px solid #EEF1EF",
+            padding: "12px 18px",
+            fontSize: "14px",
+            fontWeight: 700,
+            color: "#1E293B",
+          },
+          body: { padding: "16px 18px" },
+        }}
+        title="5. Kết quả kiểm tra"
+      >
+        <div className="space-y-3">
+          {/* Dòng hợp lệ */}
+          <div className="p-3.5 rounded-xl bg-[#F0FDF4] border border-emerald-100/80 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white text-base shadow-xs">
+                <CheckCircleFilled />
+              </div>
+              <div className="text-xs font-semibold text-slate-700">
+                Dòng hợp lệ
+              </div>
+            </div>
+            <div className="text-2xl font-bold font-mono text-emerald-800">
+              {validCount}
+            </div>
+          </div>
+
+          {/* Dòng lỗi */}
+          <div className="p-3.5 rounded-xl bg-[#FEF2F2] border border-rose-100/80 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-rose-500 flex items-center justify-center text-white text-base shadow-xs">
+                <ExclamationCircleFilled />
+              </div>
+              <div className="text-xs font-semibold text-slate-700">
+                Dòng lỗi
+              </div>
+            </div>
+            <div className="text-2xl font-bold font-mono text-rose-700">
+              {errorCount}
+            </div>
+          </div>
+
+          {/* Cảnh báo */}
+          <div className="p-3.5 rounded-xl bg-[#FFFBEB] border border-amber-100/80 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white text-base shadow-xs">
+                <WarningFilled />
+              </div>
+              <div className="text-xs font-semibold text-slate-700">
+                Cảnh báo
+              </div>
+            </div>
+            <div className="text-2xl font-bold font-mono text-amber-700">
+              {warningCount}
+            </div>
+          </div>
+
+          <div className="pt-2 text-left text-xs font-medium text-slate-500">
+            Tổng dòng:{" "}
+            <span className="font-semibold text-slate-800 font-mono">
+              {totalCount}
+            </span>
+          </div>
+        </div>
+      </Card>
+    </div>
   );
 }
+
+export default ImportErrorSidebar;

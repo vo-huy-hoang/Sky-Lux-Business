@@ -295,10 +295,26 @@ export class AuthService {
   }
 
   async createStreamToken(user: CurrentUserPayload) {
-    const token = await this.jwtService.signAsync(
-      { ...user, stream: true },
-      { secret: this.getJwtSecret(), expiresIn: '60s' },
-    );
+    // Build the stream payload from the authenticated user claims instead of
+    // spreading request.user, which may also contain JWT registered claims
+    // such as `exp` and `iat`. `expiresIn` must be the single source of truth
+    // for this short-lived token's expiration.
+    const streamPayload = {
+      id: user.id,
+      organizationId: user.organizationId,
+      departmentId: user.departmentId,
+      employeeCode: user.employeeCode,
+      fullName: user.fullName,
+      email: user.email,
+      roles: user.roles,
+      permissions: user.permissions,
+      stream: true,
+    };
+
+    const token = await this.jwtService.signAsync(streamPayload, {
+      secret: this.getJwtSecret(),
+      expiresIn: '60s',
+    });
     return { token };
   }
 

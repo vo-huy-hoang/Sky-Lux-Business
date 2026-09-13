@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Logger,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,9 +10,12 @@ import { AuditLog } from './entities/audit-log.entity';
 import { QueryAuditLogDto } from './dto/query-audit-log.dto';
 import { CreateAuditLogDto } from './dto/create-audit-log.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { describeAuditAction } from './audit-event.constants';
 
 @Injectable()
 export class AuditLogsService {
+  private readonly logger = new Logger(AuditLogsService.name);
+
   constructor(
     @InjectRepository(AuditLog)
     private readonly auditLogRepository: Repository<AuditLog>,
@@ -136,8 +140,35 @@ export class AuditLogsService {
    * Phương thức tiện ích nội bộ để ghi audit log từ các service/interceptor
    */
   async log(dto: CreateAuditLogDto): Promise<AuditLog> {
-    const auditLog = this.auditLogRepository.create(dto);
+    const auditLog = this.auditLogRepository.create({
+      ...dto,
+      description: dto.description ?? describeAuditAction(dto.action),
+    });
     return this.auditLogRepository.save(auditLog);
+  }
+
+  /**
+   * Ghi audit sau khi nghiệp vụ đã thành công. Audit không được làm hỏng
+   * response của nghiệp vụ chính nếu storage audit tạm thời gặp lỗi.
+   */
+  async record(event: {
+    organizationId: string;
+    actorUserId?: string;
+    action: string;
+    entityType: string;
+    entityId: string;
+    beforeData?: Record<string, unknown>;
+    afterData?: Record<string, unknown>;
+    requestId?: string;
+  }): Promise<void> {
+    try {
+      await this.log(event);
+    } catch (error) {
+      this.logger.error(
+        `Không thể ghi audit ${event.action}/${event.entityType}/${event.entityId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
   }
 
   private mapAuditLog(log: AuditLog) {
@@ -146,6 +177,7 @@ export class AuditLogsService {
       organizationId: log.organizationId,
       actorUserId: log.actorUserId,
       action: log.action,
+      description: log.description ?? describeAuditAction(log.action),
       entityType: log.entityType,
       entityId: log.entityId,
       beforeData: this.sanitizeAuditData(log.beforeData ?? null),

@@ -9,6 +9,7 @@ import { Comment } from './entities/comment.entity';
 import { ApprovalsModule } from '../approvals/approvals.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     ApprovalsModule,
     DocumentsModule,
     NotificationsModule,
+    AuditLogsModule,
   ],
   controllers: [DossiersController],
   providers: [DossiersService],

@@ -63,8 +63,11 @@ export class UsersController {
   findOne(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') actorUserId?: string,
   ) {
-    return this.usersService.findOne(organizationId, id);
+    return actorUserId
+      ? this.usersService.findOne(organizationId, id, actorUserId)
+      : this.usersService.findOne(organizationId, id);
   }
 
   @Post()
@@ -82,8 +85,11 @@ export class UsersController {
   create(
     @CurrentUser('organizationId') organizationId: string,
     @Body() createUserDto: CreateUserDto,
+    @CurrentUser('id') actorUserId?: string,
   ) {
-    return this.usersService.create(organizationId, createUserDto);
+    return actorUserId
+      ? this.usersService.create(organizationId, createUserDto, actorUserId)
+      : this.usersService.create(organizationId, createUserDto);
   }
 
   @Patch(':id')
@@ -109,8 +115,11 @@ export class UsersController {
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserDto: UpdateUserDto,
+    @CurrentUser('id') actorUserId?: string,
   ) {
-    return this.usersService.update(organizationId, id, updateUserDto);
+    return actorUserId
+      ? this.usersService.update(organizationId, id, updateUserDto, actorUserId)
+      : this.usersService.update(organizationId, id, updateUserDto);
   }
 
   @Post(':id/lock')
@@ -128,8 +137,11 @@ export class UsersController {
   lock(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') actorUserId?: string,
   ) {
-    return this.usersService.lockUser(organizationId, id);
+    return actorUserId
+      ? this.usersService.lockUser(organizationId, id, actorUserId)
+      : this.usersService.lockUser(organizationId, id);
   }
 
   @Post(':id/unlock')
@@ -146,8 +158,11 @@ export class UsersController {
   unlock(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') actorUserId?: string,
   ) {
-    return this.usersService.unlockUser(organizationId, id);
+    return actorUserId
+      ? this.usersService.unlockUser(organizationId, id, actorUserId)
+      : this.usersService.unlockUser(organizationId, id);
   }
 
   @Delete(':id')
@@ -159,8 +174,11 @@ export class UsersController {
   remove(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') actorUserId?: string,
   ) {
-    return this.usersService.remove(organizationId, id);
+    return actorUserId
+      ? this.usersService.remove(organizationId, id, actorUserId)
+      : this.usersService.remove(organizationId, id);
   }
 
   @Put(':id/roles')
@@ -178,7 +196,15 @@ export class UsersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() assignRolesDto: AssignRolesDto,
     @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser('id') actorUserId?: string,
   ) {
-    return this.usersService.assignRoles(id, assignRolesDto, organizationId);
+    return actorUserId
+      ? this.usersService.assignRoles(
+          id,
+          assignRolesDto,
+          organizationId,
+          actorUserId,
+        )
+      : this.usersService.assignRoles(id, assignRolesDto, organizationId);
   }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Layout, Button, Space, Badge, Dropdown, Avatar } from 'antd';
 import type { MenuProps } from 'antd';
@@ -55,7 +55,7 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
 
   const { isCeoAdmin } = userCtx;
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       await authService.logout();
     } finally {
@@ -63,53 +63,69 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
       logout();
       router.push('/auth/login');
     }
-  };
+  }, [logout, queryClient, router]);
 
-  const userDropdownItems: MenuProps['items'] = [
-    {
-      key: 'profile-info',
-      disabled: true,
-      label: (
-        <div className="py-1">
-          <div className="font-semibold text-slate-800">
-            {user?.fullName || 'Người dùng'}
+  const userName = user?.fullName;
+  const userEmail = user?.email;
+  const userRole = user?.roles?.[0];
+  const canManageUsers =
+    isCeoAdmin ||
+    Boolean(user?.permissions?.includes('user.manage')) ||
+    Boolean(user?.permissions?.includes('*'));
+
+  const userDropdownItems = useMemo<MenuProps['items']>(
+    () => [
+      {
+        key: 'profile-info',
+        disabled: true,
+        label: (
+          <div className="py-1">
+            <div className="font-semibold text-slate-800">
+              {userName || 'Người dùng'}
+            </div>
+            <div className="text-xs font-mono text-slate-500">
+              {userEmail || 'user@skylux.vn'}
+            </div>
+            <div className="mt-1 text-[11px] font-medium text-blue-600">
+              {userRole || 'Member'}
+            </div>
           </div>
-          <div className="text-xs text-slate-500 font-mono">
-            {user?.email || 'user@skylux.vn'}
-          </div>
-          <div className="text-[11px] text-blue-600 font-medium mt-1">
-            {user?.roles?.[0] || 'Member'}
-          </div>
-        </div>
-      ),
-    },
-    {
-      type: 'divider',
-    },
-    {
-      key: 'profile',
-      icon: <UserOutlined />,
-      label: 'Hồ sơ cá nhân',
-      onClick: () => router.push('/main/profile'),
-    },
-    ...(isCeoAdmin || user?.permissions?.includes('user.manage') || user?.permissions?.includes('*')
-      ? [
-          {
-            key: 'user-admin',
-            icon: <TeamOutlined />,
-            label: 'Quản trị người dùng',
-            onClick: () => router.push('/main/users'),
-          },
-        ]
-      : []),
-    {
-      key: 'logout',
-      icon: <LogoutOutlined />,
-      danger: true,
-      label: 'Đăng xuất',
-      onClick: handleLogout,
-    },
-  ];
+        ),
+      },
+      { type: 'divider' },
+      {
+        key: 'profile',
+        icon: <UserOutlined />,
+        label: 'Hồ sơ cá nhân',
+        onClick: () => router.push('/main/profile'),
+      },
+      ...(canManageUsers
+        ? [
+            {
+              key: 'user-admin',
+              icon: <TeamOutlined />,
+              label: 'Quản trị người dùng',
+              onClick: () => router.push('/main/users'),
+            },
+          ]
+        : []),
+      {
+        key: 'logout',
+        icon: <LogoutOutlined />,
+        danger: true,
+        label: 'Đăng xuất',
+        onClick: handleLogout,
+      },
+    ],
+    [
+      canManageUsers,
+      handleLogout,
+      router,
+      userEmail,
+      userName,
+      userRole,
+    ],
+  );
 
   return (
     <>

@@ -13,6 +13,7 @@ import {
   SyncOutlined,
 } from '@ant-design/icons';
 import { DossierWorkflowAction } from '../types';
+import { useUIStore } from '@/lib/stores/ui-store';
 
 export interface DossierWorkflowActionBarProps {
   dossierId?: string;
@@ -41,12 +42,16 @@ export function DossierWorkflowActionBar({
   onResubmit,
   onOpenModal,
 }: DossierWorkflowActionBarProps) {
+  const sidebarCollapsed = useUIStore((state) => state.sidebarCollapsed);
+
   return (
     <div
       className={
         isDrawer
           ? 'sticky bottom-0 left-0 right-0 z-20 -mx-6 -mb-6 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-3px_14px_rgb(15_61_46_/_0.07)] backdrop-blur-sm'
-          : 'fixed bottom-0 left-0 right-0 z-20 border-t border-[var(--ceo-border)] bg-white/95 p-3 shadow-[0_-3px_14px_rgb(15_61_46_/_0.07)] backdrop-blur-sm lg:left-[238px]'
+          : `fixed bottom-0 right-0 z-20 border-t border-[var(--ceo-border)] bg-white/95 p-3 shadow-[0_-3px_14px_rgb(15_61_46_/_0.07)] backdrop-blur-sm transition-[left] duration-200 ease-in-out ${
+              sidebarCollapsed ? 'left-0 lg:left-[72px]' : 'left-0 lg:left-[238px]'
+            }`
       }
     >
       <div

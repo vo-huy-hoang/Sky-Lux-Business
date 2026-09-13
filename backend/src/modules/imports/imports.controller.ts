@@ -154,7 +154,8 @@ export class ImportsController {
   confirm(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') actorUserId: string,
   ) {
-    return this.importsService.confirm(organizationId, id);
+    return this.importsService.confirm(organizationId, id, actorUserId);
   }
 }
