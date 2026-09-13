@@ -4,6 +4,7 @@ import { queryKeys } from '@/lib/query-keys';
 import {
   CustomerItem,
   QueryCustomerParams,
+  QueryCustomerActivityParams,
 } from '@/types/customer';
 import { message } from 'antd';
 
@@ -42,6 +43,21 @@ export function useCustomerDetail(id?: string | null) {
   return useQuery({
     queryKey: queryKeys.customers.detail(id || ''),
     queryFn: ({ signal }) => customersService.getCustomer(id!, { signal }),
+    enabled: Boolean(id),
+  });
+}
+
+/**
+ * Deep Hook: Lịch sử hoạt động của một khách hàng
+ */
+export function useCustomerActivities(
+  id?: string | null,
+  params?: QueryCustomerActivityParams,
+) {
+  return useQuery({
+    queryKey: queryKeys.customers.activities(id || '', params),
+    queryFn: ({ signal }) =>
+      customersService.getCustomerActivities(id!, params, { signal }),
     enabled: Boolean(id),
   });
 }

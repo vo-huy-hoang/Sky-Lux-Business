@@ -41,8 +41,11 @@ export class RolesController {
   create(
     @Body() createRoleDto: CreateRoleDto,
     @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser('id') actorUserId?: string,
   ) {
-    return this.rolesService.create(createRoleDto, organizationId);
+    return actorUserId
+      ? this.rolesService.create(createRoleDto, organizationId, actorUserId)
+      : this.rolesService.create(createRoleDto, organizationId);
   }
 
   @Get()
@@ -78,8 +81,11 @@ export class RolesController {
     @Param('id') id: string,
     @Body() updateRoleDto: UpdateRoleDto,
     @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser('id') actorUserId?: string,
   ) {
-    return this.rolesService.update(id, updateRoleDto, organizationId);
+    return actorUserId
+      ? this.rolesService.update(id, updateRoleDto, organizationId, actorUserId)
+      : this.rolesService.update(id, updateRoleDto, organizationId);
   }
 
   @Delete(':id')
@@ -101,9 +107,12 @@ export class RolesController {
     @Param('id') id: string,
     @CurrentUser('organizationId') organizationId: string,
     @Query('force') force?: string,
+    @CurrentUser('id') actorUserId?: string,
   ) {
     const isForce = force === 'true';
-    return this.rolesService.remove(id, organizationId, isForce);
+    return actorUserId
+      ? this.rolesService.remove(id, organizationId, isForce, actorUserId)
+      : this.rolesService.remove(id, organizationId, isForce);
   }
 
   @Put(':id/permissions')
@@ -122,11 +131,19 @@ export class RolesController {
     @Param('id') id: string,
     @Body() assignPermissionsDto: AssignPermissionsDto,
     @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser('id') actorUserId?: string,
   ) {
-    return this.rolesService.assignPermissions(
-      id,
-      assignPermissionsDto,
-      organizationId,
-    );
+    return actorUserId
+      ? this.rolesService.assignPermissions(
+          id,
+          assignPermissionsDto,
+          organizationId,
+          actorUserId,
+        )
+      : this.rolesService.assignPermissions(
+          id,
+          assignPermissionsDto,
+          organizationId,
+        );
   }
 }

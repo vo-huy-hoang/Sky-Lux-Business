@@ -363,13 +363,12 @@ describe('Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
   });
 
   describe('Component Rendering', () => {
-    it('DossierCostTable render fallback mẫu khi costLines rỗng', () => {
+    it('DossierCostTable không hiển thị dữ liệu giả khi costLines rỗng', () => {
       render(<DossierCostTable costLines={[]} />);
-      expect(screen.getByText('Chi phí theo hạng mục (Dự trù mẫu)')).toBeInTheDocument();
+      expect(screen.getByText('Chi phí theo hạng mục')).toBeInTheDocument();
       expect(screen.getByText('Chuẩn Excel APP')).toBeInTheDocument();
-      expect(screen.getByText('DỊCH VỤ ĐẦU VÀO CÓ VAT')).toBeInTheDocument();
-      expect(screen.getByText('DỊCH VỤ ĐẦU VÀO CHƯA VAT')).toBeInTheDocument();
-      expect(screen.getByText('KHÁCH SẠN MƯỜNG THANH')).toBeInTheDocument();
+      expect(screen.getByText('Chưa có dữ liệu chi phí từ hệ thống')).toBeInTheDocument();
+      expect(screen.queryByText('KHÁCH SẠN MƯỜNG THANH')).not.toBeInTheDocument();
     });
 
     it('CostSummaryTable render đúng bảng tổng hợp và badge tỷ suất lợi nhuận', () => {
@@ -482,7 +481,7 @@ describe('Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
 
       // Kiểm tra trong tab mặc định overview có chứa cả 3 bảng
       expect(screen.getByText('Chi tiết doanh thu')).toBeInTheDocument();
-      expect(screen.getByText('Chi phí theo hạng mục (Dự trù mẫu)')).toBeInTheDocument();
+      expect(screen.getByText('Chi phí theo hạng mục')).toBeInTheDocument();
       expect(screen.getByText('Tổng hợp doanh thu và lợi nhuận')).toBeInTheDocument();
     });
 

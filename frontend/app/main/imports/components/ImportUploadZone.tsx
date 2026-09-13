@@ -1,12 +1,11 @@
 'use client';
 
 import React from 'react';
-import { Alert, Button, Card, Col, Row, Space, Spin, Typography, Upload } from 'antd';
+import { Button, Card, Col, Row, Spin, Typography, Upload } from 'antd';
 import {
-  CheckCircleOutlined,
   CloudUploadOutlined,
   DownloadOutlined,
-  FileExcelOutlined,
+  FileExcelFilled,
 } from '@ant-design/icons';
 
 const { Text } = Typography;
@@ -24,87 +23,109 @@ export function ImportUploadZone({
   isUploading,
 }: ImportUploadZoneProps) {
   return (
-    <Row gutter={[18, 18]}>
-      <Col xs={24} xl={16}>
-        <Row gutter={[18, 18]}>
-          <Col xs={24} lg={12}>
-            <Card className="skylux-card h-full" title="Tải mẫu file dự toán chuẩn">
-              <div className="flex items-center justify-between gap-5">
-                <Space size={16}>
-                  <span className="skylux-icon-bubble bg-[var(--color-primary-soft)] text-[var(--color-primary-600)]">
-                    <FileExcelOutlined />
-                  </span>
-                  <div>
-                    <Text strong>Mẫu dự toán SkyLux Travel.xlsx</Text>
-                    <div className="mt-1 text-sm text-slate-500">Định dạng chuẩn .xlsx</div>
-                  </div>
-                </Space>
-                <Button
-                  icon={<DownloadOutlined />}
-                  className="skylux-outline-button"
-                  onClick={onDownloadSample}
-                >
-                  Tải xuống
-                </Button>
+    <Row gutter={[16, 16]}>
+      {/* 1. Tải mẫu file dự toán chuẩn */}
+      <Col xs={24} md={12}>
+        <Card
+          className="skylux-card shadow-xs rounded-xl overflow-hidden h-full border border-[#E5E8E6]"
+          styles={{
+            header: {
+              borderBottom: '1px solid #EEF1EF',
+              padding: '12px 18px',
+              fontSize: '13px',
+              fontWeight: 700,
+              color: '#1E293B',
+            },
+            body: { padding: '16px 18px' },
+          }}
+          title="1. Tải mẫu file dự toán chuẩn"
+        >
+          <div className="flex items-center justify-between gap-3 h-full">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white text-xl shadow-xs shrink-0">
+                <FileExcelFilled />
               </div>
-            </Card>
-          </Col>
-          <Col xs={24} lg={12}>
-            <Card className="skylux-card h-full" title="Tải lên file dự toán">
-              <Dragger
-                accept=".xlsx, .xls"
-                maxCount={1}
-                showUploadList={false}
-                beforeUpload={(file) => {
-                  onUploadFile(file);
-                  return false;
-                }}
-                disabled={isUploading}
-                className="rounded-lg"
-                style={{ padding: '18px 12px', background: '#FFFFFF', borderColor: '#B7D3C7' }}
-              >
-                <div className="ant-upload-drag-icon">
-                  {isUploading ? (
-                    <Spin size="large" />
-                  ) : (
-                    <CloudUploadOutlined style={{ fontSize: 40, color: '#003828' }} />
-                  )}
+              <div>
+                <Text strong className="text-xs text-slate-800 block">
+                  Mẫu dự toán SkyLux Travel.xlsx
+                </Text>
+                <div className="text-[11px] text-slate-400 mt-0.5">
+                  Định dạng chuẩn (.xlsx) • Cập nhật 20/05/2025
                 </div>
-                <div className="ant-upload-text font-semibold">
-                  {isUploading ? 'Đang tải lên và xử lý tệp...' : 'Kéo thả file Excel vào đây'}
-                </div>
-                <div className="ant-upload-hint text-xs text-slate-500 mt-1">
-                  Chỉ hỗ trợ .xlsx, .xls, tối đa 10MB
-                </div>
-              </Dragger>
-            </Card>
-          </Col>
-        </Row>
-      </Col>
-      <Col xs={24} xl={8}>
-        <Card className="skylux-card h-full" title="Lưu ý kiểm tra dữ liệu">
-          <div className="space-y-3 text-sm text-slate-700">
-            {[
-              'File phải có định dạng .xlsx hoặc .xls',
-              'Dùng cấu trúc theo mẫu, không thêm hoặc xóa cột',
-              'Dòng tiêu đề nằm ở dòng đầu tiên',
-              'Không để trống mã hồ sơ và tên khách hàng',
-              'Có thể sửa lỗi trực tiếp sau khi tải lên',
-            ].map((item) => (
-              <div key={item} className="flex items-start gap-3">
-                <CheckCircleOutlined className="mt-1 text-[var(--color-primary-600)]" />
-                <span>{item}</span>
               </div>
-            ))}
+            </div>
+
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={onDownloadSample}
+              className="text-xs font-semibold text-emerald-800 border-emerald-300 hover:text-emerald-900 hover:border-emerald-600 hover:bg-emerald-50 rounded-lg px-3 shrink-0 cursor-pointer"
+            >
+              Tải xuống
+            </Button>
           </div>
-          <Alert
-            className="mt-5"
-            type="success"
-            showIcon
-            title="Chỉ những dòng hợp lệ mới được import."
-          />
+        </Card>
+      </Col>
+
+      {/* 2. Tải lên file dự toán */}
+      <Col xs={24} md={12}>
+        <Card
+          className="skylux-card shadow-xs rounded-xl overflow-hidden h-full border border-[#E5E8E6]"
+          styles={{
+            header: {
+              borderBottom: '1px solid #EEF1EF',
+              padding: '12px 18px',
+              fontSize: '13px',
+              fontWeight: 700,
+              color: '#1E293B',
+            },
+            body: { padding: '14px 18px' },
+          }}
+          title="2. Tải lên file dự toán"
+        >
+          <Dragger
+            accept=".xlsx, .xls"
+            maxCount={1}
+            showUploadList={false}
+            beforeUpload={(file) => {
+              onUploadFile(file);
+              return false;
+            }}
+            disabled={isUploading}
+            className="rounded-xl border border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/20 hover:bg-emerald-50/40 transition-colors cursor-pointer"
+            style={{ padding: '14px 12px', background: 'transparent' }}
+          >
+            <div className="flex flex-col items-center justify-center text-center">
+              {isUploading ? (
+                <div className="py-2">
+                  <Spin size="medium" />
+                  <div className="text-xs font-semibold text-emerald-800 mt-2">
+                    Đang xử lý tải lên...
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <CloudUploadOutlined className="text-3xl text-emerald-700 mb-1" />
+                  <div className="text-xs font-bold text-slate-700">
+                    Kéo & thả file Excel vào đây
+                  </div>
+                  <div className="text-[11px] text-slate-400 my-1">hoặc</div>
+                  <button
+                    type="button"
+                    className="px-3 py-1 rounded-md text-xs font-semibold text-emerald-800 bg-white border border-emerald-300 hover:border-emerald-500 shadow-2xs transition-colors cursor-pointer"
+                  >
+                    Chọn file từ máy tính
+                  </button>
+                  <div className="text-[10px] text-slate-400 mt-1.5">
+                    Chỉ hỗ trợ file .xlsx, tối đa 20MB
+                  </div>
+                </>
+              )}
+            </div>
+          </Dragger>
         </Card>
       </Col>
     </Row>
   );
 }
+
+export default ImportUploadZone;

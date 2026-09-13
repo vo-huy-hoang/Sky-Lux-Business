@@ -19,9 +19,6 @@ import {
   EyeInvisibleOutlined,
   EyeTwoTone,
   ArrowRightOutlined,
-  LineChartOutlined,
-  GlobalOutlined,
-  SendOutlined,
   ClockCircleOutlined,
   RightOutlined,
 } from '@ant-design/icons';
@@ -56,88 +53,6 @@ function LoginLogo() {
         <div className="text-xl font-bold tracking-wider text-[#F0C020]">SKYLUX</div>
         <div className="mt-0.5 text-[10px] font-semibold tracking-widest text-[#D4AF37]">
           TRAVEL
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DashboardMockup() {
-  return (
-    <div className="relative mt-8 rounded-2xl border border-[#164E3A] bg-[#0A3425]/90 p-5 shadow-2xl backdrop-blur-md">
-      {/* Top window dots and header icons */}
-      <div className="flex items-center justify-between pb-3 border-b border-[#134935]/80">
-        <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#2A7558]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[#2A7558]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[#2A7558]" />
-        </div>
-        <div className="flex items-center gap-2 text-emerald-400/40">
-          <span className="h-2 w-2 rounded-full bg-emerald-400/50" />
-          <span className="h-4 w-4 rounded-full border border-emerald-400/30" />
-        </div>
-      </div>
-
-      {/* Middle dashboard contents */}
-      <div className="grid grid-cols-12 gap-3 py-4 items-center">
-        {/* Line chart widget */}
-        <div className="col-span-7 rounded-lg bg-[#07281C]/90 p-3 border border-[#124231]">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-medium text-emerald-300/60">Doanh thu tour</span>
-            <span className="text-[10px] font-bold text-emerald-400">+24.8%</span>
-          </div>
-          <svg viewBox="0 0 160 50" className="w-full h-10 overflow-visible">
-            <path
-              d="M 0,40 Q 30,35 50,22 T 100,28 T 150,8"
-              fill="none"
-              stroke="#10B981"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            />
-            <path
-              d="M 0,40 Q 30,35 50,22 T 100,28 T 150,8 L 150,50 L 0,50 Z"
-              fill="url(#greenGradient)"
-              opacity="0.25"
-            />
-            <defs>
-              <linearGradient id="greenGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#10B981" />
-                <stop offset="100%" stopColor="#10B981" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <circle cx="150" cy="8" r="3" fill="#34D399" />
-          </svg>
-        </div>
-
-        {/* Circular Progress & Metrics */}
-        <div className="col-span-5 flex flex-col gap-2">
-          <div className="rounded-lg bg-[#07281C]/90 p-2.5 border border-[#124231] flex items-center gap-2.5">
-            <div className="relative h-7 w-7 rounded-full border-2 border-emerald-500 flex items-center justify-center text-[9px] font-bold text-emerald-300">
-              78%
-            </div>
-            <div className="flex-1">
-              <div className="h-1.5 w-full rounded bg-emerald-950">
-                <div className="h-full w-[78%] rounded bg-emerald-500" />
-              </div>
-              <span className="text-[9px] text-emerald-300/60 mt-1 block">Chỉ tiêu KPI</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom 3 stat cards */}
-      <div className="grid grid-cols-3 gap-2.5 pt-1">
-        <div className="h-12 rounded-lg bg-[#07281C]/90 border border-[#124231] p-2 flex flex-col justify-center">
-          <span className="text-[9px] text-emerald-300/60 leading-none">Hồ sơ mới</span>
-          <span className="text-xs font-bold text-white mt-1">128</span>
-        </div>
-        <div className="h-12 rounded-lg bg-[#07281C]/90 border border-[#124231] p-2 flex flex-col justify-center">
-          <span className="text-[9px] text-emerald-300/60 leading-none">Khách hàng</span>
-          <span className="text-xs font-bold text-white mt-1">1,420</span>
-        </div>
-        <div className="h-12 rounded-lg bg-[#07281C]/90 border border-[#124231] p-2 flex flex-col justify-center">
-          <span className="text-[9px] text-emerald-300/60 leading-none">Tỷ lệ chốt</span>
-          <span className="text-xs font-bold text-emerald-400 mt-1">94.2%</span>
         </div>
       </div>
     </div>
@@ -310,9 +225,7 @@ function LoginForm() {
           href="#"
           onClick={(e) => {
             e.preventDefault();
-            message.info(
-              'Tài khoản demo: admin@skylux.vn / Admin@123456 hoặc sales@skylux.vn / Sales@123456',
-            );
+            message.info('Vui lòng liên hệ Quản trị viên để đặt lại mật khẩu.');
           }}
         >
           Quên mật khẩu?
@@ -411,10 +324,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Interactive / Visual Dashboard Mockup Card */}
-          <div className="relative z-10 pt-4">
-            <DashboardMockup />
-          </div>
         </div>
 
         {/* Right Form Container */}

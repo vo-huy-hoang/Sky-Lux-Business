@@ -4,12 +4,14 @@ import { Repository } from 'typeorm';
 import { NotFoundException, ConflictException } from '@nestjs/common';
 import { CustomersController } from './customers.controller';
 import { CustomersService } from './customers.service';
+import { CustomerActivitiesService } from './customer-activities.service';
 import { Customer } from './entities/customer.entity';
 import { CustomerContact } from './entities/customer-contact.entity';
 import { CustomerType } from '../../common/enums';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { Dossier } from '../dossiers/entities/dossier.entity';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 describe('Customers Module (Integration)', () => {
   let controller: CustomersController;
@@ -62,6 +64,10 @@ describe('Customers Module (Integration)', () => {
       providers: [
         CustomersService,
         {
+          provide: CustomerActivitiesService,
+          useValue: { findByCustomer: jest.fn() },
+        },
+        {
           provide: getRepositoryToken(Customer),
           useValue: mockCustomerRepository,
         },
@@ -72,6 +78,10 @@ describe('Customers Module (Integration)', () => {
         {
           provide: getRepositoryToken(Dossier),
           useValue: mockDossierRepository,
+        },
+        {
+          provide: AuditLogsService,
+          useValue: { record: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

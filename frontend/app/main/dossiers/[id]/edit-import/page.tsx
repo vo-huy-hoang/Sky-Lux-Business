@@ -35,6 +35,7 @@ import { EstimateStatus, EstimateRevenueLine, EstimateCostLine } from '@/types/e
 import { classifyCategory } from '@/components/dossiers/detail/components/DossierCostTable';
 import { parseVatRate } from '@/components/dossiers/detail/utils';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useUIStore } from '@/lib/stores/ui-store';
 
 function formatCurrency(amount?: number | string) {
   if (amount === undefined || amount === null) return '0';
@@ -88,6 +89,7 @@ export default function EditImportDossierPage() {
   const dossierId = params?.id as string;
 
   const hasRole = useAuthStore((state) => state.hasRole);
+  const sidebarCollapsed = useUIStore((state) => state.sidebarCollapsed);
   const isOperator = hasRole('OPERATOR');
   const isCeoAdmin = hasRole(['SUPER_ADMIN', 'CEO_ADMIN']);
   const canOperate = isOperator || isCeoAdmin;
@@ -1069,7 +1071,11 @@ export default function EditImportDossierPage() {
       </div>
 
       {/* 5. Bottom Fixed Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 px-6 py-3 shadow-lg flex items-center justify-between">
+      <div
+        className={`fixed bottom-0 right-0 z-30 bg-white border-t border-slate-200 px-6 py-3 shadow-lg flex items-center justify-between transition-[left] duration-200 ease-in-out ${
+          sidebarCollapsed ? 'left-0 lg:left-[72px]' : 'left-0 lg:left-[238px]'
+        }`}
+      >
         {/* Left: Last saved status */}
         <div className="flex items-center gap-3 text-xs text-slate-500">
           <span>Đã lưu lần cuối: {lastSavedTime}</span>

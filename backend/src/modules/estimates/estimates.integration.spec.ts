@@ -12,6 +12,7 @@ import { CurrentUserPayload } from '../../common/decorators/current-user.decorat
 import { CreateEstimateDto } from './dto/create-estimate.dto';
 import { UpdateEstimateDto } from './dto/update-estimate.dto';
 import { EstimateStatus } from '../../common/enums';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 describe('Estimates Module (Integration)', () => {
   let controller: EstimatesController;
@@ -82,6 +83,10 @@ describe('Estimates Module (Integration)', () => {
         {
           provide: DossiersService,
           useValue: mockDossiersService,
+        },
+        {
+          provide: AuditLogsService,
+          useValue: { record: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

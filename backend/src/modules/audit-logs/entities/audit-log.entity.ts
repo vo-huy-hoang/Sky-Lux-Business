@@ -22,6 +22,13 @@ export class AuditLog extends BaseEntity {
   @Column({ type: 'varchar', length: 100 })
   action: string;
 
+  @Column({
+    type: 'varchar',
+    length: 500,
+    default: 'Thao tác hệ thống',
+  })
+  description: string;
+
   @Column({ name: 'entity_type', type: 'varchar', length: 100 })
   entityType: string;
 

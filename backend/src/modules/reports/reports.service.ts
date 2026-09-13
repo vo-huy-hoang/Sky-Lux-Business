@@ -23,6 +23,11 @@ import {
   PaymentDirection,
   PaymentStatus,
 } from '../../common/enums';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  AuditAction,
+  AuditEntityType,
+} from '../audit-logs/audit-event.constants';
 
 type ReportScope = 'OWN' | 'TEAM' | 'ALL';
 
@@ -63,6 +68,7 @@ export class ReportsService {
     private readonly dossierRepository: Repository<Dossier>,
     @InjectRepository(EstimateCostLine)
     private readonly costLineRepository: Repository<EstimateCostLine>,
+    private readonly auditLogsService: AuditLogsService,
     @Optional()
     private readonly redisService?: RedisService,
   ) {}
@@ -197,6 +203,21 @@ export class ReportsService {
         format === 'CSV'
           ? 'text/csv; charset=utf-8'
           : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    }
+
+    if (reportType === 'customer') {
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId: userId,
+        action: AuditAction.CUSTOMER_LIST_EXPORTED,
+        entityType: AuditEntityType.CUSTOMER,
+        entityId: 'customer-report',
+        afterData: {
+          format,
+          rowCount: rows.length,
+          filters: request.filters ?? {},
+        },
+      });
     }
 
     return {

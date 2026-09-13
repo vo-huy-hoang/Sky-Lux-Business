@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CustomersController } from './customers.controller';
 import { CustomersService } from './customers.service';
+import { CustomerActivitiesService } from './customer-activities.service';
 import { QueryCustomerDto } from './dto/query-customer.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
@@ -8,6 +9,7 @@ import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
 import { QueryDossierDto } from '../dossiers/dto/query-dossier.dto';
 import { CustomerType } from '../../common/enums';
+import { QueryCustomerActivityDto } from './dto/query-customer-activity.dto';
 
 describe('CustomersController', () => {
   let controller: CustomersController;
@@ -25,6 +27,10 @@ describe('CustomersController', () => {
     findCustomerDossiers: jest.fn(),
   };
 
+  const mockCustomerActivitiesService = {
+    findByCustomer: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CustomersController],
@@ -32,6 +38,10 @@ describe('CustomersController', () => {
         {
           provide: CustomersService,
           useValue: mockCustomersService,
+        },
+        {
+          provide: CustomerActivitiesService,
+          useValue: mockCustomerActivitiesService,
         },
       ],
     }).compile();
@@ -213,6 +223,32 @@ describe('CustomersController', () => {
       );
 
       expect(service.findCustomerDossiers).toHaveBeenCalledWith(
+        'org-uuid',
+        'cust-uuid',
+        queryDto,
+      );
+      expect(result).toEqual(expectedResult);
+    });
+  });
+
+  describe('findCustomerActivities (API-CUSTOMER-006)', () => {
+    it('should call the activity service with tenant and customer scope', async () => {
+      const queryDto: QueryCustomerActivityDto = { page: 1, limit: 20 };
+      const expectedResult = {
+        data: [],
+        meta: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+      };
+      mockCustomerActivitiesService.findByCustomer.mockResolvedValue(
+        expectedResult,
+      );
+
+      const result = await controller.findCustomerActivities(
+        'org-uuid',
+        'cust-uuid',
+        queryDto,
+      );
+
+      expect(mockCustomerActivitiesService.findByCustomer).toHaveBeenCalledWith(
         'org-uuid',
         'cust-uuid',
         queryDto,

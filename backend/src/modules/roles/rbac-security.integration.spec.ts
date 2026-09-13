@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, Repository, EntityManager } from 'typeorm';
 import { RolesController } from './roles.controller';
 import { RolesService } from './roles.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Role } from './entities/role.entity';
 import {
   BadRequestException,
@@ -58,6 +59,10 @@ describe('RBAC Security & Tenant Boundary (Integration)', () => {
         {
           provide: DataSource,
           useValue: mockDataSource,
+        },
+        {
+          provide: AuditLogsService,
+          useValue: { record: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

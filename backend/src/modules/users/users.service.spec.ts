@@ -12,6 +12,7 @@ import { Role } from '../roles/entities/role.entity';
 import { Department } from '../departments/entities/department.entity';
 import { UserStatus } from '../../common/enums';
 import { QueryUserDto } from './dto/query-user.dto';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -65,6 +66,10 @@ describe('UsersService', () => {
         {
           provide: getRepositoryToken(Department),
           useValue: mockDepartmentRepository,
+        },
+        {
+          provide: AuditLogsService,
+          useValue: { record: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

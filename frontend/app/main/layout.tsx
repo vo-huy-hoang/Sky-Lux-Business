@@ -2,7 +2,7 @@
 
 import React, { useMemo, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Layout, Button, Result } from 'antd';
+import { Layout, Button, Result, Spin } from 'antd';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useNotificationStore } from '@/lib/stores/notification-store';
 import {
@@ -29,13 +29,19 @@ export default function MainLayout({
   const pathname = usePathname();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
+  const hasHydrated = useAuthStore((state) => state.hasHydrated);
 
   // Kích hoạt lắng nghe luồng SSE thông báo thời gian thực
-  useNotificationsRealtime();
+  useNotificationsRealtime({ enabled: hasHydrated });
 
   // Truy vấn danh sách thông báo và số lượng chưa đọc từ API
-  const { data: notificationsData } = useNotificationsQuery({ limit: 50 });
-  const { data: unreadCountData } = useUnreadNotificationsCountQuery();
+  const { data: notificationsData } = useNotificationsQuery(
+    { limit: 50 },
+    { enabled: hasHydrated },
+  );
+  const { data: unreadCountData } = useUnreadNotificationsCountQuery({
+    enabled: hasHydrated,
+  });
 
   const syncBackendNotifications = useNotificationStore(
     (state) => state.syncBackendNotifications,
@@ -57,6 +63,26 @@ export default function MainLayout({
     }
   }, [unreadCountData, setServerUnreadCount]);
 
+  // Đảm bảo trạng thái đã hydrate sau khi client mount
+  useEffect(() => {
+    if (!hasHydrated) {
+      if (useAuthStore.persist?.hasHydrated?.()) {
+        useAuthStore.getState().setHasHydrated(true);
+      } else {
+        const unsub = useAuthStore.persist?.onFinishHydration?.(() => {
+          useAuthStore.getState().setHasHydrated(true);
+        });
+        const timer = setTimeout(() => {
+          useAuthStore.getState().setHasHydrated(true);
+        }, 100);
+        return () => {
+          unsub?.();
+          clearTimeout(timer);
+        };
+      }
+    }
+  }, [hasHydrated]);
+
   const isOperator = user?.roles?.includes('OPERATOR');
   const isSales = user?.roles?.includes('SALES');
   const isCeoAdmin = user?.roles?.some((role) => ['SUPER_ADMIN', 'CEO_ADMIN'].includes(role));
@@ -71,7 +97,7 @@ export default function MainLayout({
       isCeoAdmin,
       isSuperAdmin,
     }),
-    [user, isOperator, isSales, isCeoAdmin, isSuperAdmin],
+    [user?.roles, user?.permissions, isOperator, isSales, isCeoAdmin, isSuperAdmin],
   );
 
   const routeMeta = useMemo(() => {
@@ -84,6 +110,7 @@ export default function MainLayout({
 
   return (
     <Layout
+      hasSider
       className={`min-h-[100dvh] bg-[var(--color-bg)] ${isCeoAdmin ? 'ceo-shell' : ''} ${isOperator ? 'operator-shell' : ''}`}
     >
       <MainSidebar userCtx={userCtx} />
@@ -93,7 +120,14 @@ export default function MainLayout({
 
         <Content className="skylux-content-shell overflow-y-auto bg-[var(--color-bg)]">
           <div className="mx-auto max-w-[1540px]">
-            {isAccessible ? (
+            {!hasHydrated ? (
+              <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-6">
+                <Spin size="large" />
+                <span className="text-sm text-[var(--color-text-muted)]">
+                  Đang khôi phục phiên đăng nhập...
+                </span>
+              </div>
+            ) : isAccessible ? (
               children
             ) : (
               <div className="flex min-h-[60vh] items-center justify-center p-6">

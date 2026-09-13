@@ -15,6 +15,11 @@ import { CurrentUserPayload } from '../../common/decorators/current-user.decorat
 import { DossiersService } from '../dossiers/dossiers.service';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
 import { EstimateStatus } from '../../common/enums';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  AuditAction,
+  AuditEntityType,
+} from '../audit-logs/audit-event.constants';
 
 @Injectable()
 export class EstimatesService {
@@ -26,6 +31,7 @@ export class EstimatesService {
     @InjectRepository(EstimateCostLine)
     private readonly costLineRepository: Repository<EstimateCostLine>,
     private readonly dossiersService: DossiersService,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   async findAll(
@@ -111,7 +117,11 @@ export class EstimatesService {
     };
   }
 
-  async findOne(user: CurrentUserPayload, id: string): Promise<Estimate> {
+  async findOne(
+    user: CurrentUserPayload,
+    id: string,
+    logSensitiveView = true,
+  ): Promise<Estimate> {
     const organizationId = user.organizationId;
     const estimate = await this.estimateRepository.findOne({
       where: { id, organizationId },
@@ -128,6 +138,17 @@ export class EstimatesService {
 
     if (!estimate) {
       throw new NotFoundException(`Không tìm thấy bản báo giá với ID "${id}"`);
+    }
+
+    if (logSensitiveView) {
+      await this.auditLogsService.record({
+        organizationId: user.organizationId,
+        actorUserId: user.id,
+        action: AuditAction.ESTIMATE_VIEWED,
+        entityType: AuditEntityType.ESTIMATE,
+        entityId: id,
+        afterData: { fields: ['revenueLines', 'costLines', 'supplierCosts'] },
+      });
     }
 
     return estimate;
@@ -201,7 +222,16 @@ export class EstimatesService {
       costLines: processedCostLines,
     });
 
-    return this.estimateRepository.save(estimate);
+    const savedEstimate = await this.estimateRepository.save(estimate);
+    await this.auditLogsService.record({
+      organizationId,
+      actorUserId: user.id,
+      action: AuditAction.ESTIMATE_CREATED,
+      entityType: AuditEntityType.ESTIMATE,
+      entityId: savedEstimate.id,
+      afterData: this.auditSnapshot(savedEstimate),
+    });
+    return savedEstimate;
   }
 
   async update(
@@ -209,8 +239,11 @@ export class EstimatesService {
     id: string,
     updateEstimateDto: UpdateEstimateDto,
   ): Promise<Estimate> {
-    const estimate = await this.findOne(user, id);
+    const estimate = await this.findOne(user, id, false);
     const organizationId = user.organizationId;
+    const beforeData = this.auditSnapshot(estimate);
+    const previousStatus = estimate.status;
+    const previousValue = this.totalRevenue(estimate);
 
     if (
       estimate.status === EstimateStatus.APPROVED ||
@@ -324,12 +357,73 @@ export class EstimatesService {
       });
     }
 
-    return this.estimateRepository.save(estimate);
+    const updatedEstimate = await this.estimateRepository.save(estimate);
+    const afterData = this.auditSnapshot(updatedEstimate);
+    await this.auditLogsService.record({
+      organizationId,
+      actorUserId: user.id,
+      action: AuditAction.ESTIMATE_UPDATED,
+      entityType: AuditEntityType.ESTIMATE,
+      entityId: id,
+      beforeData,
+      afterData,
+    });
+    if (previousStatus !== updatedEstimate.status) {
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId: user.id,
+        action: AuditAction.ESTIMATE_STATUS_CHANGED,
+        entityType: AuditEntityType.ESTIMATE,
+        entityId: id,
+        beforeData: { status: previousStatus },
+        afterData: { status: updatedEstimate.status },
+      });
+    }
+    const updatedValue = this.totalRevenue(updatedEstimate);
+    if (previousValue !== updatedValue) {
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId: user.id,
+        action: AuditAction.ESTIMATE_VALUE_CHANGED,
+        entityType: AuditEntityType.ESTIMATE,
+        entityId: id,
+        beforeData: { totalRevenue: previousValue },
+        afterData: { totalRevenue: updatedValue },
+      });
+    }
+    return updatedEstimate;
   }
 
   async remove(user: CurrentUserPayload, id: string): Promise<void> {
-    const estimate = await this.findOne(user, id);
+    const estimate = await this.findOne(user, id, false);
     await this.estimateRepository.softRemove(estimate);
+    await this.auditLogsService.record({
+      organizationId: user.organizationId,
+      actorUserId: user.id,
+      action: AuditAction.ESTIMATE_DELETED,
+      entityType: AuditEntityType.ESTIMATE,
+      entityId: id,
+      beforeData: this.auditSnapshot(estimate),
+    });
+  }
+
+  private totalRevenue(estimate: Estimate): number {
+    return (estimate.revenueLines ?? []).reduce(
+      (total, line) => total + Number(line.netAmount || 0),
+      0,
+    );
+  }
+
+  private auditSnapshot(estimate: Estimate): Record<string, unknown> {
+    return {
+      dossierId: estimate.dossierId,
+      versionNo: estimate.versionNo,
+      status: estimate.status,
+      currency: estimate.currency,
+      totalRevenue: this.totalRevenue(estimate),
+      revenueLineCount: estimate.revenueLines?.length ?? 0,
+      costLineCount: estimate.costLines?.length ?? 0,
+    };
   }
 
   private validateStatusTransition(

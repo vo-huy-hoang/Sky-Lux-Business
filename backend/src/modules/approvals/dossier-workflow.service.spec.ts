@@ -68,9 +68,13 @@ describe('DossierWorkflowService', () => {
     const notificationsService = {
       notify: jest.fn().mockResolvedValue({}),
     };
+    const auditLogsService = {
+      record: jest.fn().mockResolvedValue(undefined),
+    };
     return {
       service: new DossierWorkflowService(
         dataSource,
+        auditLogsService as any,
         notificationsService as any,
       ),
       dossierRepository,
@@ -78,6 +82,7 @@ describe('DossierWorkflowService', () => {
       approvalRepository,
       historyRepository,
       notificationsService,
+      auditLogsService,
     };
   }
 

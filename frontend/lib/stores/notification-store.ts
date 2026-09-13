@@ -73,7 +73,7 @@ export function mapBackendToAppNotification(item: NotificationItem): AppNotifica
 export const useNotificationStore = create<NotificationState>()(
   persist(
     (set, get) => ({
-      // Khởi tạo hoàn toàn rỗng - KHÔNG chứa bất kỳ dữ liệu mock hardcode nào
+      // Khởi tạo hoàn toàn rỗng, dữ liệu sẽ được đồng bộ từ backend
       notifications: [],
       serverUnreadCount: null,
 
@@ -166,7 +166,7 @@ export const useNotificationStore = create<NotificationState>()(
       name: 'skylux-notifications-storage',
       version: 2,
       migrate: (persistedState: any, version: number) => {
-        // Tự động dọn sạch dữ liệu mock cũ từng lưu trong localStorage của trình duyệt
+        // Tự động dọn dữ liệu cũ từng lưu trong localStorage của trình duyệt
         if (!version || version < 2) {
           return {
             notifications: [],

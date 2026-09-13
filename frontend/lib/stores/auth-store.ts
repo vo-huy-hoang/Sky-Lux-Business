@@ -7,7 +7,9 @@ interface AuthState {
   user: UserProfile | null;
   accessToken: string | null;
   isAuthenticated: boolean;
+  hasHydrated: boolean;
   lockoutSeconds: number;
+  setHasHydrated: (hasHydrated: boolean) => void;
   setLockoutSeconds: (seconds: number) => void;
   decrementLockoutSeconds: () => void;
   setAuth: (data: LoginResponse) => void;
@@ -24,7 +26,9 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       accessToken: null,
       isAuthenticated: false,
+      hasHydrated: false,
       lockoutSeconds: 0,
+      setHasHydrated: (hasHydrated: boolean) => set({ hasHydrated }),
       setLockoutSeconds: (seconds: number) => set({ lockoutSeconds: seconds }),
       decrementLockoutSeconds: () =>
         set((state) => ({ lockoutSeconds: Math.max(0, state.lockoutSeconds - 1) })),
@@ -100,6 +104,9 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: state.isAuthenticated,
         lockoutSeconds: state.lockoutSeconds,
       }),
+      onRehydrateStorage: () => () => {
+        useAuthStore.getState().setHasHydrated(true);
+      },
 
     },
   ),

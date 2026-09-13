@@ -18,6 +18,7 @@ import { PassengerType } from '../master-data/entities/passenger-type.entity';
 import { ServiceCategory } from '../master-data/entities/service-category.entity';
 import { Unit } from '../master-data/entities/unit.entity';
 import { ImportProcessor } from './queue/import.processor';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { ImportProcessor } from './queue/import.processor';
     BullModule.registerQueue({
       name: 'import-queue',
     }),
+    AuditLogsModule,
   ],
   controllers: [ImportsController],
   providers: [ImportsService, ImportProcessor],

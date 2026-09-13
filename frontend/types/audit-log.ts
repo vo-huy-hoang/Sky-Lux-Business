@@ -10,6 +10,7 @@ export interface AuditLogItem {
   organizationId: string;
   actorUserId?: string;
   action: string;
+  description?: string | null;
   entityType: string;
   entityId: string;
   beforeData?: Record<string, any> | null;

@@ -4,6 +4,7 @@ import { Repository, DataSource } from 'typeorm';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ImportsController } from './imports.controller';
 import { ImportsService } from './imports.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { ImportSession } from './entities/import-session.entity';
 import { ImportRow } from './entities/import-row.entity';
 import { ImportError } from './entities/import-error.entity';
@@ -101,6 +102,10 @@ describe('Imports Module (Integration)', () => {
           provide: DataSource,
           useValue: mockDataSource,
         },
+        {
+          provide: AuditLogsService,
+          useValue: { record: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
@@ -163,7 +168,7 @@ describe('Imports Module (Integration)', () => {
       sessionRepository.findOne.mockResolvedValue(mockSessionWithError);
 
       await expect(
-        controller.confirm(orgA, 'session-error-uuid'),
+        controller.confirm(orgA, 'session-error-uuid', 'user-uuid'),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -189,7 +194,11 @@ describe('Imports Module (Integration)', () => {
       ];
       rowRepository.find.mockResolvedValue(mockRows as any);
 
-      const result = await controller.confirm(orgA, 'session-valid-uuid');
+      const result = await controller.confirm(
+        orgA,
+        'session-valid-uuid',
+        'user-uuid',
+      );
 
       expect(result).toEqual({
         message: 'Nhập dữ liệu thành công',

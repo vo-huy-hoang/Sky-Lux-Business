@@ -20,6 +20,11 @@ import { ApprovalRequest } from './entities/approval-request.entity';
 import { WorkflowHistory } from './entities/workflow-history.entity';
 import { WorkflowActionDto } from './dto/workflow-action.dto';
 import { WorkflowListQueryDto } from './dto/workflow-list-query.dto';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  AuditAction,
+  AuditEntityType,
+} from '../audit-logs/audit-event.constants';
 
 type WorkflowAction =
   | 'SUBMIT'
@@ -38,6 +43,7 @@ export class DossierWorkflowService {
 
   constructor(
     private readonly dataSource: DataSource,
+    private readonly auditLogsService: AuditLogsService,
     @Optional()
     private readonly notificationsService?: NotificationsService,
   ) {}
@@ -158,6 +164,7 @@ export class DossierWorkflowService {
       }
 
       const previousStatus = dossier.status;
+      const previousOperatorUserId = dossier.operatorUserId;
       this.applyDossierAction(dossier, user, dto, action);
       const savedDossier = await dossiers.save(dossier);
       const savedEstimate = estimate
@@ -188,6 +195,8 @@ export class DossierWorkflowService {
         data: this.dossierResponse(savedDossier),
         meta: {},
         savedDossier,
+        previousStatus,
+        previousOperatorUserId,
       };
     });
 
@@ -205,6 +214,20 @@ export class DossierWorkflowService {
         );
       }
     }
+
+    await this.auditLogsService.record({
+      organizationId: user.organizationId,
+      actorUserId: user.id,
+      action: AuditAction.DOSSIER_STATUS_CHANGED,
+      entityType: AuditEntityType.DOSSIER,
+      entityId: result.savedDossier.id,
+      beforeData: {
+        status: result.previousStatus,
+        operatorUserId: result.previousOperatorUserId ?? null,
+        workflowAction: action,
+      },
+      afterData: { status: result.savedDossier.status, workflowAction: action },
+    });
 
     return { data: result.data, meta: result.meta };
   }

@@ -8,6 +8,7 @@ import { Dossier } from '../dossiers/entities/dossier.entity';
 import { Estimate } from '../estimates/entities/estimate.entity';
 import { DossierWorkflowService } from './dossier-workflow.service';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       Estimate,
     ]),
     NotificationsModule,
+    AuditLogsModule,
   ],
   controllers: [ApprovalsController],
   providers: [ApprovalsService, DossierWorkflowService],

@@ -10,6 +10,7 @@ import { ImportError } from './entities/import-error.entity';
 import { ImportTemplate } from './entities/import-template.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { ImportSessionStatus } from '../../common/enums';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 describe('ImportsService', () => {
   let service: ImportsService;
@@ -99,6 +100,10 @@ describe('ImportsService', () => {
         {
           provide: DataSource,
           useValue: dataSource,
+        },
+        {
+          provide: AuditLogsService,
+          useValue: { record: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

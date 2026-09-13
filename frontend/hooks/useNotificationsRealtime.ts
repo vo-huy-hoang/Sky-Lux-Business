@@ -15,7 +15,8 @@ import { calculateBackoffWithJitter } from '@/lib/backoff';
 /**
  * Hook kết nối luồng Server-Sent Events (SSE) nhận thông báo thời gian thực
  */
-export function useNotificationsRealtime() {
+export function useNotificationsRealtime(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true;
   const queryClient = useQueryClient();
   const router = useRouter();
   const setNotificationsStatus = useUIStore((state) => state.setNotificationsStatus);
@@ -51,7 +52,7 @@ export function useNotificationsRealtime() {
   }, [tokenTrigger]);
 
   const connect = useCallback(async () => {
-    if (typeof window === 'undefined') return;
+    if (!enabled || typeof window === 'undefined') return;
 
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -165,6 +166,7 @@ export function useNotificationsRealtime() {
     setServerUnreadCount,
     markAsReadStore,
     setNotificationsStatus,
+    enabled,
   ]);
 
   useEffect(() => {
@@ -172,6 +174,7 @@ export function useNotificationsRealtime() {
   }, [connect]);
 
   useEffect(() => {
+    if (!enabled) return;
     connect();
 
     const handleOnline = () => {
@@ -226,7 +229,7 @@ export function useNotificationsRealtime() {
       }
       setNotificationsStatus('connected');
     };
-  }, [connect, authAccessToken, tokenTrigger, queryClient, setNotificationsStatus]);
+  }, [connect, authAccessToken, tokenTrigger, enabled, queryClient, setNotificationsStatus]);
 
   return null;
 }
@@ -234,21 +237,26 @@ export function useNotificationsRealtime() {
 /**
  * Hook lấy danh sách thông báo phân trang (TanStack Query)
  */
-export function useNotificationsQuery(queryDto: NotificationQuery = {}) {
+export function useNotificationsQuery(
+  queryDto: NotificationQuery = {},
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: queryKeys.notifications.list(queryDto),
     queryFn: ({ signal }) =>
       notificationsService.getNotifications(queryDto, { signal }),
+    enabled: options?.enabled ?? true,
   });
 }
 
 /**
  * Hook lấy số lượng thông báo chưa đọc
  */
-export function useUnreadNotificationsCountQuery() {
+export function useUnreadNotificationsCountQuery(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.notifications.unreadCount(),
     queryFn: ({ signal }) => notificationsService.getUnreadCount({ signal }),
+    enabled: options?.enabled ?? true,
     refetchInterval: 60000, // Định kỳ 60s thăm dò dự phòng
   });
 }

@@ -106,6 +106,7 @@ describe('AuditLogsService', () => {
       );
       expect(result.data).toHaveLength(1);
       expect(result.data[0].id).toEqual('log-uuid');
+      expect(result.data[0].description).toEqual('Tạo hồ sơ tour');
       expect((result.data[0].actor as any).passwordHash).toBeUndefined();
       expect(result.data[0].actor).toEqual({
         id: 'user-uuid',
@@ -213,6 +214,7 @@ describe('AuditLogsService', () => {
         relations: { actor: true },
       });
       expect(result.data.id).toEqual('log-uuid');
+      expect(result.data.description).toEqual('Tạo hồ sơ tour');
       expect((result.data.actor as any).passwordHash).toBeUndefined();
       expect((result.data.actor as any).refreshTokenHash).toBeUndefined();
       expect(result.data.actor).toEqual({
@@ -254,7 +256,10 @@ describe('AuditLogsService', () => {
 
       const result = await service.log(createDto);
 
-      expect(repository.create).toHaveBeenCalledWith(createDto);
+      expect(repository.create).toHaveBeenCalledWith({
+        ...createDto,
+        description: 'Cập nhật báo giá',
+      });
       expect(repository.save).toHaveBeenCalled();
       expect(result.id).toEqual('new-log-uuid');
     });

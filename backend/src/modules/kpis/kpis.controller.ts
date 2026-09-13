@@ -51,11 +51,12 @@ export class KpisController {
     @CurrentUser('permissions') permissions: string[],
     @Query() queryDto: QueryKpisDto,
   ) {
-    return this.kpisService.findAllKpis(
-      organizationId,
-      queryDto,
-      { userId, departmentId, roles, permissions },
-    );
+    return this.kpisService.findAllKpis(organizationId, queryDto, {
+      userId,
+      departmentId,
+      roles,
+      permissions,
+    });
   }
 
   @Get('sales')
@@ -69,11 +70,12 @@ export class KpisController {
     @CurrentUser('permissions') permissions: string[],
     @Query() queryDto: QueryKpisDto,
   ) {
-    return this.kpisService.findSalesKpis(
-      organizationId,
-      queryDto,
-      { userId, departmentId, roles, permissions },
-    );
+    return this.kpisService.findSalesKpis(organizationId, queryDto, {
+      userId,
+      departmentId,
+      roles,
+      permissions,
+    });
   }
 
   @Get('assignees')

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { message } from 'antd';
+import { App } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { importsService } from '@/services/imports.service';
 import { ImportRow, ImportSession } from '@/types/import';
@@ -9,6 +9,7 @@ import { queryKeys } from '@/lib/query-keys';
 import { useImportWizardStore } from '@/lib/stores/import-wizard-store';
 
 export function useImportFlow() {
+  const { message } = App.useApp();
   const queryClient = useQueryClient();
 
   const currentSessionId = useImportWizardStore((state) => state.currentSessionId);
@@ -114,23 +115,23 @@ export function useImportFlow() {
   const handleDownloadSample = async () => {
     try {
       const XLSX = await import('xlsx');
-      const sampleData = [
-        {
-          'Mã hồ sơ': 'TOUR-2026-001',
-          'Tên hồ sơ': 'Tour Du Lịch Đà Nẵng - Hội An 3N2Đ',
-          'Mã khách hàng': 'KH001',
-          'Tên khách hàng': 'Nguyễn Văn A',
-          'Số điện thoại': '0912345678',
-          Email: 'customer.a@gmail.com',
-          'Ngày sinh nhật': '1990-05-15',
-          'Tuyến đường': 'Hà Nội - Đà Nẵng - Hội An',
-          'Ngày bắt đầu': '2026-09-01',
-          'Ngày kết thúc': '2026-09-03',
-          'Mức độ ưu tiên': 'HIGH',
-        },
+      const headers = [
+        [
+          'Mã hồ sơ',
+          'Tên hồ sơ',
+          'Mã khách hàng',
+          'Tên khách hàng',
+          'Số điện thoại',
+          'Email',
+          'Ngày sinh nhật',
+          'Tuyến đường',
+          'Ngày bắt đầu',
+          'Ngày kết thúc',
+          'Mức độ ưu tiên',
+        ],
       ];
 
-      const ws = XLSX.utils.json_to_sheet(sampleData);
+      const ws = XLSX.utils.aoa_to_sheet(headers);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Mau_Import_Ho_So');
       XLSX.writeFile(wb, 'SkyLux_Mau_Import_Du_Toan.xlsx');

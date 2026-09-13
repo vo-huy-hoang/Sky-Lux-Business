@@ -16,6 +16,7 @@ import { UpdateDossierDto } from './dto/update-dossier.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { QueryCommentDto } from './dto/query-comment.dto';
 import { DossierStatus } from '../../common/enums';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 describe('DossiersService', () => {
   let service: DossiersService;
@@ -75,6 +76,10 @@ describe('DossiersService', () => {
         {
           provide: getRepositoryToken(Comment),
           useValue: mockCommentRepository,
+        },
+        {
+          provide: AuditLogsService,
+          useValue: { record: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

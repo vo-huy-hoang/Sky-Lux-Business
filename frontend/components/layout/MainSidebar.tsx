@@ -1,13 +1,11 @@
 'use client';
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Layout, Menu } from 'antd';
 import type { MenuProps } from 'antd';
-import { CustomerServiceOutlined } from '@ant-design/icons';
 import { useUIStore } from '@/lib/stores/ui-store';
-import { useAuthStore } from '@/lib/stores/auth-store';
 import {
   getAccessibleRoutes,
   getActiveMenuKey,
@@ -16,7 +14,7 @@ import {
 
 const { Sider } = Layout;
 
-function BrandLogo({ collapsed }: { collapsed: boolean }) {
+const BrandLogo = React.memo(function BrandLogo({ collapsed }: { collapsed: boolean }) {
   const [failed, setFailed] = useState(false);
 
   if (collapsed) {
@@ -50,7 +48,7 @@ function BrandLogo({ collapsed }: { collapsed: boolean }) {
       )}
     </div>
   );
-}
+});
 
 interface MainSidebarProps {
   userCtx: UserContext;
@@ -62,25 +60,35 @@ export function MainSidebar({ userCtx }: MainSidebarProps) {
   const collapsed = useUIStore((state) => state.sidebarCollapsed);
   const setSidebarCollapsed = useUIStore((state) => state.setSidebarCollapsed);
   const [isMobile, setIsMobile] = useState(false);
+  const prefetchedRoutesRef = useRef<Set<string>>(new Set());
 
-  const { isCeoAdmin, isOperator } = userCtx;
 
-  // Prefetch accessible routes for 0ms transitions
-  useEffect(() => {
-    const accessibleRoutes = getAccessibleRoutes(userCtx);
-    accessibleRoutes.forEach((r) => {
-      router.prefetch(r.path);
-    });
-  }, [userCtx, router]);
+  // Prefetch only the route the user is about to open. Eagerly prefetching
+  // every route makes Next.js compile every page in development on mount.
+  const prefetchRoute = useCallback(
+    (path: string) => {
+      if (prefetchedRoutesRef.current.has(path)) return;
+      prefetchedRoutesRef.current.add(path);
+      router.prefetch(path);
+    },
+    [router],
+  );
 
   const menuItems: MenuProps['items'] = useMemo(() => {
     const accessibleRoutes = getAccessibleRoutes(userCtx);
     return accessibleRoutes.map((r) => ({
       key: r.key,
       icon: r.icon,
-      label: typeof r.label === 'function' ? r.label(userCtx) : r.label,
+      label: (
+        <span
+          onMouseEnter={() => prefetchRoute(r.path)}
+          onFocus={() => prefetchRoute(r.path)}
+        >
+          {typeof r.label === 'function' ? r.label(userCtx) : r.label}
+        </span>
+      ),
     }));
-  }, [userCtx]);
+  }, [prefetchRoute, userCtx]);
 
   const selectedKey = useMemo(() => {
     return getActiveMenuKey(pathname);
@@ -125,57 +133,9 @@ export function MainSidebar({ userCtx }: MainSidebarProps) {
         selectedKeys={[selectedKey]}
         items={menuItems}
         onClick={handleMenuClick}
-        className="skylux-side-menu border-r-0 px-3 font-semibold"
+        className="skylux-side-menu border-r-0 px-3 pb-6 font-semibold"
         style={{ background: 'transparent' }}
       />
-
-      <div className="absolute bottom-0 left-0 right-0 px-4 pb-5">
-        <div className="skylux-sidebar-support px-4 py-4 text-[#D3A11B]">
-          {isCeoAdmin ? (
-            !collapsed && (
-              <div>
-                <div className="text-xs font-medium text-white/75">Gói hệ thống</div>
-                <div className="mt-1 text-sm font-semibold text-white">Chưa có dữ liệu gói từ API</div>
-                <div className="mt-3 border-t border-white/10 pt-3 text-xs font-semibold text-[#E8C85D]">
-                  Quản lý gói & thanh toán
-                </div>
-              </div>
-            )
-          ) : isOperator ? (
-            !collapsed && (
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-white/70">
-                  Lộ trình phát triển
-                </div>
-                <div className="mt-3 flex items-center justify-between text-xs text-white/75">
-                  <span>Giai đoạn hiện tại</span>
-                  <span className="rounded-full bg-white/15 px-2 py-0.5 font-semibold text-white">
-                    Chờ API
-                  </span>
-                </div>
-                <div className="mt-3 h-1 rounded-full bg-white/15">
-                  <div className="h-full w-[18%] rounded-full bg-[#E8C85D]" />
-                </div>
-                <div className="mt-2 text-xs font-medium text-[#E8C85D]">
-                  Sắp tới: Phase 3–4 <span className="float-right">›</span>
-                </div>
-              </div>
-            )
-          ) : (
-            <div className="flex items-center gap-3">
-              <CustomerServiceOutlined className="text-lg text-white" />
-              {!collapsed && (
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-white/70">
-                    Hỗ trợ & hướng dẫn
-                  </div>
-                  <div className="mt-1 text-sm font-semibold text-white">Gọi trợ giúp nội bộ</div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
     </Sider>
   );
 }

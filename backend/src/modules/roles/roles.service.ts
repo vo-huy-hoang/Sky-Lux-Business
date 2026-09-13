@@ -12,6 +12,11 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 import { AssignPermissionsDto } from './dto/assign-permissions.dto';
 import { RolePermission } from '../permissions/entities/role-permission.entity';
 import { RoleScope } from '../../common/enums';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  AuditAction,
+  AuditEntityType,
+} from '../audit-logs/audit-event.constants';
 
 @Injectable()
 export class RolesService {
@@ -19,11 +24,13 @@ export class RolesService {
     @InjectRepository(Role)
     private readonly roleRepository: Repository<Role>,
     private readonly dataSource: DataSource,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   async create(
     createRoleDto: CreateRoleDto,
     organizationId: string,
+    actorUserId?: string,
   ): Promise<Role> {
     const exists = await this.roleRepository.findOne({
       where: { organizationId, code: createRoleDto.code },
@@ -40,7 +47,16 @@ export class RolesService {
       isSystem: false,
     });
 
-    return this.roleRepository.save(role);
+    const savedRole = await this.roleRepository.save(role);
+    await this.auditLogsService.record({
+      organizationId,
+      actorUserId,
+      action: AuditAction.ROLE_CREATED,
+      entityType: AuditEntityType.ROLE,
+      entityId: savedRole.id,
+      afterData: this.auditSnapshot(savedRole),
+    });
+    return savedRole;
   }
 
   async findAll(organizationId: string): Promise<Role[]> {
@@ -71,8 +87,10 @@ export class RolesService {
     id: string,
     updateRoleDto: UpdateRoleDto,
     organizationId: string,
+    actorUserId?: string,
   ): Promise<Role> {
     const role = await this.findOne(id, organizationId);
+    const beforeData = this.auditSnapshot(role);
     if (role.isSystem) {
       throw new BadRequestException(
         'Không thể chỉnh sửa vai trò mặc định của hệ thống',
@@ -91,13 +109,24 @@ export class RolesService {
     }
 
     Object.assign(role, updateRoleDto);
-    return this.roleRepository.save(role);
+    const savedRole = await this.roleRepository.save(role);
+    await this.auditLogsService.record({
+      organizationId,
+      actorUserId,
+      action: AuditAction.ROLE_UPDATED,
+      entityType: AuditEntityType.ROLE,
+      entityId: id,
+      beforeData,
+      afterData: this.auditSnapshot(savedRole),
+    });
+    return savedRole;
   }
 
   async remove(
     id: string,
     organizationId: string,
     force?: boolean,
+    actorUserId?: string,
   ): Promise<{ message: string }> {
     const role = await this.roleRepository.findOne({
       where: { id, organizationId },
@@ -137,6 +166,15 @@ export class RolesService {
     // Tiến hành xóa mềm vai trò
     await this.roleRepository.softRemove(role);
 
+    await this.auditLogsService.record({
+      organizationId,
+      actorUserId,
+      action: AuditAction.ROLE_DELETED,
+      entityType: AuditEntityType.ROLE,
+      entityId: id,
+      beforeData: this.auditSnapshot(role),
+    });
+
     return { message: 'Đã xóa vai trò thành công' };
   }
 
@@ -144,6 +182,7 @@ export class RolesService {
     id: string,
     assignPermissionsDto: AssignPermissionsDto,
     organizationId: string,
+    actorUserId?: string,
   ): Promise<{ message: string }> {
     const role = await this.findOne(id, organizationId);
     if (role.isSystem) {
@@ -153,6 +192,9 @@ export class RolesService {
     }
 
     // Thực hiện trong Transaction để đảm bảo tính nhất quán
+    const previousPermissionIds = (role.rolePermissions ?? [])
+      .map((permission) => permission.permissionId)
+      .sort();
     await this.dataSource.transaction(async (transactionalEntityManager) => {
       // 1. Xóa toàn bộ liên kết quyền cũ của vai trò này
       await transactionalEntityManager.delete(RolePermission, {
@@ -175,6 +217,32 @@ export class RolesService {
       }
     });
 
+    await this.auditLogsService.record({
+      organizationId,
+      actorUserId,
+      action: AuditAction.ROLE_PERMISSIONS_CHANGED,
+      entityType: AuditEntityType.ROLE,
+      entityId: id,
+      beforeData: { permissionIds: previousPermissionIds },
+      afterData: {
+        permissionIds: (assignPermissionsDto.permissions ?? [])
+          .map((permission) => permission.permissionId)
+          .sort(),
+      },
+    });
+
     return { message: 'Gán quyền cho vai trò thành công' };
+  }
+
+  private auditSnapshot(role: Role): Record<string, unknown> {
+    return {
+      code: role.code,
+      name: role.name,
+      description: role.description ?? null,
+      isSystem: role.isSystem,
+      permissionIds: (role.rolePermissions ?? [])
+        .map((permission) => permission.permissionId)
+        .sort(),
+    };
   }
 }

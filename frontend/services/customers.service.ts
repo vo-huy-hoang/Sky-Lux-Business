@@ -6,6 +6,8 @@ import {
   UpdateContactInput,
   QueryCustomerParams,
   PaginatedCustomersResponse,
+  QueryCustomerActivityParams,
+  PaginatedCustomerActivitiesResponse,
 } from '@/types/customer';
 import { DossierItem, QueryDossierParams } from '@/types/dossier';
 
@@ -104,5 +106,22 @@ export const customersService = {
         };
       }
     >(`/customers/${customerId}/dossiers`, { params, signal: options?.signal });
+  },
+
+  /**
+   * API-CUSTOMER-006: Lấy lịch sử hoạt động của khách hàng
+   */
+  getCustomerActivities: (
+    customerId: string,
+    params?: QueryCustomerActivityParams,
+    options?: RequestOptions,
+  ) => {
+    return apiClient.get<
+      any,
+      PaginatedCustomerActivitiesResponse
+    >(`/customers/${customerId}/activities`, {
+      params,
+      signal: options?.signal,
+    });
   },
 };

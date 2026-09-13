@@ -38,7 +38,11 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { customersService } from '@/services/customers.service';
-import { CustomerItem, CustomerContact } from '@/types/customer';
+import { useCustomerActivities } from '@/hooks/use-customers';
+import {
+  CustomerItem,
+  CustomerContact,
+} from '@/types/customer';
 import { DossierItem } from '@/types/dossier';
 import { ContactModal } from '../components/ContactModal';
 
@@ -98,6 +102,37 @@ function formatDate(dateStr?: string) {
   });
 }
 
+const activityPresentation: Record<
+  string,
+  { icon: React.ReactNode; bg: string }
+> = {
+  CALL: {
+    icon: <PhoneOutlined className="text-emerald-600 text-sm" />,
+    bg: 'bg-emerald-50 border-emerald-200',
+  },
+  QUOTE_SENT: {
+    icon: <FileTextOutlined className="text-amber-600 text-sm" />,
+    bg: 'bg-amber-50 border-amber-200',
+  },
+  CUSTOMER_RESPONSE: {
+    icon: <MessageOutlined className="text-sky-600 text-sm" />,
+    bg: 'bg-sky-50 border-sky-200',
+  },
+  BROCHURE_SENT: {
+    icon: <FileTextOutlined className="text-amber-600 text-sm" />,
+    bg: 'bg-amber-50 border-amber-200',
+  },
+  NOTE: {
+    icon: <FileTextOutlined className="text-indigo-600 text-sm" />,
+    bg: 'bg-indigo-50 border-indigo-200',
+  },
+};
+
+const defaultActivityPresentation = {
+  icon: <MessageOutlined className="text-slate-600 text-sm" />,
+  bg: 'bg-slate-50 border-slate-200',
+};
+
 export default function CustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -126,7 +161,11 @@ export default function CustomerDetailPage() {
     enabled: !!customerId,
   });
 
-  // 3. Delete Contact Mutation
+  // 3. Fetch persisted customer activities for the timeline
+  const { data: activitiesData, isLoading: isLoadingActivities } =
+    useCustomerActivities(customerId, { page: 1, limit: 20 });
+
+  // 4. Delete Contact Mutation
   const deleteContactMutation = useMutation({
     mutationFn: (contactId: string) =>
       customersService.deleteContact(customerId, contactId),
@@ -170,59 +209,25 @@ export default function CustomerDetailPage() {
 
   const latestDossier = liveDossiers[0];
 
-  // Mocked activities if not provided by backend
-  const activities = [
-    {
-      id: 1,
-      type: 'call',
-      title: 'Gọi điện chăm sóc khách hàng',
-      desc: 'Trao đổi nhu cầu chương trình team building Q3',
-      time: 'Hôm nay, 10:15',
-      user: customer?.assignedSales?.fullName || 'Nguyễn Thu Hà',
-      icon: <PhoneOutlined className="text-emerald-600 text-sm" />,
-      bg: 'bg-emerald-50 border-emerald-200',
-    },
-    {
-      id: 2,
-      type: 'quote',
-      title: 'Gửi báo giá chương trình',
-      desc: 'Gửi báo giá chương trình team building tại Đà Nẵng',
-      time: '19/05/2025, 14:30',
-      user: customer?.assignedSales?.fullName || 'Nguyễn Thu Hà',
-      icon: <FileTextOutlined className="text-amber-600 text-sm" />,
-      bg: 'bg-amber-50 border-amber-200',
-    },
-    {
-      id: 3,
-      type: 'chat',
-      title: 'Phản hồi từ khách hàng',
-      desc: 'Khách hàng phản hồi và yêu cầu điều chỉnh lịch trình',
-      time: '18/05/2025, 11:20',
-      user: customer?.assignedSales?.fullName || 'Nguyễn Thu Hà',
-      icon: <MessageOutlined className="text-sky-600 text-sm" />,
-      bg: 'bg-sky-50 border-sky-200',
-    },
-    {
-      id: 4,
-      type: 'call',
-      title: 'Gọi điện giới thiệu chương trình',
-      desc: 'Giới thiệu các chương trình team building phù hợp',
-      time: '15/05/2025, 09:45',
-      user: customer?.assignedSales?.fullName || 'Nguyễn Thu Hà',
-      icon: <PhoneOutlined className="text-emerald-600 text-sm" />,
-      bg: 'bg-emerald-50 border-emerald-200',
-    },
-    {
-      id: 5,
-      type: 'brochure',
-      title: 'Gửi brochure chương trình',
-      desc: 'Gửi brochure các chương trình team building 2025',
-      time: '14/05/2025, 16:20',
-      user: customer?.assignedSales?.fullName || 'Nguyễn Thu Hà',
-      icon: <FileTextOutlined className="text-amber-600 text-sm" />,
-      bg: 'bg-amber-50 border-amber-200',
-    },
-  ];
+  const activities = useMemo(
+    () =>
+      (activitiesData?.data ?? []).map((activity) => {
+        const presentation =
+          activityPresentation[activity.type] || defaultActivityPresentation;
+
+        return {
+          ...activity,
+          desc: activity.description || 'Không có mô tả',
+          time: formatDate(activity.occurredAt),
+          user:
+            activity.actor?.fullName ||
+            customer?.assignedSales?.fullName ||
+            'Hệ thống',
+          ...presentation,
+        };
+      }),
+    [activitiesData?.data, customer?.assignedSales?.fullName],
+  );
 
   // Contacts Table Columns
   const contactColumns: ColumnsType<CustomerContact> = [
@@ -775,39 +780,48 @@ export default function CustomerDetailPage() {
           </div>
 
           <div className="p-2 space-y-4 relative">
-            {activities.map((item, idx) => (
-              <div key={item.id} className="relative flex items-start gap-3">
-                {/* Connecting vertical line */}
-                {idx < activities.length - 1 && (
-                  <div className="absolute left-4 top-8 bottom-0 w-[1px] bg-slate-200" />
-                )}
+            {isLoadingActivities ? (
+              <Skeleton active paragraph={{ rows: 5 }} title={false} />
+            ) : activities.length === 0 ? (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="Chưa có hoạt động nào được ghi nhận"
+              />
+            ) : (
+              activities.map((item, idx) => (
+                <div key={item.id} className="relative flex items-start gap-3">
+                  {/* Connecting vertical line */}
+                  {idx < activities.length - 1 && (
+                    <div className="absolute left-4 top-8 bottom-0 w-[1px] bg-slate-200" />
+                  )}
 
-                {/* Icon Circle */}
-                <div
-                  className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 border z-10 ${item.bg}`}
-                >
-                  {item.icon}
-                </div>
+                  {/* Icon Circle */}
+                  <div
+                    className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 border z-10 ${item.bg}`}
+                  >
+                    {item.icon}
+                  </div>
 
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <h4 className="text-xs font-semibold text-slate-800 mb-0.5 truncate">
-                      {item.title}
-                    </h4>
-                    <span className="text-[10px] text-slate-400 whitespace-nowrap">
-                      {item.time}
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="text-xs font-semibold text-slate-800 mb-0.5 truncate">
+                        {item.title}
+                      </h4>
+                      <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                        {item.time}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mb-1 leading-normal line-clamp-2">
+                      {item.desc}
+                    </p>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      {item.user}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500 mb-1 leading-normal line-clamp-2">
-                    {item.desc}
-                  </p>
-                  <span className="text-[10px] text-slate-400 font-medium">
-                    {item.user}
-                  </span>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
 
           <div className="text-center pt-3 border-t border-slate-100">

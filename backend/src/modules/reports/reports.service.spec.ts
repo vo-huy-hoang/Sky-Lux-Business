@@ -5,6 +5,7 @@ import { SavedReport } from './entities/report.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
 import { ReportExportDto } from './dto/report-export.dto';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 describe('ReportsService', () => {
   let service: ReportsService;
@@ -16,6 +17,10 @@ describe('ReportsService', () => {
         { provide: getRepositoryToken(SavedReport), useValue: {} },
         { provide: getRepositoryToken(Dossier), useValue: {} },
         { provide: getRepositoryToken(EstimateCostLine), useValue: {} },
+        {
+          provide: AuditLogsService,
+          useValue: { record: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 

@@ -12,6 +12,7 @@ import { QueryEstimateDto } from './dto/query-estimate.dto';
 import { CreateEstimateDto } from './dto/create-estimate.dto';
 import { UpdateEstimateDto } from './dto/update-estimate.dto';
 import { EstimateStatus } from '../../common/enums';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 describe('EstimatesService', () => {
   let service: EstimatesService;
@@ -98,6 +99,10 @@ describe('EstimatesService', () => {
         {
           provide: DossiersService,
           useValue: mockDossiersService,
+        },
+        {
+          provide: AuditLogsService,
+          useValue: { record: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();
