@@ -10,6 +10,7 @@ import { ImportRow } from '../entities/import-row.entity';
 import { ImportError } from '../entities/import-error.entity';
 import { ImportSessionStatus, CustomerType } from '../../../common/enums';
 import { Customer } from '../../customers/entities/customer.entity';
+import { Dossier } from '../../dossiers/entities/dossier.entity';
 import {
   CUSTOMER_BUDGET_FORMAT,
   isCustomerBudgetWorkbook,
@@ -36,6 +37,8 @@ export class ImportProcessor extends WorkerHost {
     private readonly errorRepository: Repository<ImportError>,
     @InjectRepository(Customer)
     private readonly customerRepository: Repository<Customer>,
+    @InjectRepository(Dossier)
+    private readonly dossierRepository: Repository<Dossier>,
   ) {
     super();
   }
@@ -215,6 +218,15 @@ export class ImportProcessor extends WorkerHost {
         errors.push(
           `${codeKey} "${code}" bị trùng lặp tại các dòng: ${codeOccurrences.get(code)!.join(', ')} trong tệp tin`,
         );
+      } else {
+        const existingDossier = await this.dossierRepository.findOne({
+          where: { code, organizationId: session.organizationId },
+          relations: { customer: true },
+        });
+        if (existingDossier) {
+          const cName = existingDossier.customer?.displayName || customerName || '';
+          errors.push(`Đã tồn tại file dự toán này của khách hàng ${cName}`.trim());
+        }
       }
 
       if (!name) {

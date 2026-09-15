@@ -13,6 +13,7 @@ import { DocumentVersion } from './entities/document-version.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { StorageService } from '../../shared/storage/storage.service';
 import { RedisService } from '../../common/redis/redis.service';
+import { sanitizeFileName } from '../../common/utils/filename.util';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
 import { DossierStatus } from '../../common/enums';
@@ -136,7 +137,7 @@ export class DocumentsService {
       dossierId,
       estimateId: dto.estimateId || undefined,
       documentTypeId: dto.documentTypeId || undefined,
-      originalName: file.originalname,
+      originalName: sanitizeFileName(file.originalname),
       objectKey,
       mimeType: file.mimetype,
       fileSize: size,
@@ -360,7 +361,7 @@ export class DocumentsService {
 
       document.versionNo = nextVersionNo;
       document.objectKey = objectKey;
-      document.originalName = file.originalname;
+      document.originalName = sanitizeFileName(file.originalname);
       document.mimeType = file.mimetype;
       document.fileSize = size;
       document.checksum = checksum;
@@ -396,7 +397,7 @@ export class DocumentsService {
     await this.storageService.uploadFile(
       {
         buffer: file.buffer,
-        originalname: file.originalname,
+        originalname: sanitizeFileName(file.originalname),
         mimetype: file.mimetype,
         size: bytes,
       },

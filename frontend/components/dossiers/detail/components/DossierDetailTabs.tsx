@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import React, { useMemo } from 'react';
-import { Card, Empty, Skeleton, Tabs } from 'antd';
-import DossierDocumentsTab from '@/components/documents/DossierDocumentsTab';
-import { DossierComments } from '@/app/main/dossiers/components/DossierComments';
-import DossierPaymentsTab from './DossierPaymentsTab';
-import { useDossierUIStore } from '../stores/useDossierUIStore';
-import { DossierCostTable } from './DossierCostTable';
-import { CostSummaryTable, calculateCostSummaryRows } from './CostSummaryTable';
-import { DossierRevenueTable } from './DossierRevenueTable';
+import React, { useMemo } from "react";
+import { Card, Empty, Skeleton, Tabs, Tag } from "antd";
+import DossierDocumentsTab from "@/components/documents/DossierDocumentsTab";
+import { DossierComments } from "@/app/main/dossiers/components/DossierComments";
+import DossierPaymentsTab from "./DossierPaymentsTab";
+import { useDossierUIStore } from "../stores/useDossierUIStore";
+import { DossierCostTable } from "./DossierCostTable";
+import { CostSummaryTable, calculateCostSummaryRows } from "./CostSummaryTable";
+import { DossierRevenueTable } from "./DossierRevenueTable";
 
 export interface DossierDetailTabsProps {
   estimate: any;
@@ -28,6 +28,27 @@ export function DossierDetailTabs({
   const activeTab = useDossierUIStore((s) => s.activeTab);
   const setActiveTab = useDossierUIStore((s) => s.setActiveTab);
 
+  const businessLine = dossier?.businessLine?.code?.startsWith("TOUR_")
+    ? "TOUR"
+    : dossier?.businessLine?.name;
+  const marketType = dossier?.marketType?.name;
+
+  const classificationTags =
+    businessLine || marketType ? (
+      <div className="flex items-center gap-2 pb-1 pr-1">
+        {businessLine && (
+          <Tag color="gold" className="m-0 font-medium">
+            Mảng: {businessLine}
+          </Tag>
+        )}
+        {marketType && (
+          <Tag color="blue" className="m-0 font-medium">
+            Loại hình: {marketType}
+          </Tag>
+        )}
+      </div>
+    ) : null;
+
   const totalRevenue = useMemo(() => {
     const lines = estimate?.revenueLines || [];
     return lines.reduce((sum: number, line: any) => {
@@ -41,7 +62,11 @@ export function DossierDetailTabs({
   }, [estimate?.revenueLines]);
 
   const costSummaryRows = useMemo(() => {
-    return calculateCostSummaryRows(estimate?.costLines || [], totalRevenue, 1.08);
+    return calculateCostSummaryRows(
+      estimate?.costLines || [],
+      totalRevenue,
+      1.08,
+    );
   }, [estimate?.costLines, totalRevenue]);
 
   return (
@@ -52,10 +77,11 @@ export function DossierDetailTabs({
         <Tabs
           activeKey={activeTab}
           onChange={setActiveTab}
+          tabBarExtraContent={classificationTags}
           items={[
             {
-              key: 'overview',
-              label: 'Thông tin chung',
+              key: "overview",
+              label: "Thông tin chung",
               children: (
                 <div className="space-y-6">
                   <DossierRevenueTable
@@ -68,8 +94,8 @@ export function DossierDetailTabs({
               ),
             },
             {
-              key: 'revenue',
-              label: 'Doanh thu',
+              key: "revenue",
+              label: "Doanh thu",
               children: (
                 <DossierRevenueTable
                   revenueLines={estimate.revenueLines}
@@ -78,8 +104,8 @@ export function DossierDetailTabs({
               ),
             },
             {
-              key: 'cost',
-              label: 'Chi phí',
+              key: "cost",
+              label: "Chi phí",
               children: (
                 <div className="space-y-6">
                   <DossierCostTable costLines={estimate.costLines} />
@@ -88,8 +114,8 @@ export function DossierDetailTabs({
               ),
             },
             {
-              key: 'documents',
-              label: 'Tài liệu',
+              key: "documents",
+              label: "Tài liệu",
               children: (
                 <DossierDocumentsTab
                   dossierId={dossierId}
@@ -98,23 +124,17 @@ export function DossierDetailTabs({
               ),
             },
             {
-              key: 'discussion',
-              label: 'Trao đổi',
+              key: "discussion",
+              label: "Trao đổi",
               children: (
-                <DossierComments
-                  dossierId={dossierId}
-                  isLocked={isLocked}
-                />
+                <DossierComments dossierId={dossierId} isLocked={isLocked} />
               ),
             },
             {
-              key: 'payments',
-              label: 'Thanh toán',
+              key: "payments",
+              label: "Thanh toán",
               children: (
-                <DossierPaymentsTab
-                  dossierId={dossierId}
-                  isLocked={isLocked}
-                />
+                <DossierPaymentsTab dossierId={dossierId} isLocked={isLocked} />
               ),
             },
           ]}

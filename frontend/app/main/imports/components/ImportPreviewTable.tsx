@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import { Card, Spin } from "antd";
+import { useImportValidation } from "../hooks/useImportValidation";
 import {
   BarChartOutlined,
   CalculatorOutlined,
@@ -25,451 +26,6 @@ export interface ImportPreviewTableProps {
   errorsData?: PaginatedImportErrorsResponse;
   isLoading?: boolean;
 }
-
-interface RevenueItem {
-  id: string;
-  stt: number;
-  category: string;
-  description: string;
-  unit: string;
-  quantity: number;
-  unitPrice: number;
-  grossAmount: number;
-  status: "VALID" | "WARNING" | "ERROR";
-  statusMessage?: string;
-}
-
-interface CostItem {
-  id: string;
-  stt: number | string;
-  content: string;
-  supplier: string;
-  quantity: number;
-  unitText: string;
-  unitPrice: number | string;
-  unitPriceError?: boolean;
-  vatRate: number | string;
-  vatRateError?: boolean;
-  totalAmount: number | string;
-  totalAmountError?: boolean;
-  status: "VALID" | "WARNING" | "ERROR";
-  statusMessage?: string;
-  categoryGroup: string;
-  isVat: boolean;
-}
-
-// 4 dòng Doanh thu (3 Hợp lệ + 1 Cảnh báo)
-const SAMPLE_REVENUES: RevenueItem[] = [
-  {
-    id: "rev-1",
-    stt: 1,
-    category: "Tour trọn gói - Người lớn",
-    description: "Gói tour 3 ngày 2 đêm theo chương trình",
-    unit: "Khách",
-    quantity: 30,
-    unitPrice: 4500000,
-    grossAmount: 135000000,
-    status: "VALID",
-  },
-  {
-    id: "rev-2",
-    stt: 2,
-    category: "Tour trọn gói - Trẻ em 70%",
-    description: "Trẻ em từ 5 - 9 tuổi (tiêu chuẩn 70%)",
-    unit: "Khách",
-    quantity: 2,
-    unitPrice: 3150000,
-    grossAmount: 6300000,
-    status: "VALID",
-  },
-  {
-    id: "rev-3",
-    stt: 3,
-    category: "Tour trọn gói - Trẻ em 50%",
-    description: "Trẻ em từ 2 - 4 tuổi (tiêu chuẩn 50%)",
-    unit: "Khách",
-    quantity: 2,
-    unitPrice: 2250000,
-    grossAmount: 4500000,
-    status: "WARNING",
-    statusMessage: "Cần kiểm tra giấy khai sinh trẻ em",
-  },
-  {
-    id: "rev-4",
-    stt: 4,
-    category: "Tour trọn gói - Trẻ em Miễn phí",
-    description: "Trẻ em dưới 2 tuổi (miễn phí dịch vụ)",
-    unit: "Khách",
-    quantity: 2,
-    unitPrice: 0,
-    grossAmount: 0,
-    status: "VALID",
-  },
-];
-
-// 24 dòng Chi phí (21 Hợp lệ + 3 Dòng lỗi)
-const SAMPLE_COSTS: CostItem[] = [
-  // 1.1 VÉ THAM QUAN
-  {
-    id: "c-1",
-    stt: 1,
-    content: "Vé tham quan Hội An - Người lớn",
-    supplier: "Ban QL Phố Cổ Hội An",
-    quantity: 30,
-    unitText: "1 lần / Vé",
-    unitPrice: 80000,
-    vatRate: 10,
-    totalAmount: 2400000,
-    status: "VALID",
-    categoryGroup: "1.1 VÉ THAM QUAN",
-    isVat: true,
-  },
-  {
-    id: "c-2",
-    stt: 2,
-    content: "Vé tham quan Hội An - Trẻ em",
-    supplier: "Ban QL Phố Cổ Hội An",
-    quantity: 4,
-    unitText: "1 lần / Vé",
-    unitPrice: 60000,
-    vatRate: 10,
-    totalAmount: 240000,
-    status: "VALID",
-    categoryGroup: "1.1 VÉ THAM QUAN",
-    isVat: true,
-  },
-  {
-    id: "c-3",
-    stt: 3,
-    content: "Vé tham quan Đại Nội Huế",
-    supplier: "Trung tâm BTDTCĐ Huế",
-    quantity: 30,
-    unitText: "1 lần / Vé",
-    unitPrice: 80000,
-    vatRate: 10,
-    totalAmount: 2400000,
-    status: "VALID",
-    categoryGroup: "1.1 VÉ THAM QUAN",
-    isVat: true,
-  },
-  {
-    id: "c-4",
-    stt: 4,
-    content: "Vé cáp treo Bà Nà Hills - Người lớn",
-    supplier: "Sun World Ba Na Hills",
-    quantity: 30,
-    unitText: "1 lần / Vé",
-    unitPrice: 1150000,
-    vatRate: 10,
-    totalAmount: 34500000,
-    status: "VALID",
-    categoryGroup: "1.1 VÉ THAM QUAN",
-    isVat: true,
-  },
-  {
-    id: "c-5",
-    stt: 5,
-    content: "Vé cáp treo Bà Nà Hills - Trẻ em",
-    supplier: "Sun World Ba Na Hills",
-    quantity: 4,
-    unitText: "1 lần / Vé",
-    unitPrice: 950000,
-    vatRate: 10,
-    totalAmount: 3800000,
-    status: "VALID",
-    categoryGroup: "1.1 VÉ THAM QUAN",
-    isVat: true,
-  },
-
-  // 1.2 KHÁCH SẠN
-  {
-    id: "c-6",
-    stt: 6,
-    content: "Khách sạn Mường Thanh 4* (Đà Nẵng)",
-    supplier: "KS Mường Thanh Đà Nẵng",
-    quantity: 15,
-    unitText: "1 đêm / Phòng",
-    unitPrice: 1000000,
-    vatRate: 10,
-    totalAmount: 15000000,
-    status: "VALID",
-    categoryGroup: "1.2 KHÁCH SẠN",
-    isVat: true,
-  },
-  {
-    id: "c-7",
-    stt: 7,
-    content: "Khách sạn Hương Giang 4* (Huế)",
-    supplier: "Hương Giang Resort Huế",
-    quantity: 15,
-    unitText: "1 đêm / Phòng",
-    unitPrice: 950000,
-    vatRate: 10,
-    totalAmount: 14250000,
-    status: "VALID",
-    categoryGroup: "1.2 KHÁCH SẠN",
-    isVat: true,
-  },
-
-  // 1.2b ĂN UỐNG
-  {
-    id: "c-8",
-    stt: 8,
-    content: "Ăn trưa ngày 30/07 (NH Madam Lân)",
-    supplier: "Nhà hàng Madam Lân",
-    quantity: 30,
-    unitText: "1 bữa / Suất",
-    unitPrice: 200000,
-    vatRate: 10,
-    totalAmount: 6000000,
-    status: "VALID",
-    categoryGroup: "1.2b ĂN UỐNG",
-    isVat: true,
-  },
-  {
-    id: "c-9",
-    stt: 9,
-    content: "Ăn tối ngày 30/07 (NH Cơm Niêu Việt)",
-    supplier: "Nhà hàng Cơm Niêu Việt",
-    quantity: 30,
-    unitText: "1 bữa / Suất",
-    unitPrice: 200000,
-    vatRate: 10,
-    totalAmount: 6000000,
-    status: "VALID",
-    categoryGroup: "1.2b ĂN UỐNG",
-    isVat: true,
-  },
-
-  // 1.3 VẬN CHUYỂN
-  {
-    id: "c-10",
-    stt: 10,
-    content: "Xe du lịch 45 chỗ Universe",
-    supplier: "Công ty Triệu Bảo Ý",
-    quantity: 1,
-    unitText: "3 ngày / Xe",
-    unitPrice: 25920000,
-    vatRate: 10,
-    totalAmount: 25920000,
-    status: "VALID",
-    categoryGroup: "1.3 VẬN CHUYỂN",
-    isVat: true,
-  },
-
-  // 1.4 CÁC DỊCH VỤ KHÁC (Chứa 3 DÒNG LỖI)
-  {
-    id: "c-11",
-    stt: 11,
-    content: "Gala Dinner trọn gói",
-    supplier: "Khách sạn Mường Thanh",
-    quantity: 1,
-    unitText: "1 tiệc / Gói",
-    unitPrice: 10000000,
-    vatRate: 10,
-    totalAmount: 10000000,
-    status: "VALID",
-    categoryGroup: "1.4 CÁC DỊCH VỤ KHÁC",
-    isVat: true,
-  },
-  {
-    id: "c-12",
-    stt: 12,
-    content: "Team Building bãi biển",
-    supplier: "Duy Hải Event",
-    quantity: 1,
-    unitText: "1 buổi / Gói",
-    unitPrice: 70000000,
-    vatRate: 10,
-    totalAmount: 70000000,
-    status: "VALID",
-    categoryGroup: "1.4 CÁC DỊCH VỤ KHÁC",
-    isVat: true,
-  },
-  {
-    id: "c-13",
-    stt: 13,
-    content: "Phòng hội nghị / hội thảo",
-    supplier: "Royal Hotel Đà Nẵng",
-    quantity: 1,
-    unitText: "1 ngày / Gói",
-    unitPrice: 5000000,
-    vatRate: 10,
-    totalAmount: 5000000,
-    status: "VALID",
-    categoryGroup: "1.4 CÁC DỊCH VỤ KHÁC",
-    isVat: true,
-  },
-
-  // ❌ DÒNG LỖI 1: BẢO HIỂM DU LỊCH (Đơn giá không hợp lệ)
-  {
-    id: "c-14",
-    stt: 14,
-    content: "Bảo hiểm du lịch khách VIP",
-    supplier: "Bảo hiểm Bảo Việt",
-    quantity: 2,
-    unitText: "1 lần / Khách",
-    unitPrice: "abc",
-    unitPriceError: true,
-    vatRate: 10,
-    totalAmount: "abc",
-    totalAmountError: true,
-    status: "ERROR",
-    statusMessage: "(!) Đơn giá không hợp lệ",
-    categoryGroup: "1.4 CÁC DỊCH VỤ KHÁC",
-    isVat: true,
-  },
-
-  // ❌ DÒNG LỖI 2: PHÍ VISA (VAT không hợp lệ)
-  {
-    id: "c-15",
-    stt: 15,
-    content: "Phí visa nhập cảnh đoàn",
-    supplier: "Cục Quản lý XNC",
-    quantity: 2,
-    unitText: "1 lần / Khách",
-    unitPrice: 500000,
-    vatRate: "abc",
-    vatRateError: true,
-    totalAmount: 1100000,
-    status: "ERROR",
-    statusMessage: "(!) VAT không hợp lệ",
-    categoryGroup: "1.4 CÁC DỊCH VỤ KHÁC",
-    isVat: true,
-  },
-
-  // ❌ DÒNG LỖI 3: SIM 4G (Thiếu thành tiền)
-  {
-    id: "c-16",
-    stt: 16,
-    content: "Sim 4G du lịch",
-    supplier: "Viettel Telecom",
-    quantity: 2,
-    unitText: "1 cái / Sim",
-    unitPrice: 200000,
-    vatRate: 10,
-    totalAmount: "-",
-    totalAmountError: true,
-    status: "ERROR",
-    statusMessage: "(!) Thiếu Thành tiền",
-    categoryGroup: "1.4 CÁC DỊCH VỤ KHÁC",
-    isVat: true,
-  },
-
-  // II. DỊCH VỤ ĐẦU VÀO CHƯA VAT (0%)
-  {
-    id: "c-17",
-    stt: 17,
-    content: "Khăn lạnh + Nước suối",
-    supplier: "Đại lý nước khoáng",
-    quantity: 30,
-    unitText: "3 ngày / Gói",
-    unitPrice: 10000,
-    vatRate: 0,
-    totalAmount: 900000,
-    status: "VALID",
-    categoryGroup: "II. DỊCH VỤ ĐẦU VÀO CHƯA VAT (0%)",
-    isVat: false,
-  },
-  {
-    id: "c-18",
-    stt: 18,
-    content: "Hướng dẫn viên du lịch suốt tuyến",
-    supplier: "CLB HDV Đà Nẵng",
-    quantity: 1,
-    unitText: "3 ngày / Tour",
-    unitPrice: 2100000,
-    vatRate: 0,
-    totalAmount: 2100000,
-    status: "VALID",
-    categoryGroup: "II. DỊCH VỤ ĐẦU VÀO CHƯA VAT (0%)",
-    isVat: false,
-  },
-  {
-    id: "c-19",
-    stt: 19,
-    content: "Băng rôn đón đoàn + Chụp ảnh",
-    supplier: "In ấn Đại Nam",
-    quantity: 1,
-    unitText: "1 lần / Bộ",
-    unitPrice: 500000,
-    vatRate: 0,
-    totalAmount: 500000,
-    status: "VALID",
-    categoryGroup: "II. DỊCH VỤ ĐẦU VÀO CHƯA VAT (0%)",
-    isVat: false,
-  },
-  {
-    id: "c-20",
-    stt: 20,
-    content: "Mũ du lịch SkyLux Travel",
-    supplier: "Xưởng may Phúc Thịnh",
-    quantity: 30,
-    unitText: "1 lần / Cái",
-    unitPrice: 20000,
-    vatRate: 0,
-    totalAmount: 600000,
-    status: "VALID",
-    categoryGroup: "II. DỊCH VỤ ĐẦU VÀO CHƯA VAT (0%)",
-    isVat: false,
-  },
-  {
-    id: "c-21",
-    stt: 21,
-    content: "Lưu đêm HDV tại điểm tour",
-    supplier: "Tự do",
-    quantity: 1,
-    unitText: "2 đêm / Lần",
-    unitPrice: 600000,
-    vatRate: 0,
-    totalAmount: 600000,
-    status: "VALID",
-    categoryGroup: "II. DỊCH VỤ ĐẦU VÀO CHƯA VAT (0%)",
-    isVat: false,
-  },
-  {
-    id: "c-22",
-    stt: 22,
-    content: "Bảo hiểm du lịch nội địa",
-    supplier: "Bảo hiểm Bảo Việt",
-    quantity: 30,
-    unitText: "3 ngày / Khách",
-    unitPrice: 5000,
-    vatRate: 0,
-    totalAmount: 150000,
-    status: "VALID",
-    categoryGroup: "II. DỊCH VỤ ĐẦU VÀO CHƯA VAT (0%)",
-    isVat: false,
-  },
-  {
-    id: "c-23",
-    stt: 23,
-    content: "Tip HDV & Lái xe địa phương",
-    supplier: "Tự do",
-    quantity: 1,
-    unitText: "1 tour / Gói",
-    unitPrice: 300000,
-    vatRate: 0,
-    totalAmount: 330000,
-    status: "VALID",
-    categoryGroup: "II. DỊCH VỤ ĐẦU VÀO CHƯA VAT (0%)",
-    isVat: false,
-  },
-  {
-    id: "c-24",
-    stt: 24,
-    content: "Quà tặng lưu niệm đoàn",
-    supplier: "Đặc sản Đà Nẵng",
-    quantity: 2,
-    unitText: "1 lần / Phần",
-    unitPrice: 150000,
-    vatRate: 0,
-    totalAmount: 330000,
-    status: "VALID",
-    categoryGroup: "II. DỊCH VỤ ĐẦU VÀO CHƯA VAT (0%)",
-    isVat: false,
-  },
-];
 
 function formatVND(num: number | string | undefined | null) {
   if (num === undefined || num === null || num === "") return "-";
@@ -498,34 +54,44 @@ export function ImportPreviewTable({
   >("ALL");
   const [isRawExpanded, setIsRawExpanded] = useState(false);
 
+  const {
+    validCount,
+    errorCount,
+    warningCount,
+    totalCount,
+    revenues: allRevenues,
+    costs: allCosts,
+    totalRevenue,
+    totalCost,
+    totalProfit,
+    profitMargin,
+    totalPax,
+    classification,
+    summary,
+  } = useImportValidation(_previewData);
+
   // Filter revenue items
   const filteredRevenues = useMemo(() => {
-    if (statusFilter === "ALL") return SAMPLE_REVENUES;
-    return SAMPLE_REVENUES.filter((item) => item.status === statusFilter);
-  }, [statusFilter]);
+    if (statusFilter === "ALL") return allRevenues;
+    return allRevenues.filter((item) => item.status === statusFilter);
+  }, [statusFilter, allRevenues]);
 
   // Filter cost items
   const filteredCosts = useMemo(() => {
-    if (statusFilter === "ALL") return SAMPLE_COSTS;
-    return SAMPLE_COSTS.filter((item) => item.status === statusFilter);
-  }, [statusFilter]);
+    if (statusFilter === "ALL") return allCosts;
+    return allCosts.filter((item) => item.status === statusFilter);
+  }, [statusFilter, allCosts]);
 
   // Group costs by category
   const costGroups = useMemo(() => {
-    const groups: { [key: string]: CostItem[] } = {};
+    const groups: { [key: string]: typeof allCosts } = {};
     filteredCosts.forEach((item) => {
-      const g = item.categoryGroup;
+      const g = item.categoryGroup || "DỊCH VỤ";
       if (!groups[g]) groups[g] = [];
       groups[g].push(item);
     });
     return groups;
   }, [filteredCosts]);
-
-  const totalRevenue = 145800000;
-  const totalPax = 36;
-  const totalCost = 116160006;
-  const totalProfit = 27085179;
-  const profitMargin = "20.1%";
 
   return (
     <Card
@@ -621,6 +187,16 @@ export function ImportPreviewTable({
         </div>
       }
     >
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs">
+        <span className="font-semibold text-slate-500">Phân loại hồ sơ:</span>
+        <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 font-bold text-amber-800">
+          Mảng: {classification.businessLine}
+        </span>
+        <span className="rounded-md border border-sky-200 bg-sky-50 px-2 py-1 font-bold text-sky-800">
+          Loại hình: {classification.marketType}
+        </span>
+      </div>
+
       {/* 🔴 THANH CẢNH BÁO NỔI BẬT DÒNG LỖI & CẢNH BÁO ĐỂ NGƯỜI DÙNG DỄ NHÌN THẤY */}
       <div className="p-3.5 rounded-xl bg-gradient-to-r from-rose-50/90 via-amber-50/70 to-emerald-50/40 border border-rose-200 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
         <div className="flex items-center gap-3">
@@ -631,11 +207,11 @@ export function ImportPreviewTable({
             <div className="text-xs font-bold text-slate-800">
               Phát hiện{" "}
               <span className="text-rose-600 font-extrabold bg-rose-100/90 px-1.5 py-0.5 rounded">
-                3 dòng lỗi
+                {errorCount + (_errorsData?.data?.length || 0)} dòng lỗi
               </span>{" "}
               và{" "}
               <span className="text-amber-700 font-extrabold bg-amber-100/90 px-1.5 py-0.5 rounded">
-                1 cảnh báo
+                {warningCount} cảnh báo
               </span>{" "}
               trong dữ liệu dự toán
             </div>
@@ -667,7 +243,7 @@ export function ImportPreviewTable({
                 : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
             }`}
           >
-            Tất cả (28)
+            Tất cả ({totalCount})
           </button>
           <button
             type="button"
@@ -678,7 +254,7 @@ export function ImportPreviewTable({
                 : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
             }`}
           >
-            Dòng lỗi (3)
+            Dòng lỗi ({errorCount})
           </button>
           <button
             type="button"
@@ -689,7 +265,7 @@ export function ImportPreviewTable({
                 : "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
             }`}
           >
-            Cảnh báo (1)
+            Cảnh báo ({warningCount})
           </button>
           <button
             type="button"
@@ -700,7 +276,7 @@ export function ImportPreviewTable({
                 : "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
             }`}
           >
-            Hợp lệ (24)
+            Hợp lệ ({validCount})
           </button>
         </div>
       </div>
@@ -848,7 +424,7 @@ export function ImportPreviewTable({
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-full">
-                3 dòng lỗi cần xử lý
+                {errorCount} dòng lỗi cần xử lý
               </span>
               <span className="text-xs font-bold font-mono text-slate-800 bg-slate-100 px-3 py-1 rounded-full">
                 Tổng chi phí: {formatVND(totalCost)} đ
@@ -1072,19 +648,19 @@ export function ImportPreviewTable({
                     Dịch vụ 10% (Có VAT)
                   </td>
                   <td className="py-2.5 px-3 text-right font-mono">
-                    {formatVND(145800000)}
+                    {formatVND(summary.service10.customerRevenue)}
                   </td>
                   <td className="py-2.5 px-3 text-right font-mono">
-                    {formatVND(135000000)}
+                    {formatVND(summary.service10.netRevenue)}
                   </td>
                   <td className="py-2.5 px-3 text-right font-mono">
-                    {formatVND(111310006)}
+                    {formatVND(summary.service10.cost)}
                   </td>
                   <td className="py-2.5 px-3 text-right font-mono">
-                    {formatVND(103064820)}
+                    {formatVND(summary.service10.netCost)}
                   </td>
                   <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700">
-                    {formatVND(31935180)}
+                    {formatVND(summary.service10.grossProfit)}
                   </td>
                 </tr>
                 <tr className="hover:bg-slate-50/70">
@@ -1094,13 +670,13 @@ export function ImportPreviewTable({
                   <td className="py-2.5 px-3 text-right font-mono">0</td>
                   <td className="py-2.5 px-3 text-right font-mono">0</td>
                   <td className="py-2.5 px-3 text-right font-mono">
-                    {formatVND(4850000)}
+                    {formatVND(summary.service0.cost)}
                   </td>
                   <td className="py-2.5 px-3 text-right font-mono">
-                    {formatVND(4850000)}
+                    {formatVND(summary.service0.netCost)}
                   </td>
                   <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-600">
-                    -{formatVND(4850000)}
+                    {formatVND(summary.service0.grossProfit)}
                   </td>
                 </tr>
               </tbody>
@@ -1110,19 +686,19 @@ export function ImportPreviewTable({
                     TỔNG CỘNG ĐỐI SOÁT
                   </td>
                   <td className="py-2.5 px-3 text-right font-mono font-extrabold text-emerald-950">
-                    {formatVND(145800000)}
+                    {formatVND(summary.total.customerRevenue)}
                   </td>
                   <td className="py-2.5 px-3 text-right font-mono font-extrabold text-emerald-950">
-                    {formatVND(135000000)}
+                    {formatVND(summary.total.netRevenue)}
                   </td>
                   <td className="py-2.5 px-3 text-right font-mono font-extrabold text-slate-900">
-                    {formatVND(116160006)}
+                    {formatVND(summary.total.cost)}
                   </td>
                   <td className="py-2.5 px-3 text-right font-mono font-extrabold text-slate-900">
-                    {formatVND(107914820)}
+                    {formatVND(summary.total.netCost)}
                   </td>
                   <td className="py-2.5 px-3 text-right font-mono font-extrabold text-emerald-800 text-sm">
-                    {formatVND(27085180)} đ
+                    {formatVND(summary.total.grossProfit)} đ
                   </td>
                 </tr>
               </tfoot>
@@ -1141,8 +717,8 @@ export function ImportPreviewTable({
               Danh sách dòng dữ liệu gốc từ file Excel
             </span>
             <span className="text-xs text-slate-400">
-              Hiển thị {isRawExpanded ? SAMPLE_COSTS.length : 10} /{" "}
-              {SAMPLE_COSTS.length} dòng
+              Hiển thị {isRawExpanded ? allCosts.length : 10} /{" "}
+              {allCosts.length} dòng
             </span>
           </div>
 
@@ -1169,7 +745,7 @@ export function ImportPreviewTable({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {(isRawExpanded ? SAMPLE_COSTS : SAMPLE_COSTS.slice(0, 10)).map(
+                {(isRawExpanded ? allCosts : allCosts.slice(0, 10)).map(
                   (row) => {
                     const isError = row.status === "ERROR";
                     return (
@@ -1257,7 +833,7 @@ export function ImportPreviewTable({
               <span>
                 {isRawExpanded
                   ? "Thu gọn về 10 dòng đầu"
-                  : `Xem tất cả ${SAMPLE_COSTS.length} dòng`}
+                  : `Xem tất cả ${allCosts.length} dòng`}
               </span>
               {isRawExpanded ? (
                 <UpOutlined className="text-[10px]" />

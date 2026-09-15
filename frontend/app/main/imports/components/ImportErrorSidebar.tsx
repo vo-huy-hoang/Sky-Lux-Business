@@ -9,10 +9,12 @@ import {
   InfoCircleFilled,
   WarningFilled,
 } from "@ant-design/icons";
-import { ImportSession, PaginatedImportErrorsResponse } from "@/types/import";
+import { ImportSession, PaginatedImportErrorsResponse, PaginatedImportRowsResponse } from "@/types/import";
+import { useImportValidation } from "../hooks/useImportValidation";
 
 export interface ImportErrorSidebarProps {
   session?: ImportSession;
+  previewData?: PaginatedImportRowsResponse;
   errorsData?: PaginatedImportErrorsResponse;
 }
 
@@ -26,11 +28,8 @@ const CHECKLIST_ITEMS = [
   "Không để trống Hạng mục và Đơn vị",
 ];
 
-export function ImportErrorSidebar({ session }: ImportErrorSidebarProps) {
-  const validCount = session?.validRows ?? 24;
-  const errorCount = session?.errorRows ?? 3;
-  const warningCount = 1;
-  const totalCount = session?.totalRows ?? 28;
+export function ImportErrorSidebar({ session, previewData, errorsData }: ImportErrorSidebarProps) {
+  const { validCount, errorCount, warningCount, totalCount } = useImportValidation(previewData);
 
   return (
     <div className="space-y-4">
@@ -113,7 +112,7 @@ export function ImportErrorSidebar({ session }: ImportErrorSidebarProps) {
               </div>
             </div>
             <div className="text-2xl font-bold font-mono text-rose-700">
-              {errorCount}
+              {errorCount + (errorsData?.data?.length || 0)}
             </div>
           </div>
 
@@ -138,6 +137,26 @@ export function ImportErrorSidebar({ session }: ImportErrorSidebarProps) {
               {totalCount}
             </span>
           </div>
+
+          {/* Lỗi từ hệ thống (Dossier-level errors) */}
+          {errorsData?.data && errorsData.data.length > 0 && (
+            <div className="pt-3 border-t border-slate-100">
+              <div className="text-[11px] font-bold text-rose-800 uppercase tracking-wider mb-2">
+                Chi tiết lỗi dữ liệu:
+              </div>
+              <div className="space-y-2">
+                {errorsData.data.map((err, idx) => (
+                  <div
+                    key={idx}
+                    className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium flex gap-2 items-start"
+                  >
+                    <ExclamationCircleFilled className="text-rose-500 mt-0.5 shrink-0" />
+                    <span>{err.errorMessage}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </Card>
     </div>
