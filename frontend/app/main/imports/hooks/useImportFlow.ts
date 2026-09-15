@@ -14,6 +14,7 @@ export function useImportFlow() {
 
   const currentSessionId = useImportWizardStore((state) => state.currentSessionId);
   const setCurrentSessionId = useImportWizardStore((state) => state.setCurrentSessionId);
+  const resetWizardSession = useImportWizardStore((state) => state.resetSession);
   const activeTab = useImportWizardStore((state) => state.activeFilterTab);
   const setActiveTab = useImportWizardStore((state) => state.setActiveFilterTab);
   const page = useImportWizardStore((state) => state.page);
@@ -145,11 +146,39 @@ export function useImportFlow() {
     setIsEditModalOpen(true);
   };
 
+  const resetSession = () => {
+    const sessionIdToReset = currentSessionId;
+
+    resetWizardSession();
+
+    if (!sessionIdToReset) return;
+
+    // Remove the current session's cached session, preview, and error data so
+    // a later upload cannot briefly show data from the previous file.
+    queryClient.removeQueries({
+      predicate: (query) => {
+        const [scope, resource, params] = query.queryKey;
+        if (scope !== 'imports') return false;
+
+        if (resource === 'errors') {
+          return params === sessionIdToReset;
+        }
+
+        if (resource === 'sessions' && params && typeof params === 'object') {
+          return Object.values(params as Record<string, unknown>).includes(sessionIdToReset);
+        }
+
+        return false;
+      },
+    });
+  };
+
   const canConfirm = (session?.errorRows || 0) === 0 && (session?.validRows || 0) > 0;
 
   return {
     currentSessionId,
     setCurrentSessionId,
+    resetSession,
     activeTab,
     setActiveTab,
     page,

@@ -47,6 +47,16 @@ export interface DossierItem {
   customerId: string;
   businessLineId?: string;
   marketTypeId?: string;
+  businessLine?: {
+    id: string;
+    code: string;
+    name: string;
+  };
+  marketType?: {
+    id: string;
+    code: string;
+    name: string;
+  };
   salesUserId?: string;
   operatorUserId?: string;
   route?: string;

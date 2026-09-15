@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { EstimateCostLine } from '@/types/estimate';
-import { formatSummaryCurrency, parseVatRate } from '../utils';
+import React from "react";
+import { EstimateCostLine } from "@/types/estimate";
+import { formatSummaryCurrency, parseVatRate } from "../utils";
 
 export interface CostSummaryRow {
   key: string;
@@ -15,8 +15,9 @@ export interface CostSummaryRow {
 }
 
 /**
- * Tính toán các dòng đối soát doanh thu - chi phí - lãi gộp
- * Áp dụng hệ số chia thuế 1.08 theo Nghị định thuế du lịch (Dịch vụ 10% và Dịch vụ 0%)
+ * Đồng bộ các dòng đối soát với bảng tổng hợp cuối trong file Excel.
+ * Nhóm OTHER ở phần có VAT nằm ngoài vùng đối soát, nhưng OTHER ở phần
+ * chưa VAT vẫn thuộc vùng G46:G51 và phải được tính vào Dịch vụ 0%.
  */
 export function calculateCostSummaryRows(
   costLines: EstimateCostLine[] = [],
@@ -35,15 +36,13 @@ export function calculateCostSummaryRows(
   const service10Cost = costLines
     .filter(
       (line) =>
-        parseVatRate(line.vatRate) > 0 && line.serviceCategory?.code !== 'OTHER',
+        parseVatRate(line.vatRate) > 0 &&
+        line.serviceCategory?.code !== "OTHER",
     )
     .reduce((sum, line) => sum + amountOf(line), 0);
 
   const service0Cost = costLines
-    .filter(
-      (line) =>
-        parseVatRate(line.vatRate) === 0 || line.serviceCategory?.code === 'OTHER',
-    )
+    .filter((line) => parseVatRate(line.vatRate) === 0)
     .reduce((sum, line) => sum + amountOf(line), 0);
 
   const service10NetRevenue = Math.round(totalRevenue / netDivisor);
@@ -52,8 +51,8 @@ export function calculateCostSummaryRows(
 
   const rows: CostSummaryRow[] = [
     {
-      key: 'service-10',
-      label: 'Dịch vụ 10%',
+      key: "service-10",
+      label: "Dịch vụ 10%",
       customerRevenue: totalRevenue,
       netRevenue: service10NetRevenue,
       cost: service10Cost,
@@ -61,8 +60,8 @@ export function calculateCostSummaryRows(
       grossProfit: service10NetRevenue - service10NetCost,
     },
     {
-      key: 'service-0',
-      label: 'Dịch vụ 0%',
+      key: "service-0",
+      label: "Dịch vụ 0%",
       customerRevenue: 0,
       netRevenue: 0,
       cost: service0Cost,
@@ -72,8 +71,8 @@ export function calculateCostSummaryRows(
   ];
 
   const totalRow: CostSummaryRow = {
-    key: 'total',
-    label: 'TỔNG CỘNG',
+    key: "total",
+    label: "TỔNG CỘNG",
     customerRevenue: rows.reduce((sum, row) => sum + row.customerRevenue, 0),
     netRevenue: rows.reduce((sum, row) => sum + row.netRevenue, 0),
     cost: rows.reduce((sum, row) => sum + row.cost, 0),
@@ -89,12 +88,15 @@ export interface CostSummaryTableProps {
   className?: string;
 }
 
-export function CostSummaryTable({ rows, className = '' }: CostSummaryTableProps) {
-  const totalRow = rows.find((row) => row.key === 'total');
+export function CostSummaryTable({
+  rows,
+  className = "",
+}: CostSummaryTableProps) {
+  const totalRow = rows.find((row) => row.key === "total");
   const marginPercent =
     totalRow && totalRow.netRevenue > 0
       ? ((totalRow.grossProfit / totalRow.netRevenue) * 100).toFixed(1)
-      : '0.0';
+      : "0.0";
 
   return (
     <div
@@ -118,39 +120,53 @@ export function CostSummaryTable({ rows, className = '' }: CostSummaryTableProps
         <table className="w-full text-xs border-collapse">
           <thead>
             <tr className="bg-slate-50/90 text-slate-700 font-bold text-[11px] uppercase tracking-wider border-b border-slate-200">
-              <th className="py-2 px-2 text-left font-bold w-[22%]">Tổng thu từ KH</th>
-              <th className="py-2 px-2 text-right font-bold w-[15%]">Doanh thu</th>
-              <th className="py-2 px-2 text-right font-bold w-[15%]">DT thuần</th>
-              <th className="py-2 px-2 text-right font-bold w-[16%]">Chi phí</th>
-              <th className="py-2 px-2 text-right font-bold w-[16%]">Chi phí thuần</th>
-              <th className="py-2 px-2 text-right font-bold w-[16%]">Lãi Gộp</th>
+              <th className="py-2 px-2 text-left font-bold w-[22%]">
+                Tổng thu từ KH
+              </th>
+              <th className="py-2 px-2 text-right font-bold w-[15%]">
+                Doanh thu
+              </th>
+              <th className="py-2 px-2 text-right font-bold w-[15%]">
+                DT thuần
+              </th>
+              <th className="py-2 px-2 text-right font-bold w-[16%]">
+                Chi phí
+              </th>
+              <th className="py-2 px-2 text-right font-bold w-[16%]">
+                Chi phí thuần
+              </th>
+              <th className="py-2 px-2 text-right font-bold w-[16%]">
+                Lãi Gộp
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-800">
             {rows.map((row) => {
-              const isTotal = row.key === 'total';
+              const isTotal = row.key === "total";
               return (
                 <tr
                   key={row.key}
                   className={`transition-colors ${
                     isTotal
-                      ? 'bg-amber-100/80 font-bold border-t-2 border-amber-300 text-slate-900'
-                      : 'hover:bg-slate-50/70 text-slate-700'
+                      ? "bg-amber-100/80 font-bold border-t-2 border-amber-300 text-slate-900"
+                      : "hover:bg-slate-50/70 text-slate-700"
                   }`}
                 >
                   <td className="py-2.5 px-2">
                     <span
                       className={
                         isTotal
-                          ? 'font-extrabold text-slate-900 uppercase text-xs'
-                          : 'font-semibold text-slate-800'
+                          ? "font-extrabold text-slate-900 uppercase text-xs"
+                          : "font-semibold text-slate-800"
                       }
                     >
                       {row.label}
                     </span>
                   </td>
                   <td className="py-2.5 px-2 text-right font-mono text-[11px] sm:text-xs">
-                    {row.customerRevenue ? formatSummaryCurrency(row.customerRevenue) : '-'}
+                    {row.customerRevenue
+                      ? formatSummaryCurrency(row.customerRevenue)
+                      : "-"}
                   </td>
                   <td className="py-2.5 px-2 text-right font-mono text-[11px] sm:text-xs">
                     {formatSummaryCurrency(row.netRevenue)}
@@ -165,10 +181,10 @@ export function CostSummaryTable({ rows, className = '' }: CostSummaryTableProps
                     <span
                       className={
                         row.grossProfit < 0
-                          ? 'text-red-600 font-semibold'
+                          ? "text-red-600 font-semibold"
                           : isTotal
-                          ? 'text-slate-950 font-extrabold'
-                          : 'text-slate-900 font-semibold'
+                            ? "text-slate-950 font-extrabold"
+                            : "text-slate-900 font-semibold"
                       }
                     >
                       {formatSummaryCurrency(row.grossProfit)}

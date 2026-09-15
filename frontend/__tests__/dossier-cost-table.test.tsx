@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 
 jest.mock('@ant-design/icons', () => ({
@@ -136,6 +136,18 @@ describe('Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
       expect(classifyCategory(line2)).toEqual({ code: '1.4', title: 'CÁC DỊCH VỤ KHÁC', order: 5 });
       expect(classifyCategory(line3)).toEqual({ code: '1.4', title: 'CÁC DỊCH VỤ KHÁC', order: 5 });
       expect(classifyCategory(lineUnknown)).toEqual({ code: '1.4', title: 'CÁC DỊCH VỤ KHÁC', order: 5 });
+    });
+
+    it('ưu tiên phân loại theo categoryTitle hoặc serviceCategory.name tường minh khi thêm dòng mới', () => {
+      const rowAddedToTicket = { description: 'Dịch vụ chưa đặt tên', categoryTitle: 'VÉ THAM QUAN' };
+      const rowAddedToHotel = { description: 'Chi phí bổ sung', categoryTitle: 'KHÁCH SẠN' };
+      const rowAddedToRestaurant = { description: '', categoryTitle: 'ĂN UỐNG' };
+      const rowAddedToTransport = { description: '', categoryTitle: 'VẬN CHUYỂN' };
+
+      expect(classifyCategory(rowAddedToTicket)).toEqual({ code: '1.1', title: 'VÉ THAM QUAN', order: 1 });
+      expect(classifyCategory(rowAddedToHotel)).toEqual({ code: '1.2', title: 'KHÁCH SẠN', order: 2 });
+      expect(classifyCategory(rowAddedToRestaurant)).toEqual({ code: '1.2b', title: 'ĂN UỐNG', order: 3 });
+      expect(classifyCategory(rowAddedToTransport)).toEqual({ code: '1.3', title: 'VẬN CHUYỂN', order: 4 });
     });
   });
 
@@ -282,12 +294,58 @@ describe('Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
       expect(row10.cost).toBe(16200000);
       expect(row10.netCost).toBe(15000000); // 16.2M / 1.08 = 15M
 
-      // 1000000 + 500000 = 1500000
+      // Dòng VAT 0% thuộc vùng đối soát, kể cả nhóm OTHER.
       expect(row0.cost).toBe(1500000);
       expect(row0.netCost).toBe(1500000);
 
       // Tổng chi phí = 16.2M + 1.5M = 17.7M
       expect(rowTotal.cost).toBe(17700000);
+    });
+
+    it('đồng bộ với bảng tổng hợp cuối Excel và chỉ loại nhóm OTHER ở phần có VAT', () => {
+      const mockCostLines: EstimateCostLine[] = [
+        {
+          id: 'excel-service-10',
+          quantity: 1,
+          multiplier: 1,
+          unitPrice: 111310006,
+          grossAmount: 111310006,
+          vatRate: 10,
+          serviceCategory: { code: 'TRANSPORT', name: 'Vận chuyển' },
+        } as EstimateCostLine,
+        {
+          id: 'excel-other',
+          quantity: 1,
+          multiplier: 1,
+          unitPrice: 85000000,
+          grossAmount: 85000000,
+          vatRate: 10,
+          serviceCategory: { code: 'OTHER', name: 'Dịch vụ khác' },
+        } as EstimateCostLine,
+        {
+          id: 'excel-service-0-other',
+          quantity: 1,
+          multiplier: 1,
+          unitPrice: 4850000,
+          grossAmount: 4850000,
+          vatRate: 0,
+          serviceCategory: { code: 'OTHER', name: 'Khăn, băng rôn, mũ du lịch' },
+        } as EstimateCostLine,
+      ];
+
+      const rows = calculateCostSummaryRows(mockCostLines, 145800000, 1.08);
+      const row10 = rows.find((r) => r.key === 'service-10')!;
+      const row0 = rows.find((r) => r.key === 'service-0')!;
+      const rowTotal = rows.find((r) => r.key === 'total')!;
+
+      expect(row10.cost).toBe(111310006);
+      expect(row10.netCost).toBe(103064820);
+      expect(row10.grossProfit).toBe(31935180);
+      expect(row0.cost).toBe(4850000);
+      expect(row0.grossProfit).toBe(-4850000);
+      expect(rowTotal.cost).toBe(116160006);
+      expect(rowTotal.netCost).toBe(107914820);
+      expect(rowTotal.grossProfit).toBe(27085180);
     });
   });
 
@@ -369,6 +427,40 @@ describe('Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
       expect(screen.getByText('Chuẩn Excel APP')).toBeInTheDocument();
       expect(screen.getByText('Chưa có dữ liệu chi phí từ hệ thống')).toBeInTheDocument();
       expect(screen.queryByText('KHÁCH SẠN MƯỜNG THANH')).not.toBeInTheDocument();
+    });
+
+    it('đánh lại STT theo từng mục và hiển thị giá tiền trước VAT', () => {
+      const lines = [
+        {
+          id: 'transport-line',
+          description: 'Xe đưa đón sân bay',
+          quantity: 1,
+          multiplier: 1,
+          unitPrice: 500000,
+          netAmount: 500000,
+          grossAmount: 550000,
+          vatRate: 10,
+          serviceCategory: { code: 'TRANSPORT', name: 'Vận chuyển xe du lịch' },
+        },
+        {
+          id: 'hotel-line',
+          description: 'Khách sạn 4 sao',
+          quantity: 1,
+          multiplier: 1,
+          unitPrice: 1000000,
+          netAmount: 1000000,
+          grossAmount: 1100000,
+          vatRate: 10,
+          serviceCategory: { code: 'HOTEL', name: 'Khách sạn / Lưu trú' },
+        },
+      ] as EstimateCostLine[];
+
+      render(<DossierCostTable costLines={lines} />);
+
+      const hotelRow = screen.getByText('Khách sạn 4 sao').closest('tr');
+      expect(hotelRow?.querySelector('td')?.textContent).toBe('1');
+      expect(within(hotelRow as HTMLTableRowElement).getAllByText('1.000.000')).toHaveLength(2);
+      expect(within(hotelRow as HTMLTableRowElement).queryByText('1.100.000')).not.toBeInTheDocument();
     });
 
     it('CostSummaryTable render đúng bảng tổng hợp và badge tỷ suất lợi nhuận', () => {
@@ -483,6 +575,40 @@ describe('Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
       expect(screen.getByText('Chi tiết doanh thu')).toBeInTheDocument();
       expect(screen.getByText('Chi phí theo hạng mục')).toBeInTheDocument();
       expect(screen.getByText('Tổng hợp doanh thu và lợi nhuận')).toBeInTheDocument();
+    });
+
+    it('DossierDetailTabs render thẻ Mảng và Loại hình ở gần bảng (tab bar)', () => {
+      const mockEstimate = {
+        id: 'est-1',
+        revenueLines: [],
+        costLines: [],
+      };
+      render(
+        <DossierDetailTabs
+          estimate={mockEstimate}
+          dossierId="dossier-123"
+          dossier={{
+            businessLine: { code: 'TOUR_OUTBOUND', name: 'Du lịch Outbound' },
+            marketType: { name: 'Nội địa' },
+          }}
+        />
+      );
+
+      expect(screen.getByText('Mảng: TOUR')).toBeInTheDocument();
+      expect(screen.getByText('Loại hình: Nội địa')).toBeInTheDocument();
+    });
+
+    it('DossierHeader không còn render thẻ Mảng và Loại hình dưới tiêu đề', () => {
+      const mockDossier = {
+        id: 'dossier-123',
+        code: 'DOS-2026-001',
+        status: 'IN_REVIEW',
+        businessLine: { code: 'TOUR_OUTBOUND', name: 'Du lịch Outbound' },
+        marketType: { name: 'Nội địa' },
+      };
+      render(<DossierHeader dossier={mockDossier} />);
+      expect(screen.queryByText(/Mảng:/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Loại hình:/i)).not.toBeInTheDocument();
     });
 
     it('DossierHeader render nút Sửa dự toán và Tải file gốc', () => {

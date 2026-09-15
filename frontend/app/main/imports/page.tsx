@@ -16,8 +16,7 @@ export default function ImportsPage() {
   const flow = useImportFlow();
 
   const handleResetSession = () => {
-    flow.setCurrentSessionId(null);
-    flow.setActiveTab("ALL");
+    flow.resetSession();
   };
 
   return (
@@ -44,49 +43,56 @@ export default function ImportsPage() {
             isUploading={flow.uploadMutation.isPending}
           />
 
-          {flow.session?.status === "CONFIRMED" ? (
-            <ImportConfirmedResult
-              session={flow.session}
-              onResetSession={handleResetSession}
-            />
-          ) : (
-            <>
-              {/* 3. File đã chọn */}
-              <ImportSelectedFileCard
+          {flow.currentSessionId && (
+            flow.session?.status === "CONFIRMED" ? (
+              <ImportConfirmedResult
                 session={flow.session}
                 onResetSession={handleResetSession}
               />
+            ) : (
+              <>
+                {/* 3. File đã chọn */}
+                <ImportSelectedFileCard
+                  session={flow.session}
+                  onResetSession={handleResetSession}
+                />
 
-              {/* 4. Xem trước dữ liệu (10 dòng đầu tiên) */}
-              <ImportPreviewTable
-                session={flow.session}
-                previewData={flow.previewData}
-                errorsData={flow.errorsData}
-                isLoading={flow.isLoadingPreview || flow.isLoadingSession}
-              />
-            </>
+                {/* 4. Xem trước dữ liệu (10 dòng đầu tiên) */}
+                <ImportPreviewTable
+                  session={flow.session}
+                  previewData={flow.previewData}
+                  errorsData={flow.errorsData}
+                  isLoading={flow.isLoadingPreview || flow.isLoadingSession}
+                />
+              </>
+            )
           )}
         </Col>
 
         {/* Right Column: Lưu ý kiểm tra dữ liệu & 5. Kết quả kiểm tra */}
         <Col xs={24} xl={7}>
-          <ImportErrorSidebar
-            session={flow.session}
-            errorsData={flow.errorsData}
-          />
+          {flow.currentSessionId && (
+            <ImportErrorSidebar
+              session={flow.session}
+              previewData={flow.previewData}
+              errorsData={flow.errorsData}
+            />
+          )}
         </Col>
       </Row>
 
       {/* Bottom Floating Action Bar */}
-      <ImportFloatingActionBar
-        session={flow.session}
-        isValidating={flow.validateMutation.isPending}
-        isConfirming={flow.confirmMutation.isPending}
-        canConfirm={flow.canConfirm}
-        onValidate={() => flow.validateMutation.mutate()}
-        onConfirm={() => flow.confirmMutation.mutate()}
-        onResetSession={handleResetSession}
-      />
+      {flow.currentSessionId && (
+        <ImportFloatingActionBar
+          session={flow.session}
+          isValidating={flow.validateMutation.isPending}
+          isConfirming={flow.confirmMutation.isPending}
+          canConfirm={flow.canConfirm}
+          onValidate={() => flow.validateMutation.mutate()}
+          onConfirm={() => flow.confirmMutation.mutate()}
+          onResetSession={handleResetSession}
+        />
+      )}
     </div>
   );
 }

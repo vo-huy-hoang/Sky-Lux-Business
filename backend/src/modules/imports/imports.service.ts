@@ -33,12 +33,18 @@ import {
   EstimateStatus,
   ImportSessionStatus,
 } from '../../common/enums';
+import { sanitizeFileName } from '../../common/utils/filename.util';
 import { CUSTOMER_BUDGET_FORMAT } from './customer-budget.parser';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
   AuditAction,
   AuditEntityType,
 } from '../audit-logs/audit-event.constants';
+
+function formatVnd(amount?: number): string {
+  if (amount === undefined || amount === null) return '0 đ';
+  return `${new Intl.NumberFormat('vi-VN').format(Math.round(amount))} đ`;
+}
 
 @Injectable()
 export class ImportsService {
@@ -91,7 +97,8 @@ export class ImportsService {
 
     // Save Excel file to local disk for async processing
     const fileId = crypto.randomUUID();
-    const extension = path.extname(file.originalname) || '.xlsx';
+    const cleanFileName = sanitizeFileName(file.originalname);
+    const extension = path.extname(cleanFileName) || '.xlsx';
     const filePath = path.join(this.uploadDir, `${fileId}${extension}`);
     fs.writeFileSync(filePath, file.buffer);
 
@@ -99,7 +106,7 @@ export class ImportsService {
     const session = this.sessionRepository.create({
       organizationId,
       templateId: template?.id,
-      fileName: file.originalname,
+      fileName: cleanFileName,
       fileUrl: `uploads/imports/${fileId}${extension}`,
       fileSize: file.size,
       status: ImportSessionStatus.UPLOADED,
@@ -412,16 +419,16 @@ export class ImportsService {
               currency: 'VND',
               createdBy: session.uploadedBy,
               note: [
-                `Import từ ${session.fileName}`,
+                `Import từ: ${session.fileName}`,
                 sourceSummary?.totalRevenue !== undefined &&
-                  `Doanh thu nguồn: ${sourceSummary.totalRevenue}`,
+                  `Doanh thu nguồn: ${formatVnd(sourceSummary.totalRevenue)}`,
                 sourceSummary?.totalCost !== undefined &&
-                  `Chi phí nguồn: ${sourceSummary.totalCost}`,
+                  `Chi phí nguồn: ${formatVnd(sourceSummary.totalCost)}`,
                 sourceSummary?.totalProfit !== undefined &&
-                  `Lợi nhuận nguồn: ${sourceSummary.totalProfit}`,
+                  `Lợi nhuận nguồn: ${formatVnd(sourceSummary.totalProfit)}`,
               ]
                 .filter(Boolean)
-                .join('; '),
+                .join('\n'),
             }),
           );
 

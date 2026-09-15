@@ -11,6 +11,40 @@ export interface OperatorNotesCardProps {
   className?: string;
 }
 
+function formatCurrencyString(raw: string): string {
+  const num = parseFloat(raw.replace(/,/g, ''));
+  if (isNaN(num)) return raw;
+  return new Intl.NumberFormat('vi-VN').format(Math.round(num)) + ' đ';
+}
+
+function cleanNoteText(text?: string): string {
+  if (!text) return '';
+  let result = text;
+  try {
+    result = result.replace(/Import từ:?\s*([^;\n]+)/g, (match, fname) => {
+      try {
+        const decoded = decodeURIComponent(escape(fname));
+        return `Import từ: ${decoded.normalize('NFC').trim()}`;
+      } catch {
+        return `Import từ: ${fname.trim()}`;
+      }
+    });
+  } catch {}
+
+  // Format raw numeric amounts into VND currency (e.g. 145.800.000 đ)
+  result = result.replace(
+    /(Doanh thu nguồn|Chi phí nguồn|Lợi nhuận nguồn):\s*([0-9.]+)(?!\s*đ)/g,
+    (_, label, numStr) => `${label}: ${formatCurrencyString(numStr)}`,
+  );
+
+  // Convert semicolons between import metadata items into separate lines
+  if (result.includes('Import từ')) {
+    result = result.split(/;\s*/).join('\n');
+  }
+
+  return result;
+}
+
 export function OperatorNotesCard({
   estimate,
   dossier,
@@ -21,10 +55,11 @@ export function OperatorNotesCard({
     dossier?.operatorUser?.name ||
     'Bộ phận Điều hành (Operator)';
 
-  const noteContent =
+  const rawNote =
     estimate?.note ||
     dossier?.note ||
     'Hồ sơ đang được theo dõi dự toán và đối soát chi phí nhà cung cấp.';
+  const noteContent = cleanNoteText(rawNote);
 
   const noteDate = estimate?.updatedAt || dossier?.updatedAt;
 

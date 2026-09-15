@@ -5,6 +5,7 @@ import { ImportSession } from '../entities/import-session.entity';
 import { ImportRow } from '../entities/import-row.entity';
 import { ImportError } from '../entities/import-error.entity';
 import { Customer } from '../../customers/entities/customer.entity';
+import { Dossier } from '../../dossiers/entities/dossier.entity';
 
 describe('ImportProcessor', () => {
   let processor: ImportProcessor;
@@ -12,6 +13,7 @@ describe('ImportProcessor', () => {
   let rowRepository: any;
   let errorRepository: any;
   let customerRepository: any;
+  let dossierRepository: any;
 
   beforeEach(async () => {
     sessionRepository = {
@@ -40,6 +42,10 @@ describe('ImportProcessor', () => {
       ),
     };
 
+    dossierRepository = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ImportProcessor,
@@ -58,6 +64,10 @@ describe('ImportProcessor', () => {
         {
           provide: getRepositoryToken(Customer),
           useValue: customerRepository,
+        },
+        {
+          provide: getRepositoryToken(Dossier),
+          useValue: dossierRepository,
         },
       ],
     }).compile();

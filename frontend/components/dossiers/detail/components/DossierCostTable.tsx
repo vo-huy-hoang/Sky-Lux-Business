@@ -31,6 +31,20 @@ export interface CostSubCategory {
   subTotal: number;
 }
 
+function getLineNetAmount(line: EstimateCostLine): number {
+  const netAmount = line.netAmount;
+  if (netAmount !== undefined && netAmount !== null) {
+    const parsedNetAmount = Number(netAmount);
+    if (Number.isFinite(parsedNetAmount)) return parsedNetAmount;
+  }
+
+  return (
+    (Number(line.quantity) || 0) *
+    (Number(line.multiplier) || 1) *
+    (Number(line.unitPrice) || 0)
+  );
+}
+
 export function extractExplanation(line: EstimateCostLine): string {
   if (line.supplier?.displayName) return line.supplier.displayName;
   if (line.supplier?.name) return line.supplier.name;
@@ -47,11 +61,19 @@ export function extractExplanation(line: EstimateCostLine): string {
 export function classifyCategory(line: {
   description?: string;
   serviceCategory?: { name?: string };
+  categoryTitle?: string;
 }): {
   code: string;
   title: string;
   order: number;
 } {
+  const explicitCat = (line.categoryTitle || line.serviceCategory?.name || '').toUpperCase().trim();
+  if (explicitCat === 'VÉ THAM QUAN') return { code: '1.1', title: 'VÉ THAM QUAN', order: 1 };
+  if (explicitCat === 'KHÁCH SẠN') return { code: '1.2', title: 'KHÁCH SẠN', order: 2 };
+  if (explicitCat === 'ĂN UỐNG') return { code: '1.2b', title: 'ĂN UỐNG', order: 3 };
+  if (explicitCat === 'VẬN CHUYỂN') return { code: '1.3', title: 'VẬN CHUYỂN', order: 4 };
+  if (explicitCat === 'CÁC DỊCH VỤ KHÁC') return { code: '1.4', title: 'CÁC DỊCH VỤ KHÁC', order: 5 };
+
   const desc = (line.description || '').toLowerCase();
   const cat = (line.serviceCategory?.name || '').toLowerCase();
 
@@ -87,8 +109,7 @@ export function DossierCostTable({ costLines = [], className = '' }: DossierCost
 
     costLines.forEach((line, index) => {
       const isVat = parseVatRate(line.vatRate) > 0;
-      const subtotal = (Number(line.quantity) || 0) * (Number(line.multiplier) || 1) * (Number(line.unitPrice) || 0);
-      const gross = Number(line.grossAmount) || subtotal;
+      const netAmount = getLineNetAmount(line);
 
       const item: CostTableRowItem = {
         id: line.id || `line-${index}`,
@@ -98,7 +119,7 @@ export function DossierCostTable({ costLines = [], className = '' }: DossierCost
         quantity: Number(line.quantity) || 0,
         unit: Number(line.multiplier) || 1,
         unitPrice: Number(line.unitPrice) || 0,
-        totalAmount: gross,
+        totalAmount: netAmount,
       };
 
       if (isVat) {
@@ -228,7 +249,7 @@ export function DossierCostTable({ costLines = [], className = '' }: DossierCost
                     className="hover:bg-sky-50/40 transition-colors duration-100 bg-white"
                   >
                     <td className="py-2 px-2 text-center font-mono text-[11px] text-slate-600 border-r border-slate-200">
-                      {row.stt}
+                      {rIdx + 1}
                     </td>
                     <td className="py-2 px-3 font-medium text-slate-900 text-xs border-r border-slate-200">
                       {row.content}
@@ -269,7 +290,7 @@ export function DossierCostTable({ costLines = [], className = '' }: DossierCost
                 className="hover:bg-amber-50/40 transition-colors duration-100 bg-white"
               >
                 <td className="py-2 px-2 text-center font-mono text-[11px] text-slate-600 border-r border-slate-200">
-                  {row.stt || rIdx + 1}
+                  {rIdx + 1}
                 </td>
                 <td className="py-2 px-3 font-medium text-slate-900 text-xs border-r border-slate-200">
                   {row.content}

@@ -25,6 +25,10 @@ describe('customer-budget.parser', () => {
       F14: 2250000,
       C15: 2,
       F15: 0,
+      G13: 'MẢNG',
+      H13: 'TOUR',
+      G15: 'LOẠI HÌNH',
+      H15: 'NỘI ĐỊA',
       C16: 145800000,
       C17: 27085179.63,
       D17: 0.2,
@@ -63,10 +67,15 @@ describe('customer-budget.parser', () => {
     const row = parseCustomerBudgetWorkbook(workbook);
 
     expect(row.__importFormat).toBe(CUSTOMER_BUDGET_FORMAT);
+    expect(row['Mã hồ sơ']).toBe('IMP-300726-TOUR-CONG-TY-ABC');
     expect(row['Tên hồ sơ']).toBe('TOUR CÔNG TY ABC');
     expect(row['Số điện thoại']).toBe('0974231555');
     expect(row['Ngày bắt đầu']).toBe('2026-07-30');
     expect(row['Ngày kết thúc']).toBe('2026-08-02');
+    expect(row.__businessLineCode).toBe('TOUR_DOMESTIC');
+    expect(row.__businessLineName).toBe('TOUR');
+    expect(row.__marketTypeCode).toBe('DOMESTIC');
+    expect(row.__marketTypeName).toBe('NỘI ĐỊA');
     expect(row.__revenueLines).toHaveLength(4);
     expect(row.__costLines).toHaveLength(2);
     expect(row.__costLines[0]).toEqual(

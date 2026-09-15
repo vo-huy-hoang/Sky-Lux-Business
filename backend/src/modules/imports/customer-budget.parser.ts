@@ -30,7 +30,9 @@ export interface ParsedCustomerBudgetRow {
   'Mức độ ưu tiên': string;
   __importFormat: typeof CUSTOMER_BUDGET_FORMAT;
   __businessLineCode: string;
+  __businessLineName: string;
   __marketTypeCode: string;
+  __marketTypeName: string;
   __revenueLines: Array<{
     description: string;
     passengerTypeCode: string;
@@ -110,6 +112,17 @@ function parseDateRange(value: unknown): {
   };
 }
 
+function formatDateCode(dateStr: string): string {
+  if (!dateStr) return 'IMPORT';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const [year, month, day] = parts;
+    const shortYear = year.slice(-2);
+    return `${day.padStart(2, '0')}${month.padStart(2, '0')}${shortYear}`;
+  }
+  return dateStr.replace(/\D/g, '').slice(0, 6) || 'IMPORT';
+}
+
 function serviceCategoryCode(
   categoryName: string,
   description: string,
@@ -122,6 +135,34 @@ function serviceCategoryCode(
   if (value.includes('HƯỚNG DẪN')) return 'GUIDE';
   if (value.includes('BẢO HIỂM')) return 'VISA_INSURANCE';
   return 'OTHER';
+}
+
+function businessLineCode(value: string, marketType: string): string {
+  const normalized = `${value} ${marketType}`.toUpperCase();
+  if (normalized.includes('MICE')) return 'MICE';
+  if (normalized.includes('OUTBOUND')) return 'TOUR_OUTBOUND';
+  if (normalized.includes('INBOUND')) return 'TOUR_INBOUND';
+  if (normalized.includes('VÉ') && normalized.includes('VISA')) {
+    return 'TICKET_VISA';
+  }
+  return 'TOUR_DOMESTIC';
+}
+
+function marketTypeCode(value: string): string {
+  const normalized = value.toUpperCase();
+  if (normalized.includes('CHÂU ÂU') || normalized.includes('EU')) {
+    return 'INBOUND_EU';
+  }
+  if (normalized.includes('BẮC MỸ') || normalized.includes('US')) {
+    return 'INBOUND_US';
+  }
+  if (normalized.includes('CHÂU Á') || normalized.includes('ASIA')) {
+    return 'INBOUND_ASIA';
+  }
+  if (normalized.includes('OUTBOUND') || normalized.includes('QUỐC TẾ')) {
+    return 'OUTBOUND';
+  }
+  return 'DOMESTIC';
 }
 
 function isCategoryMarker(value: unknown): boolean {
@@ -150,8 +191,10 @@ export function parseCustomerBudgetWorkbook(
   const sheet = workbook.Sheets[sheetName];
   const cell = (address: string): unknown => sheet[address]?.v;
   const title = text(cell('D9')) || text(cell('A9')) || 'Dự toán tour';
+  const businessLineName = text(cell('H13')) || 'TOUR';
+  const marketTypeName = text(cell('H15')) || 'NỘI ĐỊA';
   const { startDate, endDate } = parseDateRange(cell('F11'));
-  const startCode = startDate.replace(/-/g, '').slice(0, 8) || 'IMPORT';
+  const startCode = formatDateCode(startDate);
   const code = `IMP-${startCode}-${slug(title).slice(0, 30)}`.slice(0, 50);
   const phoneRaw = text(cell('E10')).replace(/\D/g, '');
   const phone = phoneRaw.length === 9 ? `0${phoneRaw}` : phoneRaw;
@@ -250,8 +293,10 @@ export function parseCustomerBudgetWorkbook(
     'Ngày kết thúc': endDate,
     'Mức độ ưu tiên': 'MEDIUM',
     __importFormat: CUSTOMER_BUDGET_FORMAT,
-    __businessLineCode: 'TOUR_DOMESTIC',
-    __marketTypeCode: 'DOMESTIC',
+    __businessLineCode: businessLineCode(businessLineName, marketTypeName),
+    __businessLineName: businessLineName,
+    __marketTypeCode: marketTypeCode(marketTypeName),
+    __marketTypeName: marketTypeName,
     __revenueLines: revenueLines,
     __costLines: costLines,
     __sourceSummary: {

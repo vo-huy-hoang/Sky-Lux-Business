@@ -306,6 +306,7 @@ export class EstimatesService {
           return this.revenueLineRepository.create({
             ...line,
             organizationId,
+            estimateId: id,
             netAmount,
             grossAmount,
           });
@@ -350,6 +351,7 @@ export class EstimatesService {
           return this.costLineRepository.create({
             ...line,
             organizationId,
+            estimateId: id,
             netAmount,
             grossAmount,
           });

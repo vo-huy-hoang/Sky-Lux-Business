@@ -276,6 +276,40 @@ describe('EstimatesService', () => {
       expect(result.revenueLines[0].description).toEqual(
         'Revenue line 2 (New)',
       );
+      expect(revenueLineRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ estimateId: 'est-uuid' }),
+      );
+    });
+
+    it('should attach newly added cost lines to the estimate before saving', async () => {
+      const activeEstimate = {
+        ...mockEstimate,
+        costLines: [],
+      } as unknown as Estimate;
+      estimateRepository.findOne.mockResolvedValue(activeEstimate);
+      estimateRepository.save.mockImplementation((entity) =>
+        Promise.resolve(entity as any),
+      );
+
+      await service.update(mockUserPayload, 'est-uuid', {
+        costLines: [
+          {
+            description: 'Chi phí mới',
+            quantity: 1,
+            multiplier: 1,
+            unitPrice: 100,
+            vatRate: 10,
+          },
+        ],
+      });
+
+      expect(costLineRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: 'org-uuid',
+          estimateId: 'est-uuid',
+          description: 'Chi phí mới',
+        }),
+      );
     });
   });
 
