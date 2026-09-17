@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Cookies from 'js-cookie';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useChatUIStore, TypingUser } from '@/lib/stores/chat-ui-store';
 import { apiClient, API_BASE_URL } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { calculateBackoffWithJitter } from '@/lib/backoff';
@@ -13,6 +14,26 @@ import {
   ConversationMember,
 } from '@/types/chat';
 
+const EMPTY_TYPING_USERS: TypingUser[] = [];
+
+/**
+ * Hook chuyên biệt trích xuất mảng typingUsers cho một conversationId cụ thể
+ * Chỉ trigger re-render cho đúng component đăng ký tiêu thụ danh sách này (MessageBubbleList).
+ */
+export const useTypingUsers = (conversationId?: string | null) => {
+  return useChatUIStore((state) =>
+    conversationId ? state.typingUsers[conversationId] || EMPTY_TYPING_USERS : EMPTY_TYPING_USERS
+  );
+};
+
+export interface UseChatRealtimeOptions {
+  /**
+   * Nếu true, hook sẽ subscribe mảng typingUsers trực tiếp và trả về typingUsers
+   * Mặc định là false để tránh ép root component re-render khi có người gõ phím.
+   */
+  subscribeTyping?: boolean;
+}
+
 /**
  * Custom Hook lắng nghe tin nhắn thời gian thực qua Server-Sent Events (SSE)
  * tự động cập nhật cache của TanStack Query khi có tin mới hoặc tin bị xóa.
@@ -21,10 +42,13 @@ import {
  * - Trạng thái phục hồi tự động qua Zustand UI Store
  * - activeConversationIdRef để loại bỏ hiện tượng ngắt/mở lại SSE liên tục (Anti-thrashing)
  * - Page Visibility & Online/Offline reconnection tự động
+ * - Tách biệt typing indicator về Zustand Store để cách ly re-render khỏi root
  */
-export const useChatRealtime = (conversationId?: string) => {
+export const useChatRealtime = (
+  conversationId?: string,
+  options?: UseChatRealtimeOptions,
+) => {
   const queryClient = useQueryClient();
-  const [typingUsers, setTypingUsers] = useState<{ userId: string; fullName: string; expiresAt: number }[]>([]);
   const authAccessToken = useAuthStore((state) => state.accessToken);
   const [tokenTrigger, setTokenTrigger] = useState(authAccessToken || Cookies.get('access_token') || '');
 
@@ -43,8 +67,9 @@ export const useChatRealtime = (conversationId?: string) => {
   // KHÔNG ngắt hay khởi tạo lại kết nối SSE vì đây là luồng toàn cục của User
   useEffect(() => {
     activeConversationIdRef.current = conversationId;
-    const resetTypingUsers = window.setTimeout(() => setTypingUsers([]), 0);
-    return () => window.clearTimeout(resetTypingUsers);
+    if (conversationId) {
+      useChatUIStore.getState().clearTypingUsers(conversationId);
+    }
   }, [conversationId]);
 
   useEffect(() => {
@@ -62,15 +87,11 @@ export const useChatRealtime = (conversationId?: string) => {
     };
   }, [tokenTrigger]);
 
-  // Periodic cleanup of expired typing indicators (Receiver GC)
+  // Periodic cleanup of expired typing indicators (Receiver GC) and stale failed messages qua Zustand Store
   useEffect(() => {
+    useChatUIStore.getState().cleanupStaleFailedMessages();
     const timer = setInterval(() => {
-      const now = Date.now();
-      setTypingUsers((prev) => {
-        const active = prev.filter((u) => u.expiresAt > now);
-        if (active.length !== prev.length) return active;
-        return prev;
-      });
+      useChatUIStore.getState().cleanupExpiredTypingUsers();
     }, 1000);
     return () => clearInterval(timer);
   }, []);
@@ -190,11 +211,13 @@ export const useChatRealtime = (conversationId?: string) => {
               userId: string;
               fullName: string;
             };
-            if (typingConvId === activeConversationIdRef.current) {
-              setTypingUsers((prev) => {
-                const expiresAt = Date.now() + 6000;
-                const filtered = prev.filter((u) => u.userId !== userId);
-                return [...filtered, { userId, fullName, expiresAt }];
+            const currentUserId = useAuthStore.getState().user?.id;
+            // TICKET-41.2: Bỏ qua tiếng vọng gõ phím của chính mình
+            if (userId && userId !== currentUserId) {
+              useChatUIStore.getState().addTypingUser(typingConvId, {
+                userId,
+                fullName,
+                expiresAt: Date.now() + 6000,
               });
             }
           } else if (chatEvent.type === 'typing.stop') {
@@ -202,9 +225,7 @@ export const useChatRealtime = (conversationId?: string) => {
               conversationId: string;
               userId: string;
             };
-            if (typingConvId === activeConversationIdRef.current) {
-              setTypingUsers((prev) => prev.filter((u) => u.userId !== userId));
-            }
+            useChatUIStore.getState().removeTypingUser(typingConvId, userId);
           } else if (chatEvent.type === 'unread_count') {
             queryClient.invalidateQueries({ queryKey: queryKeys.chat.unreadCount() });
           } else if (chatEvent.type === 'conversation.updated') {
@@ -348,7 +369,9 @@ export const useChatRealtime = (conversationId?: string) => {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
-      setTypingUsers([]);
+      if (activeConversationIdRef.current) {
+        useChatUIStore.getState().clearTypingUsers(activeConversationIdRef.current);
+      }
       // Lazy-scoped: khi rời khỏi màn hình Chat, trả trạng thái chat về idle
       setChatStatus('idle');
       setConnectionStatus('connected');
@@ -356,5 +379,6 @@ export const useChatRealtime = (conversationId?: string) => {
     };
   }, [connect, authAccessToken, tokenTrigger, setConnectionStatus, setChatStatus, setReconnectAttempt]);
 
-  return { typingUsers };
+  const subscribedTypingUsers = useTypingUsers(options?.subscribeTyping ? conversationId : undefined);
+  return { typingUsers: subscribedTypingUsers };
 };

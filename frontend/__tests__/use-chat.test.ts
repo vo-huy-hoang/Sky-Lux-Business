@@ -120,7 +120,7 @@ describe('useChat hooks', () => {
     expect(chatService.sendMessage).toHaveBeenCalledWith(
       conversationId,
       'Báo giá đã hoàn tất!',
-      undefined,
+      expect.any(String),
     );
   });
 

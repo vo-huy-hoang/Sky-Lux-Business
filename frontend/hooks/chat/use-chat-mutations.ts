@@ -47,7 +47,15 @@ export const useSendMessage = (conversationId: string) => {
   >({
     mutationFn: (variables) => {
       const content = typeof variables === 'string' ? variables : variables.content;
-      const clientMessageId = typeof variables === 'string' ? undefined : variables.clientMessageId;
+      const clientMessageId =
+        (typeof variables !== 'string' && variables.clientMessageId) ||
+        (typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `cm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
+
+      if (typeof variables !== 'string') {
+        variables.clientMessageId = clientMessageId;
+      }
       return chatService.sendMessage(conversationId, content, clientMessageId);
     },
     onMutate: async (variables) => {
@@ -57,6 +65,10 @@ export const useSendMessage = (conversationId: string) => {
         (typeof crypto !== 'undefined' && crypto.randomUUID
           ? crypto.randomUUID()
           : `cm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
+
+      if (typeof variables !== 'string') {
+        variables.clientMessageId = clientMessageId;
+      }
 
       // 1. Cancel bất kỳ refetch nào đang chạy để tránh đè lên bản ghi optimistic
       await queryClient.cancelQueries({ queryKey: queryKeys.chat.messages(conversationId) });
