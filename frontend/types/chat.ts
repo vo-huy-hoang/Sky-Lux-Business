@@ -5,6 +5,8 @@ export interface ChatUser {
   employeeCode: string;
 }
 
+import { DossierItem } from './dossier';
+
 export interface ConversationMember {
   id: string;
   conversationId: string;
@@ -25,6 +27,7 @@ export interface Conversation {
   createdAt: string;
   updatedAt: string;
   members: ConversationMember[];
+  dossier?: DossierItem;
 }
 
 export interface Message {

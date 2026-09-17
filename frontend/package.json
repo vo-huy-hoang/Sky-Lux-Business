@@ -13,6 +13,7 @@
     "test:cpd": "jscpd app/ components/ lib/",
     "test:cpd:full": "jscpd app/ components/ lib/ --ignore ''",
     "typecheck": "tsc --noEmit",
+    "benchmark:messages": "node scripts/benchmark-messages-compile.js",
     "postinstall": "node scripts/patch-next.js"
   },
 

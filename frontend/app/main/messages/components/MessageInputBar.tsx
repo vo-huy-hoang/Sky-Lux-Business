@@ -28,7 +28,9 @@ export function MessageInputBar({
           onPressEnter={(e) => {
             if (!e.shiftKey) {
               e.preventDefault();
-              onSendMessage();
+              if (!isSending && inputText.trim()) {
+                onSendMessage();
+              }
             }
           }}
           aria-label="Nội dung tin nhắn"

@@ -9,6 +9,7 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons';
 import { Message } from '@/types/chat';
+import { useTypingUsers } from '@/hooks/chat';
 import { formatMessageTime, getInitials } from '../types';
 
 const { Text } = Typography;
@@ -16,7 +17,8 @@ const { Text } = Typography;
 export interface MessageBubbleListProps {
   messages: Message[];
   isLoadingMessages: boolean;
-  typingUsers: Array<{ userId: string; fullName: string; expiresAt?: number }>;
+  conversationId?: string | null;
+  typingUsers?: Array<{ userId: string; fullName: string; expiresAt?: number }>;
   currentUserId?: string;
   onDeleteMessage: (msgId: string) => void;
   onRetryMessage: (content: string, clientMessageId?: string) => void;
@@ -26,12 +28,25 @@ export interface MessageBubbleListProps {
 export function MessageBubbleList({
   messages,
   isLoadingMessages,
-  typingUsers,
+  conversationId,
+  typingUsers: propTypingUsers,
   currentUserId,
   onDeleteMessage,
   onRetryMessage,
   messagesEndRef,
 }: MessageBubbleListProps) {
+  const realtimeTypingUsers = useTypingUsers(conversationId);
+  const rawTypingUsers = propTypingUsers !== undefined ? propTypingUsers : realtimeTypingUsers;
+  // TICKET-41.2: Bảo vệ tầng hiển thị không hiện tên của chính mình
+  const effectiveTypingUsers = rawTypingUsers.filter((u) => u.userId !== currentUserId);
+
+  // TICKET-42.1: Co-locate tự động cuộn trang khi có người gõ phím ngay trong MessageBubbleList
+  React.useEffect(() => {
+    if (effectiveTypingUsers.length > 0 && typeof messagesEndRef?.current?.scrollIntoView === 'function') {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [effectiveTypingUsers.length, messagesEndRef]);
+
   return (
     <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
       {isLoadingMessages ? (
@@ -144,7 +159,7 @@ export function MessageBubbleList({
       )}
 
       {/* Thông báo đang gõ phím */}
-      {typingUsers.length > 0 ? (
+      {effectiveTypingUsers.length > 0 ? (
         <div className="flex items-center gap-2 text-xs text-slate-400 italic py-1">
           <div className="flex gap-1">
             <span className="inline-block w-1.5 h-1.5 bg-[#007A55] rounded-full animate-bounce" />
@@ -152,7 +167,7 @@ export function MessageBubbleList({
             <span className="inline-block w-1.5 h-1.5 bg-[#007A55] rounded-full animate-bounce [animation-delay:0.4s]" />
           </div>
           <span>
-            {typingUsers.map((u) => u.fullName).join(', ')} đang nhập tin nhắn...
+            {effectiveTypingUsers.map((u) => u.fullName).join(', ')} đang nhập tin nhắn...
           </span>
         </div>
       ) : null}

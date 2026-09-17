@@ -14,10 +14,11 @@ import { message } from 'antd';
  * Deep Hook: Lấy danh sách người dùng phân trang và tìm kiếm
  * Tự động gắn AbortSignal và quản lý queryKeys chuẩn
  */
-export function useUsersList(params?: QueryUserParams) {
+export function useUsersList(params?: QueryUserParams, options?: { enabled?: boolean }) {
   const query = useQuery({
     queryKey: queryKeys.users.list(params),
     queryFn: ({ signal }) => usersService.getUsers(params, { signal }),
+    enabled: options?.enabled,
   });
 
   const rawData = query.data;
