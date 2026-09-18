@@ -100,6 +100,15 @@ export class CreateDossierDto {
   endDate?: string;
 
   @ApiPropertyOptional({
+    description: 'Thời lượng tour theo nguồn dữ liệu, ví dụ 3 ngày 2 đêm',
+    example: '3 ngày 2 đêm',
+  })
+  @IsString({ message: 'Thời lượng tour phải là một chuỗi ký tự' })
+  @MaxLength(100, { message: 'Thời lượng tour không được vượt quá 100 ký tự' })
+  @IsOptional()
+  tourDuration?: string;
+
+  @ApiPropertyOptional({
     description: 'Ngày ghi nhận doanh thu (yyyy-mm-dd)',
     example: '2026-09-05',
   })

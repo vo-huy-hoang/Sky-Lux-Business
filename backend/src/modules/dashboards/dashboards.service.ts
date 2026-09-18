@@ -400,18 +400,22 @@ export class DashboardsService {
       queryDto.date,
     );
 
-    const cacheKey = `dashboard:ceo:${organizationId}:${periodType}:${queryDto.date || 'current'}`;
+    const cacheKey = `dashboard:ceo:v2:${organizationId}:${periodType}:${queryDto.date || 'current'}`;
     if (this.redisService) {
       const cached = await this.redisService.get(cacheKey);
       if (cached) return cached;
     }
 
-    // Parallel DB queries: approved estimates + funnel breakdown + vip customers + cost breakdown + velocity
+    // Parallel DB queries: approved estimates + funnel breakdown + revenue/customer/cost breakdowns + velocity
     const [
       approvedEstimates,
       funnelBreakdown,
       vipCustomers,
       costBreakdown,
+      revenueBreakdown,
+      marketDossierBreakdown,
+      marketRevenueBreakdown,
+      marketCostBreakdown,
       dossierVelocity,
     ] = await Promise.all([
       this.estimateRepository
@@ -461,6 +465,74 @@ export class DashboardsService {
         })
         .groupBy('category.name')
         .getRawMany(),
+      this.revenueLineRepository
+        .createQueryBuilder('line')
+        .select("COALESCE(businessLine.name, 'Chưa phân loại')", 'businessLineName')
+        .addSelect('SUM(line.netAmount)', 'amount')
+        .innerJoin('line.estimate', 'estimate')
+        .innerJoin('estimate.dossier', 'dossier')
+        .leftJoin('dossier.businessLine', 'businessLine')
+        .where('dossier.organizationId = :organizationId', { organizationId })
+        .andWhere('estimate.status = :status', {
+          status: EstimateStatus.APPROVED,
+        })
+        .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
+          start: new Date(periodStart + 'T00:00:00Z'),
+          end: new Date(periodEnd + 'T23:59:59Z'),
+        })
+        .groupBy("COALESCE(businessLine.name, 'Chưa phân loại')")
+        .orderBy('amount', 'DESC')
+        .getRawMany(),
+      this.dossierRepository
+        .createQueryBuilder('dossier')
+        .select("COALESCE(marketType.name, 'Chưa phân loại')", 'marketName')
+        .addSelect('COUNT(DISTINCT dossier.id)', 'dossiers')
+        .innerJoin('dossier.estimates', 'estimate')
+        .leftJoin('dossier.marketType', 'marketType')
+        .where('dossier.organizationId = :organizationId', { organizationId })
+        .andWhere('estimate.status = :status', {
+          status: EstimateStatus.APPROVED,
+        })
+        .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
+          start: new Date(periodStart + 'T00:00:00Z'),
+          end: new Date(periodEnd + 'T23:59:59Z'),
+        })
+        .groupBy("COALESCE(marketType.name, 'Chưa phân loại')")
+        .getRawMany(),
+      this.revenueLineRepository
+        .createQueryBuilder('line')
+        .select("COALESCE(marketType.name, 'Chưa phân loại')", 'marketName')
+        .addSelect('SUM(line.netAmount)', 'revenue')
+        .innerJoin('line.estimate', 'estimate')
+        .innerJoin('estimate.dossier', 'dossier')
+        .leftJoin('dossier.marketType', 'marketType')
+        .where('dossier.organizationId = :organizationId', { organizationId })
+        .andWhere('estimate.status = :status', {
+          status: EstimateStatus.APPROVED,
+        })
+        .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
+          start: new Date(periodStart + 'T00:00:00Z'),
+          end: new Date(periodEnd + 'T23:59:59Z'),
+        })
+        .groupBy("COALESCE(marketType.name, 'Chưa phân loại')")
+        .getRawMany(),
+      this.costLineRepository
+        .createQueryBuilder('line')
+        .select("COALESCE(marketType.name, 'Chưa phân loại')", 'marketName')
+        .addSelect('SUM(line.netAmount)', 'cost')
+        .innerJoin('line.estimate', 'estimate')
+        .innerJoin('estimate.dossier', 'dossier')
+        .leftJoin('dossier.marketType', 'marketType')
+        .where('dossier.organizationId = :organizationId', { organizationId })
+        .andWhere('estimate.status = :status', {
+          status: EstimateStatus.APPROVED,
+        })
+        .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
+          start: new Date(periodStart + 'T00:00:00Z'),
+          end: new Date(periodEnd + 'T23:59:59Z'),
+        })
+        .groupBy("COALESCE(marketType.name, 'Chưa phân loại')")
+        .getRawMany(),
       this.dossierRepository
         .createQueryBuilder('dossier')
         .select(
@@ -495,6 +567,25 @@ export class DashboardsService {
       totalCost = Number(costSum?.sum || 0);
     }
 
+    const marketMap = new Map<string, { dossiers: number; revenue: number; cost: number }>();
+    marketDossierBreakdown.forEach((row) => {
+      marketMap.set(row.marketName, {
+        dossiers: Number(row.dossiers || 0),
+        revenue: 0,
+        cost: 0,
+      });
+    });
+    marketRevenueBreakdown.forEach((row) => {
+      const current = marketMap.get(row.marketName) || { dossiers: 0, revenue: 0, cost: 0 };
+      current.revenue = Number(row.revenue || 0);
+      marketMap.set(row.marketName, current);
+    });
+    marketCostBreakdown.forEach((row) => {
+      const current = marketMap.get(row.marketName) || { dossiers: 0, revenue: 0, cost: 0 };
+      current.cost = Number(row.cost || 0);
+      marketMap.set(row.marketName, current);
+    });
+
     const totalProfit = totalRevenue - totalCost;
 
     const result = {
@@ -512,6 +603,18 @@ export class DashboardsService {
         categoryName: cb.categoryName,
         amount: Number(cb.amount),
       })),
+      revenueBreakdown: revenueBreakdown.map((rb) => ({
+        businessLineName: rb.businessLineName,
+        amount: Number(rb.amount),
+      })),
+      marketBreakdown: Array.from(marketMap.entries())
+        .map(([marketName, values]) => ({
+          marketName,
+          dossiers: values.dossiers,
+          revenue: values.revenue,
+          profit: values.revenue - values.cost,
+        }))
+        .sort((a, b) => b.revenue - a.revenue),
       avgDossierClosingDays: Number(
         Number(dossierVelocity?.avgDays || 0).toFixed(1),
       ),

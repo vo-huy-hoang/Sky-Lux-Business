@@ -223,6 +223,46 @@ describe('EstimatesService', () => {
       expect(result.costLines[0].netAmount).toEqual(500); // 1 * 1 * 500
       expect(result.costLines[0].grossAmount).toEqual(500); // 500 * 1.0
     });
+
+    it('should calculate from quantity, multiplier, and price even when an imported source amount exists', async () => {
+      dossiersService.findOne.mockResolvedValue({ id: 'dossier-uuid' } as any);
+      estimateRepository.count.mockResolvedValue(0);
+      estimateRepository.save.mockImplementation((entity) =>
+        Promise.resolve(entity as any),
+      );
+
+      const result = await service.create(mockUserPayload, {
+        dossierId: 'dossier-uuid',
+        costLines: [
+          {
+            description: 'Chi phí import',
+            quantity: 2,
+            multiplier: 3,
+            unitPrice: 100,
+            vatRate: 10,
+            sourceAmount: 999,
+          },
+          {
+            description: 'Dòng không phát sinh',
+            quantity: 0,
+            multiplier: 1,
+            unitPrice: 500,
+            vatRate: 10,
+          },
+        ],
+      });
+
+      expect(result.costLines[0]).toEqual(
+        expect.objectContaining({
+          sourceAmount: 999,
+          netAmount: 600,
+          grossAmount: 660,
+        }),
+      );
+      expect(result.costLines[1]).toEqual(
+        expect.objectContaining({ netAmount: 0, grossAmount: 0 }),
+      );
+    });
   });
 
   describe('update', () => {
@@ -308,6 +348,51 @@ describe('EstimatesService', () => {
           organizationId: 'org-uuid',
           estimateId: 'est-uuid',
           description: 'Chi phí mới',
+        }),
+      );
+    });
+
+    it('should recalculate an imported cost line and clear its source marker after numeric edits', async () => {
+      const activeEstimate = {
+        ...mockEstimate,
+        costLines: [
+          {
+            id: 'cost-imported',
+            quantity: 1,
+            multiplier: 1,
+            unitPrice: 900,
+            vatRate: 10,
+            sourceAmount: 900,
+            note: 'Số tiền nguồn: 900',
+          },
+        ],
+      } as unknown as Estimate;
+      estimateRepository.findOne.mockResolvedValue(activeEstimate);
+      estimateRepository.save.mockImplementation((entity) =>
+        Promise.resolve(entity as any),
+      );
+
+      const result = await service.update(mockUserPayload, 'est-uuid', {
+        costLines: [
+          {
+            id: 'cost-imported',
+            description: 'Chi phí import',
+            quantity: 3,
+            multiplier: 2,
+            unitPrice: 100,
+            vatRate: 10,
+            sourceAmount: null,
+            note: 'Số tiền nguồn: 900',
+          },
+        ],
+      });
+
+      expect(result.costLines[0]).toEqual(
+        expect.objectContaining({
+          sourceAmount: null,
+          netAmount: 600,
+          grossAmount: 660,
+          note: undefined,
         }),
       );
     });

@@ -36,13 +36,15 @@ import {
   Tooltip,
 } from 'chart.js';
 import { Doughnut, Line } from 'react-chartjs-2';
-import { dashboardsService } from '@/services/dashboards.service';
 import { dossiersService } from '@/services/dossiers.service';
+import { estimatesService } from '@/services/estimates.service';
 import { usersService } from '@/services/users.service';
+import { EstimateItem, EstimateStatus } from '@/types/estimate';
 import { DossierItem } from '@/types/dossier';
 import { UserItem } from '@/types/user';
 import { CeoMonthlyTrendItem } from '@/types/dashboard';
-import { useCeoDashboard, useCeoMonthlyTrend } from '@/hooks/dashboards';
+import { useCeoDashboard, useCeoMonthlyTrend, useOperatorSalesSummary } from '@/hooks/dashboards';
+import { useNotificationsQuery } from '@/hooks/useNotificationsRealtime';
 import { useFilterStore } from '@/lib/stores/filter-store';
 import { queryKeys } from '@/lib/query-keys';
 import { WidgetErrorBoundary } from '@/components/common/widget-error-boundary';
@@ -88,15 +90,19 @@ function formatCurrency(value?: number | null) {
   return `${new Intl.NumberFormat('vi-VN').format(value)} đ`;
 }
 
-function formatCompactCurrency(value?: number) {
-  const number = value || 0;
-  if (Math.abs(number) >= 1_000_000_000) {
-    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000_000)} tỷ`;
+function formatCompactCurrency(value?: number | string) {
+  const number = Number(value);
+  if (!number || isNaN(number) || Math.abs(number) < 0.0001) return '0';
+  if (Math.abs(number) >= 1_000_000) {
+    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000)} Tr`;
   }
   if (Math.abs(number) >= 1_000_000) {
     return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000)} triệu`;
   }
-  return new Intl.NumberFormat('vi-VN').format(number);
+  if (Math.abs(number) >= 1_000) {
+    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000)} k`;
+  }
+  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(number);
 }
 
 function formatDateTime(value?: string) {
@@ -113,38 +119,38 @@ function formatDateTime(value?: string) {
 function MetricCard({
   label,
   value,
-  hint,
   icon,
   tone = 'green',
   loading,
 }: {
   label: string;
   value: React.ReactNode;
-  hint: string;
   icon: React.ReactNode;
+  hint?: string; // Kept for compatibility, but not rendered in compact mode
   tone?: 'green' | 'gold' | 'blue' | 'purple';
   loading?: boolean;
 }) {
-  const tones = {
-    green: 'bg-[var(--ceo-primary-soft)] text-[var(--ceo-primary-600)]',
-    gold: 'bg-[var(--ceo-gold-soft)] text-[var(--ceo-gold-strong)]',
-    blue: 'bg-[var(--ceo-info-soft)] text-[var(--ceo-info)]',
-    purple: 'bg-[var(--ceo-purple-soft)] text-[var(--ceo-purple)]',
+  const toneClasses = {
+    green: 'bg-[#E8F6ED] text-[#0A8A61] border-[#C8EBD5]',
+    gold: 'bg-[#FFF2E8] text-[#D46B08] border-[#FFD8BF]',
+    blue: 'bg-[#E6F7FF] text-[#0958D9] border-[#BAE0FF]',
+    purple: 'bg-[#F9F0FF] text-[#531DAB] border-[#E8D0FF]',
   };
 
   return (
-    <Card className="ceo-card ceo-metric-card h-full">
-      <div className="flex items-start gap-3.5">
-        <span className={`ceo-metric-icon ${tones[tone]}`}>{icon}</span>
+    <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5 flex flex-col justify-between h-full">
+      <div className="flex items-center gap-2.5">
+        <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${toneClasses[tone]} [&_.anticon]:text-sm`}>
+          {icon}
+        </div>
         <div className="min-w-0 flex-1">
-          <Text className="block truncate text-[13px] text-[var(--ceo-text-muted)]">{label}</Text>
-          <div className="mt-1 min-h-8 truncate text-[24px] font-bold leading-8 text-[var(--ceo-text)] [font-variant-numeric:tabular-nums]">
+          <span className="text-xs text-slate-500 font-medium leading-tight line-clamp-2">{label}</span>
+          <div className="text-[15px] xl:text-[15.5px] font-bold text-slate-900 tabular-nums leading-snug mt-0.5 whitespace-nowrap">
             {loading ? <Skeleton.Input active size="small" /> : value}
           </div>
-          <div className="mt-2 truncate text-[12px] font-medium text-[var(--ceo-primary-600)]">{hint}</div>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -172,8 +178,22 @@ export default function CeoDashboard() {
   });
 
   const { data: monthlyTrend = [], isLoading: isLoadingTrend } = useCeoMonthlyTrend(selectedYear);
-
-
+  const { data: salesSummary = [], isLoading: isLoadingSales } = useOperatorSalesSummary();
+  const { data: notificationsResponse, isLoading: isLoadingNotifications } = useNotificationsQuery({ page: 1, limit: 3 });
+  const submittedApprovalsQuery = useQuery({
+    queryKey: queryKeys.approvals.submitted({ status: EstimateStatus.SUBMITTED }),
+    queryFn: ({ signal }) => estimatesService.getEstimates(
+      { page: 1, limit: 5, status: EstimateStatus.SUBMITTED },
+      { signal },
+    ),
+  });
+  const reviewingApprovalsQuery = useQuery({
+    queryKey: queryKeys.approvals.reviewing({ status: EstimateStatus.IN_REVIEW }),
+    queryFn: ({ signal }) => estimatesService.getEstimates(
+      { page: 1, limit: 5, status: EstimateStatus.IN_REVIEW },
+      { signal },
+    ),
+  });
   const dossiers = dossierResponse?.data || [];
   const users: UserItem[] = Array.isArray(userResponse)
     ? userResponse
@@ -186,83 +206,124 @@ export default function CeoDashboard() {
   const totalDossiers = funnel.reduce((sum: number, item: { status: string; count: number }) => sum + item.count, 0);
   const pendingCount = (funnelMap.get('SUBMITTED') || 0) + (funnelMap.get('IN_REVIEW') || 0);
   const latestDossiers = dossiers.slice(0, 6);
-  const costBreakdown = overview?.costBreakdown || [];
+  const revenueBreakdown = overview?.revenueBreakdown || [];
+  const notificationsList = notificationsResponse?.data || [];
+  const pendingApprovals = React.useMemo(
+    () => [...(submittedApprovalsQuery.data?.data || []), ...(reviewingApprovalsQuery.data?.data || [])]
+      .sort((a, b) => new Date(b.submittedAt || b.createdAt).getTime() - new Date(a.submittedAt || a.createdAt).getTime())
+      .slice(0, 5),
+    [reviewingApprovalsQuery.data?.data, submittedApprovalsQuery.data?.data],
+  );
+  const topSalesList = React.useMemo(
+    () => [...salesSummary]
+      .filter((sales) => Number(sales.totalRevenue) > 0)
+      .sort((a, b) => Number(b.totalRevenue) - Number(a.totalRevenue))
+      .slice(0, 5)
+      .map((sales, index, list) => ({
+        ...sales,
+        rank: index + 1,
+        progress: list[0]?.totalRevenue ? Math.round((Number(sales.totalRevenue) / Number(list[0].totalRevenue)) * 100) : 0,
+      })),
+    [salesSummary],
+  );
+  const isLoadingApprovals = submittedApprovalsQuery.isLoading || reviewingApprovalsQuery.isLoading;
+  const maxMonthlyValue = Math.max(
+    1,
+    ...monthlyTrend.map((month: CeoMonthlyTrendItem) => Number(month.totalRevenue || 0) / 1_000_000),
+    ...monthlyTrend.map((month: CeoMonthlyTrendItem) => Number(month.totalProfit || 0) / 1_000_000),
+  );
 
-  const lineData = {
+  const displayLineData = {
     labels: monthlyTrend.map((month: CeoMonthlyTrendItem) => month.label),
     datasets: [
       {
-        label: 'Doanh thu',
-        data: monthlyTrend.map((t: CeoMonthlyTrendItem) => t.totalRevenue),
-        borderColor: '#0F3D2E',
-        backgroundColor: '#0F3D2E',
+        label: 'Doanh thu (đ)',
+        data: monthlyTrend.map((month: CeoMonthlyTrendItem) => Number(month.totalRevenue || 0) / 1_000_000),
+        borderColor: '#104E35',
+        backgroundColor: '#104E35',
         pointBackgroundColor: '#FFFFFF',
-        pointBorderColor: '#0F3D2E',
+        pointBorderColor: '#104E35',
         pointBorderWidth: 2,
-        pointRadius: 3,
+        pointRadius: 4,
+        pointHoverRadius: 6,
         tension: 0.35,
       },
       {
-        label: 'Lợi nhuận',
-        data: monthlyTrend.map((t: CeoMonthlyTrendItem) => t.totalProfit),
-        borderColor: '#D4AF37',
-        backgroundColor: '#D4AF37',
+        label: 'Lợi nhuận (đ)',
+        data: monthlyTrend.map((month: CeoMonthlyTrendItem) => Number(month.totalProfit || 0) / 1_000_000),
+        borderColor: '#D48B1E',
+        backgroundColor: '#D48B1E',
         pointBackgroundColor: '#FFFFFF',
-        pointBorderColor: '#D4AF37',
+        pointBorderColor: '#D48B1E',
         pointBorderWidth: 2,
-        pointRadius: 3,
+        pointRadius: 4,
+        pointHoverRadius: 6,
         tension: 0.35,
       },
     ],
   };
 
-
-  const lineOptions: ChartOptions<'line'> = {
+  const displayLineOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
     interaction: { intersect: false, mode: 'index' },
     plugins: {
-      legend: {
-        align: 'start',
-        labels: { usePointStyle: true, boxWidth: 8, color: '#65706B', font: { size: 12 } },
-      },
+      legend: { display: false },
       tooltip: {
-        callbacks: { label: (context) => `${context.dataset.label}: ${formatCurrency(context.parsed.y)}` },
+        callbacks: {
+          label: (context) => `${context.dataset.label}: ${context.parsed.y} tỷ đ`,
+        },
       },
     },
     scales: {
-      x: { grid: { display: false }, border: { display: false }, ticks: { color: '#65706B' } },
-      y: {
-        beginAtZero: true,
-        grid: { color: '#EEF1EF' },
+      x: {
+        grid: { display: false },
         border: { display: false },
-        ticks: { color: '#65706B', callback: (value) => formatCompactCurrency(Number(value)) },
+        ticks: { color: '#94A3B8', font: { size: 11, weight: 500 } },
+      },
+      y: {
+        min: 0,
+        suggestedMax: Math.ceil(maxMonthlyValue / 10) * 10,
+        grid: { color: '#F1F5F9' },
+        border: { display: false },
+        ticks: {
+          stepSize: 10,
+          color: '#94A3B8',
+          font: { size: 11, weight: 500 },
+          callback: (value) => (value === 0 ? '0' : `${value}B`),
+        },
       },
     },
   };
 
-  const costData = {
-    labels: costBreakdown.map((item: { categoryName: string; amount: number }) => item.categoryName),
-    datasets: [
-      {
-        data: costBreakdown.map((item: { categoryName: string; amount: number }) => item.amount),
-        backgroundColor: ['#0F3D2E', '#2C7459', '#D4AF37', '#5B80C6', '#7C59C8', '#14A9B5'],
-        borderColor: '#FFFFFF',
-        borderWidth: 3,
-        hoverOffset: 4,
-      },
-    ],
+  const revenueData = {
+    labels: revenueBreakdown.map((item) => item.businessLineName),
+    datasets: [{
+      data: revenueBreakdown.map((item) => item.amount),
+      backgroundColor: ['#104E35', '#C49226', '#6389D6', '#8EADC8', '#7C59C8', '#14A9B5'],
+      borderColor: '#FFFFFF',
+      borderWidth: 2,
+    }],
   };
 
-  const costOptions: ChartOptions<'doughnut'> = {
+  const revenueOptions: ChartOptions<'doughnut'> = {
     responsive: true,
     maintainAspectRatio: false,
-    cutout: '66%',
+    cutout: '64%',
     plugins: {
       legend: { display: false },
-      tooltip: { callbacks: { label: (context) => `${context.label}: ${formatCurrency(context.parsed)}` } },
+      tooltip: { callbacks: { label: (context) => `${context.label}: ${formatCurrency(Number(context.parsed))}` } },
     },
   };
+
+  const statusRows = [
+    { key: 'DRAFT', label: 'Mới tạo' },
+    { key: 'IN_REVIEW', label: 'Đang xử lý' },
+    { key: 'SUBMITTED', label: 'Chờ duyệt' },
+    { key: 'APPROVED', label: 'Đã duyệt' },
+    { key: 'COMPLETED', label: 'Đã hoàn thành' },
+    { key: 'CANCELLED', label: 'Đã hủy' },
+  ].map((row) => ({ ...row, count: funnelMap.get(row.key) || 0, color: statusMeta(row.key).color }));
 
   const dossierColumns = [
     {
@@ -327,56 +388,260 @@ export default function CeoDashboard() {
         </Col>
       </Row>
 
-      <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,.85fr)_minmax(260px,.7fr)]">
-        <WidgetErrorBoundary title="Doanh thu và lợi nhuận theo tháng">
-          <Card className="ceo-card" title="Doanh thu và lợi nhuận theo tháng">
-            <div className="h-[286px]">
-              {isLoadingTrend ? <Skeleton active paragraph={{ rows: 7 }} /> : <Line data={lineData} options={lineOptions} />}
-            </div>
-          </Card>
-        </WidgetErrorBoundary>
+      {/* 6 Cards in 3 Columns - Matching Target Design 100% (5 : 4 : 3 ratio) */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+        {/* CARD 1: Doanh thu theo tháng (col-span-5) */}
+        <div className="xl:col-span-5">
+          <WidgetErrorBoundary title="Doanh thu theo tháng">
+            <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
+              <div>
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[15px] font-bold text-slate-900">Doanh thu theo tháng</span>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-700">
+                      Năm {selectedYear}
+                    </span>
+                  </div>
+                </div>
 
-        <WidgetErrorBoundary title="Cơ cấu chi phí theo dịch vụ">
-          <Card className="ceo-card" title="Cơ cấu chi phí theo dịch vụ">
-            {costBreakdown.length ? (
-              <>
-                <div className="h-[190px]"><Doughnut data={costData} options={costOptions} /></div>
-                <div className="mt-3 space-y-2">
-                  {costBreakdown.slice(0, 5).map((item: { categoryName: string; amount: number }, index: number) => (
-                    <div key={item.categoryName} className="flex items-center justify-between gap-3 text-xs">
-                      <span className="min-w-0 truncate text-[var(--ceo-text-muted)]">
-                        <i className="mr-2 inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: costData.datasets[0].backgroundColor[index] }} />
-                        {item.categoryName}
-                      </span>
-                      <span className="shrink-0 font-semibold [font-variant-numeric:tabular-nums]">{formatCompactCurrency(item.amount)}</span>
+                {/* Legend */}
+                <div className="flex items-center gap-6 mt-2 mb-3">
+                  <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                    <span className="w-3.5 h-1.5 rounded-full bg-[#104E35]" />
+                    <span>Doanh thu (đ)</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                    <span className="w-3.5 h-1.5 rounded-full bg-[#D48B1E]" />
+                    <span>Lợi nhuận (đ)</span>
+                  </div>
+                </div>
+
+                {/* Chart */}
+                <div className="h-[215px] w-full">
+                  {isLoadingTrend ? <Skeleton active paragraph={{ rows: 5 }} /> : monthlyTrend.length ? <Line data={displayLineData} options={displayLineOptions} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu doanh thu từ API" />}
+                </div>
+              </div>
+            </div>
+          </WidgetErrorBoundary>
+        </div>
+
+        {/* CARD 2: Cơ cấu doanh thu theo mảng (col-span-4) */}
+        <div className="xl:col-span-4">
+          <WidgetErrorBoundary title="Cơ cấu doanh thu theo mảng">
+            <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
+              <div>
+                {/* Header */}
+                <div className="text-[15px] font-bold text-slate-900 mb-2">Cơ cấu doanh thu theo mảng</div>
+
+                {/* Body: Donut + Legend */}
+                <div className="flex items-center justify-between gap-4 my-2">
+                  <div className="relative w-[150px] h-[150px] shrink-0">
+                    {revenueBreakdown.length ? <Doughnut data={revenueData} options={revenueOptions} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu doanh thu" />}
+                  </div>
+
+                  {/* Legend list */}
+                  <div className="flex-1 space-y-2.5">
+                    {revenueBreakdown.slice(0, 5).map((item, index) => (
+                      <div key={item.businessLineName}>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: revenueData.datasets[0].backgroundColor[index] }} />
+                          <span className="text-xs font-semibold text-slate-800 truncate">{item.businessLineName}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 pl-4.5 font-medium tabular-nums">{formatCurrency(item.amount)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Total Footer */}
+              <div className="text-xs text-slate-500 pt-3 border-t border-slate-100 mt-2">
+                Tổng doanh thu: <span className="font-semibold text-slate-700 tabular-nums">{formatCurrency(revenueBreakdown.reduce((sum, item) => sum + Number(item.amount || 0), 0))}</span>
+              </div>
+            </div>
+          </WidgetErrorBoundary>
+        </div>
+
+        {/* CARD 3: Hồ sơ theo trạng thái (col-span-3) */}
+        <div className="xl:col-span-3">
+          <WidgetErrorBoundary title="Hồ sơ theo trạng thái">
+            <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
+              <div>
+                <div className="text-[15px] font-bold text-slate-900 mb-1">Hồ sơ theo trạng thái</div>
+                <div className="divide-y divide-slate-100 text-xs">
+                  {statusRows.map((row) => (
+                    <div key={row.key} className="flex items-center justify-between py-2">
+                      <span className="text-slate-600 font-medium">{row.label}</span>
+                      <span className="font-bold text-sm tabular-nums" style={{ color: row.color }}>{row.count}</span>
                     </div>
                   ))}
                 </div>
-              </>
-            ) : (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có chi phí đã duyệt từ API" />
-            )}
-          </Card>
-        </WidgetErrorBoundary>
+              </div>
 
-        <WidgetErrorBoundary title="Hồ sơ theo trạng thái">
-          <Card className="ceo-card" title="Hồ sơ theo trạng thái">
-            <div className="space-y-1">
-              {funnel.length ? funnel.map((item: { status: string; count: number }) => {
-                const meta = statusMeta(item.status);
-                return (
-                  <div key={item.status} className="flex items-center justify-between border-b border-[var(--ceo-divider)] py-2.5 last:border-0">
-                    <span className="text-sm text-[var(--ceo-text-muted)]">{meta.label}</span>
-                    <span className="font-bold [font-variant-numeric:tabular-nums]" style={{ color: meta.color }}>{item.count}</span>
-                  </div>
-                );
-              }) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hồ sơ" />}
+              <div className="flex items-center justify-between border-t border-slate-200 pt-3 mt-1">
+                <span className="text-sm font-bold text-slate-900">Tổng cộng</span>
+                <span className="text-base font-extrabold text-slate-900 tabular-nums">{totalDossiers.toLocaleString('vi-VN')}</span>
+              </div>
             </div>
-            <Link href="/main/dossiers" className="mt-3 flex items-center justify-center gap-2 border-t border-[var(--ceo-divider)] pt-3 text-sm font-semibold text-[var(--ceo-primary-700)]">
-              Xem hồ sơ toàn hệ thống <ArrowRightOutlined />
-            </Link>
-          </Card>
-        </WidgetErrorBoundary>
+          </WidgetErrorBoundary>
+        </div>
+
+        {/* CARD 4: Phê duyệt cần xử lý hôm nay (col-span-5) */}
+        <div className="xl:col-span-5">
+          <WidgetErrorBoundary title="Phê duyệt cần xử lý hôm nay">
+            <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
+              <div>
+                <div className="text-[15px] font-bold text-slate-900 mb-3">Phê duyệt cần xử lý hôm nay</div>
+                <div className="space-y-3">
+                  {isLoadingApprovals ? <Skeleton active paragraph={{ rows: 5 }} /> : pendingApprovals.length ? pendingApprovals.map((item: EstimateItem) => (
+                    <div
+                      key={item.id}
+                      className="grid grid-cols-[82px_98px_minmax(0,1fr)_62px_95px_44px] items-center gap-2 text-xs"
+                    >
+                      {/* Badge */}
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[10.5px] font-medium border text-center truncate ${item.status === EstimateStatus.IN_REVIEW ? 'bg-[#EBF5FB] text-[#2E82C4] border-[#D1E8F7]' : 'bg-[#FEF5E7] text-[#B7791F] border-[#FDE3B8]'}`}
+                      >
+                        {item.status === EstimateStatus.IN_REVIEW ? 'Đang xử lý' : 'Chờ duyệt'}
+                      </span>
+
+                      {/* Code */}
+                      <span className="font-semibold text-slate-700 text-xs truncate">
+                        {item.dossier?.code || item.dossierId.slice(0, 8)}
+                      </span>
+
+                      {/* Title */}
+                      <span className="truncate text-slate-800 font-medium" title={item.dossier?.name || item.dossier?.route || 'Dự toán'}>
+                        {item.dossier?.name || item.dossier?.route || 'Dự toán'}
+                      </span>
+
+                      {/* Time */}
+                      <span className="text-[11px] text-slate-400 whitespace-nowrap text-right">
+                        {formatDateTime(item.submittedAt || item.createdAt)}
+                      </span>
+
+                      {/* Amount */}
+                      <span className="font-semibold text-slate-900 tabular-nums whitespace-nowrap text-right">
+                        {formatCurrency(item.totalRevenue)}
+                      </span>
+
+                      {/* Button */}
+                      <div className="text-right">
+                        <Link href="/main/approvals">
+                          <button
+                            type="button"
+                            className="px-2.5 py-0.5 rounded border border-slate-200 text-xs font-medium text-slate-600 hover:text-[#0B7A5B] hover:border-[#0B7A5B] bg-white transition-colors cursor-pointer"
+                          >
+                            Xem
+                          </button>
+                        </Link>
+                      </div>
+                    </div>
+                  )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có hồ sơ chờ duyệt từ API" />}
+                </div>
+              </div>
+
+              <Link
+                href="/main/approvals"
+                className="flex items-center justify-center gap-1.5 pt-3 mt-3 border-t border-slate-100 text-xs font-semibold text-[#0B7A5B] hover:text-[#08664D] transition-colors"
+              >
+                <span>Xem tất cả hồ sơ chờ duyệt</span>
+                <ArrowRightOutlined className="text-[10px]" />
+              </Link>
+            </div>
+          </WidgetErrorBoundary>
+        </div>
+
+        {/* CARD 5: Top 5 Sales theo doanh thu (col-span-4) */}
+        <div className="xl:col-span-4">
+          <WidgetErrorBoundary title="Top 5 Sales theo doanh thu">
+            <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[15px] font-bold text-slate-900">Top 5 Sales theo doanh thu</span>
+                </div>
+
+                <div className="space-y-3.5">
+                  {isLoadingSales ? <Skeleton active paragraph={{ rows: 5 }} /> : topSalesList.length ? topSalesList.map((sales) => (
+                    <div
+                      key={sales.salesUserId}
+                      className="grid grid-cols-[14px_24px_minmax(0,1.2fr)_minmax(35px,1fr)_auto] items-center gap-2 text-xs"
+                    >
+                      <span className={`font-bold text-xs ${sales.rank <= 3 ? 'text-amber-500' : 'text-slate-500'}`}>
+                        {sales.rank}
+                      </span>
+                      <div className="w-6 h-6 rounded-full bg-[var(--ceo-primary-soft)] text-[var(--ceo-primary-700)] flex items-center justify-center text-[10px] font-bold border border-slate-200 shrink-0">
+                        {sales.salesUserName?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                      <span className="truncate text-slate-800 font-medium" title={sales.salesUserName}>
+                        {sales.salesUserName}
+                      </span>
+                      <div className="h-1 bg-transparent flex items-center w-full">
+                        <div className="h-0.75 bg-[#D48B1E] rounded-full" style={{ width: `${sales.progress}%` }} />
+                      </div>
+                      <span className="text-xs font-semibold text-slate-800 tabular-nums whitespace-nowrap text-right">
+                        {formatCurrency(sales.totalRevenue)}
+                      </span>
+                    </div>
+                  )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có doanh thu Sales từ API" />}
+                </div>
+              </div>
+
+              <Link
+                href="/main/reports"
+                className="flex items-center justify-center gap-1.5 pt-3 mt-3 border-t border-slate-100 text-xs font-semibold text-[#0B7A5B] hover:text-[#08664D] transition-colors"
+              >
+                <span>Xem bảng xếp hạng đầy đủ</span>
+                <ArrowRightOutlined className="text-[10px]" />
+              </Link>
+            </div>
+          </WidgetErrorBoundary>
+        </div>
+
+        {/* CARD 6: Thông báo & nhanh chóng (col-span-3) */}
+        <div className="xl:col-span-3">
+          <WidgetErrorBoundary title="Thông báo & nhanh chóng">
+            <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
+              <div>
+                <div className="flex items-center gap-2 text-[15px] font-bold text-slate-900 mb-3">
+                  <ClockCircleOutlined className="text-[#F59E0B] text-base" />
+                  <span>Thông báo & nhanh chóng</span>
+                </div>
+
+                <div className="space-y-2.5">
+                  {isLoadingNotifications ? <Skeleton active paragraph={{ rows: 3 }} /> : notificationsList.length ? notificationsList.map((notif) => (
+                    <div
+                      key={notif.id}
+                      className="flex items-center justify-between p-2.5 rounded-lg border border-slate-100 bg-white hover:bg-slate-50/70 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-[var(--ceo-info-soft)] text-[var(--ceo-info)] flex items-center justify-center border border-[var(--ceo-divider)] shrink-0">
+                          <LineChartOutlined className="text-sm" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-slate-800 truncate">{notif.title}</div>
+                          <div className="text-[11px] text-slate-400 mt-0.5 truncate" title={notif.content}>{notif.content || formatDateTime(notif.createdAt)}</div>
+                        </div>
+                      </div>
+                      <Link href={notif.linkUrl || '/main/notifications'} className="shrink-0 pl-2 text-[var(--ceo-primary-700)]" aria-label={`Mở thông báo ${notif.title}`}>
+                        <ArrowRightOutlined className="text-sm" />
+                      </Link>
+                    </div>
+                  )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có thông báo từ API" />}
+                </div>
+              </div>
+
+              <Link
+                href="/main/notifications"
+                className="flex items-center justify-center gap-1.5 pt-3 mt-3 border-t border-slate-100 text-xs font-semibold text-[#0B7A5B] hover:text-[#08664D] transition-colors"
+              >
+                <span>Xem tất cả thông báo</span>
+                <ArrowRightOutlined className="text-[10px]" />
+              </Link>
+            </div>
+          </WidgetErrorBoundary>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">

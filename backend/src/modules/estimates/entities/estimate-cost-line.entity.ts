@@ -44,6 +44,15 @@ export class EstimateCostLine extends BaseEntity {
   unitPrice: number;
 
   @Column({
+    name: 'source_amount',
+    type: 'numeric',
+    precision: 18,
+    scale: 2,
+    nullable: true,
+  })
+  sourceAmount?: number | null;
+
+  @Column({
     name: 'vat_rate',
     type: 'numeric',
     precision: 5,

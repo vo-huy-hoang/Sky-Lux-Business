@@ -64,6 +64,21 @@ function formatMoney(value?: number) {
   return `${new Intl.NumberFormat('vi-VN').format(value || 0)} đ`;
 }
 
+function formatCompactRevenue(value?: number | string) {
+  const number = Number(value);
+  if (!number || isNaN(number) || Math.abs(number) < 0.0001) return '0';
+  if (Math.abs(number) >= 1_000_000_000) {
+    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000_000)} tỷ`;
+  }
+  if (Math.abs(number) >= 1_000_000) {
+    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000)} tr`;
+  }
+  if (Math.abs(number) >= 1_000) {
+    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000)} k`;
+  }
+  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(number);
+}
+
 function MetricCard({
   label,
   value,
@@ -318,19 +333,26 @@ export default function OperatorDashboard() {
                     x: { grid: { display: false }, border: { display: false } },
                     revenue: {
                       beginAtZero: true,
+                      min: 0,
+                      suggestedMax: 10_000_000,
                       position: 'left',
                       grid: { color: '#EEF0EF' },
                       border: { display: false },
                       ticks: {
-                        callback: (value) => `${Number(value) / 1_000_000}M`,
+                        callback: (value) => formatCompactRevenue(value),
                       },
                     },
                     dossiers: {
                       beginAtZero: true,
+                      min: 0,
+                      suggestedMax: 5,
                       position: 'right',
                       grid: { drawOnChartArea: false },
                       border: { display: false },
-                      ticks: { precision: 0 },
+                      ticks: {
+                        precision: 0,
+                        callback: (value) => `${value}`,
+                      },
                     },
                   },
                 }}

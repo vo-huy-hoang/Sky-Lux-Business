@@ -27,7 +27,7 @@ import type { UserContext } from '@/lib/routes.config';
 const { Header } = Layout;
 
 interface MainHeaderProps {
-  routeMeta: { title: string; subtitle: string };
+  routeMeta: { title: string; subtitle: string; icon?: React.ReactNode };
   userCtx: UserContext;
 }
 
@@ -142,12 +142,19 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
             aria-label={collapsed ? 'Mở menu' : 'Thu gọn menu'}
           />
 
-          <div className="min-w-0">
-            <h1 className="m-0 truncate text-[25px] font-bold leading-tight text-[var(--color-text)]">
-              {routeMeta.title}
-            </h1>
-            <div className="mt-0.5 hidden truncate text-sm text-[var(--color-text-muted)] md:block">
-              {routeMeta.subtitle}
+          <div className="flex items-center gap-3 min-w-0">
+            {routeMeta.icon && (
+              <span className="text-[26px] text-[#D97706] flex items-center shrink-0">
+                {routeMeta.icon}
+              </span>
+            )}
+            <div className="min-w-0">
+              <h1 className="m-0 truncate text-[23px] font-bold leading-tight text-[var(--color-text)]">
+                {routeMeta.title}
+              </h1>
+              <div className="mt-0.5 hidden truncate text-xs text-[var(--color-text-muted)] md:block">
+                {routeMeta.subtitle}
+              </div>
             </div>
           </div>
         </div>

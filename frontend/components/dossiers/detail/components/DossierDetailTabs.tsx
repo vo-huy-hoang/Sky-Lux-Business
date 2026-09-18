@@ -9,6 +9,7 @@ import { useDossierUIStore } from "../stores/useDossierUIStore";
 import { DossierCostTable } from "./DossierCostTable";
 import { CostSummaryTable, calculateCostSummaryRows } from "./CostSummaryTable";
 import { DossierRevenueTable } from "./DossierRevenueTable";
+import { sumWorkbookGrossAmounts } from "@/lib/financial-calculations";
 
 export interface DossierDetailTabsProps {
   estimate: any;
@@ -49,25 +50,17 @@ export function DossierDetailTabs({
       </div>
     ) : null;
 
-  const totalRevenue = useMemo(() => {
-    const lines = estimate?.revenueLines || [];
-    return lines.reduce((sum: number, line: any) => {
-      const gross = Number(line.grossAmount) || 0;
-      const subtotal =
-        (Number(line.quantity) || 0) *
-        (Number(line.multiplier) || 1) *
-        (Number(line.unitPrice) || 0);
-      return sum + (gross > 0 ? gross : subtotal);
-    }, 0);
-  }, [estimate?.revenueLines]);
+  const totalRevenueGross = useMemo(
+    () => sumWorkbookGrossAmounts(estimate?.revenueLines || []),
+    [estimate?.revenueLines],
+  );
 
   const costSummaryRows = useMemo(() => {
     return calculateCostSummaryRows(
       estimate?.costLines || [],
-      totalRevenue,
-      1.08,
+      totalRevenueGross,
     );
-  }, [estimate?.costLines, totalRevenue]);
+  }, [estimate?.costLines, totalRevenueGross]);
 
   return (
     <Card className="ceo-card">

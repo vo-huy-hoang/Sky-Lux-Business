@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Card,
@@ -23,8 +23,6 @@ import {
   SendOutlined,
   SaveOutlined,
   RollbackOutlined,
-  EditOutlined,
-  FileTextOutlined,
   WarningFilled,
   CheckCircleOutlined,
   PlusOutlined,
@@ -67,6 +65,7 @@ interface EditableRevenueRow {
   stt: number;
   description: string;
   quantity: number;
+  multiplier: number;
   unit: string;
   unitPrice: number;
   vatRate: number;
@@ -87,7 +86,7 @@ interface EditableCostRow {
   unit: string;
   unitPrice: number;
   vatRate: number;
-  sourceAmount?: number;
+  sourceAmount?: number | null;
   note: string;
   status: "VALID" | "WARNING" | "ERROR";
   warningMessage?: string;
@@ -96,7 +95,6 @@ interface EditableCostRow {
 }
 
 function calculateCostRowAmount(row: EditableCostRow): number {
-  if (row.sourceAmount !== undefined) return row.sourceAmount;
   return row.quantity * row.multiplier * row.unitPrice;
 }
 
@@ -153,20 +151,21 @@ export default function EditImportDossierPage() {
   const [editedCost, setEditedCost] = useState<
     Record<string, Partial<EditableCostRow>>
   >({});
+  const [addedRevenueRows, setAddedRevenueRows] = useState<
+    EditableRevenueRow[]
+  >([]);
+  const [deletedRevenueIds, setDeletedRevenueIds] = useState<string[]>([]);
   const [addedCostRows, setAddedCostRows] = useState<EditableCostRow[]>([]);
   const [deletedCostIds, setDeletedCostIds] = useState<string[]>([]);
-  const [operatorNote, setOperatorNote] = useState("");
+  // `null` means the operator has not edited the imported note yet.
+  const [operatorNote, setOperatorNote] = useState<string | null>(null);
+  const nextNewRowId = useRef(0);
   const [lastSavedTime, setLastSavedTime] = useState("20/06/2025 10:35");
   const [showAllIssues, setShowAllIssues] = useState(false);
   const [issueFilter, setIssueFilter] = useState<"ALL" | "ERROR" | "WARNING">("ALL");
 
-  React.useEffect(() => {
-    if (estimate?.note) {
-      setOperatorNote(estimate.note);
-    } else if ((dossier as any)?.note) {
-      setOperatorNote((dossier as any).note);
-    }
-  }, [estimate?.note, (dossier as any)?.note]);
+  const effectiveOperatorNote =
+    operatorNote ?? estimate?.note ?? (dossier as { note?: string } | undefined)?.note ?? "";
 
   // Compute base revenue rows from database or reference template
   const defaultRevenueRows: EditableRevenueRow[] = useMemo(() => {
@@ -176,7 +175,8 @@ export default function EditImportDossierPage() {
           id: line.id || `rev-${idx + 1}`,
           stt: idx + 1,
           description: line.description || "Dịch vụ",
-          quantity: Number(line.quantity) || 1,
+          quantity: Number(line.quantity ?? 1),
+          multiplier: Number(line.multiplier ?? 1),
           unit: line.unit?.name || "PAX",
           unitPrice: Number(line.unitPrice) || 0,
           vatRate: Number(line.vatRate) || 0,
@@ -193,6 +193,7 @@ export default function EditImportDossierPage() {
         stt: 1,
         description: "Vé máy bay khứ hồi SGN-SIN-SGN",
         quantity: 20,
+        multiplier: 1,
         unit: "PAX",
         unitPrice: 6500000,
         vatRate: 0,
@@ -204,6 +205,7 @@ export default function EditImportDossierPage() {
         stt: 2,
         description: "Khách sạn 4 sao (3 đêm)",
         quantity: 20,
+        multiplier: 1,
         unit: "ROOM",
         unitPrice: 3200000,
         vatRate: 10,
@@ -215,6 +217,7 @@ export default function EditImportDossierPage() {
         stt: 3,
         description: "Phòng họp (1 ngày)",
         quantity: 1,
+        multiplier: 1,
         unit: "DAY",
         unitPrice: 15000000,
         vatRate: 10,
@@ -227,6 +230,7 @@ export default function EditImportDossierPage() {
         stt: 4,
         description: "Xe đưa đón",
         quantity: 2,
+        multiplier: 1,
         unit: "DAY",
         unitPrice: 4000000,
         vatRate: 10,
@@ -238,6 +242,7 @@ export default function EditImportDossierPage() {
         stt: 5,
         description: "HDV tiếng Việt",
         quantity: 2,
+        multiplier: 1,
         unit: "DAY",
         unitPrice: 1500000,
         vatRate: 10,
@@ -248,11 +253,13 @@ export default function EditImportDossierPage() {
   }, [estimate]);
 
   const revenueRows: EditableRevenueRow[] = useMemo(() => {
-    return defaultRevenueRows.map((r) => ({
+    return [...defaultRevenueRows, ...addedRevenueRows]
+      .filter((r) => !deletedRevenueIds.includes(r.id))
+      .map((r) => ({
       ...r,
       ...(editedRevenue[r.id] || {}),
-    }));
-  }, [defaultRevenueRows, editedRevenue]);
+      }));
+  }, [defaultRevenueRows, addedRevenueRows, deletedRevenueIds, editedRevenue]);
 
   // Compute base cost rows from database or reference template
   const defaultCostRows: EditableCostRow[] = useMemo(() => {
@@ -275,14 +282,12 @@ export default function EditImportDossierPage() {
           serviceCategoryId: line.serviceCategoryId,
           supplierId: line.supplierId,
           supplierName: extractedSupplier,
-          quantity: Number(line.quantity) || 1,
-          multiplier: Number(line.multiplier) || 1,
+          quantity: Number(line.quantity ?? 1),
+          multiplier: Number(line.multiplier ?? 1),
           unit: line.unit?.name || "PAX",
           unitPrice: Number(line.unitPrice) || 0,
           vatRate: Number(line.vatRate) || 0,
-          sourceAmount: line.note?.includes("Số tiền nguồn:")
-            ? Number(line.netAmount)
-            : undefined,
+          sourceAmount: line.sourceAmount ?? null,
           note: line.note || "-",
           serviceCategory: line.serviceCategory,
           status: "VALID",
@@ -390,11 +395,12 @@ export default function EditImportDossierPage() {
       );
       const payload = {
         status: submitStatus || latestEstimateItem.status,
-        note: operatorNote || undefined,
+        note: effectiveOperatorNote || undefined,
         revenueLines: revenueRows.map((r) => ({
           id: persistedRevenueIds.has(r.id) ? r.id : undefined,
           description: r.description,
           quantity: r.quantity,
+          multiplier: r.multiplier,
           unitPrice: r.unitPrice,
           vatRate: r.vatRate,
           note: r.note,
@@ -405,10 +411,10 @@ export default function EditImportDossierPage() {
           serviceCategoryId: c.serviceCategoryId || undefined,
           supplierId: c.supplierId || undefined,
           quantity: c.quantity,
-          multiplier: c.multiplier || 1,
+          multiplier: c.multiplier,
           unitPrice: c.unitPrice,
           vatRate: c.vatRate,
-          sourceAmount: c.sourceAmount,
+          sourceAmount: c.sourceAmount ?? null,
           note: c.note,
         })),
       };
@@ -470,17 +476,10 @@ export default function EditImportDossierPage() {
   // Calculations for total revenue and cost
   const totalRevenueNoVat = useMemo(() => {
     return revenueRows.reduce(
-      (acc, row) => acc + row.quantity * row.unitPrice,
+      (acc, row) => acc + row.quantity * row.multiplier * row.unitPrice,
       0,
     );
   }, [revenueRows]);
-
-  const totalCostNoVat = useMemo(() => {
-    return costRows.reduce(
-      (acc, row) => acc + calculateCostRowAmount(row),
-      0,
-    );
-  }, [costRows]);
 
   // Categorize cost lines into Section I (VAT) and Section II (NO VAT) matching DossierCostTable
   const {
@@ -558,11 +557,62 @@ export default function EditImportDossierPage() {
     }));
   };
 
+  const handleRevenueDescriptionChange = (id: string, description: string) => {
+    setEditedRevenue((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] || {}), description },
+    }));
+  };
+
+  const handleRevenueQuantityChange = (id: string, quantity: number) => {
+    setEditedRevenue((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] || {}), quantity },
+    }));
+  };
+
+  const handleRevenueMultiplierChange = (id: string, multiplier: number) => {
+    setEditedRevenue((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] || {}), multiplier },
+    }));
+  };
+
   const handleRevenueVatChange = (id: string, vatRate: number) => {
     setEditedRevenue((prev) => ({
       ...prev,
       [id]: { ...(prev[id] || {}), vatRate },
     }));
+  };
+
+  const handleAddRevenueRow = () => {
+    const newRow: EditableRevenueRow = {
+      id: `revenue-new-${nextNewRowId.current++}`,
+      stt: revenueRows.length + 1,
+      description: "",
+      quantity: 1,
+      multiplier: 1,
+      unit: "PAX",
+      unitPrice: 0,
+      vatRate: 0,
+      note: "-",
+      status: "VALID",
+    };
+    setAddedRevenueRows((prev) => [...prev, newRow]);
+    message.success("Đã thêm dòng doanh thu mới");
+  };
+
+  const handleDeleteRevenueRow = (id: string) => {
+    if (id.startsWith("revenue-new-")) {
+      setAddedRevenueRows((prev) => prev.filter((row) => row.id !== id));
+    } else {
+      setDeletedRevenueIds((prev) => [...prev, id]);
+    }
+    setEditedRevenue((prev) => {
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
+    });
   };
 
   // Handlers for cost row changes
@@ -594,7 +644,7 @@ export default function EditImportDossierPage() {
       [id]: {
         ...(prev[id] || {}),
         unitPrice: newPrice,
-        sourceAmount: undefined,
+        sourceAmount: null,
       },
     }));
   };
@@ -602,7 +652,7 @@ export default function EditImportDossierPage() {
   const handleCostVatChange = (id: string, vatRate: number) => {
     setEditedCost((prev) => ({
       ...prev,
-      [id]: { ...(prev[id] || {}), vatRate, sourceAmount: undefined },
+      [id]: { ...(prev[id] || {}), vatRate, sourceAmount: null },
     }));
   };
 
@@ -616,7 +666,14 @@ export default function EditImportDossierPage() {
   const handleCostQuantityChange = (id: string, quantity: number) => {
     setEditedCost((prev) => ({
       ...prev,
-      [id]: { ...(prev[id] || {}), quantity },
+      [id]: { ...(prev[id] || {}), quantity, sourceAmount: null },
+    }));
+  };
+
+  const handleCostMultiplierChange = (id: string, multiplier: number) => {
+    setEditedCost((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] || {}), multiplier, sourceAmount: null },
     }));
   };
 
@@ -639,7 +696,7 @@ export default function EditImportDossierPage() {
     type: "vat" | "novat",
     serviceCategoryId?: string,
   ) => {
-    const newId = `cost-new-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const newId = `cost-new-${nextNewRowId.current++}`;
     const newRow: EditableCostRow = {
       id: newId,
       stt: 0,
@@ -881,9 +938,19 @@ export default function EditImportDossierPage() {
         <td className="py-2 px-1.5 text-center border-r border-slate-200">
           <InputNumber<number>
             size="small"
-            min={1}
+            min={0}
             value={row.quantity}
-            onChange={(val) => handleCostQuantityChange(row.id, val ?? 1)}
+            onChange={(val) => handleCostQuantityChange(row.id, val ?? 0)}
+            controls={false}
+            className="w-12 text-center font-mono font-semibold text-xs h-7 rounded-md border-slate-200 hover:border-slate-300 focus:border-sky-500 [&_input]:text-center"
+          />
+        </td>
+        <td className="py-2 px-1.5 text-center border-r border-slate-200">
+          <InputNumber<number>
+            size="small"
+            min={0}
+            value={row.multiplier}
+            onChange={(val) => handleCostMultiplierChange(row.id, val ?? 0)}
             controls={false}
             className="w-12 text-center font-mono font-semibold text-xs h-7 rounded-md border-slate-200 hover:border-slate-300 focus:border-sky-500 [&_input]:text-center"
           />
@@ -1273,7 +1340,7 @@ export default function EditImportDossierPage() {
                 <Input.TextArea
                   autoSize={{ minRows: 4, maxRows: 16 }}
                   placeholder="Nhập ghi chú phản hồi của điều hành (về giá, nhà cung cấp, chi phí dự kiến)..."
-                  value={operatorNote}
+                  value={effectiveOperatorNote}
                   onChange={(e) => setOperatorNote(e.target.value)}
                   className="rounded-xl border-slate-200 text-xs hover:border-slate-300 focus:border-emerald-600 transition-colors leading-relaxed p-3 font-normal text-slate-800 bg-slate-50/50 focus:bg-white"
                 />
@@ -1307,7 +1374,7 @@ export default function EditImportDossierPage() {
                 </span>
               </span>
               <span className="text-[11px] font-mono">
-                {operatorNote.length} ký tự
+                {effectiveOperatorNote.length} ký tự
               </span>
             </div>
           </div>
@@ -1326,11 +1393,19 @@ export default function EditImportDossierPage() {
               <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 font-semibold px-2 py-0.5 rounded-md">
                 Chỉnh sửa trực tiếp trên bảng
               </span>
+              <Button
+                size="small"
+                icon={<PlusOutlined />}
+                onClick={handleAddRevenueRow}
+                className="h-6 rounded-md border-emerald-200 text-emerald-700 hover:border-emerald-600 hover:text-emerald-800 text-[11px] font-semibold"
+              >
+                Thêm dòng
+              </Button>
             </div>
             <div className="text-xs text-slate-500 font-medium">
               Doanh thu tạm tính (chưa VAT):{" "}
               <span className="font-mono font-bold text-slate-900 ml-1">
-                {formatCurrency(totalRevenueNoVat || 228000000)} VNĐ
+                {formatCurrency(totalRevenueNoVat)} VNĐ
               </span>
             </div>
           </div>
@@ -1342,6 +1417,7 @@ export default function EditImportDossierPage() {
                   <th className="py-2.5 px-2 text-center w-10">STT</th>
                   <th className="py-2.5 px-2 min-w-[200px]">Mô tả dịch vụ</th>
                   <th className="py-2.5 px-2 text-center w-20">Số lượng</th>
+                  <th className="py-2.5 px-2 text-center w-20">Hệ số</th>
                   <th className="py-2.5 px-2 text-center w-20">Đơn vị</th>
                   <th className="py-2.5 px-2 text-right w-36">
                     Đơn giá (VNĐ)
@@ -1357,7 +1433,10 @@ export default function EditImportDossierPage() {
               <tbody className="divide-y divide-slate-100">
                 {revenueRows.map((row) => {
                   const rowTotal =
-                    row.quantity * row.unitPrice * (1 + row.vatRate / 100);
+                    row.quantity *
+                    row.multiplier *
+                    row.unitPrice *
+                    (1 + row.vatRate / 100);
                   const isWarning = row.status === "WARNING";
                   return (
                     <tr
@@ -1373,13 +1452,42 @@ export default function EditImportDossierPage() {
                         {row.stt}
                       </td>
                       <td className="py-2.5 px-2">
-                        <div className="flex items-center gap-1.5 font-medium text-slate-800">
-                          <span>{row.description}</span>
-                          <EditOutlined className="text-slate-300 text-[10px]" />
-                        </div>
+                        <Input
+                          size="small"
+                          value={row.description}
+                          onChange={(event) =>
+                            handleRevenueDescriptionChange(
+                              row.id,
+                              event.target.value,
+                            )
+                          }
+                          placeholder="Mô tả dịch vụ doanh thu..."
+                          className="h-7 rounded-md border-slate-200 text-xs font-medium text-slate-800 hover:border-slate-300 focus:border-emerald-600"
+                        />
                       </td>
-                      <td className="py-2.5 px-2 text-center font-semibold text-slate-800">
-                        {row.quantity}
+                      <td className="py-2.5 px-2 text-center">
+                        <InputNumber<number>
+                          size="small"
+                          min={0}
+                          value={row.quantity}
+                          onChange={(value) =>
+                            handleRevenueQuantityChange(row.id, value ?? 0)
+                          }
+                          controls={false}
+                          className="w-14 h-7 rounded-md border-slate-200 font-mono text-xs font-semibold [&_input]:text-center"
+                        />
+                      </td>
+                      <td className="py-2.5 px-2 text-center">
+                        <InputNumber<number>
+                          size="small"
+                          min={0}
+                          value={row.multiplier}
+                          onChange={(value) =>
+                            handleRevenueMultiplierChange(row.id, value ?? 0)
+                          }
+                          controls={false}
+                          className="w-14 h-7 rounded-md border-slate-200 font-mono text-xs font-semibold [&_input]:text-center"
+                        />
                       </td>
                       <td className="py-2.5 px-2 text-center text-slate-500 font-medium">
                         {row.unit}
@@ -1442,18 +1550,32 @@ export default function EditImportDossierPage() {
                         </span>
                       </td>
                       <td className="py-2.5 px-2 text-center">
-                        {row.status === "VALID" && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                            Hợp lệ
-                          </span>
-                        )}
-                        {row.status === "WARNING" && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600">
-                            <WarningFilled className="text-[10px]" />
-                            Cảnh báo
-                          </span>
-                        )}
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="min-w-0 flex-1">
+                            {row.status === "VALID" && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                Hợp lệ
+                              </span>
+                            )}
+                            {row.status === "WARNING" && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600">
+                                <WarningFilled className="text-[10px]" />
+                                Cảnh báo
+                              </span>
+                            )}
+                          </div>
+                          <Tooltip title="Xóa dòng doanh thu này">
+                            <Button
+                              type="text"
+                              size="small"
+                              danger
+                              icon={<DeleteOutlined className="text-[11px]" />}
+                              onClick={() => handleDeleteRevenueRow(row.id)}
+                              className="h-6 w-6 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                            />
+                          </Tooltip>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1468,7 +1590,7 @@ export default function EditImportDossierPage() {
               Tổng doanh thu (chưa VAT):
             </span>
             <span className="font-bold text-slate-900 font-mono text-sm">
-              {formatCurrency(totalRevenueNoVat || 228000000)}
+              {formatCurrency(totalRevenueNoVat)}
             </span>
           </div>
         </div>
@@ -1540,6 +1662,9 @@ export default function EditImportDossierPage() {
                     SL
                   </th>
                   <th className="py-2.5 px-1.5 text-center w-16 border-r border-slate-300">
+                    Hệ số
+                  </th>
+                  <th className="py-2.5 px-1.5 text-center w-16 border-r border-slate-300">
                     ĐVT
                   </th>
                   <th className="py-2.5 px-2 text-right w-32 border-r border-slate-300">
@@ -1568,7 +1693,7 @@ export default function EditImportDossierPage() {
                           I
                         </td>
                         <td
-                          colSpan={9}
+                          colSpan={10}
                           className="py-2 px-3 tracking-wide uppercase font-bold text-xs"
                         >
                           DỊCH VỤ ĐẦU VÀO CÓ VAT
@@ -1623,7 +1748,7 @@ export default function EditImportDossierPage() {
                                 -
                               </td>
                               <td
-                                colSpan={9}
+                                colSpan={10}
                                 className="py-2 px-3 text-slate-400"
                               >
                                 Chưa có dịch vụ trong mục này. Bấm dấu{" "}
@@ -1647,7 +1772,7 @@ export default function EditImportDossierPage() {
                           II
                         </td>
                         <td
-                          colSpan={9}
+                          colSpan={10}
                           className="py-2 px-3 tracking-wide uppercase font-bold text-xs"
                         >
                           <div className="flex items-center justify-between gap-2">
@@ -1676,7 +1801,7 @@ export default function EditImportDossierPage() {
                             -
                           </td>
                           <td
-                            colSpan={9}
+                            colSpan={10}
                             className="py-2 px-3 text-slate-400"
                           >
                             Chưa có dịch vụ chưa VAT. Bấm dấu{" "}
@@ -1700,7 +1825,7 @@ export default function EditImportDossierPage() {
               <tfoot>
                 <tr className="bg-[#FCE4D6] text-slate-900 font-bold border-t-2 border-slate-400">
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="py-2.5 px-3 text-center font-extrabold uppercase tracking-wider text-xs border-r border-slate-300"
                   >
                     TỔNG CỘNG

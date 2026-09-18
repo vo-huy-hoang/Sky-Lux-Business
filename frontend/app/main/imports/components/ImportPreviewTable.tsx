@@ -612,7 +612,7 @@ export function ImportPreviewTable({
             <div className="flex items-center gap-2">
               <CalculatorOutlined className="text-emerald-700 text-sm" />
               <h3 className="text-xs font-bold text-slate-900 mb-0 uppercase tracking-tight">
-                Bảng 3: Bảng tổng hợp chi phí & Đối soát hiệu quả kinh doanh
+                Bảng 3: Tổng hợp chi phí & Lợi nhuận gộp
               </h3>
             </div>
             <div className="flex items-center gap-2">
@@ -630,22 +630,22 @@ export function ImportPreviewTable({
                     Phân loại dịch vụ
                   </th>
                   <th className="py-2.5 px-3 text-right font-bold">
-                    Doanh thu từ khách
+                    Doanh thu
                   </th>
-                  <th className="py-2.5 px-3 text-right font-bold">
-                    DT thuần (1.08)
-                  </th>
+                  <th className="py-2.5 px-3 text-right font-bold">DT thuần</th>
                   <th className="py-2.5 px-3 text-right font-bold">Chi phí</th>
                   <th className="py-2.5 px-3 text-right font-bold">
                     Chi phí thuần
                   </th>
-                  <th className="py-2.5 px-3 text-right font-bold">Lãi gộp</th>
+                  <th className="py-2.5 px-3 text-right font-bold">
+                    Lợi nhuận gộp
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-800">
                 <tr className="hover:bg-slate-50/70">
                   <td className="py-2.5 px-3 font-semibold text-slate-800">
-                    Dịch vụ 10% (Có VAT)
+                    Dịch vụ 10%
                   </td>
                   <td className="py-2.5 px-3 text-right font-mono">
                     {formatVND(summary.service10.customerRevenue)}
@@ -665,10 +665,14 @@ export function ImportPreviewTable({
                 </tr>
                 <tr className="hover:bg-slate-50/70">
                   <td className="py-2.5 px-3 font-semibold text-slate-800">
-                    Dịch vụ 0% (Không VAT)
+                    Dịch vụ 0%
                   </td>
-                  <td className="py-2.5 px-3 text-right font-mono">0</td>
-                  <td className="py-2.5 px-3 text-right font-mono">0</td>
+                  <td className="py-2.5 px-3 text-right font-mono">
+                    {formatVND(summary.service0.customerRevenue)}
+                  </td>
+                  <td className="py-2.5 px-3 text-right font-mono">
+                    {formatVND(summary.service0.netRevenue)}
+                  </td>
                   <td className="py-2.5 px-3 text-right font-mono">
                     {formatVND(summary.service0.cost)}
                   </td>
@@ -683,7 +687,7 @@ export function ImportPreviewTable({
               <tfoot>
                 <tr className="bg-emerald-50/70 font-bold border-t-2 border-emerald-300 text-slate-900">
                   <td className="py-2.5 px-3 uppercase text-xs text-emerald-950 font-bold">
-                    TỔNG CỘNG ĐỐI SOÁT
+                    TỔNG CỘNG
                   </td>
                   <td className="py-2.5 px-3 text-right font-mono font-extrabold text-emerald-950">
                     {formatVND(summary.total.customerRevenue)}
