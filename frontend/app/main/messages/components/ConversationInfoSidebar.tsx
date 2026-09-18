@@ -2,9 +2,10 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Avatar, Button, Tag, Tooltip, Typography } from 'antd';
+import { Avatar, Button, Skeleton, Tag, Tooltip, Typography } from 'antd';
 import { CloseOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { Conversation } from '@/types/chat';
+import { useDossierDetail } from '@/hooks/dossiers';
 import { getInitials, statusConfig } from '../types';
 
 const { Text } = Typography;
@@ -18,10 +19,18 @@ export interface ConversationInfoSidebarProps {
 
 export function ConversationInfoSidebar({
   activeConversation,
-  relatedDossier,
+  relatedDossier: propRelatedDossier,
   currentUserId,
   onClose,
 }: ConversationInfoSidebarProps) {
+  const dossierId = activeConversation?.dossierId;
+  const { data: fetchedDossier, isLoading: isLoadingDossier } = useDossierDetail(
+    dossierId || '',
+    { enabled: Boolean(dossierId) },
+  );
+
+  const relatedDossier = propRelatedDossier !== undefined ? propRelatedDossier : fetchedDossier;
+
   return (
     <aside
       className="skylux-message-information w-80 border-l border-slate-200 bg-white"
@@ -48,7 +57,11 @@ export function ConversationInfoSidebar({
           <Text strong className="text-xs font-semibold uppercase tracking-wider text-slate-400">
             Hồ sơ tour liên quan
           </Text>
-          {relatedDossier ? (
+          {isLoadingDossier ? (
+            <div className="mt-2.5 rounded-xl border border-slate-200 bg-[#F7FAF8] p-3.5 space-y-2">
+              <Skeleton active paragraph={{ rows: 2 }} />
+            </div>
+          ) : relatedDossier ? (
             <div className="mt-2.5 rounded-xl border border-slate-200 bg-[#F7FAF8] p-3.5 space-y-2">
               <div className="flex items-center justify-between">
                 <Text strong className="text-sm text-[#007A55]">
@@ -123,3 +136,5 @@ export function ConversationInfoSidebar({
     </aside>
   );
 }
+
+export default ConversationInfoSidebar;

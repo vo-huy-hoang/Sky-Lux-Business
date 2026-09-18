@@ -80,10 +80,6 @@ export function ConversationList({
             const isSelected = conv.id === effectiveConversationId;
             const title = getConversationTitle(conv);
 
-            const otherMembers =
-              conv.members?.filter((m) => m.userId !== currentUserId) || [];
-            const primaryMember = otherMembers[0]?.user;
-
             return (
               <div
                 key={conv.id}
@@ -103,7 +99,7 @@ export function ConversationList({
                   }}
                   icon={conv.isGroup ? <TeamOutlined /> : undefined}
                 >
-                  {!conv.isGroup && getInitials(primaryMember?.fullName || title)}
+                  {!conv.isGroup && getInitials(title)}
                 </Avatar>
 
                 <div className="min-w-0 flex-1">
