@@ -459,21 +459,12 @@ export class ImportsService {
           }
 
           for (const line of costLines) {
-            const calculatedNetAmount =
-              Number(line.quantity || 1) *
-              Number(line.multiplier || 1) *
-              Number(line.unitPrice || 0);
-            const importedAmount = Number(line.sourceAmount);
-            const hasImportedAmount = Number.isFinite(importedAmount);
-            // The Excel amount column is already the authoritative total.
-            // Do not add VAT again when the source amount is present.
-            const netAmount = hasImportedAmount
-              ? importedAmount
-              : calculatedNetAmount;
-            const grossAmount = hasImportedAmount
-              ? importedAmount
-              : calculatedNetAmount * (1 + Number(line.vatRate || 0) / 100);
-            const sourceNote = `Số tiền nguồn: ${line.sourceAmount}`;
+            const quantity = Number(line.quantity ?? 1);
+            const multiplier = Number(line.multiplier ?? 1);
+            const unitPrice = Number(line.unitPrice ?? 0);
+            const vatRate = Number(line.vatRate ?? 0);
+            const netAmount = quantity * multiplier * unitPrice;
+            const grossAmount = netAmount * (1 + vatRate / 100);
             await transactionalEntityManager.save(
               EstimateCostLine,
               transactionalEntityManager.create(EstimateCostLine, {
@@ -487,9 +478,10 @@ export class ImportsService {
                 multiplier: line.multiplier,
                 unitPrice: line.unitPrice,
                 vatRate: line.vatRate,
+                sourceAmount: line.sourceAmount,
                 netAmount,
                 grossAmount,
-                note: [line.note, sourceNote].filter(Boolean).join('; '),
+                note: line.note,
                 sortOrder: line.sortOrder,
               }),
             );

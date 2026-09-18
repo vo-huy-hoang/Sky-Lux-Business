@@ -17,6 +17,8 @@ describe('customer-budget.parser', () => {
       I10: new Date('2020-08-19T00:00:00.000Z'),
       C11: 'Đà Nẵng - Hội An - Huế',
       F11: '30/07-02/08/2026',
+      G11: 'Số ngày:',
+      H11: '3 ngày 2 đêm',
       C12: 30,
       F12: 4500000,
       C13: 2,
@@ -72,6 +74,7 @@ describe('customer-budget.parser', () => {
     expect(row['Số điện thoại']).toBe('0974231555');
     expect(row['Ngày bắt đầu']).toBe('2026-07-30');
     expect(row['Ngày kết thúc']).toBe('2026-08-02');
+    expect(row.tourDuration).toBe('3 ngày 2 đêm');
     expect(row.__businessLineCode).toBe('TOUR_DOMESTIC');
     expect(row.__businessLineName).toBe('TOUR');
     expect(row.__marketTypeCode).toBe('DOMESTIC');

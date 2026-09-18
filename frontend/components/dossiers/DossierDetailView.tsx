@@ -1,12 +1,19 @@
-'use client';
+"use client";
 
-import React, { useMemo } from 'react';
-import { Alert } from 'antd';
-import { useDossierDetail } from '@/hooks/dossiers';
-import { useDossierEstimates, useEstimateDetail } from '@/hooks/estimates';
-import { EstimateCostLine, EstimateRevenueLine, EstimateStatus } from '@/types/estimate';
-import { useAuthStore } from '@/lib/stores/auth-store';
-import { useWorkflowHistory } from '@/hooks/workflow';
+import React, { useMemo } from "react";
+import { Alert } from "antd";
+import { useDossierDetail } from "@/hooks/dossiers";
+import { useDossierEstimates, useEstimateDetail } from "@/hooks/estimates";
+import { EstimateStatus } from "@/types/estimate";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { useWorkflowHistory } from "@/hooks/workflow";
+import {
+  EXCEL_VAT_DIVISOR,
+  getWorkbookNetAmount,
+  sumWorkbookGrossAmounts,
+} from "@/lib/financial-calculations";
+import { parseVatRate } from "./detail/utils";
+import { classifyCategory } from "./detail/components/DossierCostTable";
 import {
   DossierActionModal,
   DossierDetailTabs,
@@ -18,7 +25,7 @@ import {
   OperatorNotesCard,
   estimateStatusMeta,
   useDossierWorkflowActions,
-} from './detail';
+} from "./detail";
 
 export interface DossierDetailViewProps {
   dossierId: string;
@@ -32,9 +39,9 @@ export default function DossierDetailView({
   onClose,
 }: DossierDetailViewProps) {
   const hasRole = useAuthStore((state) => state.hasRole);
-  const isOperator = hasRole('OPERATOR');
-  const isCeoAdmin = hasRole(['SUPER_ADMIN', 'CEO_ADMIN']);
-  const isSales = hasRole('SALES');
+  const isOperator = hasRole("OPERATOR");
+  const isCeoAdmin = hasRole(["SUPER_ADMIN", "CEO_ADMIN"]);
+  const isSales = hasRole("SALES");
 
   const dossierQuery = useDossierDetail(dossierId);
   const estimatesQuery = useDossierEstimates(dossierId);
@@ -64,21 +71,22 @@ export default function DossierDetailView({
   });
 
   // Financial calculations
-  const revenue =
-    estimate?.revenueLines?.reduce(
-      (sum: number, line: EstimateRevenueLine) => sum + Number(line.netAmount || 0),
-      0,
-    ) || 0;
-  const cost =
-    estimate?.costLines?.reduce(
-      (sum: number, line: EstimateCostLine) => sum + Number(line.netAmount || 0),
-      0,
-    ) || 0;
+  const revenueGross = sumWorkbookGrossAmounts(estimate?.revenueLines || []);
+  const revenue = revenueGross / EXCEL_VAT_DIVISOR;
+  const cost = (estimate?.costLines || []).reduce(
+    (sum: number, line: any) =>
+      sum +
+      (parseVatRate(line.vatRate) > 0 && classifyCategory(line).code === "1.4"
+        ? 0
+        : getWorkbookNetAmount(line, parseVatRate(line.vatRate) > 0)),
+    0,
+  );
   const profit = revenue - cost;
-  const margin = revenue ? ((profit / revenue) * 100).toFixed(2) : '0.00';
+  const margin = revenue ? ((profit / revenue) * 100).toFixed(2) : "0.00";
   const meta =
-    estimateStatusMeta[dossier?.status || estimate?.status || EstimateStatus.DRAFT] ||
-    estimateStatusMeta.DRAFT;
+    estimateStatusMeta[
+      dossier?.status || estimate?.status || EstimateStatus.DRAFT
+    ] || estimateStatusMeta.DRAFT;
 
   if (dossierQuery.isError) {
     return (
@@ -95,7 +103,7 @@ export default function DossierDetailView({
   const canOperate = isOperator || isCeoAdmin;
 
   return (
-    <div className={`space-y-4 ${isDrawer ? 'pb-24' : 'pb-20'}`}>
+    <div className={`space-y-4 ${isDrawer ? "pb-24" : "pb-20"}`}>
       {/* 1. Header / Breadcrumb */}
       <DossierHeader
         dossier={dossier}
@@ -129,7 +137,7 @@ export default function DossierDetailView({
       {/* 4. Khung 5 Tabs chi tiết & Timeline lịch sử */}
       <div
         className={`grid grid-cols-1 gap-4 ${
-          isDrawer ? '' : 'xl:grid-cols-[minmax(0,1fr)_320px]'
+          isDrawer ? "" : "xl:grid-cols-[minmax(0,1fr)_320px]"
         }`}
       >
         <DossierDetailTabs
@@ -137,7 +145,7 @@ export default function DossierDetailView({
           estimateLoading={estimateQuery.isLoading}
           dossierId={dossierId}
           dossier={dossier}
-          isLocked={dossier?.status === 'LOCKED'}
+          isLocked={dossier?.status === "LOCKED"}
         />
 
         <aside className="space-y-4">

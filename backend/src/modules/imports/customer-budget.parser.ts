@@ -27,6 +27,7 @@ export interface ParsedCustomerBudgetRow {
   'Tuyến đường': string;
   'Ngày bắt đầu': string;
   'Ngày kết thúc': string;
+  tourDuration: string;
   'Mức độ ưu tiên': string;
   __importFormat: typeof CUSTOMER_BUDGET_FORMAT;
   __businessLineCode: string;
@@ -194,6 +195,7 @@ export function parseCustomerBudgetWorkbook(
   const businessLineName = text(cell('H13')) || 'TOUR';
   const marketTypeName = text(cell('H15')) || 'NỘI ĐỊA';
   const { startDate, endDate } = parseDateRange(cell('F11'));
+  const tourDuration = text(cell('H11'));
   const startCode = formatDateCode(startDate);
   const code = `IMP-${startCode}-${slug(title).slice(0, 30)}`.slice(0, 50);
   const phoneRaw = text(cell('E10')).replace(/\D/g, '');
@@ -291,6 +293,7 @@ export function parseCustomerBudgetWorkbook(
     'Tuyến đường': text(cell('C11')),
     'Ngày bắt đầu': startDate,
     'Ngày kết thúc': endDate,
+    tourDuration,
     'Mức độ ưu tiên': 'MEDIUM',
     __importFormat: CUSTOMER_BUDGET_FORMAT,
     __businessLineCode: businessLineCode(businessLineName, marketTypeName),

@@ -55,6 +55,8 @@ export default function SalesDossiersChart({ items }: SalesDossiersChartProps) {
         scales: {
           x: {
             beginAtZero: true,
+            min: 0,
+            suggestedMax: 5,
             ticks: { precision: 0 },
             grid: { color: '#EEF0EF' },
             border: { display: false },

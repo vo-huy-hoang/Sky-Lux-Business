@@ -62,6 +62,7 @@ export interface DossierItem {
   route?: string;
   startDate?: string;
   endDate?: string;
+  tourDuration?: string;
   status: string;
   priority?: string;
   customer?: {

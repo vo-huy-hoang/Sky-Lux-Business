@@ -87,7 +87,7 @@ export default function OperatorRevenue() {
       <section className="grid gap-4 2xl:grid-cols-3">
         <Card className="op-card" title="Hồ sơ tạo mới theo tháng">
           <div className="h-[286px]">
-            {loading ? <Skeleton active /> : monthlyTrend.length ? <Bar data={monthlyData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', align: 'start', labels: { boxWidth: 10, usePointStyle: true } } }, scales: { x: { grid: { display: false }, border: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#eef0ef' }, border: { display: false } } } }} /> : <Empty description="Chưa có hồ sơ" />}
+            {loading ? <Skeleton active /> : monthlyTrend.length ? <Bar data={monthlyData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', align: 'start', labels: { boxWidth: 10, usePointStyle: true } } }, scales: { x: { grid: { display: false }, border: { display: false } }, y: { beginAtZero: true, min: 0, suggestedMax: 5, ticks: { precision: 0 }, grid: { color: '#eef0ef' }, border: { display: false } } } }} /> : <Empty description="Chưa có hồ sơ" />}
           </div>
         </Card>
         <Card className="op-card" title="Tình trạng hồ sơ">

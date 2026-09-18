@@ -66,6 +66,14 @@ export class Dossier extends BaseEntity {
   @Column({ name: 'end_date', type: 'date', nullable: true })
   endDate?: string;
 
+  @Column({
+    name: 'tour_duration',
+    type: 'varchar',
+    length: 100,
+    nullable: true,
+  })
+  tourDuration?: string;
+
   @Column({ name: 'revenue_recognition_date', type: 'date', nullable: true })
   revenueRecognitionDate?: string;
 

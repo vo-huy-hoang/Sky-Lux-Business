@@ -224,8 +224,11 @@ export class ImportProcessor extends WorkerHost {
           relations: { customer: true },
         });
         if (existingDossier) {
-          const cName = existingDossier.customer?.displayName || customerName || '';
-          errors.push(`Đã tồn tại file dự toán này của khách hàng ${cName}`.trim());
+          const cName =
+            existingDossier.customer?.displayName || customerName || '';
+          errors.push(
+            `Đã tồn tại file dự toán này của khách hàng ${cName}`.trim(),
+          );
         }
       }
 
@@ -363,6 +366,13 @@ export class ImportProcessor extends WorkerHost {
           endDate: endDate
             ? new Date(endDate).toISOString().slice(0, 10)
             : undefined,
+          ...(isCustomerBudget && data.tourDuration
+            ? {
+                tourDuration: sanitizeCellValue(
+                  String(data.tourDuration).trim(),
+                ),
+              }
+            : {}),
           priority: data[priorityKey] || 'MEDIUM',
           ...(customerName
             ? { customerName: sanitizeCellValue(customerName) }

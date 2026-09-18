@@ -21,6 +21,39 @@ import {
   AuditEntityType,
 } from '../audit-logs/audit-event.constants';
 
+type CalculableLine = {
+  quantity?: number | null;
+  multiplier?: number | null;
+  unitPrice?: number | null;
+  vatRate?: number | null;
+};
+
+function numericValue(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function calculateLineNetAmount(line: CalculableLine): number {
+  return (
+    numericValue(line.quantity, 1) *
+    numericValue(line.multiplier, 1) *
+    numericValue(line.unitPrice, 0)
+  );
+}
+
+function calculateLineGrossAmount(line: CalculableLine): number {
+  const netAmount = calculateLineNetAmount(line);
+  return netAmount * (1 + numericValue(line.vatRate, 0) / 100);
+}
+
+function removeSourceAmountNote(note?: string): string | undefined {
+  const cleaned = note
+    ?.replace(/(?:^|;\s*)Số tiền nguồn:\s*[^;]*/gi, '')
+    .replace(/^\s*;\s*|\s*;\s*$/g, '')
+    .trim();
+  return cleaned || undefined;
+}
+
 @Injectable()
 export class EstimatesService {
   constructor(
@@ -177,11 +210,8 @@ export class EstimatesService {
 
     // Calculate math values for lines and assign organizationId
     const processedRevenueLines = revenueLines.map((line) => {
-      const netAmount =
-        Number(line.quantity || 1) *
-        Number(line.multiplier || 1) *
-        Number(line.unitPrice || 0);
-      const grossAmount = netAmount * (1 + Number(line.vatRate || 0) / 100);
+      const netAmount = calculateLineNetAmount(line);
+      const grossAmount = calculateLineGrossAmount(line);
       return this.revenueLineRepository.create({
         ...line,
         organizationId,
@@ -191,21 +221,12 @@ export class EstimatesService {
     });
 
     const processedCostLines = costLines.map((line) => {
-      const calculatedNetAmount =
-        Number(line.quantity || 1) *
-        Number(line.multiplier || 1) *
-        Number(line.unitPrice || 0);
-      const importedAmount = Number(line.sourceAmount);
-      const hasImportedAmount = Number.isFinite(importedAmount);
-      const netAmount = hasImportedAmount
-        ? importedAmount
-        : calculatedNetAmount;
-      const grossAmount = hasImportedAmount
-        ? importedAmount
-        : calculatedNetAmount * (1 + Number(line.vatRate || 0) / 100);
+      const netAmount = calculateLineNetAmount(line);
+      const grossAmount = calculateLineGrossAmount(line);
       return this.costLineRepository.create({
         ...line,
         organizationId,
+        sourceAmount: line.sourceAmount ?? null,
         netAmount,
         grossAmount,
       });
@@ -287,11 +308,8 @@ export class EstimatesService {
 
       // Update or create input lines
       estimate.revenueLines = revenueLines.map((line) => {
-        const netAmount =
-          Number(line.quantity || 1) *
-          Number(line.multiplier || 1) *
-          Number(line.unitPrice || 0);
-        const grossAmount = netAmount * (1 + Number(line.vatRate || 0) / 100);
+        const netAmount = calculateLineNetAmount(line);
+        const grossAmount = calculateLineGrossAmount(line);
 
         if (line.id) {
           const existing = estimate.revenueLines.find(
@@ -327,23 +345,23 @@ export class EstimatesService {
 
       // Update or create input lines
       estimate.costLines = costLines.map((line) => {
-        const calculatedNetAmount =
-          Number(line.quantity || 1) *
-          Number(line.multiplier || 1) *
-          Number(line.unitPrice || 0);
-        const importedAmount = Number(line.sourceAmount);
-        const hasImportedAmount = Number.isFinite(importedAmount);
-        const netAmount = hasImportedAmount
-          ? importedAmount
-          : calculatedNetAmount;
-        const grossAmount = hasImportedAmount
-          ? importedAmount
-          : calculatedNetAmount * (1 + Number(line.vatRate || 0) / 100);
+        const netAmount = calculateLineNetAmount(line);
+        const grossAmount = calculateLineGrossAmount(line);
 
         if (line.id) {
           const existing = estimate.costLines.find((el) => el.id === line.id);
+          const sourceAmount =
+            line.sourceAmount === null
+              ? null
+              : (line.sourceAmount ?? existing?.sourceAmount ?? null);
+          const note =
+            sourceAmount === null
+              ? removeSourceAmountNote(line.note ?? existing?.note)
+              : line.note;
           return Object.assign(existing || new EstimateCostLine(), {
             ...line,
+            sourceAmount,
+            note,
             netAmount,
             grossAmount,
           });
@@ -352,6 +370,7 @@ export class EstimatesService {
             ...line,
             organizationId,
             estimateId: id,
+            sourceAmount: line.sourceAmount ?? null,
             netAmount,
             grossAmount,
           });

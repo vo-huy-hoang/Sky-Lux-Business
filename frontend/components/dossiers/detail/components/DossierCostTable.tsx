@@ -1,15 +1,16 @@
-'use client';
+"use client";
 
-import React, { useMemo } from 'react';
-import { Tag } from 'antd';
-import { FileExcelOutlined } from '@ant-design/icons';
-import { EstimateCostLine } from '@/types/estimate';
-import { formatCurrency, parseVatRate } from '../utils';
+import React, { useMemo } from "react";
+import { Tag } from "antd";
+import { FileExcelOutlined } from "@ant-design/icons";
+import { EstimateCostLine } from "@/types/estimate";
+import { getWorkbookGrossAmount } from "@/lib/financial-calculations";
+import { formatCurrency, parseVatRate } from "../utils";
 
 function formatNumber(num?: number | string) {
-  if (num === undefined || num === null) return '-';
-  const val = typeof num === 'string' ? parseFloat(num) : num;
-  return isNaN(val) ? '-' : val.toLocaleString('vi-VN');
+  if (num === undefined || num === null) return "-";
+  const val = typeof num === "string" ? parseFloat(num) : num;
+  return isNaN(val) ? "-" : val.toLocaleString("vi-VN");
 }
 
 export interface CostTableRowItem {
@@ -31,20 +32,6 @@ export interface CostSubCategory {
   subTotal: number;
 }
 
-function getLineNetAmount(line: EstimateCostLine): number {
-  const netAmount = line.netAmount;
-  if (netAmount !== undefined && netAmount !== null) {
-    const parsedNetAmount = Number(netAmount);
-    if (Number.isFinite(parsedNetAmount)) return parsedNetAmount;
-  }
-
-  return (
-    (Number(line.quantity) || 0) *
-    (Number(line.multiplier) || 1) *
-    (Number(line.unitPrice) || 0)
-  );
-}
-
 export function extractExplanation(line: EstimateCostLine): string {
   if (line.supplier?.displayName) return line.supplier.displayName;
   if (line.supplier?.name) return line.supplier.name;
@@ -53,9 +40,9 @@ export function extractExplanation(line: EstimateCostLine): string {
     if (matchNcc) return matchNcc[1].trim();
     const matchProgress = line.note.match(/Tiến độ:\s*([^;]+)/i);
     if (matchProgress) return matchProgress[1].trim();
-    if (!line.note.includes('Số tiền nguồn')) return line.note;
+    if (!line.note.includes("Số tiền nguồn")) return line.note;
   }
-  return '';
+  return "";
 }
 
 export function classifyCategory(line: {
@@ -67,32 +54,68 @@ export function classifyCategory(line: {
   title: string;
   order: number;
 } {
-  const explicitCat = (line.categoryTitle || line.serviceCategory?.name || '').toUpperCase().trim();
-  if (explicitCat === 'VÉ THAM QUAN') return { code: '1.1', title: 'VÉ THAM QUAN', order: 1 };
-  if (explicitCat === 'KHÁCH SẠN') return { code: '1.2', title: 'KHÁCH SẠN', order: 2 };
-  if (explicitCat === 'ĂN UỐNG') return { code: '1.2b', title: 'ĂN UỐNG', order: 3 };
-  if (explicitCat === 'VẬN CHUYỂN') return { code: '1.3', title: 'VẬN CHUYỂN', order: 4 };
-  if (explicitCat === 'CÁC DỊCH VỤ KHÁC') return { code: '1.4', title: 'CÁC DỊCH VỤ KHÁC', order: 5 };
+  const explicitCat = (line.categoryTitle || line.serviceCategory?.name || "")
+    .toUpperCase()
+    .trim();
+  if (explicitCat === "VÉ THAM QUAN")
+    return { code: "1.1", title: "VÉ THAM QUAN", order: 1 };
+  if (explicitCat === "KHÁCH SẠN")
+    return { code: "1.2", title: "KHÁCH SẠN", order: 2 };
+  if (explicitCat === "ĂN UỐNG")
+    return { code: "1.2b", title: "ĂN UỐNG", order: 3 };
+  if (explicitCat === "VẬN CHUYỂN")
+    return { code: "1.3", title: "VẬN CHUYỂN", order: 4 };
+  if (explicitCat === "CÁC DỊCH VỤ KHÁC")
+    return { code: "1.4", title: "CÁC DỊCH VỤ KHÁC", order: 5 };
 
-  const desc = (line.description || '').toLowerCase();
-  const cat = (line.serviceCategory?.name || '').toLowerCase();
+  const desc = (line.description || "").toLowerCase();
+  const cat = (line.serviceCategory?.name || "").toLowerCase();
 
-  if (desc.includes('gala') || desc.includes('team building') || desc.includes('hội nghị') || cat.includes('chi phí khác')) {
-    return { code: '1.4', title: 'CÁC DỊCH VỤ KHÁC', order: 5 };
+  if (
+    desc.includes("gala") ||
+    desc.includes("team building") ||
+    desc.includes("hội nghị") ||
+    cat.includes("chi phí khác")
+  ) {
+    return { code: "1.4", title: "CÁC DỊCH VỤ KHÁC", order: 5 };
   }
-  if (desc.includes('vé tham quan') || desc.includes('hội an') || desc.includes('bà nà') || desc.includes('đại nội') || cat.includes('vé tham quan')) {
-    return { code: '1.1', title: 'VÉ THAM QUAN', order: 1 };
+  if (
+    desc.includes("vé tham quan") ||
+    desc.includes("hội an") ||
+    desc.includes("bà nà") ||
+    desc.includes("đại nội") ||
+    cat.includes("vé tham quan")
+  ) {
+    return { code: "1.1", title: "VÉ THAM QUAN", order: 1 };
   }
-  if (desc.includes('khách sạn') || desc.includes('mường thanh') || desc.includes('hương giang') || desc.includes('phòng') || cat.includes('khách sạn')) {
-    return { code: '1.2', title: 'KHÁCH SẠN', order: 2 };
+  if (
+    desc.includes("khách sạn") ||
+    desc.includes("mường thanh") ||
+    desc.includes("hương giang") ||
+    desc.includes("phòng") ||
+    cat.includes("khách sạn")
+  ) {
+    return { code: "1.2", title: "KHÁCH SẠN", order: 2 };
   }
-  if (desc.includes('ăn uống') || desc.includes('madam lân') || desc.includes('cơm niêu') || desc.includes('trưa ngày') || desc.includes('tối ngày') || cat.includes('nhà hàng')) {
-    return { code: '1.2b', title: 'ĂN UỐNG', order: 3 };
+  if (
+    desc.includes("ăn uống") ||
+    desc.includes("madam lân") ||
+    desc.includes("cơm niêu") ||
+    desc.includes("trưa ngày") ||
+    desc.includes("tối ngày") ||
+    cat.includes("nhà hàng")
+  ) {
+    return { code: "1.2b", title: "ĂN UỐNG", order: 3 };
   }
-  if (desc.includes('xe') || desc.includes('vận chuyển') || desc.includes('triệu bảo ý') || cat.includes('vận chuyển')) {
-    return { code: '1.3', title: 'VẬN CHUYỂN', order: 4 };
+  if (
+    desc.includes("xe") ||
+    desc.includes("vận chuyển") ||
+    desc.includes("triệu bảo ý") ||
+    cat.includes("vận chuyển")
+  ) {
+    return { code: "1.3", title: "VẬN CHUYỂN", order: 4 };
   }
-  return { code: '1.4', title: 'CÁC DỊCH VỤ KHÁC', order: 5 };
+  return { code: "1.4", title: "CÁC DỊCH VỤ KHÁC", order: 5 };
 }
 
 export interface DossierCostTableProps {
@@ -100,59 +123,80 @@ export interface DossierCostTableProps {
   className?: string;
 }
 
-export function DossierCostTable({ costLines = [], className = '' }: DossierCostTableProps) {
+export function DossierCostTable({
+  costLines = [],
+  className = "",
+}: DossierCostTableProps) {
   // Categorize lines into Section I (VAT) and Section II (NO VAT)
-  const { vatSections, noVatItems, totalVat, totalNoVat, grandTotal } = useMemo(() => {
-    // Process only cost lines received from the database/API.
-    const vatMap = new Map<string, { code: string; title: string; order: number; items: CostTableRowItem[] }>();
-    const noVatList: CostTableRowItem[] = [];
+  const { vatSections, noVatItems, totalVat, totalNoVat, grandTotal } =
+    useMemo(() => {
+      // Process only cost lines received from the database/API.
+      const vatMap = new Map<
+        string,
+        {
+          code: string;
+          title: string;
+          order: number;
+          items: CostTableRowItem[];
+        }
+      >();
+      const noVatList: CostTableRowItem[] = [];
 
-    costLines.forEach((line, index) => {
-      const isVat = parseVatRate(line.vatRate) > 0;
-      const netAmount = getLineNetAmount(line);
+      costLines.forEach((line, index) => {
+        const isVat = parseVatRate(line.vatRate) > 0;
+        const grossAmount = getWorkbookGrossAmount(line);
 
-      const item: CostTableRowItem = {
-        id: line.id || `line-${index}`,
-        stt: String(index + 1),
-        content: line.description || 'Dịch vụ',
-        explanation: extractExplanation(line),
-        quantity: Number(line.quantity) || 0,
-        unit: Number(line.multiplier) || 1,
-        unitPrice: Number(line.unitPrice) || 0,
-        totalAmount: netAmount,
+        const item: CostTableRowItem = {
+          id: line.id || `line-${index}`,
+          stt: String(index + 1),
+          content: line.description || "Dịch vụ",
+          explanation: extractExplanation(line),
+          quantity: Number(line.quantity) || 0,
+          unit: Number(line.multiplier) || 1,
+          unitPrice: Number(line.unitPrice) || 0,
+          totalAmount: grossAmount,
+        };
+
+        if (isVat) {
+          const cat = classifyCategory(line);
+          const group = vatMap.get(cat.title) || {
+            code: cat.code,
+            title: cat.title,
+            order: cat.order,
+            items: [],
+          };
+          group.items.push(item);
+          vatMap.set(cat.title, group);
+        } else {
+          noVatList.push(item);
+        }
+      });
+
+      const sections = Array.from(vatMap.values())
+        .sort((a, b) => a.order - b.order)
+        .map((sec) => ({
+          code: sec.code,
+          title: sec.title,
+          items: sec.items,
+          subTotal: sec.items.reduce((sum, it) => sum + it.totalAmount, 0),
+        }));
+
+      const tVat = sections.reduce((sum, s) => sum + s.subTotal, 0);
+      const tNoVat = noVatList.reduce((sum, it) => sum + it.totalAmount, 0);
+
+      return {
+        vatSections: sections,
+        noVatItems: noVatList,
+        totalVat: tVat,
+        totalNoVat: tNoVat,
+        grandTotal: tVat + tNoVat,
       };
-
-      if (isVat) {
-        const cat = classifyCategory(line);
-        const group = vatMap.get(cat.title) || { code: cat.code, title: cat.title, order: cat.order, items: [] };
-        group.items.push(item);
-        vatMap.set(cat.title, group);
-      } else {
-        noVatList.push(item);
-      }
-    });
-
-    const sections = Array.from(vatMap.values()).sort((a, b) => a.order - b.order).map(sec => ({
-      code: sec.code,
-      title: sec.title,
-      items: sec.items,
-      subTotal: sec.items.reduce((sum, it) => sum + it.totalAmount, 0),
-    }));
-
-    const tVat = sections.reduce((sum, s) => sum + s.subTotal, 0);
-    const tNoVat = noVatList.reduce((sum, it) => sum + it.totalAmount, 0);
-
-    return {
-      vatSections: sections,
-      noVatItems: noVatList,
-      totalVat: tVat,
-      totalNoVat: tNoVat,
-      grandTotal: tVat + tNoVat,
-    };
-  }, [costLines]);
+    }, [costLines]);
 
   return (
-    <div className={`border border-slate-200/90 rounded-2xl bg-white shadow-sm overflow-hidden ${className}`}>
+    <div
+      className={`border border-slate-200/90 rounded-2xl bg-white shadow-sm overflow-hidden ${className}`}
+    >
       {/* 1. Header Bar: Title & Summary badges */}
       <div className="p-4 bg-white border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -164,7 +208,10 @@ export function DossierCostTable({ costLines = [], className = '' }: DossierCost
               <h3 className="text-xs font-bold text-slate-900 mb-0 uppercase tracking-tight">
                 Chi phí theo hạng mục
               </h3>
-              <Tag color="green" className="text-[10px] font-semibold px-2 py-0.5 rounded-full border-0 bg-emerald-50 text-emerald-700">
+              <Tag
+                color="green"
+                className="text-[10px] font-semibold px-2 py-0.5 rounded-full border-0 bg-emerald-50 text-emerald-700"
+              >
                 Chuẩn Excel APP
               </Tag>
             </div>
@@ -177,13 +224,22 @@ export function DossierCostTable({ costLines = [], className = '' }: DossierCost
         {/* Quick Summary Pill Counters */}
         <div className="flex items-center gap-2 text-xs">
           <div className="px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-100/80 text-sky-900 font-medium text-[11px]">
-            Có VAT: <span className="font-mono font-bold">{formatCurrency(totalVat)}</span>
+            Có VAT:{" "}
+            <span className="font-mono font-bold">
+              {formatCurrency(totalVat)}
+            </span>
           </div>
           <div className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-100/80 text-amber-900 font-medium text-[11px]">
-            Chưa VAT: <span className="font-mono font-bold">{formatCurrency(totalNoVat)}</span>
+            Chưa VAT:{" "}
+            <span className="font-mono font-bold">
+              {formatCurrency(totalNoVat)}
+            </span>
           </div>
           <div className="px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-100/80 text-rose-900 font-bold text-[11px]">
-            Tổng chi phí: <span className="font-mono font-bold">{formatCurrency(grandTotal)}</span>
+            Tổng chi phí:{" "}
+            <span className="font-mono font-bold">
+              {formatCurrency(grandTotal)}
+            </span>
           </div>
         </div>
       </div>
@@ -194,12 +250,24 @@ export function DossierCostTable({ costLines = [], className = '' }: DossierCost
           {/* Header Row */}
           <thead>
             <tr className="bg-slate-100 text-slate-800 font-bold text-[11px] uppercase tracking-wider border-b border-slate-300">
-              <th className="py-2.5 px-2 text-center w-10 border-r border-slate-300">STT</th>
-              <th className="py-2.5 px-2.5 min-w-[150px] border-r border-slate-300">NỘI DUNG</th>
-              <th className="py-2.5 px-2.5 min-w-[120px] border-r border-slate-300">DIỄN GIẢI</th>
-              <th className="py-2.5 px-1.5 text-center w-12 border-r border-slate-300">SL</th>
-              <th className="py-2.5 px-1.5 text-center w-12 border-r border-slate-300">ĐVT</th>
-              <th className="py-2.5 px-2 text-right w-28 border-r border-slate-300">ĐƠN GIÁ</th>
+              <th className="py-2.5 px-2 text-center w-10 border-r border-slate-300">
+                STT
+              </th>
+              <th className="py-2.5 px-2.5 min-w-[150px] border-r border-slate-300">
+                NỘI DUNG
+              </th>
+              <th className="py-2.5 px-2.5 min-w-[120px] border-r border-slate-300">
+                DIỄN GIẢI
+              </th>
+              <th className="py-2.5 px-1.5 text-center w-12 border-r border-slate-300">
+                SL
+              </th>
+              <th className="py-2.5 px-1.5 text-center w-12 border-r border-slate-300">
+                ĐVT
+              </th>
+              <th className="py-2.5 px-2 text-right w-28 border-r border-slate-300">
+                ĐƠN GIÁ
+              </th>
               <th className="py-2.5 px-2.5 text-right w-32">GIÁ TIỀN</th>
             </tr>
           </thead>
@@ -209,15 +277,23 @@ export function DossierCostTable({ costLines = [], className = '' }: DossierCost
             {/* PHẦN I: DỊCH VỤ ĐẦU VÀO CÓ VAT                          */}
             {/* ======================================================== */}
             <tr className="bg-[#D9EAF7] text-slate-900 font-bold border-y border-sky-300">
-              <td className="py-2 px-2 text-center font-bold border-r border-sky-200">I</td>
-              <td colSpan={6} className="py-2 px-3 tracking-wide uppercase font-bold text-xs">
+              <td className="py-2 px-2 text-center font-bold border-r border-sky-200">
+                I
+              </td>
+              <td
+                colSpan={6}
+                className="py-2 px-3 tracking-wide uppercase font-bold text-xs"
+              >
                 DỊCH VỤ ĐẦU VÀO CÓ VAT
               </td>
             </tr>
 
             {vatSections.length === 0 && noVatItems.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-slate-400 italic">
+                <td
+                  colSpan={7}
+                  className="py-8 text-center text-slate-400 italic"
+                >
                   Chưa có dữ liệu chi phí từ hệ thống
                 </td>
               </tr>
@@ -234,7 +310,7 @@ export function DossierCostTable({ costLines = [], className = '' }: DossierCost
                     {sec.title}
                   </td>
                   <td className="py-1.5 px-3 text-[11px] font-bold text-sky-800 uppercase border-r border-slate-300">
-                    {secIdx === 0 ? 'NHÀ CUNG CẤP' : ''}
+                    {secIdx === 0 ? "NHÀ CUNG CẤP" : ""}
                   </td>
                   <td className="border-r border-slate-300" />
                   <td className="border-r border-slate-300" />
@@ -255,7 +331,7 @@ export function DossierCostTable({ costLines = [], className = '' }: DossierCost
                       {row.content}
                     </td>
                     <td className="py-2 px-3 text-slate-700 text-xs border-r border-slate-200">
-                      {row.explanation || '-'}
+                      {row.explanation || "-"}
                     </td>
                     <td className="py-2 px-2 text-center font-mono font-semibold text-slate-800 text-xs border-r border-slate-200">
                       {row.quantity}
@@ -278,8 +354,13 @@ export function DossierCostTable({ costLines = [], className = '' }: DossierCost
             {/* PHẦN II: DỊCH VỤ ĐẦU VÀO CHƯA VAT                        */}
             {/* ======================================================== */}
             <tr className="bg-[#FFF2CC] text-amber-950 font-bold border-y border-amber-300">
-              <td className="py-2 px-2 text-center font-bold border-r border-amber-200">II</td>
-              <td colSpan={6} className="py-2 px-3 tracking-wide uppercase font-bold text-xs">
+              <td className="py-2 px-2 text-center font-bold border-r border-amber-200">
+                II
+              </td>
+              <td
+                colSpan={6}
+                className="py-2 px-3 tracking-wide uppercase font-bold text-xs"
+              >
                 DỊCH VỤ ĐẦU VÀO CHƯA VAT
               </td>
             </tr>
@@ -296,7 +377,7 @@ export function DossierCostTable({ costLines = [], className = '' }: DossierCost
                   {row.content}
                 </td>
                 <td className="py-2 px-3 text-slate-700 text-xs border-r border-slate-200">
-                  {row.explanation || '-'}
+                  {row.explanation || "-"}
                 </td>
                 <td className="py-2 px-2 text-center font-mono font-semibold text-slate-800 text-xs border-r border-slate-200">
                   {row.quantity}
@@ -317,7 +398,10 @@ export function DossierCostTable({ costLines = [], className = '' }: DossierCost
           {/* Footer Row: TỔNG CỘNG */}
           <tfoot>
             <tr className="bg-[#FCE4D6] text-slate-900 font-bold border-t-2 border-slate-400">
-              <td colSpan={6} className="py-2.5 px-3 text-center font-extrabold uppercase tracking-wider text-xs border-r border-slate-300">
+              <td
+                colSpan={6}
+                className="py-2.5 px-3 text-center font-extrabold uppercase tracking-wider text-xs border-r border-slate-300"
+              >
                 TỔNG CỘNG
               </td>
               <td className="py-2.5 px-3 text-right font-mono font-extrabold text-sm text-slate-950">
@@ -330,9 +414,15 @@ export function DossierCostTable({ costLines = [], className = '' }: DossierCost
 
       {/* Footer Notes */}
       <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-        <span className="italic">* Bảng chiết tính chi phí đầu vào theo định dạng chuẩn file mẫu 1908 DỰ TRÙ - APP.xlsx</span>
+        <span className="italic">
+          * Bảng chiết tính chi phí đầu vào theo định dạng chuẩn file mẫu 1908
+          DỰ TRÙ - APP.xlsx
+        </span>
         <span className="font-medium text-slate-500">
-          Tổng cộng: {vatSections.reduce((acc, s) => acc + s.items.length, 0) + noVatItems.length} hạng mục dịch vụ
+          Tổng cộng:{" "}
+          {vatSections.reduce((acc, s) => acc + s.items.length, 0) +
+            noVatItems.length}{" "}
+          hạng mục dịch vụ
         </span>
       </div>
     </div>

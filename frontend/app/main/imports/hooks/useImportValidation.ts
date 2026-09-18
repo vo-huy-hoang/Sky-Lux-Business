@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { PaginatedImportRowsResponse } from "@/types/import";
+import { EXCEL_VAT_DIVISOR } from "@/lib/financial-calculations";
 
 export interface ValidatedLine {
   id: string;
@@ -11,6 +12,7 @@ export interface ValidatedLine {
   unit?: string;
   unitText?: string;
   quantity: number;
+  multiplier?: number;
   unitPrice: number | string;
   unitPriceError?: boolean;
   vatRate: number | string;
@@ -45,64 +47,59 @@ export interface ImportClassification {
 }
 
 function classificationLabel(value: unknown, fallback: string): string {
-  const text = String(value ?? '').trim();
+  const text = String(value ?? "").trim();
   if (!text) return fallback;
-  if (text === 'TOUR_DOMESTIC') return 'TOUR';
-  if (text === 'DOMESTIC') return 'NỘI ĐỊA';
+  if (text === "TOUR_DOMESTIC") return "TOUR";
+  if (text === "DOMESTIC") return "NỘI ĐỊA";
   return text;
 }
 
 function amountOf(line: ValidatedLine): number {
-  const importedAmount = Number(line.totalAmount);
-  if (Number.isFinite(importedAmount)) return importedAmount;
-
   return (
-    (Number(line.quantity) || 0) *
-    (Number(line.unitPrice) || 0)
+    Number(line.quantity ?? 0) *
+    Number(line.multiplier ?? 1) *
+    Number(line.unitPrice ?? 0)
   );
 }
 
 /**
- * Đồng bộ công thức với bảng tổng hợp cuối trong file Excel.
- * Excel đối soát chi phí VAT từ G22:G38 và chi phí chưa VAT từ G46:G51.
- * Vì vậy chỉ loại nhóm OTHER khi dòng thuộc nhóm có VAT; nhóm OTHER trong
- * phần chưa VAT vẫn thuộc vùng G46:G51 và phải được cộng vào Dịch vụ 0%.
+ * Tổng hợp khớp công thức trong sheet DỰ TOÁN của file Excel mẫu.
+ * Nhóm có VAT chia 1.08; nhóm chưa VAT giữ nguyên.
  */
 export function calculateImportSummary(
   revenues: ValidatedLine[] = [],
   costs: ValidatedLine[] = [],
-  netDivisor = 1.08,
 ): ImportSummary {
-  const totalRevenue = revenues.reduce(
+  const totalRevenueGross = revenues.reduce(
     (sum, line) => sum + amountOf(line),
     0,
   );
-  const service10Costs = costs
+  const service10CostGross = costs
     .filter(
       (line) =>
         Number(line.vatRate) > 0 && line.serviceCategoryCode !== "OTHER",
     )
     .reduce((sum, line) => sum + amountOf(line), 0);
-  const service0Costs = costs
+  const service0CostGross = costs
     .filter((line) => Number(line.vatRate) === 0)
     .reduce((sum, line) => sum + amountOf(line), 0);
 
-  const service10NetRevenue = Math.round(totalRevenue / netDivisor);
-  const service10NetCost = Math.round(service10Costs / netDivisor);
+  const service10Revenue = totalRevenueGross / EXCEL_VAT_DIVISOR;
+  const service10Cost = service10CostGross / EXCEL_VAT_DIVISOR;
 
   const service10: ImportSummaryRow = {
-    customerRevenue: totalRevenue,
-    netRevenue: service10NetRevenue,
-    cost: service10Costs,
-    netCost: service10NetCost,
-    grossProfit: service10NetRevenue - service10NetCost,
+    customerRevenue: totalRevenueGross,
+    netRevenue: service10Revenue,
+    cost: service10CostGross,
+    netCost: service10Cost,
+    grossProfit: service10Revenue - service10Cost,
   };
   const service0: ImportSummaryRow = {
     customerRevenue: 0,
     netRevenue: 0,
-    cost: service0Costs,
-    netCost: Math.round(service0Costs),
-    grossProfit: -Math.round(service0Costs),
+    cost: service0CostGross,
+    netCost: service0CostGross,
+    grossProfit: -service0CostGross,
   };
   const total: ImportSummaryRow = {
     customerRevenue: service10.customerRevenue + service0.customerRevenue,
@@ -133,8 +130,8 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
     let totalCost = 0;
     let totalPax = 0;
     let classification: ImportClassification = {
-      businessLine: '-',
-      marketType: '-',
+      businessLine: "-",
+      marketType: "-",
     };
 
     const revenues: ValidatedLine[] = [];
@@ -152,12 +149,12 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
 
       classification = {
         businessLine: classificationLabel(
-          data.__businessLineName || data['MẢNG'] || data.__businessLineCode,
-          '-',
+          data.__businessLineName || data["MẢNG"] || data.__businessLineCode,
+          "-",
         ),
         marketType: classificationLabel(
-          data.__marketTypeName || data['LOẠI HÌNH'] || data.__marketTypeCode,
-          '-',
+          data.__marketTypeName || data["LOẠI HÌNH"] || data.__marketTypeCode,
+          "-",
         ),
       };
 
@@ -185,7 +182,9 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
         else if (status === "ERROR") errorCount++;
         totalCount++;
 
-        const grossAmount = (line.quantity || 0) * (line.unitPrice || 0);
+        const multiplier = line.multiplier ?? 1;
+        const grossAmount =
+          (line.quantity || 0) * multiplier * (line.unitPrice || 0);
         totalRevenue += grossAmount;
         totalPax += line.quantity || 0;
 
@@ -196,6 +195,7 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
           description: line.description,
           unit: line.unitCode || "PAX",
           quantity: line.quantity || 0,
+          multiplier,
           unitPrice: line.unitPrice || 0,
           vatRate: line.vatRate || 0,
           grossAmount,
@@ -217,8 +217,7 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
         const calcPrice =
           line.unitPrice ??
           (line.sourceAmount ?? 0) / safeQuantity / safeMultiplier;
-        const calcAmount =
-          line.sourceAmount ?? safeQuantity * safeMultiplier * calcPrice;
+        const calcAmount = safeQuantity * safeMultiplier * calcPrice;
 
         if (
           typeof line.unitPrice !== "number" &&
@@ -261,6 +260,7 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
           content: line.description || `Dịch vụ dòng ${idx + 1}`,
           supplier: line.supplierName || "Tự do",
           quantity: line.quantity || 1,
+          multiplier: safeMultiplier,
           unitText: "Gói",
           unitPrice: calcPrice,
           unitPriceError,

@@ -133,7 +133,7 @@ export class CreateEstimateCostLineDto {
   @IsNumber({}, { message: 'Số tiền nguồn phải là số' })
   @Min(0, { message: 'Số tiền nguồn không được âm' })
   @IsOptional()
-  sourceAmount?: number;
+  sourceAmount?: number | null;
 
   @ApiPropertyOptional({ description: 'Cơ sở tính giá' })
   @IsString()

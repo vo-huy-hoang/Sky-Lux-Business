@@ -4,6 +4,7 @@ import React from 'react';
 import { Card, Col, Row, Tag, Typography } from 'antd';
 import {
   CalendarOutlined,
+  ClockCircleOutlined,
   DollarOutlined,
   FolderOpenOutlined,
   RiseOutlined,
@@ -121,10 +122,17 @@ export function DossierSummaryCards({
       </Col>
       <Col xs={24} md={12} xl={isDrawer ? 12 : 6}>
         <SummaryCard
-          label="Ngày đi"
-          value={date(dossier?.startDate)}
+          label="Thời gian"
+          value={dossier?.startDate ? `Từ ${date(dossier.startDate)}` : '-'}
           sub={dossier?.endDate ? `Đến ${date(dossier.endDate)}` : undefined}
           icon={<CalendarOutlined />}
+        />
+      </Col>
+      <Col xs={24} md={12} xl={isDrawer ? 12 : 6}>
+        <SummaryCard
+          label="Số ngày"
+          value={dossier?.tourDuration || 'Chưa có dữ liệu'}
+          icon={<ClockCircleOutlined />}
         />
       </Col>
       <Col xs={24} md={12} xl={isDrawer ? 12 : 6}>
@@ -159,7 +167,7 @@ export function DossierSummaryCards({
       </Col>
       <Col xs={24} md={8} xl={isDrawer ? 8 : 4}>
         <SummaryCard
-          label="Lợi nhuận"
+          label="Lợi nhuận gộp"
           value={money(profit, estimate?.currency)}
           sub={`${margin}%`}
           icon={<RiseOutlined />}

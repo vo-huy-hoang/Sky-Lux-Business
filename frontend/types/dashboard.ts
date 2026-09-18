@@ -24,6 +24,13 @@ export interface CeoDashboardData {
   funnel: { status: string; count: number }[];
   vipCustomers: { customerName: string; spend: number }[];
   costBreakdown: { categoryName: string; amount: number }[];
+  revenueBreakdown: { businessLineName: string; amount: number }[];
+  marketBreakdown: {
+    marketName: string;
+    dossiers: number;
+    revenue: number;
+    profit: number;
+  }[];
   avgDossierClosingDays: number;
 }
 
@@ -57,5 +64,3 @@ export interface CeoMonthlyTrendItem {
   totalProfit: number;
   approvedDossiers: number;
 }
-
-

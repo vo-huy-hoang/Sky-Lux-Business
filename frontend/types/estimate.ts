@@ -40,6 +40,7 @@ export interface EstimateCostLine {
   unitId?: string;
   multiplier: number;
   unitPrice: number;
+  sourceAmount?: number | null;
   vatRate: number;
   grossAmount: number;
   netAmount: number;

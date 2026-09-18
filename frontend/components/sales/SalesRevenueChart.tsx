@@ -20,13 +20,16 @@ function money(value?: number | null) {
   return `${new Intl.NumberFormat('vi-VN').format(value || 0)} đ`;
 }
 
-function compact(value?: number | null) {
-  const number = value || 0;
+function compact(value?: number | null | string) {
+  const number = Number(value);
+  if (!number || isNaN(number) || Math.abs(number) < 0.0001) return '0';
   if (Math.abs(number) >= 1_000_000_000)
     return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000_000)} tỷ`;
   if (Math.abs(number) >= 1_000_000)
     return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000)} tr`;
-  return new Intl.NumberFormat('vi-VN').format(number);
+  if (Math.abs(number) >= 1_000)
+    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000)} k`;
+  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(number);
 }
 
 interface SalesRevenueChartProps {
@@ -62,6 +65,8 @@ export default function SalesRevenueChart({ items }: SalesRevenueChartProps) {
     scales: {
       x: {
         beginAtZero: true,
+        min: 0,
+        suggestedMax: 10_000_000,
         ticks: { callback: (v) => compact(Number(v)) },
         grid: { color: '#EEF0EF' },
         border: { display: false },

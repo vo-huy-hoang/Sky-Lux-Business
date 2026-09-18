@@ -307,7 +307,7 @@ export function isPathAccessible(
 export function getRouteMeta(
   pathname: string | null,
   ctx: UserContext,
-): { title: string; subtitle: string } {
+): { title: string; subtitle: string; icon?: React.ReactNode } {
   if (!pathname) {
     return {
       title: 'Bảng điều khiển',
@@ -335,7 +335,7 @@ export function getRouteMeta(
       typeof matched.subtitle === 'function'
         ? matched.subtitle(ctx)
         : matched.subtitle;
-    return { title, subtitle };
+    return { title, subtitle, icon: matched.icon };
   }
 
   return {
