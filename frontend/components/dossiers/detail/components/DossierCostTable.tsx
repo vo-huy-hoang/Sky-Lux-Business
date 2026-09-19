@@ -4,13 +4,17 @@ import React, { useMemo } from "react";
 import { Tag } from "antd";
 import { FileExcelOutlined } from "@ant-design/icons";
 import { EstimateCostLine } from "@/types/estimate";
-import { getWorkbookGrossAmount } from "@/lib/financial-calculations";
-import { formatCurrency, parseVatRate } from "../utils";
+import {
+  formatCurrency,
+  parseCurrencyAmount,
+  getWorkbookGrossAmount,
+} from "@/lib/financial-calculations";
+import { parseVatRate, classifyCategory } from "../utils";
 
-function formatNumber(num?: number | string) {
-  if (num === undefined || num === null) return "-";
-  const val = typeof num === "string" ? parseFloat(num) : num;
-  return isNaN(val) ? "-" : val.toLocaleString("vi-VN");
+function formatNumber(num?: number | string, currency: string = "VND") {
+  if (num === undefined || num === null || num === "") return "-";
+  const val = parseCurrencyAmount(num, currency);
+  return formatCurrency(val, { currency, showSymbol: false });
 }
 
 export interface CostTableRowItem {
@@ -45,87 +49,18 @@ export function extractExplanation(line: EstimateCostLine): string {
   return "";
 }
 
-export function classifyCategory(line: {
-  description?: string;
-  serviceCategory?: { name?: string };
-  categoryTitle?: string;
-}): {
-  code: string;
-  title: string;
-  order: number;
-} {
-  const explicitCat = (line.categoryTitle || line.serviceCategory?.name || "")
-    .toUpperCase()
-    .trim();
-  if (explicitCat === "VÉ THAM QUAN")
-    return { code: "1.1", title: "VÉ THAM QUAN", order: 1 };
-  if (explicitCat === "KHÁCH SẠN")
-    return { code: "1.2", title: "KHÁCH SẠN", order: 2 };
-  if (explicitCat === "ĂN UỐNG")
-    return { code: "1.2b", title: "ĂN UỐNG", order: 3 };
-  if (explicitCat === "VẬN CHUYỂN")
-    return { code: "1.3", title: "VẬN CHUYỂN", order: 4 };
-  if (explicitCat === "CÁC DỊCH VỤ KHÁC")
-    return { code: "1.4", title: "CÁC DỊCH VỤ KHÁC", order: 5 };
-
-  const desc = (line.description || "").toLowerCase();
-  const cat = (line.serviceCategory?.name || "").toLowerCase();
-
-  if (
-    desc.includes("gala") ||
-    desc.includes("team building") ||
-    desc.includes("hội nghị") ||
-    cat.includes("chi phí khác")
-  ) {
-    return { code: "1.4", title: "CÁC DỊCH VỤ KHÁC", order: 5 };
-  }
-  if (
-    desc.includes("vé tham quan") ||
-    desc.includes("hội an") ||
-    desc.includes("bà nà") ||
-    desc.includes("đại nội") ||
-    cat.includes("vé tham quan")
-  ) {
-    return { code: "1.1", title: "VÉ THAM QUAN", order: 1 };
-  }
-  if (
-    desc.includes("khách sạn") ||
-    desc.includes("mường thanh") ||
-    desc.includes("hương giang") ||
-    desc.includes("phòng") ||
-    cat.includes("khách sạn")
-  ) {
-    return { code: "1.2", title: "KHÁCH SẠN", order: 2 };
-  }
-  if (
-    desc.includes("ăn uống") ||
-    desc.includes("madam lân") ||
-    desc.includes("cơm niêu") ||
-    desc.includes("trưa ngày") ||
-    desc.includes("tối ngày") ||
-    cat.includes("nhà hàng")
-  ) {
-    return { code: "1.2b", title: "ĂN UỐNG", order: 3 };
-  }
-  if (
-    desc.includes("xe") ||
-    desc.includes("vận chuyển") ||
-    desc.includes("triệu bảo ý") ||
-    cat.includes("vận chuyển")
-  ) {
-    return { code: "1.3", title: "VẬN CHUYỂN", order: 4 };
-  }
-  return { code: "1.4", title: "CÁC DỊCH VỤ KHÁC", order: 5 };
-}
+export { classifyCategory };
 
 export interface DossierCostTableProps {
   costLines?: EstimateCostLine[];
   className?: string;
+  currency?: string;
 }
 
 export function DossierCostTable({
   costLines = [],
   className = "",
+  currency = "VND",
 }: DossierCostTableProps) {
   // Categorize lines into Section I (VAT) and Section II (NO VAT)
   const { vatSections, noVatItems, totalVat, totalNoVat, grandTotal } =
@@ -226,19 +161,19 @@ export function DossierCostTable({
           <div className="px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-100/80 text-sky-900 font-medium text-[11px]">
             Có VAT:{" "}
             <span className="font-mono font-bold">
-              {formatCurrency(totalVat)}
+              {formatCurrency(totalVat, currency)}
             </span>
           </div>
           <div className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-100/80 text-amber-900 font-medium text-[11px]">
             Chưa VAT:{" "}
             <span className="font-mono font-bold">
-              {formatCurrency(totalNoVat)}
+              {formatCurrency(totalNoVat, currency)}
             </span>
           </div>
           <div className="px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-100/80 text-rose-900 font-bold text-[11px]">
             Tổng chi phí:{" "}
             <span className="font-mono font-bold">
-              {formatCurrency(grandTotal)}
+              {formatCurrency(grandTotal, currency)}
             </span>
           </div>
         </div>
@@ -340,10 +275,10 @@ export function DossierCostTable({
                       {row.unit}
                     </td>
                     <td className="py-2 px-3 text-right font-mono text-slate-800 text-xs border-r border-slate-200">
-                      {formatNumber(row.unitPrice)}
+                      {formatNumber(row.unitPrice, currency)}
                     </td>
                     <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 text-xs">
-                      {formatNumber(row.totalAmount)}
+                      {formatNumber(row.totalAmount, currency)}
                     </td>
                   </tr>
                 ))}
@@ -386,10 +321,10 @@ export function DossierCostTable({
                   {row.unit}
                 </td>
                 <td className="py-2 px-3 text-right font-mono text-slate-800 text-xs border-r border-slate-200">
-                  {formatNumber(row.unitPrice)}
+                  {formatNumber(row.unitPrice, currency)}
                 </td>
                 <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 text-xs">
-                  {formatNumber(row.totalAmount)}
+                  {formatNumber(row.totalAmount, currency)}
                 </td>
               </tr>
             ))}

@@ -13,24 +13,9 @@ import {
   Tooltip,
 } from 'chart.js';
 import { OperatorSalesSummaryItem } from '@/types/dashboard';
+import { formatCurrency } from '@/lib/financial-calculations';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
-
-function money(value?: number | null) {
-  return `${new Intl.NumberFormat('vi-VN').format(value || 0)} đ`;
-}
-
-function compact(value?: number | null | string) {
-  const number = Number(value);
-  if (!number || isNaN(number) || Math.abs(number) < 0.0001) return '0';
-  if (Math.abs(number) >= 1_000_000_000)
-    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000_000)} tỷ`;
-  if (Math.abs(number) >= 1_000_000)
-    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000)} tr`;
-  if (Math.abs(number) >= 1_000)
-    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000)} k`;
-  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(number);
-}
 
 interface SalesRevenueChartProps {
   items: OperatorSalesSummaryItem[];
@@ -58,7 +43,7 @@ export default function SalesRevenueChart({ items }: SalesRevenueChartProps) {
       legend: { display: false },
       tooltip: {
         callbacks: {
-          label: (context) => money(context.parsed.x),
+          label: (context) => formatCurrency(context.parsed.x),
         },
       },
     },
@@ -67,7 +52,7 @@ export default function SalesRevenueChart({ items }: SalesRevenueChartProps) {
         beginAtZero: true,
         min: 0,
         suggestedMax: 10_000_000,
-        ticks: { callback: (v) => compact(Number(v)) },
+        ticks: { callback: (v) => formatCurrency(Number(v), { compact: true, showSymbol: false }) },
         grid: { color: '#EEF0EF' },
         border: { display: false },
       },

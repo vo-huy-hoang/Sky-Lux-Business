@@ -316,16 +316,11 @@ export class ReportsService {
       query,
       access,
     );
-    const revenueGross = this.lineSumSql(
-      'estimate_revenue_lines',
-      'gross_amount',
-    );
-    const revenueNet = this.lineSumSql('estimate_revenue_lines', 'net_amount');
-    const costGross = this.lineSumSql('estimate_cost_lines', 'gross_amount');
-    const costNet = this.lineSumSql('estimate_cost_lines', 'net_amount');
-    const customerPaid = this.paymentSumSql(PaymentDirection.CUSTOMER_RECEIPT);
+    const { revenueGross, revenueNet, costGross, costNet, customerPaid } =
+      this.getFinancialLineSums();
 
     const rowsQuery = base
+      .clone()
       .select('dossier.id', 'dossierId')
       .addSelect('dossier.code', 'dossierCode')
       .addSelect('dossier.name', 'dossierName')
@@ -333,7 +328,10 @@ export class ReportsService {
       .addSelect('customer.displayName', 'customerName')
       .addSelect('dossier.salesUserId', 'salesUserId')
       .addSelect('salesUser.fullName', 'salesUserName')
-      .addSelect('dossier.revenueRecognitionDate', 'revenueRecognitionDate')
+      .addSelect(
+        'COALESCE(dossier.revenueRecognitionDate, dossier.endDate, dossier.startDate)',
+        'revenueRecognitionDate',
+      )
       .addSelect('dossier.status', 'dossierStatus')
       .addSelect('estimate.currency', 'currency')
       .addSelect(revenueGross, 'revenueGross')
@@ -341,7 +339,11 @@ export class ReportsService {
       .addSelect(costGross, 'costGross')
       .addSelect(costNet, 'costNet')
       .addSelect(customerPaid, 'customerPaid')
-      .orderBy('dossier.revenueRecognitionDate', 'DESC', 'NULLS LAST')
+      .orderBy(
+        'COALESCE(dossier.revenueRecognitionDate, dossier.endDate, dossier.startDate)',
+        'DESC',
+        'NULLS LAST',
+      )
       .addOrderBy('dossier.createdAt', 'DESC');
 
     if (paginate) this.applyPagination(rowsQuery, query);
@@ -377,15 +379,11 @@ export class ReportsService {
       query,
       access,
     ).andWhere('dossier.salesUserId IS NOT NULL');
-    const revenueGross = this.lineSumSql(
-      'estimate_revenue_lines',
-      'gross_amount',
-    );
-    const revenueNet = this.lineSumSql('estimate_revenue_lines', 'net_amount');
-    const costGross = this.lineSumSql('estimate_cost_lines', 'gross_amount');
-    const costNet = this.lineSumSql('estimate_cost_lines', 'net_amount');
+    const { revenueGross, revenueNet, costGross, costNet } =
+      this.getFinancialLineSums();
 
     const rowsQuery = base
+      .clone()
       .select('salesUser.id', 'salesUserId')
       .addSelect('salesUser.employeeCode', 'employeeCode')
       .addSelect('salesUser.fullName', 'salesUserName')
@@ -466,16 +464,11 @@ export class ReportsService {
       query,
       access,
     );
-    const revenueGross = this.lineSumSql(
-      'estimate_revenue_lines',
-      'gross_amount',
-    );
-    const revenueNet = this.lineSumSql('estimate_revenue_lines', 'net_amount');
-    const costGross = this.lineSumSql('estimate_cost_lines', 'gross_amount');
-    const costNet = this.lineSumSql('estimate_cost_lines', 'net_amount');
-    const customerPaid = this.paymentSumSql(PaymentDirection.CUSTOMER_RECEIPT);
+    const { revenueGross, revenueNet, costGross, costNet, customerPaid } =
+      this.getFinancialLineSums();
 
     const rowsQuery = base
+      .clone()
       .select('customer.id', 'customerId')
       .addSelect('customer.code', 'customerCode')
       .addSelect('customer.displayName', 'customerName')
@@ -493,20 +486,17 @@ export class ReportsService {
       .orderBy('revenueNet', 'DESC');
 
     if (paginate) this.applyPagination(rowsQuery, query);
-    const countQuery = base
-      .clone()
-      .select('COUNT(DISTINCT customer.id)', 'count');
-    const summaryQuery = base
-      .clone()
-      .select(`COALESCE(SUM(${revenueGross}), 0)`, 'revenueGross')
-      .addSelect(`COALESCE(SUM(${revenueNet}), 0)`, 'revenueNet')
-      .addSelect(`COALESCE(SUM(${costGross}), 0)`, 'costGross')
-      .addSelect(`COALESCE(SUM(${costNet}), 0)`, 'costNet')
-      .addSelect(`COALESCE(SUM(${customerPaid}), 0)`, 'customerPaid');
-    const [rawRows, countRaw, summaryRaw] = await Promise.all([
+    const [rawRows, total, summaryRaw] = await Promise.all([
       rowsQuery.getRawMany(),
-      countQuery.getRawOne(),
-      summaryQuery.getRawOne(),
+      this.countDistinct(base, 'customer.id'),
+      this.getFinancialSummary(
+        base,
+        revenueGross,
+        revenueNet,
+        costGross,
+        costNet,
+        customerPaid,
+      ),
     ]);
 
     const data = rawRows.map((row) => ({
@@ -519,11 +509,7 @@ export class ReportsService {
     }));
     return {
       data,
-      meta: this.reportMeta(
-        query,
-        Number(countRaw?.count || 0),
-        this.mapSummary(summaryRaw),
-      ),
+      meta: this.reportMeta(query, total, this.mapSummary(summaryRaw)),
     };
   }
 
@@ -536,6 +522,7 @@ export class ReportsService {
     this.validatePeriod(query);
     const base = this.createSupplierCostQuery(organizationId, query, access);
     const rowsQuery = base
+      .clone()
       .select('supplier.id', 'supplierId')
       .addSelect('supplier.code', 'supplierCode')
       .addSelect('supplier.name', 'supplierName')
@@ -552,17 +539,10 @@ export class ReportsService {
       .orderBy('costNet', 'DESC');
 
     if (paginate) this.applyPagination(rowsQuery, query);
-    const countQuery = base
-      .clone()
-      .select('COUNT(DISTINCT supplier.id)', 'count');
-    const summaryQuery = base
-      .clone()
-      .select('COALESCE(SUM(costLine.grossAmount), 0)', 'costGross')
-      .addSelect('COALESCE(SUM(costLine.netAmount), 0)', 'costNet');
-    const [rawRows, countRaw, summaryRaw] = await Promise.all([
+    const [rawRows, total, summaryRaw] = await Promise.all([
       rowsQuery.getRawMany(),
-      countQuery.getRawOne(),
-      summaryQuery.getRawOne(),
+      this.countDistinct(base, 'supplier.id'),
+      this.getSupplierCostSummary(base),
     ]);
 
     const data = rawRows.map((row) => ({
@@ -579,7 +559,7 @@ export class ReportsService {
     const costNet = Number(summaryRaw?.costNet || 0);
     return {
       data,
-      meta: this.reportMeta(query, Number(countRaw?.count || 0), {
+      meta: this.reportMeta(query, total, {
         revenueGross: 0,
         revenueNet: 0,
         costGross,
@@ -671,7 +651,7 @@ export class ReportsService {
   private applyDateFilter(qb: SelectQueryBuilder<any>, query: ReportQueryDto) {
     if (query.periodStart && query.periodEnd) {
       qb.andWhere(
-        'dossier.revenueRecognitionDate BETWEEN :periodStart AND :periodEnd',
+        'COALESCE(dossier.revenueRecognitionDate, dossier.endDate, dossier.startDate) BETWEEN :periodStart AND :periodEnd',
         { periodStart: query.periodStart, periodEnd: query.periodEnd },
       );
     }
@@ -768,18 +748,25 @@ export class ReportsService {
     };
   }
 
-  private async countDossiers(qb: SelectQueryBuilder<any>) {
+  private async countDossiers(qb: SelectQueryBuilder<any>): Promise<number> {
     const result = await qb
       .clone()
       .select('COUNT(DISTINCT dossier.id)', 'count')
+      .groupBy()
+      .orderBy()
       .getRawOne<{ count: string }>();
     return Number(result?.count || 0);
   }
 
-  private async countDistinct(qb: SelectQueryBuilder<any>, column: string) {
+  private async countDistinct(
+    qb: SelectQueryBuilder<any>,
+    column: string,
+  ): Promise<number> {
     const result = await qb
       .clone()
       .select(`COUNT(DISTINCT ${column})`, 'count')
+      .groupBy()
+      .orderBy()
       .getRawOne<{ count: string }>();
     return Number(result?.count || 0);
   }
@@ -797,10 +784,33 @@ export class ReportsService {
       .select(`COALESCE(SUM(${revenueGross}), 0)`, 'revenueGross')
       .addSelect(`COALESCE(SUM(${revenueNet}), 0)`, 'revenueNet')
       .addSelect(`COALESCE(SUM(${costGross}), 0)`, 'costGross')
-      .addSelect(`COALESCE(SUM(${costNet}), 0)`, 'costNet');
-    if (customerPaid)
+      .addSelect(`COALESCE(SUM(${costNet}), 0)`, 'costNet')
+      .groupBy()
+      .orderBy();
+    if (customerPaid) {
       summary.addSelect(`COALESCE(SUM(${customerPaid}), 0)`, 'customerPaid');
+    }
     return summary.getRawOne();
+  }
+
+  private getSupplierCostSummary(qb: SelectQueryBuilder<any>) {
+    return qb
+      .clone()
+      .select('COALESCE(SUM(costLine.grossAmount), 0)', 'costGross')
+      .addSelect('COALESCE(SUM(costLine.netAmount), 0)', 'costNet')
+      .groupBy()
+      .orderBy()
+      .getRawOne();
+  }
+
+  private getFinancialLineSums() {
+    return {
+      revenueGross: this.lineSumSql('estimate_revenue_lines', 'gross_amount'),
+      revenueNet: this.lineSumSql('estimate_revenue_lines', 'net_amount'),
+      costGross: this.lineSumSql('estimate_cost_lines', 'gross_amount'),
+      costNet: this.lineSumSql('estimate_cost_lines', 'net_amount'),
+      customerPaid: this.paymentSumSql(PaymentDirection.CUSTOMER_RECEIPT),
+    };
   }
 
   private lineSumSql(table: string, column: string) {

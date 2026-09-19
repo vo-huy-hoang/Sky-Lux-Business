@@ -58,6 +58,8 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
   const handleLogout = useCallback(async () => {
     try {
       await authService.logout();
+    } catch {
+      // Gracefully catch network or connection error so logout always succeeds locally
     } finally {
       queryClient.clear();
       logout();

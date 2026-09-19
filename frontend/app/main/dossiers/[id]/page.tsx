@@ -2,9 +2,21 @@
 
 import React, { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { Result, Button, Skeleton } from 'antd';
-import DossierDetailView from '@/components/dossiers/DossierDetailView';
 import { useAuthStore } from '@/lib/stores/auth-store';
+
+const DossierDetailView = dynamic(
+  () => import('@/components/dossiers/DossierDetailView'),
+  {
+    loading: () => (
+      <div className="p-6">
+        <Skeleton active paragraph={{ rows: 12 }} />
+      </div>
+    ),
+    ssr: false,
+  },
+);
 
 export default function DossierDetailPage() {
   const params = useParams<{ id: string }>();

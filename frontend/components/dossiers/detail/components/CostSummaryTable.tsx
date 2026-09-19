@@ -1,91 +1,24 @@
 "use client";
 
-import React from "react";
-import { EstimateCostLine } from "@/types/estimate";
-import { formatSummaryCurrency, parseVatRate } from "../utils";
-import { classifyCategory } from "./DossierCostTable";
+import { formatCurrency } from "@/lib/financial-calculations";
 import {
-  EXCEL_VAT_DIVISOR,
-  getWorkbookGrossAmount,
-} from "@/lib/financial-calculations";
+  CostSummaryRow,
+  calculateCostSummaryRows,
+} from "../hooks/useDossierFinancials";
 
-export interface CostSummaryRow {
-  key: string;
-  label: string;
-  revenue: number;
-  cost: number;
-  grossRevenue?: number;
-  grossCost?: number;
-  grossProfit: number;
-}
-
-/**
- * Tổng hợp khớp công thức trong sheet DỰ TOÁN của file Excel mẫu.
- * Nhóm có VAT chia 1.08; nhóm chưa VAT giữ nguyên.
- */
-export function calculateCostSummaryRows(
-  costLines: EstimateCostLine[] = [],
-  totalRevenueGross: number = 0,
-): CostSummaryRow[] {
-  const taxableRevenue = totalRevenueGross / EXCEL_VAT_DIVISOR;
-  const serviceVatGross = costLines
-    .filter(
-      (line) =>
-        parseVatRate(line.vatRate) > 0 && classifyCategory(line).code !== "1.4",
-    )
-    .reduce((sum, line) => sum + getWorkbookGrossAmount(line), 0);
-  const serviceVatCost = serviceVatGross / EXCEL_VAT_DIVISOR;
-
-  const serviceNoVatGross = costLines
-    .filter((line) => parseVatRate(line.vatRate) === 0)
-    .reduce((sum, line) => sum + getWorkbookGrossAmount(line), 0);
-  const serviceNoVatCost = serviceNoVatGross;
-
-  const rows: CostSummaryRow[] = [
-    {
-      key: "service-vat",
-      label: "Dịch vụ 10%",
-      revenue: taxableRevenue,
-      cost: serviceVatCost,
-      grossRevenue: totalRevenueGross,
-      grossCost: serviceVatGross,
-      grossProfit: taxableRevenue - serviceVatCost,
-    },
-    {
-      key: "service-no-vat",
-      label: "Dịch vụ 0%",
-      revenue: 0,
-      cost: serviceNoVatCost,
-      grossRevenue: 0,
-      grossCost: serviceNoVatGross,
-      grossProfit: -serviceNoVatCost,
-    },
-  ];
-
-  const totalRow: CostSummaryRow = {
-    key: "total",
-    label: "TỔNG CỘNG",
-    revenue: rows.reduce((sum, row) => sum + row.revenue, 0),
-    cost: rows.reduce((sum, row) => sum + row.cost, 0),
-    grossRevenue: rows.reduce(
-      (sum, row) => sum + (row.grossRevenue ?? row.revenue),
-      0,
-    ),
-    grossCost: rows.reduce((sum, row) => sum + (row.grossCost ?? row.cost), 0),
-    grossProfit: rows.reduce((sum, row) => sum + row.grossProfit, 0),
-  };
-
-  return [...rows, totalRow];
-}
+export type { CostSummaryRow };
+export { calculateCostSummaryRows };
 
 export interface CostSummaryTableProps {
   rows: CostSummaryRow[];
   className?: string;
+  currency?: string;
 }
 
 export function CostSummaryTable({
   rows,
   className = "",
+  currency = "VND",
 }: CostSummaryTableProps) {
   const totalRow = rows.find((row) => row.key === "total");
   const marginPercent =
@@ -163,16 +96,16 @@ export function CostSummaryTable({
                     </span>
                   </td>
                   <td className="py-2.5 px-2 text-right font-mono text-[11px] sm:text-xs whitespace-nowrap">
-                    {formatSummaryCurrency(row.grossRevenue ?? row.revenue)}
+                    {formatCurrency(row.grossRevenue ?? row.revenue, currency)}
                   </td>
                   <td className="py-2.5 px-2 text-right font-mono text-[11px] sm:text-xs whitespace-nowrap">
-                    {formatSummaryCurrency(row.revenue)}
+                    {formatCurrency(row.revenue, currency)}
                   </td>
                   <td className="py-2.5 px-2 text-right font-mono text-[11px] sm:text-xs whitespace-nowrap">
-                    {formatSummaryCurrency(row.grossCost ?? row.cost)}
+                    {formatCurrency(row.grossCost ?? row.cost, currency)}
                   </td>
                   <td className="py-2.5 px-2 text-right font-mono text-[11px] sm:text-xs whitespace-nowrap">
-                    {formatSummaryCurrency(row.cost)}
+                    {formatCurrency(row.cost, currency)}
                   </td>
                   <td className="py-2.5 px-2 text-right font-mono text-[11px] sm:text-xs whitespace-nowrap">
                     <span
@@ -184,7 +117,7 @@ export function CostSummaryTable({
                             : "text-slate-900 font-semibold"
                       }
                     >
-                      {formatSummaryCurrency(row.grossProfit)}
+                      {formatCurrency(row.grossProfit, currency)}
                     </span>
                   </td>
                 </tr>

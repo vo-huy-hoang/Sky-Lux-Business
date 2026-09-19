@@ -10,8 +10,8 @@ export function useDossierEstimates(dossierId: string, options?: { enabled?: boo
   return useQuery<PaginatedEstimatesResponse>({
     queryKey: queryKeys.estimates.dossierList(dossierId),
     queryFn: ({ signal }) => estimatesService.getDossierEstimates(dossierId, { signal }),
-    enabled: !!dossierId,
     ...options,
+    enabled: Boolean(dossierId) && (options?.enabled ?? true),
   });
 }
 
@@ -22,8 +22,8 @@ export function useEstimateDetail(id?: string | null, options?: { enabled?: bool
   return useQuery<EstimateItem>({
     queryKey: queryKeys.estimates.detail(id || undefined),
     queryFn: ({ signal }) => estimatesService.getEstimate(id!, { signal }),
-    enabled: !!id,
     ...options,
+    enabled: Boolean(id) && (options?.enabled ?? true),
   });
 }
 

@@ -83,6 +83,20 @@ describe('useDocuments hooks', () => {
     );
   });
 
+  it('useDossierDocuments respects options.enabled = false and does not fetch', async () => {
+    (documentsService.getDossierDocuments as jest.Mock).mockClear();
+
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(
+      () => useDossierDocuments(dossierId, { page: 1, limit: 10 }, { enabled: false }),
+      { wrapper: Wrapper },
+    );
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(documentsService.getDossierDocuments).not.toHaveBeenCalled();
+  });
+
   it('useUploadDossierDocument uploads file and invalidates queries', async () => {
     (documentsService.uploadDossierDocument as jest.Mock).mockResolvedValueOnce(
       mockDocItem,

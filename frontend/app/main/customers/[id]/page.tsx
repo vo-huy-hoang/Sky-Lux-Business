@@ -45,6 +45,7 @@ import {
 } from '@/types/customer';
 import { DossierItem } from '@/types/dossier';
 import { ContactModal } from '../components/ContactModal';
+import { formatCurrency } from '@/lib/financial-calculations';
 
 function getInitials(name?: string) {
   if (!name) return 'KH';
@@ -81,13 +82,6 @@ const dossierStatusMap: Record<string, { label: string; dotColor: string; bg: st
   CANCELLED: { label: 'Mất nhịp', dotColor: 'bg-purple-500', bg: 'text-purple-700' },
 };
 
-function formatCurrency(amount?: number | string) {
-  if (amount === undefined || amount === null) return '0 ₫';
-  const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' })
-    .format(isNaN(num) ? 0 : num)
-    .replace('₫', '₫');
-}
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return '-';

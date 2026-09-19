@@ -43,6 +43,7 @@ import { DocumentItem, DocumentVersionItem } from '@/types/document';
 interface DossierDocumentsTabProps {
   dossierId: string;
   isLocked?: boolean;
+  isActive?: boolean;
 }
 
 function formatFileSize(bytes?: number): string {
@@ -89,6 +90,7 @@ function getFileIcon(mimeType = '', originalName = '') {
 export default function DossierDocumentsTab({
   dossierId,
   isLocked = false,
+  isActive,
 }: DossierDocumentsTabProps) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -112,11 +114,17 @@ export default function DossierDocumentsTab({
   const [versionFileList, setVersionFileList] = useState<UploadFile[]>([]);
 
   // Queries & Mutations
-  const { data, isLoading } = useDossierDocuments(dossierId, {
-    page,
-    limit: pageSize,
-    search: search || undefined,
-  });
+  const { data, isLoading } = useDossierDocuments(
+    dossierId,
+    {
+      page,
+      limit: pageSize,
+      search: search || undefined,
+    },
+    {
+      enabled: isActive !== false,
+    },
+  );
 
   const uploadMutation = useUploadDossierDocument();
   const deleteMutation = useDeleteDocument();
