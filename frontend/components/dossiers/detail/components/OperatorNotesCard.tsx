@@ -4,6 +4,7 @@ import React from 'react';
 import { Card, Tag } from 'antd';
 import { MessageOutlined, UserOutlined } from '@ant-design/icons';
 import { dateTime } from '../types';
+import { formatCurrency, parseCurrencyAmount } from '@/lib/financial-calculations';
 
 export interface OperatorNotesCardProps {
   estimate?: any;
@@ -11,13 +12,12 @@ export interface OperatorNotesCardProps {
   className?: string;
 }
 
-function formatCurrencyString(raw: string): string {
-  const num = parseFloat(raw.replace(/,/g, ''));
-  if (isNaN(num)) return raw;
-  return new Intl.NumberFormat('vi-VN').format(Math.round(num)) + ' đ';
+function formatCurrencyString(raw: string, currency: string = 'VND'): string {
+  const num = parseCurrencyAmount(raw, currency);
+  return formatCurrency(num, currency);
 }
 
-function cleanNoteText(text?: string): string {
+function cleanNoteText(text?: string, currency: string = 'VND'): string {
   if (!text) return '';
   let result = text;
   try {
@@ -31,10 +31,10 @@ function cleanNoteText(text?: string): string {
     });
   } catch {}
 
-  // Format raw numeric amounts into VND currency (e.g. 145.800.000 đ)
+  // Format raw numeric amounts into proper currency (e.g. 145.800.000 đ or $5,000.00)
   result = result.replace(
-    /(Doanh thu nguồn|Chi phí nguồn|Lợi nhuận nguồn):\s*([0-9.]+)(?!\s*đ)/g,
-    (_, label, numStr) => `${label}: ${formatCurrencyString(numStr)}`,
+    /(Doanh thu nguồn|Chi phí nguồn|Lợi nhuận nguồn):\s*([0-9.,]+)(?!\s*[đ$€])/g,
+    (_, label, numStr) => `${label}: ${formatCurrencyString(numStr, currency)}`,
   );
 
   // Convert semicolons between import metadata items into separate lines
@@ -59,7 +59,8 @@ export function OperatorNotesCard({
     estimate?.note ||
     dossier?.note ||
     'Hồ sơ đang được theo dõi dự toán và đối soát chi phí nhà cung cấp.';
-  const noteContent = cleanNoteText(rawNote);
+  const currency = estimate?.currency || dossier?.currency || 'VND';
+  const noteContent = cleanNoteText(rawNote, currency);
 
   const noteDate = estimate?.updatedAt || dossier?.updatedAt;
 

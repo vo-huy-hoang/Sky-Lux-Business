@@ -40,6 +40,7 @@ import { useFilterStore } from '@/lib/stores/filter-store';
 import { useCeoDashboard, useCeoMonthlyTrend, useOperatorSalesSummary } from '@/hooks/dashboards';
 import OperatorRevenue from '@/components/operator/OperatorRevenue';
 import { WidgetErrorBoundary } from '@/components/common/widget-error-boundary';
+import { formatCurrency } from '@/lib/financial-calculations';
 
 ChartJS.register(
   ArcElement,
@@ -133,8 +134,8 @@ function CeoRevenuePage() {
     setTimeout(() => { message.success({ content: 'Đã xuất file Excel Báo cáo Doanh thu & Thống kê!', key: 'export-excel' }); }, 1000);
   };
 
-  const formatMoney = (val: number) => new Intl.NumberFormat('vi-VN').format(val || 0);
-  const formatTrm = (val: number) => new Intl.NumberFormat('vi-VN').format(Math.round((val || 0) / 1_000_000));
+  const formatMoney = (val: number) => formatCurrency(val, { showSymbol: false });
+  const formatTrm = (val: number) => formatCurrency(Math.round((val || 0) / 1_000_000), { showSymbol: false });
 
   // 1. KPI Calculations
   const currentMonthRev = monthData?.totalRevenue || 0;

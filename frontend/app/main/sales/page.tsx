@@ -13,6 +13,7 @@ import {
 
 import { useOperatorSalesSummary } from '@/hooks/dashboards';
 import { OperatorSalesSummaryItem } from '@/types/dashboard';
+import { formatCurrency } from '@/lib/financial-calculations';
 
 // Dynamic import with ssr: false for fast initial page load (<100ms)
 const SalesDossiersChart = dynamic(
@@ -34,16 +35,11 @@ const SalesRevenueChart = dynamic(
 const { Text } = Typography;
 
 function money(value?: number | null) {
-  return `${new Intl.NumberFormat('vi-VN').format(value || 0)} đ`;
+  return formatCurrency(value);
 }
 
 function compact(value?: number | null) {
-  const number = value || 0;
-  if (Math.abs(number) >= 1_000_000_000)
-    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000_000)} tỷ`;
-  if (Math.abs(number) >= 1_000_000)
-    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000)} tr`;
-  return new Intl.NumberFormat('vi-VN').format(number);
+  return formatCurrency(value, { compact: true, showSymbol: false });
 }
 
 function Metric({

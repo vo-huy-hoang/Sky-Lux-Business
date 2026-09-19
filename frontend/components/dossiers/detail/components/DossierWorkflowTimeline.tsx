@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Card, Empty, Timeline, Typography } from 'antd';
-import { dateTime } from '../types';
+import { dateTime, TIMELINE_ACTION_LABELS } from '../types';
 
 const { Text } = Typography;
 
@@ -22,25 +22,15 @@ export function DossierWorkflowTimeline({
       {workflowHistory.length > 0 ? (
         <Timeline
           items={workflowHistory.map((item) => {
+            const actionMeta = TIMELINE_ACTION_LABELS[item.action] || {
+              label: item.action,
+              color: 'blue',
+            };
             const node = (
               <div key={item.id} className="space-y-0.5">
                 <div className="flex items-center justify-between gap-2">
                   <Text strong className="text-xs">
-                    {item.action === 'APPROVE'
-                      ? 'Phê duyệt hồ sơ'
-                      : item.action === 'REQUEST_CHANGES'
-                      ? 'Yêu cầu bổ sung'
-                      : item.action === 'START_REVIEW'
-                      ? 'Bắt đầu xem xét'
-                      : item.action === 'SUBMIT'
-                      ? 'Gửi duyệt'
-                      : item.action === 'RESUBMIT'
-                      ? 'Submit lại'
-                      : item.action === 'LOCK'
-                      ? 'Khóa hồ sơ'
-                      : item.action === 'COMPLETE'
-                      ? 'Hoàn tất hồ sơ'
-                      : item.action}
+                    {actionMeta.label}
                   </Text>
                   <span className="text-[11px] text-[var(--ceo-text-muted)]">
                     {dateTime(item.createdAt)}
@@ -59,14 +49,7 @@ export function DossierWorkflowTimeline({
               </div>
             );
             return {
-              color:
-                item.action === 'APPROVE'
-                  ? 'green'
-                  : item.action === 'REQUEST_CHANGES'
-                  ? 'orange'
-                  : item.action === 'LOCK'
-                  ? 'red'
-                  : 'blue',
+              color: actionMeta.color,
               content: node,
             };
           })}

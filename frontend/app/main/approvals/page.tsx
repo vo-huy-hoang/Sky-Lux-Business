@@ -27,12 +27,13 @@ import { useQuery } from '@tanstack/react-query';
 import { estimatesService } from '@/services/estimates.service';
 import { EstimateItem, EstimateStatus } from '@/types/estimate';
 import { queryKeys } from '@/lib/query-keys';
+import { formatCurrency } from '@/lib/financial-calculations';
 
 
 const { Text } = Typography;
 
 function money(value?: number) {
-  return `${new Intl.NumberFormat('vi-VN').format(value || 0)} đ`;
+  return formatCurrency(value);
 }
 
 function dateTime(value?: string) {

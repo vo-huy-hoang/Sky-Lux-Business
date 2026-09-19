@@ -7,19 +7,17 @@ import dayjs from 'dayjs';
 import { useOperatorSalesSummary } from '@/hooks/dashboards';
 import { useFilterStore } from '@/lib/stores/filter-store';
 import { OperatorSalesSummaryItem } from '@/types/dashboard';
+import { formatCurrency } from '@/lib/financial-calculations';
 import KpiDashboard from './components/KpiDashboard';
 
 const { Title, Text } = Typography;
 
 function money(value?: number | null) {
-  return `${new Intl.NumberFormat('vi-VN').format(value || 0)} đ`;
+  return formatCurrency(value);
 }
 
 function compact(value?: number | null) {
-  const number = value || 0;
-  if (Math.abs(number) >= 1_000_000_000) return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000_000)} tỷ`;
-  if (Math.abs(number) >= 1_000_000) return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000)} tr`;
-  return new Intl.NumberFormat('vi-VN').format(number);
+  return formatCurrency(value, { compact: true, showSymbol: false });
 }
 
 function Metric({ label, value, hint, icon, tone = 'green', loading }: { label: string; value: React.ReactNode; hint: string; icon: React.ReactNode; tone?: 'green' | 'gold' | 'purple' | 'blue'; loading?: boolean }) {

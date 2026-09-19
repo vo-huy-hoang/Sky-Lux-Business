@@ -2,6 +2,8 @@ export * from './types';
 export * from './utils';
 export * from './stores/useDossierUIStore';
 export * from './hooks/useDossierWorkflowActions';
+export * from './hooks/useDossierActiveEstimate';
+export * from './hooks/useDossierFinancials';
 export * from './components/DossierHeader';
 export * from './components/DossierStepsCard';
 export * from './components/DossierSummaryCards';

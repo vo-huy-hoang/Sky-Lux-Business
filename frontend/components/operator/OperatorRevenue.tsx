@@ -8,8 +8,10 @@ import { DownloadOutlined, FileExcelOutlined, FilePdfOutlined, FolderOpenOutline
 import { useQuery } from '@tanstack/react-query';
 import { dossiersService } from '@/services/dossiers.service';
 import { useOperatorSalesSummary, useOperatorMonthlyTrend } from '@/hooks/dashboards';
-
 import { queryKeys } from '@/lib/query-keys';
+import { formatCurrency } from '@/lib/financial-calculations';
+import { DossierItem } from '@/types/dossier';
+import { OperatorSalesSummaryItem, OperatorMonthlyTrendItem } from '@/types/dashboard';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 const { Text } = Typography;
@@ -17,11 +19,22 @@ const statusTone = ['#004230', '#d3a11b', '#3487c8', '#8462c7', '#d94a4a'];
 const statusLabels: Record<string, string> = { DRAFT: 'Mới tiếp nhận', SUBMITTED: 'Đã gửi', IN_REVIEW: 'Đang xử lý', NEED_CHANGES: 'Cần bổ sung', APPROVED: 'Đã duyệt', COMPLETED: 'Hoàn tất', CANCELLED: 'Đã hủy' };
 
 function money(value?: number) {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value || 0);
+  return formatCurrency(value);
 }
 
 function RevenueMetric({ label, value, note, icon, tone }: { label: string; value: React.ReactNode; note: string; icon: React.ReactNode; tone: 'green' | 'gold' | 'blue' | 'violet' }) {
-  return <Card className="op-card op-kpi-card"><div className="flex items-center gap-4"><span className={`op-metric-icon op-metric-${tone === 'violet' ? 'blue' : tone}`}>{icon}</span><div className="min-w-0"><Text className="text-sm text-[var(--op-text-muted)]">{label}</Text><strong className="mt-1 block truncate text-[27px] leading-none text-[var(--op-primary-900)]">{value}</strong><Text className="mt-2 block text-xs text-[var(--op-text-muted)]">{note}</Text></div></div></Card>;
+  return (
+    <Card className="op-card op-kpi-card">
+      <div className="flex items-center gap-4">
+        <span className={`op-metric-icon op-metric-${tone === 'violet' ? 'blue' : tone}`}>{icon}</span>
+        <div className="min-w-0">
+          <Text className="text-sm text-(--op-text-muted)">{label}</Text>
+          <strong className="mt-1 block truncate text-[27px] leading-none text-(--op-primary-900)">{value}</strong>
+          <Text className="mt-2 block text-xs text-(--op-text-muted)">{note}</Text>
+        </div>
+      </div>
+    </Card>
+  );
 }
 
 export default function OperatorRevenue() {
@@ -32,28 +45,75 @@ export default function OperatorRevenue() {
     queryFn: ({ signal }) => dossiersService.getDossiers({ page: 1, limit: 100 }, { signal }),
   });
 
-  const dossiers = useMemo(() => dossiersQuery.data?.data || [], [dossiersQuery.data?.data]);
-  const statusCounts = useMemo(() => dossiers.reduce<Record<string, number>>((total, item) => ({ ...total, [item.status]: (total[item.status] || 0) + 1 }), {}), [dossiers]);
+  const dossiers: DossierItem[] = useMemo(() => dossiersQuery.data?.data || [], [dossiersQuery.data?.data]);
+  const statusCounts = useMemo(
+    () =>
+      dossiers.reduce<Record<string, number>>(
+        (total, item) => ({ ...total, [item.status]: (total[item.status] || 0) + 1 }),
+        {},
+      ),
+    [dossiers],
+  );
 
-  const salesSummary = useMemo(() => salesSummaryQuery.data || [], [salesSummaryQuery.data]);
-  const monthlyTrend = useMemo(() => monthlyTrendQuery.data || [], [monthlyTrendQuery.data]);
+  const salesSummary: OperatorSalesSummaryItem[] = useMemo(() => salesSummaryQuery.data || [], [salesSummaryQuery.data]);
+  const monthlyTrend: OperatorMonthlyTrendItem[] = useMemo(() => monthlyTrendQuery.data || [], [monthlyTrendQuery.data]);
 
-  const totalRevenue = useMemo(() => salesSummary.reduce((sum, item) => sum + (item.totalRevenue || 0), 0), [salesSummary]);
-  const totalProfit = useMemo(() => salesSummary.reduce((sum, item) => sum + (item.totalProfit || 0), 0), [salesSummary]);
-  const totalCompletedDossiers = useMemo(() => salesSummary.reduce((sum, item) => sum + (item.approvedDossiers || 0), 0), [salesSummary]);
-  const totalAllDossiers = useMemo(() => salesSummary.reduce((sum, item) => sum + (item.totalDossiers || 0), 0), [salesSummary]);
-
+  const totalRevenue = useMemo(
+    () => salesSummary.reduce((sum, item) => sum + (item.totalRevenue || 0), 0),
+    [salesSummary],
+  );
+  const totalProfit = useMemo(
+    () => salesSummary.reduce((sum, item) => sum + (item.totalProfit || 0), 0),
+    [salesSummary],
+  );
+  const totalCompletedDossiers = useMemo(
+    () => salesSummary.reduce((sum, item) => sum + (item.approvedDossiers || 0), 0),
+    [salesSummary],
+  );
+  const totalAllDossiers = useMemo(
+    () => salesSummary.reduce((sum, item) => sum + (item.totalDossiers || 0), 0),
+    [salesSummary],
+  );
 
   const loading = salesSummaryQuery.isLoading || monthlyTrendQuery.isLoading || dossiersQuery.isLoading;
   const donutKeys = Object.keys(statusCounts);
-  const donut = { labels: donutKeys.map((status) => statusLabels[status] || status), datasets: [{ data: donutKeys.map((status) => statusCounts[status]), backgroundColor: donutKeys.map((_, index) => statusTone[index % statusTone.length]), borderColor: '#fff', borderWidth: 2, hoverOffset: 4 }] };
+  const donut = {
+    labels: donutKeys.map((status) => statusLabels[status] || status),
+    datasets: [
+      {
+        data: donutKeys.map((status) => statusCounts[status]),
+        backgroundColor: donutKeys.map((_, index) => statusTone[index % statusTone.length]),
+        borderColor: '#fff',
+        borderWidth: 2,
+        hoverOffset: 4,
+      },
+    ],
+  };
   const monthlyData = {
     labels: monthlyTrend.map((item) => item.label),
-    datasets: [{ label: 'Hồ sơ tạo mới', data: monthlyTrend.map((item) => item.totalDossiers), backgroundColor: '#004230', borderRadius: 8, borderSkipped: false, maxBarThickness: 42 }],
+    datasets: [
+      {
+        label: 'Hồ sơ tạo mới',
+        data: monthlyTrend.map((item) => item.totalDossiers),
+        backgroundColor: '#004230',
+        borderRadius: 8,
+        borderSkipped: false,
+        maxBarThickness: 42,
+      },
+    ],
   };
   const salesData = {
     labels: salesSummary.slice(0, 8).map((item) => item.salesUserName),
-    datasets: [{ label: 'Hồ sơ phụ trách', data: salesSummary.slice(0, 8).map((item) => item.totalDossiers), backgroundColor: '#004230', borderRadius: 8, borderSkipped: false, maxBarThickness: 23 }],
+    datasets: [
+      {
+        label: 'Hồ sơ phụ trách',
+        data: salesSummary.slice(0, 8).map((item) => item.totalDossiers),
+        backgroundColor: '#004230',
+        borderRadius: 8,
+        borderSkipped: false,
+        maxBarThickness: 23,
+      },
+    ],
   };
 
   const columns = [
@@ -70,7 +130,7 @@ export default function OperatorRevenue() {
       <div className="op-report-toolbar">
         <div>
           <Text strong>Thời gian</Text>
-          <Text className="mt-1 block text-xs text-[var(--op-text-muted)]">Dữ liệu tổng hợp từ hệ thống theo thời gian thực</Text>
+          <Text className="mt-1 block text-xs text-(--op-text-muted)">Dữ liệu tổng hợp từ hệ thống theo thời gian thực</Text>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button icon={<FileExcelOutlined />} disabled title="API xuất Excel chưa sẵn sàng">Xuất Excel</Button>
@@ -86,20 +146,20 @@ export default function OperatorRevenue() {
       </section>
       <section className="grid gap-4 2xl:grid-cols-3">
         <Card className="op-card" title="Hồ sơ tạo mới theo tháng">
-          <div className="h-[286px]">
+          <div className="h-71.5">
             {loading ? <Skeleton active /> : monthlyTrend.length ? <Bar data={monthlyData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', align: 'start', labels: { boxWidth: 10, usePointStyle: true } } }, scales: { x: { grid: { display: false }, border: { display: false } }, y: { beginAtZero: true, min: 0, suggestedMax: 5, ticks: { precision: 0 }, grid: { color: '#eef0ef' }, border: { display: false } } } }} /> : <Empty description="Chưa có hồ sơ" />}
           </div>
         </Card>
         <Card className="op-card" title="Tình trạng hồ sơ">
-          <div className="relative h-[206px]">
-            {loading ? <Skeleton active /> : donutKeys.length ? <><Doughnut data={donut} options={{ responsive: true, maintainAspectRatio: false, cutout: '67%', plugins: { legend: { display: false } } }} /><div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"><Text className="text-xs text-[var(--op-text-muted)]">Tổng</Text><strong className="text-[28px] text-[var(--op-primary-900)]">{dossiersQuery.data?.meta?.total || dossiers.length}</strong><Text className="text-xs text-[var(--op-text-muted)]">hồ sơ</Text></div></> : <Empty description="Chưa có dữ liệu" />}
+          <div className="relative h-51.5">
+            {loading ? <Skeleton active /> : donutKeys.length ? <><Doughnut data={donut} options={{ responsive: true, maintainAspectRatio: false, cutout: '67%', plugins: { legend: { display: false } } }} /><div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"><Text className="text-xs text-(--op-text-muted)">Tổng</Text><strong className="text-[28px] text-(--op-primary-900)">{dossiersQuery.data?.meta?.total || dossiers.length}</strong><Text className="text-xs text-(--op-text-muted)">hồ sơ</Text></div></> : <Empty description="Chưa có dữ liệu" />}
           </div>
           <div className="mt-3 space-y-2">
             {donutKeys.map((key, index) => <div key={key} className="flex items-center justify-between text-sm"><span className="flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full" style={{ background: statusTone[index % statusTone.length] }} />{statusLabels[key] || key}</span><strong>{statusCounts[key]}</strong></div>)}
           </div>
         </Card>
         <Card className="op-card" title="Hồ sơ theo Sales">
-          <div className="h-[286px]">
+          <div className="h-71.5">
             {loading ? <Skeleton active /> : salesSummary.length ? <Bar data={salesData} options={{ indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#eef0ef' }, border: { display: false } }, y: { grid: { display: false }, border: { display: false } } } }} /> : <Empty description="Chưa có Sales" />}
           </div>
         </Card>

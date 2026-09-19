@@ -4,21 +4,24 @@ import React, { useMemo } from "react";
 import { BarChartOutlined } from "@ant-design/icons";
 import { EstimateRevenueLine } from "@/types/estimate";
 import {
+  formatCurrency,
   getWorkbookGrossAmount,
   sumWorkbookGrossAmounts,
 } from "@/lib/financial-calculations";
-import { calculateTourDuration, formatCurrency } from "../utils";
+import { calculateTourDuration } from "../utils";
 
 export interface DossierRevenueTableProps {
   revenueLines?: EstimateRevenueLine[];
   dossier?: any;
   className?: string;
+  currency?: string;
 }
 
 export function DossierRevenueTable({
   revenueLines = [],
   dossier,
   className = "",
+  currency = "VND",
 }: DossierRevenueTableProps) {
   const revenues = useMemo(() => revenueLines || [], [revenueLines]);
 
@@ -51,7 +54,7 @@ export function DossierRevenueTable({
             </h3>
           </div>
           <span className="text-xs font-bold font-mono text-emerald-800">
-            Tổng doanh thu: {formatCurrency(totalRevenue)}
+            Tổng doanh thu: {formatCurrency(totalRevenue, currency)}
           </span>
         </div>
 
@@ -116,10 +119,10 @@ export function DossierRevenueTable({
                         {line.quantity || 0}
                       </td>
                       <td className="py-2 px-3 text-right font-mono text-slate-700 text-xs">
-                        {formatCurrency(line.unitPrice)}
+                        {formatCurrency(line.unitPrice, currency)}
                       </td>
                       <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 text-xs">
-                        {formatCurrency(grossAmount)}
+                        {formatCurrency(grossAmount, currency)}
                       </td>
                     </tr>
                   );
@@ -140,7 +143,7 @@ export function DossierRevenueTable({
                   </td>
                   <td className="py-2.5 px-3" />
                   <td className="py-2.5 px-3 text-right font-mono font-extrabold text-xs text-emerald-900">
-                    {formatCurrency(totalRevenue)}
+                    {formatCurrency(totalRevenue, currency)}
                   </td>
                 </tr>
               </tfoot>

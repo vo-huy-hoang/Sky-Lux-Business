@@ -78,4 +78,113 @@ describe('ReportsService', () => {
       service.exportReport('org-id', 'user-id', request),
     ).rejects.toThrow('Bộ lọc báo cáo không hợp lệ');
   });
+
+  describe('QueryBuilder Isolation & Defensive Clearing', () => {
+    it('getFinancialSummary clears orderBys and groupBys before querying raw aggregates', async () => {
+      const qbMock: any = {
+        expressionMap: {
+          orderBys: { 'dossier.revenueRecognitionDate': 'DESC' },
+          groupBys: ['salesUser.id'],
+        },
+        clone() {
+          return { ...this, expressionMap: { ...this.expressionMap } };
+        },
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockImplementation(function (gb?: string) {
+          if (!gb) this.expressionMap.groupBys = [];
+          return this;
+        }),
+        orderBy: jest.fn().mockImplementation(function (ob?: string) {
+          if (!ob) this.expressionMap.orderBys = {};
+          return this;
+        }),
+        getRawOne: jest.fn().mockResolvedValue({
+          revenueGross: '1000',
+          revenueNet: '900',
+          costGross: '500',
+          costNet: '400',
+        }),
+      };
+
+      const result = await (service as any).getFinancialSummary(
+        qbMock,
+        'revGrossSql',
+        'revNetSql',
+        'costGrossSql',
+        'costNetSql',
+      );
+
+      expect(qbMock.groupBy).toHaveBeenCalled();
+      expect(qbMock.orderBy).toHaveBeenCalled();
+      expect(result).toEqual({
+        revenueGross: '1000',
+        revenueNet: '900',
+        costGross: '500',
+        costNet: '400',
+      });
+    });
+
+    it('countDistinct and countDossiers defensively clear orderBys and groupBys', async () => {
+      const qbMock: any = {
+        expressionMap: {
+          orderBys: { 'dossier.createdAt': 'DESC' },
+          groupBys: ['customer.id'],
+        },
+        clone() {
+          return { ...this, expressionMap: { ...this.expressionMap } };
+        },
+        select: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockImplementation(function (gb?: string) {
+          if (!gb) this.expressionMap.groupBys = [];
+          return this;
+        }),
+        orderBy: jest.fn().mockImplementation(function (ob?: string) {
+          if (!ob) this.expressionMap.orderBys = {};
+          return this;
+        }),
+        getRawOne: jest.fn().mockResolvedValue({ count: '42' }),
+      };
+
+      const countDossiers = await (service as any).countDossiers(qbMock);
+      expect(countDossiers).toBe(42);
+      expect(qbMock.groupBy).toHaveBeenCalled();
+      expect(qbMock.orderBy).toHaveBeenCalled();
+
+      const countDistinct = await (
+        service as any
+      ).countDistinct(qbMock, 'customer.id');
+      expect(countDistinct).toBe(42);
+    });
+
+    it('getSupplierCostSummary defensively clears orderBys and groupBys', async () => {
+      const qbMock: any = {
+        expressionMap: {
+          orderBys: { costNet: 'DESC' },
+          groupBys: ['supplier.id'],
+        },
+        clone() {
+          return { ...this, expressionMap: { ...this.expressionMap } };
+        },
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockImplementation(function (gb?: string) {
+          if (!gb) this.expressionMap.groupBys = [];
+          return this;
+        }),
+        orderBy: jest.fn().mockImplementation(function (ob?: string) {
+          if (!ob) this.expressionMap.orderBys = {};
+          return this;
+        }),
+        getRawOne: jest
+          .fn()
+          .mockResolvedValue({ costGross: '500', costNet: '400' }),
+      };
+
+      const result = await (service as any).getSupplierCostSummary(qbMock);
+      expect(result).toEqual({ costGross: '500', costNet: '400' });
+      expect(qbMock.groupBy).toHaveBeenCalled();
+      expect(qbMock.orderBy).toHaveBeenCalled();
+    });
+  });
 });

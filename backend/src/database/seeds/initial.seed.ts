@@ -858,6 +858,7 @@ export async function runInitialSeed(dataSource: DataSource) {
           route: d.route,
           startDate: d.startDate,
           endDate: d.endDate,
+          revenueRecognitionDate: d.endDate || d.startDate,
           status: d.status,
           priority: d.priority,
           createdBy: d.salesUser.id,

@@ -48,6 +48,7 @@ import { useNotificationsQuery } from '@/hooks/useNotificationsRealtime';
 import { useFilterStore } from '@/lib/stores/filter-store';
 import { queryKeys } from '@/lib/query-keys';
 import { WidgetErrorBoundary } from '@/components/common/widget-error-boundary';
+import { formatCurrency } from '@/lib/financial-calculations';
 
 
 
@@ -85,24 +86,9 @@ function statusMeta(status?: string) {
   };
 }
 
-function formatCurrency(value?: number | null) {
-  if (value === undefined || value === null) return '0 đ';
-  return `${new Intl.NumberFormat('vi-VN').format(value)} đ`;
-}
 
 function formatCompactCurrency(value?: number | string) {
-  const number = Number(value);
-  if (!number || isNaN(number) || Math.abs(number) < 0.0001) return '0';
-  if (Math.abs(number) >= 1_000_000) {
-    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000)} Tr`;
-  }
-  if (Math.abs(number) >= 1_000_000) {
-    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000)} triệu`;
-  }
-  if (Math.abs(number) >= 1_000) {
-    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000)} k`;
-  }
-  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(number);
+  return formatCurrency(value, { compact: true, showSymbol: false });
 }
 
 function formatDateTime(value?: string) {
@@ -309,10 +295,22 @@ export default function CeoDashboard() {
   const revenueOptions: ChartOptions<'doughnut'> = {
     responsive: true,
     maintainAspectRatio: false,
-    cutout: '64%',
+    cutout: '62%',
     plugins: {
       legend: { display: false },
-      tooltip: { callbacks: { label: (context) => `${context.label}: ${formatCurrency(Number(context.parsed))}` } },
+      tooltip: {
+        callbacks: {
+          title: (items) => {
+            const label = items[0]?.label || '';
+            if (label.length > 20 && label.includes('(')) {
+              const idx = label.indexOf('(');
+              return [label.slice(0, idx).trim(), label.slice(idx).trim()];
+            }
+            return label;
+          },
+          label: (context) => ` Doanh thu: ${formatCurrency(Number(context.parsed))}`,
+        },
+      },
     },
   };
 
@@ -435,18 +433,18 @@ export default function CeoDashboard() {
                 <div className="text-[15px] font-bold text-slate-900 mb-2">Cơ cấu doanh thu theo mảng</div>
 
                 {/* Body: Donut + Legend */}
-                <div className="flex items-center justify-between gap-4 my-2">
-                  <div className="relative w-[150px] h-[150px] shrink-0">
+                <div className="flex items-center justify-between gap-4 sm:gap-6 my-auto py-2">
+                  <div className="relative w-[180px] h-[180px] 2xl:w-[195px] 2xl:h-[195px] shrink-0">
                     {revenueBreakdown.length ? <Doughnut data={revenueData} options={revenueOptions} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu doanh thu" />}
                   </div>
 
                   {/* Legend list */}
-                  <div className="flex-1 space-y-2.5">
+                  <div className="flex-1 space-y-3 min-w-0">
                     {revenueBreakdown.slice(0, 5).map((item, index) => (
                       <div key={item.businessLineName}>
                         <div className="flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: revenueData.datasets[0].backgroundColor[index] }} />
-                          <span className="text-xs font-semibold text-slate-800 truncate">{item.businessLineName}</span>
+                          <span className="text-xs font-semibold text-slate-800 truncate" title={item.businessLineName}>{item.businessLineName}</span>
                         </div>
                         <div className="text-[11px] text-slate-500 pl-4.5 font-medium tabular-nums">{formatCurrency(item.amount)}</div>
                       </div>

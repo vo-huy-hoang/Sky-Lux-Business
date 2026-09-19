@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isCanceledError } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { reportsService } from '@/services/reports.service';
@@ -68,3 +68,54 @@ export function useReportExport() {
     },
   });
 }
+
+export function useSavedReports(
+  params?: { page?: number; pageSize?: number; search?: string },
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: queryKeys.reports.saved(params),
+    queryFn: ({ signal }) => reportsService.getSaved(params, { signal }),
+    enabled: options?.enabled ?? true,
+    staleTime: REPORT_STALE_TIME,
+    gcTime: REPORT_GC_TIME,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useReportMutations() {
+  const queryClient = useQueryClient();
+
+  const invalidateSaved = () => {
+    queryClient.invalidateQueries({
+      predicate: (query) =>
+        Array.isArray(query.queryKey) &&
+        query.queryKey[0] === 'reports' &&
+        query.queryKey[1] === 'saved',
+    });
+  };
+
+  const createSavedMutation = useMutation({
+    mutationFn: (data: { name: string; reportType: string; filters?: Record<string, unknown> }) =>
+      reportsService.createSaved(data),
+    onSuccess: () => {
+      invalidateSaved();
+    },
+  });
+
+  const deleteSavedMutation = useMutation({
+    mutationFn: (id: string) => reportsService.removeSaved(id),
+    onSuccess: () => {
+      invalidateSaved();
+    },
+  });
+
+  return {
+    createSavedMutation,
+    deleteSavedMutation,
+    isCreatingSaved: createSavedMutation.isPending,
+    isDeletingSaved: deleteSavedMutation.isPending,
+  };
+}
+
+

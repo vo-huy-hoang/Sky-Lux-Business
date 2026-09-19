@@ -74,6 +74,20 @@ describe('useDossiers hooks', () => {
     );
   });
 
+  it('useDossierComments respects options.enabled = false and does not fetch', async () => {
+    (dossiersService.getDossierComments as jest.Mock).mockClear();
+
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(
+      () => useDossierComments(dossierId, undefined, { enabled: false }),
+      { wrapper: Wrapper },
+    );
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(dossiersService.getDossierComments).not.toHaveBeenCalled();
+  });
+
 
   it('useCreateDossierComment executes mutation and invalidates queries (API-COMMENT-002)', async () => {
     (dossiersService.createDossierComment as jest.Mock).mockResolvedValueOnce(
@@ -157,5 +171,16 @@ describe('useDossiers hooks', () => {
       queryKey: queryKeys.dossiers.all,
     });
   });
+
+  it('TICKET-54.1: useDossierDetail does not fetch when id is empty even if options.enabled is true', async () => {
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useDossierDetail('', { enabled: true }), {
+      wrapper: Wrapper,
+    });
+
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(dossiersService.getDossier).not.toHaveBeenCalled();
+  });
 });
+
 
