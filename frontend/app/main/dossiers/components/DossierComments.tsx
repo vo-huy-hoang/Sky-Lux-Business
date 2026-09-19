@@ -33,11 +33,13 @@ const { TextArea } = Input;
 interface DossierCommentsProps {
   dossierId: string;
   isLocked?: boolean;
+  isActive?: boolean;
 }
 
 export const DossierComments: React.FC<DossierCommentsProps> = ({
   dossierId,
   isLocked = false,
+  isActive,
 }) => {
   const [content, setContent] = useState('');
   const [replyTo, setReplyTo] = useState<DossierComment | null>(null);
@@ -48,7 +50,9 @@ export const DossierComments: React.FC<DossierCommentsProps> = ({
     isLoading,
     refetch,
     isFetching,
-  } = useDossierComments(dossierId);
+  } = useDossierComments(dossierId, undefined, {
+    enabled: isActive !== false,
+  });
 
   const comments = useMemo(
     () => commentsResponse?.data ?? [],
@@ -274,3 +278,6 @@ export const DossierComments: React.FC<DossierCommentsProps> = ({
     </Card>
   );
 };
+
+export default DossierComments;
+

@@ -78,20 +78,90 @@ export function getDayOfWeek(dateStr?: string): string {
   return days[d.getDay()];
 }
 
+import { formatCurrency, formatVndCurrency } from '@/lib/financial-calculations';
+
+export { formatCurrency, formatVndCurrency };
+
 /**
- * Định dạng tiền tệ VND kèm hậu tố 'đ'
+ * Định dạng tiền tệ cho bảng tổng kết tài chính (đồng nhất chuẩn với formatCurrency)
  */
-export function formatCurrency(amount?: number | string): string {
-  if (amount === undefined || amount === null) return '0 đ';
-  const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-  return new Intl.NumberFormat('vi-VN').format(isNaN(num) ? 0 : num) + ' đ';
+export function formatSummaryCurrency(amount: number, currency = 'VND'): string {
+  return formatCurrency(amount, currency);
 }
 
 /**
- * Định dạng tiền tệ rút gọn cho bảng tổng kết tài chính
+ * Phân loại tự động các dòng chi phí vào 5 phân nhóm nghiệp vụ:
+ * 1.1 VÉ THAM QUAN, 1.2 KHÁCH SẠN, 1.2b ĂN UỐNG, 1.3 VẬN CHUYỂN, 1.4 CÁC DỊCH VỤ KHÁC
  */
-export function formatSummaryCurrency(amount: number): string {
-  return `${new Intl.NumberFormat('vi-VN', {
-    maximumFractionDigits: 0,
-  }).format(Math.round(amount))} đ`;
+export function classifyCategory(line: {
+  description?: string;
+  serviceCategory?: { name?: string };
+  categoryTitle?: string;
+}): {
+  code: string;
+  title: string;
+  order: number;
+} {
+  const explicitCat = (line.categoryTitle || line.serviceCategory?.name || "")
+    .toUpperCase()
+    .trim();
+  if (explicitCat === "VÉ THAM QUAN")
+    return { code: "1.1", title: "VÉ THAM QUAN", order: 1 };
+  if (explicitCat === "KHÁCH SẠN")
+    return { code: "1.2", title: "KHÁCH SẠN", order: 2 };
+  if (explicitCat === "ĂN UỐNG")
+    return { code: "1.2b", title: "ĂN UỐNG", order: 3 };
+  if (explicitCat === "VẬN CHUYỂN")
+    return { code: "1.3", title: "VẬN CHUYỂN", order: 4 };
+  if (explicitCat === "CÁC DỊCH VỤ KHÁC")
+    return { code: "1.4", title: "CÁC DỊCH VỤ KHÁC", order: 5 };
+
+  const desc = (line.description || "").toLowerCase();
+  const cat = (line.serviceCategory?.name || "").toLowerCase();
+
+  if (
+    desc.includes("gala") ||
+    desc.includes("team building") ||
+    desc.includes("hội nghị") ||
+    cat.includes("chi phí khác")
+  ) {
+    return { code: "1.4", title: "CÁC DỊCH VỤ KHÁC", order: 5 };
+  }
+  if (
+    desc.includes("vé tham quan") ||
+    desc.includes("hội an") ||
+    desc.includes("bà nà") ||
+    desc.includes("đại nội") ||
+    cat.includes("vé tham quan")
+  ) {
+    return { code: "1.1", title: "VÉ THAM QUAN", order: 1 };
+  }
+  if (
+    desc.includes("khách sạn") ||
+    desc.includes("mường thanh") ||
+    desc.includes("hương giang") ||
+    desc.includes("phòng") ||
+    cat.includes("khách sạn")
+  ) {
+    return { code: "1.2", title: "KHÁCH SẠN", order: 2 };
+  }
+  if (
+    desc.includes("ăn uống") ||
+    desc.includes("madam lân") ||
+    desc.includes("cơm niêu") ||
+    desc.includes("trưa ngày") ||
+    desc.includes("tối ngày") ||
+    cat.includes("nhà hàng")
+  ) {
+    return { code: "1.2b", title: "ĂN UỐNG", order: 3 };
+  }
+  if (
+    desc.includes("xe") ||
+    desc.includes("vận chuyển") ||
+    desc.includes("triệu bảo ý") ||
+    cat.includes("vận chuyển")
+  ) {
+    return { code: "1.3", title: "VẬN CHUYỂN", order: 4 };
+  }
+  return { code: "1.4", title: "CÁC DỊCH VỤ KHÁC", order: 5 };
 }

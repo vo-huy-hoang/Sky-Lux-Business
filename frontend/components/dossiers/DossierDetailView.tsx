@@ -1,19 +1,11 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React from "react";
 import { Alert } from "antd";
 import { useDossierDetail } from "@/hooks/dossiers";
-import { useDossierEstimates, useEstimateDetail } from "@/hooks/estimates";
 import { EstimateStatus } from "@/types/estimate";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useWorkflowHistory } from "@/hooks/workflow";
-import {
-  EXCEL_VAT_DIVISOR,
-  getWorkbookNetAmount,
-  sumWorkbookGrossAmounts,
-} from "@/lib/financial-calculations";
-import { parseVatRate } from "./detail/utils";
-import { classifyCategory } from "./detail/components/DossierCostTable";
 import {
   DossierActionModal,
   DossierDetailTabs,
@@ -25,6 +17,9 @@ import {
   OperatorNotesCard,
   estimateStatusMeta,
   useDossierWorkflowActions,
+  useDossierActiveEstimate,
+  useDossierFinancials,
+  useDossierUIStore,
 } from "./detail";
 
 export interface DossierDetailViewProps {
@@ -38,26 +33,32 @@ export default function DossierDetailView({
   isDrawer = false,
   onClose,
 }: DossierDetailViewProps) {
+  // TICKET-53.1: Reset UI store state when switching dossiers or unmounting
+  React.useEffect(() => {
+    useDossierUIStore.getState().resetUIState();
+    return () => {
+      useDossierUIStore.getState().resetUIState();
+    };
+  }, [dossierId]);
+
   const hasRole = useAuthStore((state) => state.hasRole);
   const isOperator = hasRole("OPERATOR");
   const isCeoAdmin = hasRole(["SUPER_ADMIN", "CEO_ADMIN"]);
   const isSales = hasRole("SALES");
 
   const dossierQuery = useDossierDetail(dossierId);
-  const estimatesQuery = useDossierEstimates(dossierId);
+  const {
+    currentEstimate,
+    estimate,
+    isLoadingEstimate,
+    isEstimatesLoading,
+    refetch: refetchEstimates,
+  } = useDossierActiveEstimate(dossierId);
 
   const workflowHistoryQuery = useWorkflowHistory(dossierId);
   const workflowHistory = workflowHistoryQuery.data?.data || [];
 
-  const currentEstimate = useMemo(() => {
-    const estimateList = estimatesQuery.data?.data || [];
-    return [...estimateList].sort((a, b) => b.versionNo - a.versionNo)[0];
-  }, [estimatesQuery.data?.data]);
-
-  const estimateQuery = useEstimateDetail(currentEstimate?.id);
-
   const dossier = dossierQuery.data;
-  const estimate = estimateQuery.data;
 
   // Workflow Actions Hook (TanStack mutations & Zustand UI modal synchronization)
   const workflow = useDossierWorkflowActions({
@@ -65,24 +66,13 @@ export default function DossierDetailView({
     onClose,
     refetchAll: () => {
       dossierQuery.refetch();
-      estimatesQuery.refetch();
+      refetchEstimates();
       workflowHistoryQuery.refetch();
     },
   });
 
-  // Financial calculations
-  const revenueGross = sumWorkbookGrossAmounts(estimate?.revenueLines || []);
-  const revenue = revenueGross / EXCEL_VAT_DIVISOR;
-  const cost = (estimate?.costLines || []).reduce(
-    (sum: number, line: any) =>
-      sum +
-      (parseVatRate(line.vatRate) > 0 && classifyCategory(line).code === "1.4"
-        ? 0
-        : getWorkbookNetAmount(line, parseVatRate(line.vatRate) > 0)),
-    0,
-  );
-  const profit = revenue - cost;
-  const margin = revenue ? ((profit / revenue) * 100).toFixed(2) : "0.00";
+  // Financial calculations (Memoized deep seam)
+  const { revenue, cost, profit, margin } = useDossierFinancials(estimate);
   const meta =
     estimateStatusMeta[
       dossier?.status || estimate?.status || EstimateStatus.DRAFT
@@ -114,7 +104,7 @@ export default function DossierDetailView({
 
       {/* 2. Quy trình duyệt hồ sơ (Steps) */}
       <DossierStepsCard
-        isLoading={estimatesQuery.isLoading}
+        isLoading={isEstimatesLoading}
         currentEstimate={currentEstimate}
         estimate={estimate}
         meta={meta}
@@ -142,7 +132,7 @@ export default function DossierDetailView({
       >
         <DossierDetailTabs
           estimate={estimate}
-          estimateLoading={estimateQuery.isLoading}
+          estimateLoading={isLoadingEstimate}
           dossierId={dossierId}
           dossier={dossier}
           isLocked={dossier?.status === "LOCKED"}

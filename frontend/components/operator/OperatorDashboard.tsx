@@ -37,6 +37,7 @@ import { DossierItem } from '@/types/dossier';
 import { TaskItem } from '@/types/task';
 import { OperatorMonthlyTrendItem } from '@/types/dashboard';
 import { queryKeys } from '@/lib/query-keys';
+import { formatCurrency } from '@/lib/financial-calculations';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, ChartTooltip, Legend);
 
@@ -61,22 +62,11 @@ function formatDate(value?: string) {
 }
 
 function formatMoney(value?: number) {
-  return `${new Intl.NumberFormat('vi-VN').format(value || 0)} đ`;
+  return formatCurrency(value);
 }
 
 function formatCompactRevenue(value?: number | string) {
-  const number = Number(value);
-  if (!number || isNaN(number) || Math.abs(number) < 0.0001) return '0';
-  if (Math.abs(number) >= 1_000_000_000) {
-    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000_000)} tỷ`;
-  }
-  if (Math.abs(number) >= 1_000_000) {
-    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000_000)} tr`;
-  }
-  if (Math.abs(number) >= 1_000) {
-    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(number / 1_000)} k`;
-  }
-  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(number);
+  return formatCurrency(value, { compact: true, showSymbol: false });
 }
 
 function MetricCard({
@@ -327,9 +317,7 @@ export default function OperatorDashboard() {
                       callbacks: {
                         label: (context) =>
                           context.dataset.yAxisID === 'revenue'
-                            ? `${context.dataset.label}: ${new Intl.NumberFormat('vi-VN').format(
-                                Number(context.parsed.y || 0),
-                              )} đ`
+                            ? `${context.dataset.label}: ${formatCurrency(Number(context.parsed.y || 0))}`
                             : `${context.dataset.label}: ${Number(context.parsed.y || 0)} hồ sơ`,
                       },
                     },

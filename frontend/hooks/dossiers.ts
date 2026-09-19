@@ -30,8 +30,8 @@ export function useDossierDetail(id: string, options?: { enabled?: boolean }) {
   return useQuery<DossierItem>({
     queryKey: queryKeys.dossiers.detail(id),
     queryFn: ({ signal }) => dossiersService.getDossier(id, { signal }),
-    enabled: !!id,
     ...options,
+    enabled: Boolean(id) && (options?.enabled ?? true),
   });
 }
 
@@ -61,8 +61,8 @@ export function useDossierComments(dossierId: string, params?: QueryCommentParam
   return useQuery<DossierCommentsResponse>({
     queryKey: queryKeys.dossiers.comments(dossierId, params),
     queryFn: ({ signal }) => dossiersService.getDossierComments(dossierId, params, { signal }),
-    enabled: !!dossierId,
     ...options,
+    enabled: Boolean(dossierId) && (options?.enabled ?? true),
   });
 }
 

@@ -194,16 +194,20 @@ export class DossiersService {
     ) as typeof dossier.operatorUser;
 
     if (logSensitiveView) {
-      await this.auditLogsService.record({
-        organizationId: user.organizationId,
-        actorUserId: user.id,
-        action: AuditAction.DOSSIER_VIEWED,
-        entityType: AuditEntityType.DOSSIER,
-        entityId: id,
-        afterData: {
-          fields: ['customer', 'passengers', 'estimates', 'assignment'],
-        },
-      });
+      void this.auditLogsService
+        .record({
+          organizationId: user.organizationId,
+          actorUserId: user.id,
+          action: AuditAction.DOSSIER_VIEWED,
+          entityType: AuditEntityType.DOSSIER,
+          entityId: id,
+          afterData: {
+            fields: ['customer', 'passengers', 'estimates', 'assignment'],
+          },
+        })
+        .catch((err: Error) => {
+          this.logger.warn(`Lỗi ghi audit log xem hồ sơ ${id}: ${err?.message}`);
+        });
     }
 
     return dossier;
@@ -231,6 +235,10 @@ export class DossiersService {
       status: DossierStatus.DRAFT,
       salesUserId: createDossierDto.salesUserId || user.id,
       createdBy: user.id,
+      revenueRecognitionDate:
+        createDossierDto.revenueRecognitionDate ||
+        createDossierDto.endDate ||
+        createDossierDto.startDate,
     });
 
     const savedDossier = await this.dossierRepository.save(dossier);
@@ -277,6 +285,12 @@ export class DossiersService {
     }
 
     Object.assign(dossier, updateData);
+    if (
+      !dossier.revenueRecognitionDate &&
+      (dossier.endDate || dossier.startDate)
+    ) {
+      dossier.revenueRecognitionDate = dossier.endDate || dossier.startDate;
+    }
 
     const updatedDossier = await this.dossierRepository.save(dossier);
     const afterData = this.auditSnapshot(updatedDossier);

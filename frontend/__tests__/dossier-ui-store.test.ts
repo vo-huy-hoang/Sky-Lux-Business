@@ -36,11 +36,34 @@ describe('useDossierUIStore (Zustand Dossier Detail UI Store)', () => {
     expect(state.actionNote).toBe('');
   });
 
-  it('should update activeTab', () => {
+  it('should update activeTab and track visitedTabs automatically', () => {
     useDossierUIStore.getState().setActiveTab('cost');
     expect(useDossierUIStore.getState().activeTab).toBe('cost');
+    expect(useDossierUIStore.getState().visitedTabs.cost).toBe(true);
 
     useDossierUIStore.getState().setActiveTab('discussion');
     expect(useDossierUIStore.getState().activeTab).toBe('discussion');
+    expect(useDossierUIStore.getState().visitedTabs.discussion).toBe(true);
+    expect(useDossierUIStore.getState().visitedTabs.cost).toBe(true);
+  });
+
+  it('should mark tab visited manually via markTabVisited', () => {
+    useDossierUIStore.getState().markTabVisited('documents');
+    expect(useDossierUIStore.getState().visitedTabs.documents).toBe(true);
+    expect(useDossierUIStore.getState().activeTab).toBe('overview');
+  });
+
+  it('should reset all UI state via resetUIState()', () => {
+    useDossierUIStore.getState().setModalAction('APPROVE');
+    useDossierUIStore.getState().setActionNote('Duyệt ngay');
+    useDossierUIStore.getState().setActiveTab('documents');
+
+    useDossierUIStore.getState().resetUIState();
+
+    const state = useDossierUIStore.getState();
+    expect(state.modalAction).toBeNull();
+    expect(state.actionNote).toBe('');
+    expect(state.activeTab).toBe('overview');
+    expect(state.visitedTabs).toEqual({ overview: true });
   });
 });

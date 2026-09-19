@@ -41,6 +41,7 @@ import { DossierItem } from '@/types/dossier';
 import { UserProfile } from '@/types/auth';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { queryKeys } from '@/lib/query-keys';
+import { formatCurrency } from '@/lib/financial-calculations';
 
 const { Title, Text } = Typography;
 
@@ -73,11 +74,6 @@ function normalizeProfile(profile: AuthMeResponse): UserProfile {
     roles: profile.roles?.map((role) => role.code) || [],
     permissions: profile.permissions || [],
   };
-}
-
-function formatCurrency(value: number | undefined) {
-  if (value === undefined || Number.isNaN(Number(value))) return '-';
-  return `${new Intl.NumberFormat('vi-VN').format(Number(value))} ₫`;
 }
 
 function formatPercent(value: number | undefined) {
@@ -336,7 +332,7 @@ export default function ProfilePage() {
               <div>
                 <Text className="text-sm text-slate-600">Doanh thu cá nhân</Text>
                 <Statistic
-                  value={formatCurrency(revenueKpi?.actualValue)}
+                  value={formatCurrency(revenueKpi?.actualValue, { fallback: '-' })}
                   styles={{ content: { color: '#00543D', fontSize: 24, fontWeight: 700 } }}
                 />
                 <Text className="mt-3 block text-xs text-[#007A55]">

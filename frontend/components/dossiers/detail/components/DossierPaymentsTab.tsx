@@ -8,19 +8,29 @@ import { useDossierFinanceSummary, useDossierPayments } from '@/hooks/use-paymen
 import { paymentsService } from '@/services/payments.service';
 import { queryKeys } from '@/lib/query-keys';
 import { PaymentItem } from '@/types/payment';
+import { formatCurrency } from '@/lib/financial-calculations';
 
 export interface DossierPaymentsTabProps {
   dossierId: string;
   isLocked?: boolean;
+  isActive?: boolean;
+  currency?: string;
 }
 
-export default function DossierPaymentsTab({ dossierId, isLocked = false }: DossierPaymentsTabProps) {
+export default function DossierPaymentsTab({
+  dossierId,
+  isLocked = false,
+  isActive,
+  currency = 'VND',
+}: DossierPaymentsTabProps) {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm();
   
-  const { data, isLoading } = useDossierPayments(dossierId);
+  const { data, isLoading } = useDossierPayments(dossierId, {
+    enabled: isActive !== false,
+  });
   const financeSummaryQuery = useDossierFinanceSummary(dossierId);
   const payments = data?.data || [];
   const remainingDebt = Math.max(
@@ -54,9 +64,9 @@ export default function DossierPaymentsTab({ dossierId, isLocked = false }: Doss
       title: 'Số tiền',
       dataIndex: 'amount',
       key: 'amount',
-      render: (val: number) => 
+      render: (val: number, record: PaymentItem) => 
         <strong className="text-emerald-600">
-          {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val)}
+          {formatCurrency(val, (record as any)?.currency || currency || 'VND')}
         </strong>,
     },
     {

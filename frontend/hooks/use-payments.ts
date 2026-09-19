@@ -2,11 +2,12 @@ import { useQuery } from '@tanstack/react-query';
 import { paymentsService } from '@/services/payments.service';
 import { queryKeys } from '@/lib/query-keys';
 
-export function useDossierPayments(dossierId: string | null | undefined) {
+export function useDossierPayments(dossierId: string | null | undefined, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.payments.dossierPayments(dossierId || ''),
     queryFn: ({ signal }) => paymentsService.getPaymentsByDossier(dossierId!, { signal }),
-    enabled: !!dossierId,
+    ...options,
+    enabled: Boolean(dossierId) && (options?.enabled ?? true),
   });
 }
 
