@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useMemo } from "react";
-import { Card, Empty, Skeleton, Tabs, Tag } from "antd";
+import React, { useEffect, useMemo } from "react";
+import { Card, Empty, Skeleton, Tabs, Tag, Typography } from "antd";
+import dayjs from "dayjs";
 import DossierDocumentsTab from "@/components/documents/DossierDocumentsTab";
 import { DossierComments } from "@/app/main/dossiers/components/DossierComments";
 import DossierPaymentsTab from "./DossierPaymentsTab";
@@ -10,6 +11,11 @@ import { DossierCostTable } from "./DossierCostTable";
 import { CostSummaryTable, calculateCostSummaryRows } from "./CostSummaryTable";
 import { DossierRevenueTable } from "./DossierRevenueTable";
 import { sumWorkbookGrossAmounts } from "@/lib/financial-calculations";
+import DossierChangeRequests from "./DossierChangeRequests";
+import { useDossierChangeRequests } from "@/hooks/dossiers";
+import { useAuthStore } from "@/lib/stores/auth-store";
+
+const { Text } = Typography;
 
 export interface DossierDetailTabsProps {
   estimate: any;
@@ -28,6 +34,17 @@ export function DossierDetailTabs({
 }: DossierDetailTabsProps) {
   const activeTab = useDossierUIStore((s) => s.activeTab);
   const setActiveTab = useDossierUIStore((s) => s.setActiveTab);
+  const isSales = useAuthStore((state) => state.hasRole("SALES"));
+  const changeRequestsQuery = useDossierChangeRequests(dossierId);
+  const openChangeRequestCount = (changeRequestsQuery.data?.data || []).filter(
+    (request) => request.status === "OPEN",
+  ).length;
+
+  useEffect(() => {
+    if (isSales && dossier?.status === "NEED_CHANGES" && openChangeRequestCount > 0) {
+      setActiveTab("change-requests");
+    }
+  }, [dossier?.status, isSales, openChangeRequestCount, setActiveTab]);
 
   const businessLine = dossier?.businessLine?.code?.startsWith("TOUR_")
     ? "TOUR"
@@ -77,6 +94,22 @@ export function DossierDetailTabs({
               label: "Thông tin chung",
               children: (
                 <div className="space-y-6">
+                  <Card size="small" className="border border-slate-200 shadow-none">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <Text strong>Ngày khóa hồ sơ</Text>
+                        <div className="mt-1 text-xs text-slate-500">
+                          Dùng làm mốc thời gian khi lọc báo cáo.
+                        </div>
+                      </div>
+
+                      <Text>
+                        {dossier?.lockedAt
+                          ? dayjs(dossier.lockedAt).format("DD/MM/YYYY")
+                          : "Chưa khóa"}
+                      </Text>
+                    </div>
+                  </Card>
                   <DossierRevenueTable
                     revenueLines={estimate.revenueLines}
                     dossier={dossier}
@@ -121,6 +154,25 @@ export function DossierDetailTabs({
               label: "Trao đổi",
               children: (
                 <DossierComments dossierId={dossierId} isLocked={isLocked} />
+              ),
+            },
+            {
+              key: "change-requests",
+              label: (
+                <span>
+                  Yêu cầu bổ sung
+                  {openChangeRequestCount > 0 && (
+                    <Tag color="orange" className="ml-2">
+                      {openChangeRequestCount}
+                    </Tag>
+                  )}
+                </span>
+              ),
+              children: (
+                <DossierChangeRequests
+                  dossierId={dossierId}
+                  isLocked={isLocked}
+                />
               ),
             },
             {

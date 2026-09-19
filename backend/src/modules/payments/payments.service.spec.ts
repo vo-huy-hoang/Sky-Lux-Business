@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Payment } from './entities/payment.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
+import { EstimateRevenueLine } from '../estimates/entities/estimate-revenue-line.entity';
 import { RedisService } from '../../common/redis/redis.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
@@ -33,6 +34,7 @@ describe('PaymentsService', () => {
   const mockRedisService = {
     get: jest.fn(),
     set: jest.fn(),
+    del: jest.fn(),
     delByPattern: jest.fn(),
   };
 
@@ -54,6 +56,10 @@ describe('PaymentsService', () => {
           useValue: mockRepository,
         },
         {
+          provide: getRepositoryToken(EstimateRevenueLine),
+          useValue: mockRepository,
+        },
+        {
           provide: RedisService,
           useValue: mockRedisService,
         },
@@ -61,6 +67,7 @@ describe('PaymentsService', () => {
           provide: NotificationsService,
           useValue: {
             notify: jest.fn(),
+            publishOrganizationEvent: jest.fn(),
           },
         },
       ],
@@ -126,6 +133,28 @@ describe('PaymentsService', () => {
     mockRepository.create.mockImplementation((value) => value);
     mockRepository.save.mockResolvedValue(savedPayment);
     mockRedisService.delByPattern.mockResolvedValue(undefined);
+    mockRepository.createQueryBuilder
+      .mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        getRawOne: jest.fn().mockResolvedValue({ totalPaid: '0' }),
+      })
+      .mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        getRawOne: jest.fn().mockResolvedValue({ totalCost: '250000' }),
+      })
+      .mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        getRawOne: jest.fn().mockResolvedValue({ totalReceivable: '400000' }),
+      });
 
     const result = await service.createPayment(user, 'dossier-1', {
       amount: 100000,
@@ -141,6 +170,38 @@ describe('PaymentsService', () => {
       }),
     );
     expect(result.data.id).toBe('payment-1');
+  });
+
+  it('rejects a customer receipt that exceeds the remaining receivable', async () => {
+    const user = createUser();
+    mockRepository.findOne.mockResolvedValue({ id: 'dossier-1' });
+    mockRepository.createQueryBuilder
+      .mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        getRawOne: jest.fn().mockResolvedValue({ totalPaid: '0' }),
+      })
+      .mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        getRawOne: jest.fn().mockResolvedValue({ totalCost: '100000' }),
+      })
+      .mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        getRawOne: jest.fn().mockResolvedValue({ totalReceivable: '201760006' }),
+      });
+
+    await expect(
+      service.createPayment(user, 'dossier-1', { amount: 250000000 }),
+    ).rejects.toThrow('không được vượt quá công nợ còn lại');
+    expect(mockRepository.save).not.toHaveBeenCalled();
   });
 
   it('calculates finance summary from approved estimate cost lines and customer receipts', async () => {
@@ -159,12 +220,20 @@ describe('PaymentsService', () => {
       innerJoin: jest.fn().mockReturnThis(),
       getRawOne: jest.fn().mockResolvedValue({ totalCost: '250000' }),
     };
+    const revenueQueryBuilder = {
+      select: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      innerJoin: jest.fn().mockReturnThis(),
+      getRawOne: jest.fn().mockResolvedValue({ totalReceivable: '400000' }),
+    };
 
     mockRedisService.get.mockResolvedValue(null);
     mockRepository.findOne.mockResolvedValue({ id: 'dossier-1' });
     mockRepository.createQueryBuilder
       .mockReturnValueOnce(paymentQueryBuilder)
-      .mockReturnValueOnce(costQueryBuilder);
+      .mockReturnValueOnce(costQueryBuilder)
+      .mockReturnValueOnce(revenueQueryBuilder);
 
     const result = await service.getFinanceSummary(user, 'dossier-1');
 
@@ -178,8 +247,9 @@ describe('PaymentsService', () => {
     );
     expect(result.data).toMatchObject({
       totalCost: 250000,
+      totalReceivable: 400000,
       totalPaid: 100000,
-      remainingDebt: 150000,
+      remainingDebt: 300000,
     });
   });
 

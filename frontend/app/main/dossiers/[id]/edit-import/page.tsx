@@ -280,6 +280,7 @@ export default function EditImportDossierPage() {
           stt: idx + 1,
           description: line.description || "Chi phí",
           serviceCategoryId: line.serviceCategoryId,
+          categoryTitle: line.categoryTitle,
           supplierId: line.supplierId,
           supplierName: extractedSupplier,
           quantity: Number(line.quantity ?? 1),
@@ -409,6 +410,7 @@ export default function EditImportDossierPage() {
           id: persistedCostIds.has(c.id) ? c.id : undefined,
           description: c.description || "Chi phí",
           serviceCategoryId: c.serviceCategoryId || undefined,
+          categoryTitle: c.categoryTitle || undefined,
           supplierId: c.supplierId || undefined,
           quantity: c.quantity,
           multiplier: c.multiplier,
@@ -876,16 +878,6 @@ export default function EditImportDossierPage() {
     value: s.name,
   }));
 
-  if (supplierOptions.length === 0) {
-    supplierOptions.push(
-      { label: "Vietnam Airlines", value: "Vietnam Airlines" },
-      { label: "Hotel Boss", value: "Hotel Boss" },
-      { label: "Marina Bay Sands", value: "Marina Bay Sands" },
-      { label: "TransViet", value: "TransViet" },
-      { label: "VN Guide", value: "VN Guide" },
-    );
-  }
-
   const renderCostRow = (
     row: EditableCostRow,
     type: "vat" | "novat",
@@ -1234,7 +1226,7 @@ export default function EditImportDossierPage() {
                   <div className="text-[11px] text-slate-400 mt-0.5">
                     {issueFilter !== "ALL"
                       ? "Không tìm thấy mục nào thuộc bộ lọc này."
-                      : "Dữ liệu hợp lệ, sẵn sàng gửi điều hành xem xét."}
+                      : "Dữ liệu hợp lệ, sẵn sàng lưu thay đổi dự toán."}
                   </div>
                 </div>
               ) : (
@@ -1911,19 +1903,12 @@ export default function EditImportDossierPage() {
 
               <Button
                 type="primary"
-                icon={<SendOutlined />}
+                icon={<CheckCircleOutlined />}
                 loading={saveMutation.isPending}
-                onClick={() =>
-                  saveMutation.mutate({
-                    submitStatus: EstimateStatus.SUBMITTED,
-                    navigateBack: true,
-                  })
-                }
+                onClick={() => saveMutation.mutate({ navigateBack: true })}
                 className="h-10 rounded-xl bg-[#063826] hover:bg-[#084D34] text-white font-semibold text-xs px-5 border-none shadow-md"
               >
-                {dossier?.status === "NEED_CHANGES"
-                  ? "Gửi điều hành lại"
-                  : "Gửi điều hành duyệt"}
+                Lưu thay đổi
               </Button>
             </>
           )}

@@ -45,7 +45,7 @@ export interface RevenueReportRow {
   customerName?: string;
   salesUserId?: string;
   salesUserName?: string;
-  revenueRecognitionDate?: string;
+  lockedAt?: string;
   dossierStatus: string;
   currency: string;
   revenueGross: number;

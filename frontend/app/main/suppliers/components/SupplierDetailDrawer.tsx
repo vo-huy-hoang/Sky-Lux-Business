@@ -99,7 +99,7 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
     >
       {isLoading ? (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
-          <Spin size="large" tip="Đang tải thông tin..." />
+          <Spin size="large" description="Đang tải thông tin..." />
         </div>
       ) : error ? (
         <Alert
@@ -114,7 +114,7 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
             <Title level={4} style={{ marginBottom: 4 }}>
               {supplier.name}
             </Title>
-            <Space split={<Divider type="vertical" />}>
+            <Space separator={<Divider orientation="vertical" />}>
               <Text type="secondary">Mã: {supplier.code}</Text>
               {getStatusTag(supplier.status)}
               {supplier.supplierType && (

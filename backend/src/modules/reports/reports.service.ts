@@ -326,6 +326,7 @@ export class ReportsService {
     const customerPaid = this.paymentSumSql(PaymentDirection.CUSTOMER_RECEIPT);
 
     const rowsQuery = base
+      .clone()
       .select('dossier.id', 'dossierId')
       .addSelect('dossier.code', 'dossierCode')
       .addSelect('dossier.name', 'dossierName')
@@ -333,7 +334,7 @@ export class ReportsService {
       .addSelect('customer.displayName', 'customerName')
       .addSelect('dossier.salesUserId', 'salesUserId')
       .addSelect('salesUser.fullName', 'salesUserName')
-      .addSelect('dossier.revenueRecognitionDate', 'revenueRecognitionDate')
+      .addSelect('dossier.lockedAt', 'lockedAt')
       .addSelect('dossier.status', 'dossierStatus')
       .addSelect('estimate.currency', 'currency')
       .addSelect(revenueGross, 'revenueGross')
@@ -341,7 +342,7 @@ export class ReportsService {
       .addSelect(costGross, 'costGross')
       .addSelect(costNet, 'costNet')
       .addSelect(customerPaid, 'customerPaid')
-      .orderBy('dossier.revenueRecognitionDate', 'DESC', 'NULLS LAST')
+      .orderBy('dossier.lockedAt', 'DESC', 'NULLS LAST')
       .addOrderBy('dossier.createdAt', 'DESC');
 
     if (paginate) this.applyPagination(rowsQuery, query);
@@ -386,6 +387,7 @@ export class ReportsService {
     const costNet = this.lineSumSql('estimate_cost_lines', 'net_amount');
 
     const rowsQuery = base
+      .clone()
       .select('salesUser.id', 'salesUserId')
       .addSelect('salesUser.employeeCode', 'employeeCode')
       .addSelect('salesUser.fullName', 'salesUserName')
@@ -476,6 +478,7 @@ export class ReportsService {
     const customerPaid = this.paymentSumSql(PaymentDirection.CUSTOMER_RECEIPT);
 
     const rowsQuery = base
+      .clone()
       .select('customer.id', 'customerId')
       .addSelect('customer.code', 'customerCode')
       .addSelect('customer.displayName', 'customerName')
@@ -536,6 +539,7 @@ export class ReportsService {
     this.validatePeriod(query);
     const base = this.createSupplierCostQuery(organizationId, query, access);
     const rowsQuery = base
+      .clone()
       .select('supplier.id', 'supplierId')
       .addSelect('supplier.code', 'supplierCode')
       .addSelect('supplier.name', 'supplierName')
@@ -671,7 +675,7 @@ export class ReportsService {
   private applyDateFilter(qb: SelectQueryBuilder<any>, query: ReportQueryDto) {
     if (query.periodStart && query.periodEnd) {
       qb.andWhere(
-        'dossier.revenueRecognitionDate BETWEEN :periodStart AND :periodEnd',
+        'DATE(dossier.lockedAt) BETWEEN :periodStart AND :periodEnd',
         { periodStart: query.periodStart, periodEnd: query.periodEnd },
       );
     }
@@ -771,6 +775,7 @@ export class ReportsService {
   private async countDossiers(qb: SelectQueryBuilder<any>) {
     const result = await qb
       .clone()
+      .orderBy()
       .select('COUNT(DISTINCT dossier.id)', 'count')
       .getRawOne<{ count: string }>();
     return Number(result?.count || 0);
@@ -779,6 +784,7 @@ export class ReportsService {
   private async countDistinct(qb: SelectQueryBuilder<any>, column: string) {
     const result = await qb
       .clone()
+      .orderBy()
       .select(`COUNT(DISTINCT ${column})`, 'count')
       .getRawOne<{ count: string }>();
     return Number(result?.count || 0);
@@ -794,6 +800,7 @@ export class ReportsService {
   ) {
     const summary = qb
       .clone()
+      .orderBy()
       .select(`COALESCE(SUM(${revenueGross}), 0)`, 'revenueGross')
       .addSelect(`COALESCE(SUM(${revenueNet}), 0)`, 'revenueNet')
       .addSelect(`COALESCE(SUM(${costGross}), 0)`, 'costGross')
@@ -831,7 +838,7 @@ export class ReportsService {
       customerName: row.customerName,
       salesUserId: row.salesUserId,
       salesUserName: row.salesUserName,
-      revenueRecognitionDate: row.revenueRecognitionDate,
+      lockedAt: row.lockedAt,
       dossierStatus: row.dossierStatus,
       currency: row.currency,
       ...summary,
@@ -888,6 +895,7 @@ export class ReportsService {
     const scope = this.resolveScope(access);
     const cacheKey = [
       'skylux:reports',
+      'locked-at-v2',
       reportType,
       organizationId,
       access?.userId || 'system',

@@ -160,7 +160,7 @@ export default function ReportsPage() {
         { title: 'Hồ sơ', dataIndex: 'dossierCode', render: (value: unknown) => value || '—' },
         { title: 'Khách hàng', dataIndex: 'customerName', render: (value: unknown) => value || '—' },
         { title: 'Sales', dataIndex: 'salesUserName', render: (value: unknown) => value || 'Chưa gán' },
-        { title: 'Ngày ghi nhận', dataIndex: 'revenueRecognitionDate', render: dateLabel },
+        { title: 'Ngày khóa hồ sơ', dataIndex: 'lockedAt', render: dateLabel },
         { title: 'Doanh thu', dataIndex: 'revenueNet', render: money, ...right },
         { title: 'Chi phí', dataIndex: 'costNet', render: money, ...right },
         { title: 'Lợi nhuận', dataIndex: 'profit', render: money, ...right },
@@ -352,7 +352,7 @@ export default function ReportsPage() {
               extra={<Text className="text-xs text-[var(--ceo-text-muted)]">{dates[0].format('DD/MM/YYYY')} - {dates[1].format('DD/MM/YYYY')}</Text>}
             >
               {reportQuery.isError ? (
-                <Alert type="error" showIcon message="Không thể tải báo cáo" description={reportQuery.error instanceof Error ? reportQuery.error.message : 'Vui lòng thử lại sau.'} />
+                <Alert type="error" showIcon title="Không thể tải báo cáo" description={reportQuery.error instanceof Error ? reportQuery.error.message : 'Vui lòng thử lại sau.'} />
               ) : (
                 <>
                   <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -400,7 +400,7 @@ export default function ReportsPage() {
             </Card>
             <Card className="ceo-card" title="Phạm vi báo cáo">
               <div className="space-y-2 text-sm text-[var(--ceo-text-muted)]">
-                <p>Doanh thu được tính theo estimate đã duyệt và ngày ghi nhận doanh thu.</p>
+                <p>Doanh thu được tính theo estimate đã duyệt và ngày khóa hồ sơ.</p>
                 <p>Phạm vi Sales/Operator/CEO được backend áp dụng theo tenant và permission.</p>
               </div>
             </Card>

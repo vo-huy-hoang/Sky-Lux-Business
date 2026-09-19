@@ -8,6 +8,8 @@ import {
   DossierCommentsResponse,
   CreateCommentPayload,
   QueryCommentParams,
+  DossierChangeRequestsResponse,
+  RespondChangeRequestPayload,
 } from '@/types/dossier';
 
 /**
@@ -87,3 +89,39 @@ export function useCreateDossierComment() {
   });
 }
 
+export function useDossierChangeRequests(
+  dossierId: string,
+  options?: { enabled?: boolean },
+) {
+  return useQuery<DossierChangeRequestsResponse>({
+    queryKey: queryKeys.dossiers.changeRequests(dossierId),
+    queryFn: ({ signal }) =>
+      dossiersService.getDossierChangeRequests(dossierId, { signal }),
+    enabled: Boolean(dossierId) && (options?.enabled ?? true),
+  });
+}
+
+export function useRespondToDossierChangeRequest() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      dossierId,
+      requestId,
+      payload,
+    }: {
+      dossierId: string;
+      requestId: string;
+      payload: RespondChangeRequestPayload;
+    }) =>
+      dossiersService.respondToDossierChangeRequest(dossierId, requestId, payload),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.dossiers.changeRequests(variables.dossierId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.dossiers.detail(variables.dossierId),
+      });
+    },
+  });
+}

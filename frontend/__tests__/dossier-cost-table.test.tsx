@@ -1,6 +1,14 @@
 import React from "react";
 import { render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const testQueryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false } },
+});
+
+const renderWithQuery = (ui: React.ReactElement) =>
+  render(<QueryClientProvider client={testQueryClient}>{ui}</QueryClientProvider>);
 
 jest.mock("@ant-design/icons", () => ({
   FileExcelOutlined: () => <span data-testid="file-excel-icon" />,
@@ -700,7 +708,7 @@ describe("Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
         ],
       };
 
-      render(
+      renderWithQuery(
         <DossierDetailTabs
           estimate={mockEstimate}
           dossierId="dossier-123"
@@ -732,7 +740,7 @@ describe("Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
         revenueLines: [],
         costLines: [],
       };
-      render(
+      renderWithQuery(
         <DossierDetailTabs
           estimate={mockEstimate}
           dossierId="dossier-123"
@@ -982,11 +990,11 @@ describe("Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
           );
         expect(isSales).toBe(true);
 
-        const salesDraftButtons = !isSales
-          ? ["Lưu tạm", "Lưu thay đổi"]
-          : ["Lưu nháp", "Gửi điều hành duyệt"];
-        expect(salesDraftButtons).toContain("Gửi điều hành duyệt");
+        // Sales in edit-import should save changes (Lưu thay đổi) and not submit to operator directly
+        const salesDraftButtons = ["Lưu nháp", "Lưu thay đổi"];
+        expect(salesDraftButtons).toContain("Lưu thay đổi");
         expect(salesDraftButtons).toContain("Lưu nháp");
+        expect(salesDraftButtons).not.toContain("Gửi điều hành duyệt");
       });
     });
   });

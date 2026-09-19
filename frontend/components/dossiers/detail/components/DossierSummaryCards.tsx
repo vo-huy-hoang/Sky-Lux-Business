@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
-import { Card, Col, Row, Tag, Typography } from 'antd';
+import React, { useState } from 'react';
+import { App, Button, Card, Col, InputNumber, Row, Tag, Typography } from 'antd';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarOutlined,
   ClockCircleOutlined,
@@ -15,6 +16,8 @@ import {
 } from '@ant-design/icons';
 import { date, money } from '../types';
 import { useDossierFinanceSummary } from '@/hooks/use-payments';
+import { paymentsService } from '@/services/payments.service';
+import { queryKeys } from '@/lib/query-keys';
 
 const { Text } = Typography;
 
@@ -24,12 +27,14 @@ function SummaryCard({
   sub,
   icon,
   tone = 'green',
+  action,
 }: {
   label: string;
   value: React.ReactNode;
   sub?: React.ReactNode;
   icon: React.ReactNode;
   tone?: 'green' | 'gold' | 'blue';
+  action?: React.ReactNode;
 }) {
   const color =
     tone === 'gold'
@@ -49,9 +54,128 @@ function SummaryCard({
               {sub}
             </div>
           )}
+          {action && <div className="mt-2">{action}</div>}
         </div>
       </div>
     </Card>
+  );
+}
+
+function PaymentEntry({
+  dossierId,
+  isLocked,
+  remainingDebt,
+  isSummaryReady,
+  isSummaryLoading,
+  isSummaryError,
+  onRetry,
+}: {
+  dossierId: string;
+  isLocked: boolean;
+  remainingDebt: number;
+  isSummaryReady: boolean;
+  isSummaryLoading: boolean;
+  isSummaryError: boolean;
+  onRetry: () => void;
+}) {
+  const { message } = App.useApp();
+  const queryClient = useQueryClient();
+  const [amount, setAmount] = useState<number | null>(null);
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      paymentsService.createPayment(dossierId, {
+        amount: amount as number,
+        method: 'BANK_TRANSFER',
+        paymentDirection: 'CUSTOMER_RECEIPT',
+      }),
+    onSuccess: (response) => {
+      const paidAmount = Number(response.data?.amount || amount || 0);
+      queryClient.setQueryData(
+        queryKeys.payments.financeSummary(dossierId),
+        (current: any) => {
+          if (!current?.data) return current;
+          const totalPaid = Number(current.data.totalPaid || 0) + paidAmount;
+          const totalReceivable = Number(
+            current.data.totalReceivable ?? current.data.totalCost ?? 0,
+          );
+          return {
+            ...current,
+            data: {
+              ...current.data,
+              totalPaid,
+              remainingDebt: Math.max(totalReceivable - totalPaid, 0),
+            },
+          };
+        },
+      );
+      setAmount(null);
+      message.success('Đã ghi nhận khoản khách thanh toán');
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.payments.dossierPayments(dossierId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.payments.financeSummary(dossierId),
+      });
+    },
+    onError: (error: unknown) => {
+      message.error(
+        error instanceof Error
+          ? error.message
+          : 'Không thể ghi nhận thanh toán',
+      );
+    },
+  });
+
+  const submit = () => {
+    if (!amount || amount <= 0) {
+      message.warning('Vui lòng nhập số tiền khách đã thanh toán');
+      return;
+    }
+    if (!isSummaryReady) {
+      message.warning('Đang đồng bộ công nợ, vui lòng thử lại sau giây lát');
+      return;
+    }
+    if (amount > remainingDebt) {
+      message.warning('Số tiền nhập không được vượt quá công nợ còn lại');
+      return;
+    }
+    createMutation.mutate();
+  };
+
+  if (isLocked) return null;
+
+  return (
+    <div className="flex items-center gap-1.5" aria-label="Nhập khoản thanh toán mới">
+      <InputNumber
+        min={1}
+        max={remainingDebt}
+        value={amount}
+        onChange={(value) => setAmount(value)}
+        placeholder="Khoản thu mới"
+        size="small"
+        className="w-[132px]"
+        controls={false}
+        disabled={!isSummaryReady || remainingDebt <= 0}
+        formatter={(value) => (value ? Number(value).toLocaleString('vi-VN') : '')}
+        parser={(value) => (value || '').replace(/\D/g, '') as unknown as number}
+      />
+      <Button
+        size="small"
+        type="primary"
+        loading={createMutation.isPending}
+        disabled={isSummaryError ? false : !isSummaryReady || remainingDebt <= 0}
+        onClick={isSummaryError ? onRetry : submit}
+      >
+        {isSummaryLoading
+          ? 'Đang tải...'
+          : isSummaryError
+            ? 'Thử lại'
+          : remainingDebt > 0
+            ? 'Ghi nhận'
+            : 'Đã đủ công nợ'}
+      </Button>
+    </div>
   );
 }
 
@@ -80,6 +204,16 @@ export function DossierSummaryCards({
 }: DossierSummaryCardsProps) {
   const financeSummaryQuery = useDossierFinanceSummary(dossier?.id);
   const financeSummary = financeSummaryQuery.data?.data;
+  const isLocked = dossier?.status === 'LOCKED';
+  const isFinanceSummaryReady = Boolean(financeSummary);
+  const isFinanceSummaryLoading = financeSummaryQuery.isLoading;
+  const isFinanceSummaryError = financeSummaryQuery.isError;
+  const totalPaid = Number(financeSummary?.totalPaid ?? 0);
+  const totalReceivable = Number(financeSummary?.totalReceivable ?? 0);
+  const remainingDebt = Math.max(
+    Number(financeSummary?.remainingDebt ?? totalReceivable - totalPaid),
+    0,
+  );
 
   return (
     <Row gutter={[12, 12]}>
@@ -176,17 +310,40 @@ export function DossierSummaryCards({
       <Col xs={24} md={12} xl={isDrawer ? 12 : 6}>
         <SummaryCard
           label="Đã thu (Khách trả)"
-          value={money(financeSummary?.totalPaid || 0, estimate?.currency)}
-          sub="Tổng cộng từ các lần thanh toán"
+          value={
+            isFinanceSummaryReady
+              ? money(totalPaid, estimate?.currency)
+              : isFinanceSummaryError
+                ? 'Không tải được'
+                : 'Đang tải...'
+          }
+          sub="Nhập khoản thu mới bên dưới"
           icon={<WalletOutlined />}
           tone="green"
+          action={
+            <PaymentEntry
+              dossierId={dossier?.id}
+              isLocked={isLocked}
+              remainingDebt={remainingDebt}
+              isSummaryReady={isFinanceSummaryReady}
+              isSummaryLoading={isFinanceSummaryLoading}
+              isSummaryError={isFinanceSummaryError}
+              onRetry={() => financeSummaryQuery.refetch()}
+            />
+          }
         />
       </Col>
       <Col xs={24} md={12} xl={isDrawer ? 12 : 6}>
         <SummaryCard
           label="Công nợ còn lại"
-          value={money(financeSummary?.remainingDebt || 0, estimate?.currency)}
-          sub="Dựa trên tổng dự toán (cost)"
+          value={
+            isFinanceSummaryReady
+              ? money(remainingDebt, estimate?.currency)
+              : isFinanceSummaryError
+                ? 'Không tải được'
+                : 'Đang tải...'
+          }
+          sub="Tổng phải thu trừ số đã thu"
           icon={<PayCircleOutlined />}
           tone="gold"
         />

@@ -166,7 +166,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ conversationId, onClose }) => 
         <div className="flex-1 overflow-y-auto p-4 bg-slate-50 flex flex-col gap-3">
           {isLoading ? (
             <div className="flex justify-center items-center h-full">
-              <Spin tip="Đang nạp tin nhắn..." />
+              <Spin description="Đang nạp tin nhắn..." />
             </div>
           ) : messages.length === 0 ? (
             <div className="flex flex-col justify-center items-center h-full text-slate-400">

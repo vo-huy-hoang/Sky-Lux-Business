@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Button, Table, Modal, Form, Input, InputNumber, DatePicker, Select, App, Tag } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { useDossierPayments } from '@/hooks/use-payments';
+import { useDossierFinanceSummary, useDossierPayments } from '@/hooks/use-payments';
 import { paymentsService } from '@/services/payments.service';
 import { queryKeys } from '@/lib/query-keys';
 import { PaymentItem } from '@/types/payment';
@@ -21,7 +21,13 @@ export default function DossierPaymentsTab({ dossierId, isLocked = false }: Doss
   const [form] = Form.useForm();
   
   const { data, isLoading } = useDossierPayments(dossierId);
+  const financeSummaryQuery = useDossierFinanceSummary(dossierId);
   const payments = data?.data || [];
+  const remainingDebt = Math.max(
+    Number(financeSummaryQuery.data?.data?.remainingDebt || 0),
+    0,
+  );
+  const financeSummaryLoading = financeSummaryQuery.isLoading;
 
   const createMutation = useMutation({
     mutationFn: (values: any) => paymentsService.createPayment(dossierId, values),
@@ -72,6 +78,15 @@ export default function DossierPaymentsTab({ dossierId, isLocked = false }: Doss
   ];
 
   const handleFinish = (values: any) => {
+    const amount = Number(values.amount || 0);
+    if (amount <= 0) {
+      message.error('Số tiền thanh toán phải lớn hơn 0');
+      return;
+    }
+    if (amount > remainingDebt) {
+      message.error('Số tiền thanh toán không được vượt quá công nợ còn lại');
+      return;
+    }
     createMutation.mutate({
       ...values,
       paidAt: values.paidAt ? values.paidAt.toISOString() : undefined,
@@ -83,8 +98,12 @@ export default function DossierPaymentsTab({ dossierId, isLocked = false }: Doss
       <div className="flex justify-between items-center">
         <h3 className="text-base font-semibold text-slate-800">Lịch sử thanh toán</h3>
         {!isLocked && (
-          <Button type="primary" onClick={() => setIsModalOpen(true)}>
-            Thêm thanh toán
+          <Button
+            type="primary"
+            disabled={financeSummaryLoading || remainingDebt <= 0}
+            onClick={() => setIsModalOpen(true)}
+          >
+            {remainingDebt > 0 ? 'Thêm thanh toán' : 'Đã đủ công nợ'}
           </Button>
         )}
       </div>
@@ -115,10 +134,20 @@ export default function DossierPaymentsTab({ dossierId, isLocked = false }: Doss
               className="w-full"
               formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
               parser={(value) => value!.replace(/\$\s?|(\.*)/g, '').replace(/,/g, '') as any}
-              min={0}
+              min={1}
+              max={remainingDebt}
               size="large"
+              disabled={remainingDebt <= 0}
             />
           </Form.Item>
+          <div className="-mt-3 mb-3 text-xs text-slate-500">
+            Còn có thể thu tối đa:{' '}
+            {new Intl.NumberFormat('vi-VN', {
+              style: 'currency',
+              currency: 'VND',
+              maximumFractionDigits: 0,
+            }).format(remainingDebt)}
+          </div>
 
           <Form.Item
             name="paidAt"

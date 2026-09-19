@@ -342,6 +342,14 @@ body {
   letter-spacing: 0;
 }
 
+.ant-input-textarea-show-count {
+  margin-bottom: 24px;
+}
+
+.ant-form-item .ant-input-textarea-show-count {
+  margin-bottom: 0;
+}
+
 .ceo-shell {
   background: var(--ceo-bg);
   color: var(--ceo-text);
@@ -846,3 +854,16 @@ body {
   .op-page { padding-bottom: 20px; }
   .op-report-toolbar { align-items: flex-start; flex-direction: column; }
 }
+
+/* Calendar Diagonal Hatch Pattern (Image 1 replica) */
+.calendar-diagonal-hatch {
+  background-color: #fafbfe;
+  background-image: repeating-linear-gradient(
+    45deg,
+    #ffffff,
+    #ffffff 7px,
+    #e4ecfb 7px,
+    #e4ecfb 8.5px
+  );
+}
+

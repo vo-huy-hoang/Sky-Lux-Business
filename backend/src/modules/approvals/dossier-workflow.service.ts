@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -18,7 +19,12 @@ import { Dossier } from '../dossiers/entities/dossier.entity';
 import { Estimate } from '../estimates/entities/estimate.entity';
 import { ApprovalRequest } from './entities/approval-request.entity';
 import { WorkflowHistory } from './entities/workflow-history.entity';
+import {
+  DossierChangeRequest,
+  DossierChangeRequestStatus,
+} from './entities/dossier-change-request.entity';
 import { WorkflowActionDto } from './dto/workflow-action.dto';
+import { RespondChangeRequestDto } from './dto/respond-change-request.dto';
 import { WorkflowListQueryDto } from './dto/workflow-list-query.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
@@ -136,6 +142,105 @@ export class DossierWorkflowService {
     };
   }
 
+  async findChangeRequests(user: CurrentUserPayload, dossierId: string) {
+    await this.findReadableDossier(user, dossierId);
+    const repository = this.dataSource.getRepository(DossierChangeRequest);
+    const items = await repository.find({
+      where: { dossierId, organizationId: user.organizationId },
+      relations: { requester: true, responder: true },
+      order: { requestedAt: 'DESC' },
+    });
+    return {
+      data: items.map((item) => this.changeRequestResponse(item)),
+      meta: { total: items.length },
+    };
+  }
+
+  async respondToChangeRequest(
+    user: CurrentUserPayload,
+    dossierId: string,
+    requestId: string,
+    dto: RespondChangeRequestDto,
+  ) {
+    const dossier = await this.dataSource.getRepository(Dossier).findOne({
+      where: { id: dossierId, organizationId: user.organizationId },
+    });
+    if (!dossier) throw new NotFoundException('Không tìm thấy hồ sơ');
+
+    const isAssignedSales =
+      user.roles.includes('SALES') &&
+      [dossier.salesUserId, dossier.createdBy].includes(user.id);
+    if (!this.isAdmin(user) && !isAssignedSales) {
+      throw new ForbiddenException(
+        'Chỉ Sales phụ trách hồ sơ mới được trả lời yêu cầu bổ sung',
+      );
+    }
+
+    const repository = this.dataSource.getRepository(DossierChangeRequest);
+    const request = await repository.findOne({
+      where: {
+        id: requestId,
+        dossierId,
+        organizationId: user.organizationId,
+      },
+      relations: { requester: true },
+    });
+    if (!request) throw new NotFoundException('Không tìm thấy yêu cầu bổ sung');
+    if (request.status !== DossierChangeRequestStatus.OPEN) {
+      throw new ConflictException('Yêu cầu bổ sung này đã được trả lời');
+    }
+
+    const responseText = dto.responseText.trim();
+    if (!responseText) {
+      throw new BadRequestException('Nội dung phản hồi không được để trống');
+    }
+    request.responseText = responseText;
+    request.respondedBy = user.id;
+    request.respondedAt = new Date();
+    request.status = DossierChangeRequestStatus.RESPONDED;
+    const saved = await repository.save(request);
+
+    if (
+      this.notificationsService &&
+      request.requestedBy &&
+      request.requestedBy !== user.id
+    ) {
+      await this.notificationsService.notify({
+        organizationId: user.organizationId,
+        userId: request.requestedBy,
+        title: `Sales đã phản hồi yêu cầu bổ sung hồ sơ ${dossier.code}`,
+        content: `${user.fullName || 'Sales'} đã phản hồi: "${responseText}"`,
+        type: 'DOSSIER',
+        linkUrl: `/main/dossiers/${dossier.id}`,
+        metadata: {
+          dossierId: dossier.id,
+          changeRequestId: request.id,
+          action: 'RESPOND_CHANGE_REQUEST',
+        },
+      });
+    }
+
+    await this.auditLogsService.record({
+      organizationId: user.organizationId,
+      actorUserId: user.id,
+      action: AuditAction.DOSSIER_UPDATED,
+      entityType: AuditEntityType.DOSSIER,
+      entityId: dossier.id,
+      afterData: {
+        changeRequestId: request.id,
+        action: 'RESPOND_CHANGE_REQUEST',
+      },
+    });
+
+    return {
+      data: {
+        ...this.changeRequestResponse(saved),
+        responder: { id: user.id, fullName: user.fullName },
+      },
+      meta: {},
+    };
+  }
+
   private async execute(
     user: CurrentUserPayload,
     dossierId: string,
@@ -171,6 +276,11 @@ export class DossierWorkflowService {
         ? await this.applyEstimateAction(estimates, estimate, user, action)
         : undefined;
 
+      const changeRequest =
+        action === 'REQUEST_CHANGES'
+          ? await this.createChangeRequest(manager, savedDossier, user, dto.note)
+          : undefined;
+
       await this.updateApproval(
         manager,
         savedDossier,
@@ -189,6 +299,9 @@ export class DossierWorkflowService {
           action,
           actorUserId: user.id,
           comment: dto.note,
+          metadata: changeRequest
+            ? { changeRequestId: changeRequest.id }
+            : undefined,
         }),
       );
       return {
@@ -197,6 +310,7 @@ export class DossierWorkflowService {
         savedDossier,
         previousStatus,
         previousOperatorUserId,
+        changeRequestId: changeRequest?.id,
       };
     });
 
@@ -207,6 +321,7 @@ export class DossierWorkflowService {
           user,
           action,
           dto.note,
+          result.changeRequestId,
         );
       } catch (notifErr: any) {
         this.logger.error(
@@ -448,11 +563,49 @@ export class DossierWorkflowService {
       toStatus: history.toStatus,
       action: history.action,
       comment: history.comment,
+      metadata: history.metadata,
       createdAt: history.createdAt,
       actor: history.actor
         ? { id: history.actor.id, fullName: history.actor.fullName }
         : undefined,
     };
+  }
+
+  private changeRequestResponse(request: DossierChangeRequest) {
+    return {
+      id: request.id,
+      dossierId: request.dossierId,
+      requestText: request.requestText,
+      responseText: request.responseText,
+      status: request.status,
+      requestedAt: request.requestedAt,
+      respondedAt: request.respondedAt,
+      requester: request.requester
+        ? { id: request.requester.id, fullName: request.requester.fullName }
+        : undefined,
+      responder: request.responder
+        ? { id: request.responder.id, fullName: request.responder.fullName }
+        : undefined,
+    };
+  }
+
+  private async createChangeRequest(
+    manager: EntityManager,
+    dossier: Dossier,
+    user: CurrentUserPayload,
+    note?: string,
+  ) {
+    const repository = manager.getRepository(DossierChangeRequest);
+    return repository.save(
+      repository.create({
+        organizationId: user.organizationId,
+        dossierId: dossier.id,
+        requestedBy: user.id,
+        requestText: note?.trim() || 'Vui lòng kiểm tra và bổ sung lại hồ sơ.',
+        status: DossierChangeRequestStatus.OPEN,
+        requestedAt: new Date(),
+      }),
+    );
   }
 
   private approvalResponse(approval: ApprovalRequest) {
@@ -485,6 +638,7 @@ export class DossierWorkflowService {
     actor: CurrentUserPayload,
     action: WorkflowAction,
     note?: string,
+    changeRequestId?: string,
   ) {
     if (!this.notificationsService) return;
 
@@ -534,7 +688,7 @@ export class DossierWorkflowService {
           content: `Điều hành viên ${actor.fullName || ''} yêu cầu chỉnh sửa: "${note || 'Vui lòng kiểm tra lại dự toán'}".`,
           type: 'DOSSIER',
           linkUrl,
-          metadata: { dossierId: dossier.id, action, note },
+          metadata: { dossierId: dossier.id, action, note, changeRequestId },
         });
       }
     }

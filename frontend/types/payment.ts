@@ -47,6 +47,7 @@ export interface FinanceSummaryResponse {
   data: {
     dossierId: string;
     totalCost: number;
+    totalReceivable: number;
     totalPaid: number;
     remainingDebt: number;
     lastCalculatedAt: string;

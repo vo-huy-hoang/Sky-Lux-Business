@@ -158,7 +158,7 @@ export function DossierWorkflowActionBar({
                 loading={isActionLoading}
                 onClick={onSubmit}
               >
-                Gửi duyệt hồ sơ
+                Gửi điều hành duyệt
               </Button>
             )}
 
@@ -171,7 +171,7 @@ export function DossierWorkflowActionBar({
                 loading={isActionLoading}
                 onClick={onResubmit}
               >
-                Gửi duyệt lại (Submit lại)
+                Gửi điều hành lại
               </Button>
             )}
           </>

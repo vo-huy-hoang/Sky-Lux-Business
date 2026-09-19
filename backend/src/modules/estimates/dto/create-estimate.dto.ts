@@ -87,6 +87,15 @@ export class CreateEstimateCostLineDto {
   @IsOptional()
   serviceCategoryId?: string;
 
+  @ApiPropertyOptional({
+    description: 'Tên mục chi phí hiển thị trên bảng dự toán',
+    example: 'ĂN UỐNG',
+  })
+  @IsString()
+  @MaxLength(100)
+  @IsOptional()
+  categoryTitle?: string;
+
   @ApiPropertyOptional({ description: 'ID nhà cung cấp' })
   @IsUUID('all', { message: 'ID nhà cung cấp phải là UUID hợp lệ' })
   @IsOptional()

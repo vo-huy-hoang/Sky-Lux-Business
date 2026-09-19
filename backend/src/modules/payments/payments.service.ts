@@ -9,6 +9,7 @@ import { Repository } from 'typeorm';
 import { Payment } from './entities/payment.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
+import { EstimateRevenueLine } from '../estimates/entities/estimate-revenue-line.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
@@ -30,6 +31,8 @@ export class PaymentsService {
     private readonly dossierRepository: Repository<Dossier>,
     @InjectRepository(EstimateCostLine)
     private readonly costLineRepository: Repository<EstimateCostLine>,
+    @InjectRepository(EstimateRevenueLine)
+    private readonly revenueLineRepository: Repository<EstimateRevenueLine>,
     private readonly redisService: RedisService,
     @Optional()
     private readonly notificationsService?: NotificationsService,
@@ -120,6 +123,18 @@ export class PaymentsService {
       );
     }
 
+    const paymentDirection =
+      dto.paymentDirection || PaymentDirection.CUSTOMER_RECEIPT;
+    if (paymentDirection === PaymentDirection.CUSTOMER_RECEIPT) {
+      const financeSummary = await this.getFinanceSummary(user, dossierId);
+      const remainingDebt = Number(financeSummary.data.remainingDebt || 0);
+      if (dto.amount > remainingDebt) {
+        throw new BadRequestException(
+          `Số tiền thanh toán không được vượt quá công nợ còn lại ${this.formatCurrency(remainingDebt)}.`,
+        );
+      }
+    }
+
     const payment = this.paymentRepository.create({
       amount: dto.amount,
       dossierId,
@@ -127,8 +142,7 @@ export class PaymentsService {
       paymentDate: this.toDateOnly(dto.paidAt),
       paymentMethod:
         (dto.method as PaymentMethod) || PaymentMethod.BANK_TRANSFER,
-      paymentDirection:
-        dto.paymentDirection || PaymentDirection.CUSTOMER_RECEIPT,
+      paymentDirection,
       status: PaymentStatus.PAID,
       referenceCode: dto.referenceCode,
       note: dto.note,
@@ -137,7 +151,18 @@ export class PaymentsService {
 
     const savedPayment = await this.paymentRepository.save(payment);
 
-    await this.invalidateCaches(dossierId, savedPayment.id, organizationId);
+    await this.invalidateCaches(
+      dossierId,
+      savedPayment.id,
+      organizationId,
+      user.id,
+    );
+
+    this.notificationsService?.publishOrganizationEvent({
+      type: 'payment.updated',
+      organizationId,
+      data: { dossierId, paymentId: savedPayment.id },
+    });
 
     if (
       this.notificationsService &&
@@ -188,6 +213,29 @@ export class PaymentsService {
       );
     }
 
+    const nextAmount = dto.amount !== undefined ? dto.amount : Number(payment.amount);
+    const nextDirection = dto.paymentDirection || payment.paymentDirection;
+    if (nextDirection === PaymentDirection.CUSTOMER_RECEIPT) {
+      const financeSummary = await this.getFinanceSummary(user, payment.dossierId);
+      const paidWithoutCurrent = Math.max(
+        Number(financeSummary.data.totalPaid || 0) -
+          (payment.paymentDirection === PaymentDirection.CUSTOMER_RECEIPT &&
+          payment.status !== PaymentStatus.CANCELLED
+            ? Number(payment.amount || 0)
+            : 0),
+        0,
+      );
+      const remainingForCurrent = Math.max(
+        Number(financeSummary.data.totalReceivable || 0) - paidWithoutCurrent,
+        0,
+      );
+      if (nextAmount > remainingForCurrent) {
+        throw new BadRequestException(
+          `Số tiền thanh toán không được vượt quá công nợ còn lại ${this.formatCurrency(remainingForCurrent)}.`,
+        );
+      }
+    }
+
     if (dto.amount !== undefined) payment.amount = dto.amount;
     if (dto.paidAt !== undefined)
       payment.paymentDate = this.toDateOnly(dto.paidAt);
@@ -205,7 +253,14 @@ export class PaymentsService {
       savedPayment.dossierId,
       savedPayment.id,
       organizationId,
+      user.id,
     );
+
+    this.notificationsService?.publishOrganizationEvent({
+      type: 'payment.updated',
+      organizationId,
+      data: { dossierId: savedPayment.dossierId, paymentId: savedPayment.id },
+    });
 
     return {
       data: this.toPaymentResponseDto(savedPayment),
@@ -219,12 +274,6 @@ export class PaymentsService {
   ): Promise<any> {
     const organizationId = user.organizationId;
 
-    const cacheKey = `skylux:dossiers::api:dossiers:${dossierId}:finance-summary:org:${organizationId}:user:${user.id}`;
-    const cached = await this.redisService.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
     const dossier = await this.dossierRepository.findOne({
       where: { id: dossierId, organizationId },
     });
@@ -233,7 +282,7 @@ export class PaymentsService {
       throw new NotFoundException(`Không tìm thấy hồ sơ với ID "${dossierId}"`);
     }
 
-    const { totalPaid } = await this.paymentRepository
+    const { totalPaid } = (await this.paymentRepository
       .createQueryBuilder('payment')
       .select('SUM(payment.amount)', 'totalPaid')
       .where('payment.dossier_id = :dossierId', { dossierId })
@@ -244,9 +293,9 @@ export class PaymentsService {
       .andWhere('payment.status != :cancelledStatus', {
         cancelledStatus: PaymentStatus.CANCELLED,
       })
-      .getRawOne();
+      .getRawOne()) || {};
 
-    const { totalCost } = await this.costLineRepository
+    const { totalCost } = (await this.costLineRepository
       .createQueryBuilder('estimate')
       .innerJoin('estimate.estimate', 'estimateHeader')
       .select('COALESCE(SUM(estimate.netAmount), 0)', 'totalCost')
@@ -258,7 +307,21 @@ export class PaymentsService {
       .andWhere('estimateHeader.status = :estimateStatus', {
         estimateStatus: EstimateStatus.APPROVED,
       })
-      .getRawOne();
+      .getRawOne()) || {};
+
+    const { totalReceivable } = (await this.revenueLineRepository
+      .createQueryBuilder('estimate')
+      .innerJoin('estimate.estimate', 'estimateHeader')
+      .select('COALESCE(SUM(estimate.netAmount), 0)', 'totalReceivable')
+      .where('estimate.organizationId = :organizationId', { organizationId })
+      .andWhere('estimateHeader.dossierId = :dossierId', { dossierId })
+      .andWhere('estimateHeader.organizationId = :organizationId', {
+        organizationId,
+      })
+      .andWhere('estimateHeader.status = :estimateStatus', {
+        estimateStatus: EstimateStatus.APPROVED,
+      })
+      .getRawOne()) || {};
 
     const parsedTotalPaid = Number(
       (totalPaid as string | number | null | undefined) ?? 0,
@@ -266,11 +329,15 @@ export class PaymentsService {
     const parsedTotalCost = Number(
       (totalCost as string | number | null | undefined) ?? 0,
     );
-    const remainingDebt = parsedTotalCost - parsedTotalPaid;
+    const parsedTotalReceivable = Number(
+      (totalReceivable as string | number | null | undefined) ?? 0,
+    );
+    const remainingDebt = Math.max(parsedTotalReceivable - parsedTotalPaid, 0);
 
     const summary = {
       dossierId: dossier.id,
       totalCost: parsedTotalCost,
+      totalReceivable: parsedTotalReceivable,
       totalPaid: parsedTotalPaid,
       remainingDebt: remainingDebt,
       lastCalculatedAt: new Date(),
@@ -281,7 +348,6 @@ export class PaymentsService {
       meta: {},
     };
 
-    await this.redisService.set(cacheKey, response, 60);
     return response;
   }
 
@@ -289,7 +355,16 @@ export class PaymentsService {
     dossierId: string,
     paymentId: string,
     organizationId: string,
+    userId: string,
   ) {
+    await Promise.all([
+      this.redisService.del(
+        `skylux:dossiers::api:dossiers:${dossierId}:payments:org:${organizationId}:user:${userId}`,
+      ),
+      this.redisService.del(
+        `skylux:dossiers::api:dossiers:${dossierId}:finance-summary:org:${organizationId}:user:${userId}`,
+      ),
+    ]);
     await this.redisService.delByPattern(
       `skylux:dossiers::api:dossiers:${dossierId}:payments:org:${organizationId}:*`,
     );

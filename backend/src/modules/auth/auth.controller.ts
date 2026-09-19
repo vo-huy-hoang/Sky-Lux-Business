@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
   Body,
   HttpCode,
   HttpStatus,
@@ -18,6 +19,8 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
@@ -87,6 +90,28 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Thông tin tài khoản hiện tại' })
   getMe(@CurrentUser('id') userId: string) {
     return this.authService.getMe(userId);
+  }
+
+  @Patch('me')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cập nhật hồ sơ cá nhân của tài khoản hiện tại' })
+  @ApiResponse({ status: 200, description: 'Cập nhật hồ sơ cá nhân thành công' })
+  updateMe(
+    @CurrentUser('id') userId: string,
+    @Body() updateProfileDto: UpdateProfileDto,
+  ) {
+    return this.authService.updateMyProfile(userId, updateProfileDto);
+  }
+
+  @Patch('me/settings')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cập nhật cài đặt cá nhân của tài khoản hiện tại' })
+  @ApiResponse({ status: 200, description: 'Cập nhật cài đặt cá nhân thành công' })
+  updateMySettings(
+    @CurrentUser('id') userId: string,
+    @Body() updateUserSettingsDto: UpdateUserSettingsDto,
+  ) {
+    return this.authService.updateMySettings(userId, updateUserSettingsDto);
   }
 
   @Get('stream-token')
