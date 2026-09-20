@@ -139,7 +139,7 @@ export const EstimateOperationalCockpit: React.FC<
                 <div className="text-[11px] text-slate-400 mt-0.5">
                   {issueFilter !== 'ALL'
                     ? 'Không tìm thấy mục nào thuộc bộ lọc này.'
-                    : 'Dữ liệu hợp lệ, sẵn sàng gửi điều hành xem xét.'}
+                    : 'Dữ liệu hợp lệ, sẵn sàng lưu thay đổi dự toán.'}
                 </div>
               </div>
             ) : (

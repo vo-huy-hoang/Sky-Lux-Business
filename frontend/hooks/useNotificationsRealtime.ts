@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { notification as antdNotification } from 'antd';
+import { App as AntApp } from 'antd';
 import Cookies from 'js-cookie';
 import { apiClient, API_BASE_URL } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
@@ -17,6 +17,7 @@ import { calculateBackoffWithJitter } from '@/lib/backoff';
  */
 export function useNotificationsRealtime(options?: { enabled?: boolean }) {
   const enabled = options?.enabled ?? true;
+  const { notification } = AntApp.useApp();
   const queryClient = useQueryClient();
   const router = useRouter();
   const setNotificationsStatus = useUIStore((state) => state.setNotificationsStatus);
@@ -100,9 +101,16 @@ export function useNotificationsRealtime(options?: { enabled?: boolean }) {
               queryKey: queryKeys.notifications.unreadCount(),
             });
 
+            const dossierId = newNotif.metadata?.dossierId;
+            if (dossierId) {
+              queryClient.invalidateQueries({
+                queryKey: queryKeys.dossiers.changeRequests(dossierId),
+              });
+            }
+
             // 3. Hiển thị popup toast nổi góc màn hình
-            antdNotification.info({
-              message: newNotif.title,
+            notification.info({
+              title: newNotif.title,
               description: newNotif.content,
               placement: 'topRight',
               duration: 5,
@@ -124,6 +132,16 @@ export function useNotificationsRealtime(options?: { enabled?: boolean }) {
             queryClient.invalidateQueries({
               queryKey: queryKeys.notifications.unreadCount(),
             });
+          } else if (type === 'payment.updated') {
+            const { dossierId } = payload as { dossierId?: string };
+            if (dossierId) {
+              queryClient.invalidateQueries({
+                queryKey: queryKeys.payments.financeSummary(dossierId),
+              });
+              queryClient.invalidateQueries({
+                queryKey: queryKeys.payments.dossierPayments(dossierId),
+              });
+            }
           }
         } catch (err) {
           console.error('Lỗi phân giải SSE Notification:', err);
@@ -167,6 +185,7 @@ export function useNotificationsRealtime(options?: { enabled?: boolean }) {
     markAsReadStore,
     setNotificationsStatus,
     enabled,
+    notification,
   ]);
 
   useEffect(() => {

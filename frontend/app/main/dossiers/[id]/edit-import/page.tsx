@@ -245,14 +245,7 @@ export default function EditImportDossierPage() {
         onCancel={() => router.push(`/main/dossiers/${dossierId}`)}
         onSaveDraft={() => saveMutation.mutate({ navigateBack: false })}
         onSaveAndSubmit={() => {
-          if (canOperate) {
-            saveMutation.mutate({ navigateBack: true });
-          } else {
-            saveMutation.mutate({
-              submitStatus: EstimateStatus.SUBMITTED,
-              navigateBack: true,
-            });
-          }
+          saveMutation.mutate({ navigateBack: true });
         }}
       />
     </div>

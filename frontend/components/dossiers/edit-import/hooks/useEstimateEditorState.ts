@@ -111,8 +111,9 @@ export function useEstimateEditorState({
       return {
         id: line.id || `cost-${idx + 1}`,
         stt: idx + 1,
-        description: line.description ?? '',
+        description: line.description || "Chi phí",
         serviceCategoryId: line.serviceCategoryId,
+        categoryTitle: line.categoryTitle,
         supplierId: line.supplierId,
         supplierName: extractedSupplier,
         quantity: Number(line.quantity ?? 1),
@@ -358,8 +359,9 @@ export function useEstimateEditorState({
         })),
         costLines: costRows.map((c) => ({
           id: persistedCostIds.has(c.id) ? c.id : undefined,
-          description: c.description || 'Chi phí',
+          description: c.description || "Chi phí",
           serviceCategoryId: c.serviceCategoryId || undefined,
+          categoryTitle: c.categoryTitle || undefined,
           supplierId: c.supplierId || undefined,
           quantity: c.quantity,
           multiplier: c.multiplier,

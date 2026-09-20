@@ -129,10 +129,10 @@ function DossiersContent() {
       title: 'Mã hồ sơ',
       dataIndex: 'code',
       key: 'code',
-      width: 120,
+      width: 280,
       render: (code: string, record: DossierItem) => (
         <Link href={`/main/dossiers/${record.id}`}>
-          <Space className="cursor-pointer">
+          <Space className="cursor-pointer whitespace-nowrap">
             <FileExcelOutlined className="text-[var(--color-primary-700)]" />
             <span className="font-bold text-slate-900 hover:text-emerald-700 transition-colors">
               {code}
@@ -401,7 +401,7 @@ function DossiersContent() {
           loading={isLoading}
           className={isOperator ? 'op-table' : 'skylux-table'}
           locale={{ emptyText: <Empty description="Chưa có hồ sơ từ API" /> }}
-          scroll={{ x: 1220 }}
+          scroll={{ x: 1380 }}
           pagination={{
             current: page,
             pageSize,

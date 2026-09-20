@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Patch, Param } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -19,17 +27,13 @@ export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Get('dossiers/:id/payments')
-  @RequirePermissions(
-    'dossier.view.own',
-    'dossier.view.team',
-    'dossier.view.all',
-  )
   @ApiOperation({ summary: 'Danh sách thanh toán của hồ sơ (API-PAYMENT-001)' })
   @ApiResponse({ status: 200, description: 'Lấy danh sách thành công' })
   getPaymentsByDossier(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id') dossierId: string,
   ) {
+    this.checkDossierViewPermission(user);
     return this.paymentsService.getPaymentsByDossier(user, dossierId);
   }
 
@@ -69,17 +73,28 @@ export class PaymentsController {
   }
 
   @Get('dossiers/:id/finance-summary')
-  @RequirePermissions(
-    'dossier.view.own',
-    'dossier.view.team',
-    'dossier.view.all',
-  )
   @ApiOperation({ summary: 'Tổng hợp tài chính hồ sơ (API-PAYMENT-005)' })
   @ApiResponse({ status: 200, description: 'Tính toán thành công' })
   getFinanceSummary(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id') dossierId: string,
   ) {
+    this.checkDossierViewPermission(user);
     return this.paymentsService.getFinanceSummary(user, dossierId);
+  }
+
+  private checkDossierViewPermission(user: CurrentUserPayload) {
+    const canView =
+      user.permissions.includes('dossier.view.own') ||
+      user.permissions.includes('dossier.view.team') ||
+      user.permissions.includes('dossier.view.all') ||
+      user.permissions.includes('*') ||
+      user.roles.includes('SUPER_ADMIN');
+
+    if (!canView) {
+      throw new ForbiddenException(
+        'Access denied: Yêu cầu quyền xem hồ sơ (dossier.view.own, dossier.view.team hoặc dossier.view.all)',
+      );
+    }
   }
 }

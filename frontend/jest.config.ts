@@ -13,8 +13,28 @@ const config: Config = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
+  // Ant Design 6 ships some ESM files in @ant-design/colors and related
+  // packages. Allow Next/Jest's SWC transformer to compile those packages
+  // instead of trying to execute `import` syntax in the jsdom runtime.
+  transformIgnorePatterns: [
+    '/node_modules/(?!(?:@ant-design|antd|@rc-component|rc-)/)',
+  ],
   modulePathIgnorePatterns: ['<rootDir>/.next/'],
   testPathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/node_modules/'],
 };
 
-export default createJestConfig(config);
+const resolveJestConfig = createJestConfig(config);
+
+export default async () => {
+  const resolvedConfig = await resolveJestConfig();
+
+  // next/jest appends its own ignore rules. Replace them here so the
+  // @ant-design ESM packages are not caught by the earlier default rule.
+  resolvedConfig.transformIgnorePatterns = [
+    '/node_modules/(?!(?:geist|next/dist/client|next/dist/shared/lib|next/src/client|next/src/shared/lib|@ant-design|antd|@rc-component|rc-)/)',
+    '/node_modules[\\\\/]\\.pnpm[\\\\/](?!(?:geist|next\\+dist\\+client|next\\+dist\\+shared\\+lib|next\\+src\\+client|next\\+src\\+shared\\+lib|@ant-design|antd|@rc-component|rc-)@)(?!.*node_modules[\\\\/](?:geist|next[\\\\/]dist[\\\\/]client|next[\\\\/]dist[\\\\/]shared[\\\\/]lib|next[\\\\/]src[\\\\/]client|next[\\\\/]src[\\\\/]shared[\\\\/]lib|@ant-design|antd|@rc-component|rc-)[\\\\/])',
+    '^.+\\\\.module\\\\.(css|sass|scss)$',
+  ];
+
+  return resolvedConfig;
+};

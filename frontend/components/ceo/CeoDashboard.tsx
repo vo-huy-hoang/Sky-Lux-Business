@@ -327,16 +327,21 @@ export default function CeoDashboard() {
     {
       title: 'Mã hồ sơ',
       dataIndex: 'code',
-      width: 126,
+      width: 280,
       render: (value: string, record: DossierItem) => (
-        <Link className="font-semibold text-[var(--ceo-primary-700)]" href={`/main/dossiers/${record.id}`}>
+        <Link className="font-semibold text-[var(--ceo-primary-700)] whitespace-nowrap hover:underline" href={`/main/dossiers/${record.id}`}>
           {value}
         </Link>
       ),
     },
     {
       title: 'Khách hàng',
-      render: (_: unknown, record: DossierItem) => record.customer?.displayName || record.name,
+      width: 220,
+      render: (_: unknown, record: DossierItem) => (
+        <span className="truncate block" title={record.customer?.displayName || record.name}>
+          {record.customer?.displayName || record.name}
+        </span>
+      ),
     },
     { title: 'Sales', width: 160, render: (_: unknown, record: DossierItem) => record.salesUser?.fullName || '-' },
     { title: 'Điều hành', width: 160, render: (_: unknown, record: DossierItem) => record.operatorUser?.fullName || '-' },
@@ -370,7 +375,7 @@ export default function CeoDashboard() {
           <MetricCard label="Tổng doanh thu tháng" value={formatCurrency(overview?.totalRevenue)} hint="Dữ liệu dự toán đã duyệt" icon={<DollarOutlined />} loading={isLoadingOverview} />
         </Col>
         <Col xs={24} sm={12} lg={8} xl={4}>
-          <MetricCard label="Lợi nhuận tháng" value={formatCurrency(overview?.totalProfit)} hint="Doanh thu trừ chi phí" icon={<LineChartOutlined />} loading={isLoadingOverview} />
+          <MetricCard label="Lợi nhuận tháng" value={formatCurrency(overview?.totalProfit)} hint="Theo lợi nhuận gộp trong hồ sơ" icon={<LineChartOutlined />} loading={isLoadingOverview} />
         </Col>
         <Col xs={24} sm={12} lg={8} xl={4}>
           <MetricCard label="Hồ sơ toàn hệ thống" value={totalDossiers} hint="Tổng theo trạng thái" icon={<FolderOpenOutlined />} tone="blue" loading={isLoadingOverview} />
@@ -656,7 +661,7 @@ export default function CeoDashboard() {
               loading={isLoadingDossiers}
               pagination={false}
               className="ceo-table"
-              scroll={{ x: 930 }}
+              scroll={{ x: 1080 }}
               locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hồ sơ từ API" /> }}
             />
           </Card>

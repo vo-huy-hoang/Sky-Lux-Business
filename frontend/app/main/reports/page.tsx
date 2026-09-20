@@ -223,8 +223,8 @@ export default function ReportsPage() {
           render: (value: unknown) => value || 'Chưa gán',
         },
         {
-          title: 'Ngày ghi nhận',
-          dataIndex: 'revenueRecognitionDate',
+          title: 'Ngày khóa hồ sơ',
+          dataIndex: 'lockedAt',
           render: dateLabel,
         },
         {
@@ -591,6 +591,11 @@ export default function ReportsPage() {
               />
             ) : (
               <>
+                <div className="space-y-2 text-sm text-[var(--ceo-text-muted)] mb-4">
+                  <p>Doanh thu được tính theo estimate đã duyệt và ngày khóa hồ sơ.</p>
+                  <p>Phạm vi Sales/Operator/CEO được backend áp dụng theo tenant và permission.</p>
+                </div>
+
                 <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="rounded-md bg-[var(--ceo-primary-soft)] p-3">
                     <Text type="secondary">Doanh thu ròng</Text>

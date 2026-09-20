@@ -21,7 +21,7 @@ export interface SavedReport {
 }
 
 export const reportsService = {
-  /** API-REPORT-001: Báo cáo doanh thu theo dossier và kỳ ghi nhận doanh thu. */
+  /** API-REPORT-001: Báo cáo doanh thu theo dossier và ngày khóa hồ sơ. */
   getRevenue: (
     params?: ReportQueryParams,
     options?: RequestOptions,

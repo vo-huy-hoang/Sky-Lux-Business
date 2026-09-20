@@ -12,6 +12,7 @@ export interface TaskSidePanelProps {
   dossierTasks: TaskItem[];
   isLoading: boolean;
   onOpenTask: (id: string) => void;
+  className?: string;
 }
 
 export default function TaskSidePanel({
@@ -19,9 +20,14 @@ export default function TaskSidePanel({
   dossierTasks,
   isLoading,
   onOpenTask,
+  className,
 }: TaskSidePanelProps) {
   return (
-    <aside className="skylux-task-side-panel hidden 2xl:block">
+    <aside
+      className={`skylux-task-side-panel rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] ${
+        className !== undefined ? className : 'hidden 2xl:block'
+      }`}
+    >
       <div className="flex items-center justify-between">
         <Text strong className="text-[15px] text-slate-800">
           Lịch nhắc việc

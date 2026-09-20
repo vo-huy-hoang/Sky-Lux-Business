@@ -13,10 +13,25 @@ export interface AuthMeResponse {
   email: string;
   phone?: string;
   avatarUrl?: string;
+  twoFactorEnabled: boolean;
+  notificationPreferences: {
+    taskAssignments: boolean;
+    dossierUpdates: boolean;
+    appointmentReminders: boolean;
+    periodicReports: boolean;
+  };
   status: string;
   lastLoginAt?: string;
   roles: Array<{ id: string; code: string; name: string }>;
   permissions: string[];
+}
+
+export interface UpdateUserSettingsPayload {
+  twoFactorEnabled?: boolean;
+  taskAssignments?: boolean;
+  dossierUpdates?: boolean;
+  appointmentReminders?: boolean;
+  periodicReports?: boolean;
 }
 
 export const authService = {
@@ -46,6 +61,15 @@ export const authService = {
 
   getMe: (options?: RequestOptions) =>
     apiClient.get<any, AuthMeResponse>('/auth/me', { signal: options?.signal }),
+
+  updateProfile: (data: {
+    fullName: string;
+    phone?: string;
+    avatarUrl?: string;
+  }) => apiClient.patch<any, AuthMeResponse>('/auth/me', data),
+
+  updateSettings: (data: UpdateUserSettingsPayload) =>
+    apiClient.patch<any, AuthMeResponse>('/auth/me/settings', data),
 
   changePassword: (data: {
     currentPassword: string;

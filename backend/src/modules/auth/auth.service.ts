@@ -17,6 +17,8 @@ import { RefreshToken } from './entities/refresh-token.entity';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { UserStatus } from '../../common/enums';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
@@ -58,6 +60,18 @@ export class AuthService {
     });
 
     return Array.from(permissionCodes);
+  }
+
+  private getNotificationPreferences(
+    preferences?: Record<string, boolean>,
+  ): Record<string, boolean> {
+    return {
+      taskAssignments: false,
+      dossierUpdates: false,
+      appointmentReminders: false,
+      periodicReports: false,
+      ...(preferences || {}),
+    };
   }
 
   private async generateTokens(
@@ -282,6 +296,10 @@ export class AuthService {
       email: user.email,
       phone: user.phone,
       avatarUrl: user.avatarUrl,
+      twoFactorEnabled: user.twoFactorEnabled,
+      notificationPreferences: this.getNotificationPreferences(
+        user.notificationPreferences,
+      ),
       status: user.status,
       lastLoginAt: user.lastLoginAt,
       roles:
@@ -292,6 +310,68 @@ export class AuthService {
         })) || [],
       permissions,
     };
+  }
+
+  async updateMyProfile(userId: string, updateProfileDto: UpdateProfileDto) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: { organization: true, department: true, roles: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy thông tin người dùng');
+    }
+
+    if (updateProfileDto.fullName !== undefined) {
+      const fullName = updateProfileDto.fullName.trim();
+      if (fullName.length < 2) {
+        throw new BadRequestException('Họ và tên phải có ít nhất 2 ký tự');
+      }
+      user.fullName = fullName;
+    }
+    if (updateProfileDto.phone !== undefined) {
+      user.phone = updateProfileDto.phone.trim() || undefined;
+    }
+    if (updateProfileDto.avatarUrl !== undefined) {
+      user.avatarUrl = updateProfileDto.avatarUrl.trim() || undefined;
+    }
+
+    await this.userRepository.save(user);
+    return this.getMe(userId);
+  }
+
+  async updateMySettings(
+    userId: string,
+    updateUserSettingsDto: UpdateUserSettingsDto,
+  ) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy thông tin người dùng');
+    }
+
+    if (updateUserSettingsDto.twoFactorEnabled !== undefined) {
+      user.twoFactorEnabled = updateUserSettingsDto.twoFactorEnabled;
+    }
+
+    const notificationPreferences = this.getNotificationPreferences(
+      user.notificationPreferences,
+    );
+    const preferenceKeys = [
+      'taskAssignments',
+      'dossierUpdates',
+      'appointmentReminders',
+      'periodicReports',
+    ] as const;
+    for (const key of preferenceKeys) {
+      if (updateUserSettingsDto[key] !== undefined) {
+        notificationPreferences[key] = updateUserSettingsDto[key] as boolean;
+      }
+    }
+    user.notificationPreferences = notificationPreferences;
+
+    await this.userRepository.save(user);
+    return this.getMe(userId);
   }
 
   async createStreamToken(user: CurrentUserPayload) {

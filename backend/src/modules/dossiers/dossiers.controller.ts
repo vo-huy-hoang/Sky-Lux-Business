@@ -39,6 +39,7 @@ import { WorkflowListQueryDto } from '../approvals/dto/workflow-list-query.dto';
 import { DocumentsService } from '../documents/documents.service';
 import { QueryDocumentDto } from '../documents/dto/query-document.dto';
 import { CreateDocumentDto } from '../documents/dto/create-document.dto';
+import { RespondChangeRequestDto } from '../approvals/dto/respond-change-request.dto';
 
 @ApiTags('Dossiers')
 @ApiBearerAuth('JWT-auth')
@@ -215,6 +216,33 @@ export class DossiersController {
   ) {
     this.checkViewPermission(user);
     return this.dossierWorkflowService.findApprovals(user, id, query);
+  }
+
+  @Get(':id/change-requests')
+  @ApiOperation({ summary: 'Lấy các yêu cầu bổ sung của hồ sơ' })
+  findChangeRequests(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    this.checkViewPermission(user);
+    return this.dossierWorkflowService.findChangeRequests(user, id);
+  }
+
+  @Post(':id/change-requests/:requestId/respond')
+  @RequirePermissions('dossier.update')
+  @ApiOperation({ summary: 'Sales trả lời một yêu cầu bổ sung cụ thể' })
+  respondToChangeRequest(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('requestId', ParseUUIDPipe) requestId: string,
+    @Body() dto: RespondChangeRequestDto,
+  ) {
+    return this.dossierWorkflowService.respondToChangeRequest(
+      user,
+      id,
+      requestId,
+      dto,
+    );
   }
 
   @Get(':id/comments')

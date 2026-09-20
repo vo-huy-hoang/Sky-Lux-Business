@@ -7,6 +7,8 @@ import {
   QueryDossierParams,
   CreateCommentPayload,
   QueryCommentParams,
+  DossierChangeRequestsResponse,
+  RespondChangeRequestPayload,
 } from '@/types/dossier';
 
 export const dossiersService = {
@@ -54,5 +56,23 @@ export const dossiersService = {
    */
   createDossierComment: (dossierId: string, payload: CreateCommentPayload) => {
     return apiClient.post<any, DossierComment>(`/dossiers/${dossierId}/comments`, payload);
+  },
+
+  getDossierChangeRequests: (dossierId: string, options?: RequestOptions) => {
+    return apiClient.get<any, DossierChangeRequestsResponse>(
+      `/dossiers/${dossierId}/change-requests`,
+      { signal: options?.signal },
+    );
+  },
+
+  respondToDossierChangeRequest: (
+    dossierId: string,
+    requestId: string,
+    payload: RespondChangeRequestPayload,
+  ) => {
+    return apiClient.post<any, unknown>(
+      `/dossiers/${dossierId}/change-requests/${requestId}/respond`,
+      payload,
+    );
   },
 };

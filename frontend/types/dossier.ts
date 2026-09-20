@@ -34,6 +34,34 @@ export interface CreateCommentPayload {
   parentId?: string;
 }
 
+export type DossierChangeRequestStatus = 'OPEN' | 'RESPONDED';
+
+export interface DossierChangeRequestUser {
+  id: string;
+  fullName: string;
+}
+
+export interface DossierChangeRequest {
+  id: string;
+  dossierId: string;
+  requestText: string;
+  responseText?: string | null;
+  status: DossierChangeRequestStatus;
+  requestedAt: string;
+  respondedAt?: string | null;
+  requester?: DossierChangeRequestUser;
+  responder?: DossierChangeRequestUser;
+}
+
+export interface DossierChangeRequestsResponse {
+  data: DossierChangeRequest[];
+  meta: { total: number };
+}
+
+export interface RespondChangeRequestPayload {
+  responseText: string;
+}
+
 export interface QueryCommentParams {
   page?: number;
   pageSize?: number;
@@ -62,6 +90,8 @@ export interface DossierItem {
   route?: string;
   startDate?: string;
   endDate?: string;
+  lockedAt?: string | null;
+  revenueRecognitionDate?: string | null;
   tourDuration?: string;
   status: string;
   priority?: string;

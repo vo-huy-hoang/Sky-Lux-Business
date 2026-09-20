@@ -91,14 +91,12 @@ export const EstimateBottomActionBar: React.FC<
 
             <Button
               type="primary"
-              icon={<SendOutlined />}
+              icon={<CheckCircleOutlined />}
               loading={isSaving}
               onClick={onSaveAndSubmit}
               className="h-10 rounded-xl bg-[#063826] hover:bg-[#084D34] text-white font-semibold text-xs px-5 border-none shadow-md"
             >
-              {dossierStatus === 'NEED_CHANGES'
-                ? 'Gửi điều hành lại'
-                : 'Gửi điều hành duyệt'}
+              Lưu thay đổi
             </Button>
           </>
         )}

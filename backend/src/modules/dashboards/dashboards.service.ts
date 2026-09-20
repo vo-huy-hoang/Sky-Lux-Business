@@ -1,6 +1,6 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { QueryDashboardDto } from './dto/query-dashboard.dto';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { Estimate } from '../estimates/entities/estimate.entity';
@@ -400,7 +400,7 @@ export class DashboardsService {
       queryDto.date,
     );
 
-    const cacheKey = `dashboard:ceo:v2:${organizationId}:${periodType}:${queryDto.date || 'current'}`;
+    const cacheKey = `dashboard:ceo:v3:${organizationId}:${periodType}:${queryDto.date || 'current'}`;
     if (this.redisService) {
       const cached = await this.redisService.get(cacheKey);
       if (cached) return cached;
@@ -547,24 +547,20 @@ export class DashboardsService {
     ]);
 
     let totalRevenue = 0;
-    let totalCost = 0;
+    let totalProfit = 0;
 
     if (approvedEstimates.length > 0) {
       const estimateIds = approvedEstimates.map((e) => e.id);
-      const [revSum, costSum] = await Promise.all([
+      const [revSum, grossProfit] = await Promise.all([
         this.revenueLineRepository
           .createQueryBuilder('line')
           .select('SUM(line.netAmount)', 'sum')
           .where('line.estimateId IN (:...estimateIds)', { estimateIds })
           .getRawOne(),
-        this.costLineRepository
-          .createQueryBuilder('line')
-          .select('SUM(line.netAmount)', 'sum')
-          .where('line.estimateId IN (:...estimateIds)', { estimateIds })
-          .getRawOne(),
+        this.calculateGrossProfitForEstimates(estimateIds, organizationId),
       ]);
       totalRevenue = Number(revSum?.sum || 0);
-      totalCost = Number(costSum?.sum || 0);
+      totalProfit = grossProfit;
     }
 
     const marketMap = new Map<string, { dossiers: number; revenue: number; cost: number }>();
@@ -585,8 +581,6 @@ export class DashboardsService {
       current.cost = Number(row.cost || 0);
       marketMap.set(row.marketName, current);
     });
-
-    const totalProfit = totalRevenue - totalCost;
 
     const result = {
       totalRevenue,
@@ -755,6 +749,138 @@ export class DashboardsService {
         end: new Date(end + 'T23:59:59Z'),
       })
       .getMany();
+  }
+
+  /**
+   * Matches the yellow "Lợi nhuận gộp" total in the dossier detail view.
+   * The imported Excel amounts are calculated from quantity × multiplier ×
+   * unit price. VAT lines are divided by 1.08, except category 1.4, which
+   * is intentionally excluded by the workbook summary formula.
+   */
+  private async calculateGrossProfitForEstimates(
+    estimateIds: string[],
+    organizationId: string,
+  ): Promise<number> {
+    const [revenueLines, costLines] = await Promise.all([
+      this.revenueLineRepository.find({
+        where: {
+          estimateId: In(estimateIds),
+          organizationId,
+        },
+      }),
+      this.costLineRepository.find({
+        where: {
+          estimateId: In(estimateIds),
+          organizationId,
+        },
+        relations: { serviceCategory: true },
+      }),
+    ]);
+
+    const totalRevenue = revenueLines.reduce(
+      (sum, line) => sum + this.getWorkbookGrossAmount(line),
+      0,
+    );
+    const totalCost = costLines.reduce((sum, line) => {
+      const vatRate = this.toFiniteNumber(line.vatRate);
+      const categoryCode = this.classifyCostCategory(line);
+
+      if (vatRate > 0 && categoryCode === '1.4') {
+        return sum;
+      }
+
+      const workbookAmount = this.getWorkbookGrossAmount(line);
+      return sum + (vatRate > 0 ? workbookAmount / 1.08 : workbookAmount);
+    }, 0);
+
+    return Math.round(totalRevenue / 1.08 - totalCost);
+  }
+
+  private getWorkbookGrossAmount(line: {
+    quantity?: number | string | null;
+    multiplier?: number | string | null;
+    unitPrice?: number | string | null;
+  }): number {
+    return (
+      this.toFiniteNumber(line.quantity, 1) *
+      this.toFiniteNumber(line.multiplier, 1) *
+      this.toFiniteNumber(line.unitPrice)
+    );
+  }
+
+  private classifyCostCategory(line: {
+    description?: string | null;
+    categoryTitle?: string | null;
+    serviceCategory?: { name?: string | null } | null;
+  }): string {
+    const explicitCategory = (
+      line.categoryTitle ||
+      line.serviceCategory?.name ||
+      ''
+    )
+      .toUpperCase()
+      .trim();
+
+    if (explicitCategory === 'VÉ THAM QUAN') return '1.1';
+    if (explicitCategory === 'KHÁCH SẠN') return '1.2';
+    if (explicitCategory === 'ĂN UỐNG') return '1.2b';
+    if (explicitCategory === 'VẬN CHUYỂN') return '1.3';
+    if (explicitCategory === 'CÁC DỊCH VỤ KHÁC') return '1.4';
+
+    const description = (line.description || '').toLowerCase();
+    const category = (line.serviceCategory?.name || '').toLowerCase();
+
+    if (
+      description.includes('gala') ||
+      description.includes('team building') ||
+      description.includes('hội nghị') ||
+      category.includes('chi phí khác')
+    ) {
+      return '1.4';
+    }
+    if (
+      description.includes('vé tham quan') ||
+      description.includes('hội an') ||
+      description.includes('bà nà') ||
+      description.includes('đại nội') ||
+      category.includes('vé tham quan')
+    ) {
+      return '1.1';
+    }
+    if (
+      description.includes('khách sạn') ||
+      description.includes('mường thanh') ||
+      description.includes('hương giang') ||
+      description.includes('phòng') ||
+      category.includes('khách sạn')
+    ) {
+      return '1.2';
+    }
+    if (
+      description.includes('ăn uống') ||
+      description.includes('madam lân') ||
+      description.includes('cơm niêu') ||
+      description.includes('trưa ngày') ||
+      description.includes('tối ngày') ||
+      category.includes('nhà hàng')
+    ) {
+      return '1.2b';
+    }
+    if (
+      description.includes('xe') ||
+      description.includes('vận chuyển') ||
+      description.includes('triệu bảo ý') ||
+      category.includes('vận chuyển')
+    ) {
+      return '1.3';
+    }
+
+    return '1.4';
+  }
+
+  private toFiniteNumber(value: unknown, fallback = 0): number {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
   }
 
   private getPeriodDates(periodType: KpiPeriodType, dateStr?: string) {

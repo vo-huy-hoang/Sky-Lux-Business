@@ -246,16 +246,29 @@ function OperationalDashboard() {
       title: 'Mã hồ sơ',
       dataIndex: 'code',
       key: 'code',
-      width: 120,
-      render: (code: string) => <Text strong>{code}</Text>,
+      width: 280,
+      render: (code: string, record: DossierItem) => (
+        record?.id ? (
+          <Link href={`/main/dossiers/${record.id}`}>
+            <Text strong className="whitespace-nowrap text-slate-900 hover:text-[var(--color-primary-700)] hover:underline cursor-pointer">
+              {code}
+            </Text>
+          </Link>
+        ) : (
+          <Text strong className="whitespace-nowrap text-slate-900">{code}</Text>
+        )
+      ),
     },
     {
       title: 'Khách hàng',
       key: 'customer',
+      width: 220,
       render: (_: unknown, record: DossierItem) => (
-        <div className="flex flex-col">
-          <Text strong>{record.customer?.displayName || record.name}</Text>
-          <Text type="secondary" className="text-xs">
+        <div className="flex flex-col min-w-0">
+          <Text strong className="truncate block" title={record.customer?.displayName || record.name}>
+            {record.customer?.displayName || record.name}
+          </Text>
+          <Text type="secondary" className="text-xs truncate block" title={record.route || '-'}>
             {record.route || '-'}
           </Text>
         </div>
@@ -265,7 +278,7 @@ function OperationalDashboard() {
       title: 'Ngày đi',
       dataIndex: 'startDate',
       key: 'startDate',
-      width: 120,
+      width: 110,
       render: formatDate,
     },
     {
@@ -281,14 +294,14 @@ function OperationalDashboard() {
     {
       title: 'Sales',
       key: 'sales',
-      width: 160,
+      width: 150,
       render: (_: unknown, record: DossierItem) => record.salesUser?.fullName || '-',
     },
     {
       title: 'Cập nhật cuối',
       dataIndex: 'updatedAt',
       key: 'updatedAt',
-      width: 140,
+      width: 130,
       render: formatDate,
     },
   ];
@@ -525,7 +538,7 @@ function OperationalDashboard() {
             loading={isLoadingDossiers}
             pagination={false}
             className="skylux-table"
-            scroll={{ x: 860 }}
+            scroll={{ x: 1020 }}
           />
         </Card>
       </WidgetErrorBoundary>

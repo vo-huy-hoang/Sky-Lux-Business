@@ -16,5 +16,9 @@ export function useDossierFinanceSummary(dossierId: string | null | undefined) {
     queryKey: queryKeys.payments.financeSummary(dossierId || ''),
     queryFn: ({ signal }) => paymentsService.getFinanceSummary(dossierId!, { signal }),
     enabled: !!dossierId,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchInterval: 15000,
+    refetchIntervalInBackground: false,
   });
 }

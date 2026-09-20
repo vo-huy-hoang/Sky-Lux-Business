@@ -41,6 +41,16 @@ export class User extends BaseEntity {
   @Column({ name: 'avatar_url', type: 'text', nullable: true })
   avatarUrl?: string;
 
+  @Column({ name: 'two_factor_enabled', type: 'boolean', default: false })
+  twoFactorEnabled: boolean;
+
+  @Column({
+    name: 'notification_preferences',
+    type: 'jsonb',
+    default: {},
+  })
+  notificationPreferences: Record<string, boolean>;
+
   @Column({
     type: 'enum',
     enum: UserStatus,

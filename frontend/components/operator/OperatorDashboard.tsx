@@ -209,10 +209,10 @@ export default function OperatorDashboard() {
       title: 'Mã hồ sơ',
       dataIndex: 'code',
       key: 'code',
-      width: 130,
+      width: 280,
       render: (value: string, record: DossierItem) => (
         <Link href={`/main/dossiers/${record.id}`}>
-          <Text strong className="text-[var(--op-primary-900)] hover:underline">
+          <Text strong className="text-[var(--op-primary-900)] hover:underline whitespace-nowrap">
             {value}
           </Text>
         </Link>
@@ -227,7 +227,12 @@ export default function OperatorDashboard() {
     {
       title: 'Khách hàng',
       key: 'customer',
-      render: (_: unknown, record: DossierItem) => record.customer?.displayName || '-',
+      width: 200,
+      render: (_: unknown, record: DossierItem) => (
+        <span className="truncate block" title={record.customer?.displayName || '-'}>
+          {record.customer?.displayName || '-'}
+        </span>
+      ),
     },
     {
       title: 'Ngày đi',
@@ -509,7 +514,7 @@ export default function OperatorDashboard() {
             columns={dossierColumns}
             loading={loading}
             pagination={false}
-            scroll={{ x: 760 }}
+            scroll={{ x: 920 }}
           />
         </Card>
 

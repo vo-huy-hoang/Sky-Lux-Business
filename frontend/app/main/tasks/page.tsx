@@ -21,12 +21,16 @@ import TaskBoard from './components/TaskBoard';
 import TaskSidePanel from './components/TaskSidePanel';
 import TaskDetailDrawer from './components/TaskDetailDrawer';
 import TaskCreateModal from './components/TaskCreateModal';
+import CeoCalendarView from './components/CeoCalendarView';
+import { CalendarOutlined, AppstoreOutlined } from '@ant-design/icons';
 
 const { Title } = Typography;
 
 export default function TasksPage() {
   const hasRole = useAuthStore((state) => state.hasRole);
   const isOperator = hasRole('OPERATOR');
+  const isCeoAdmin = hasRole(['CEO_ADMIN', 'SUPER_ADMIN']);
+  const [ceoView, setCeoView] = useState<'CALENDAR' | 'BOARD'>('CALENDAR');
 
   const [timeRange, setTimeRange] = useState<TimeRange>('TODAY');
   const [search, setSearch] = useState('');
@@ -134,47 +138,100 @@ export default function TasksPage() {
         isOperator ? 'op-page' : ''
       }`}
     >
-      <div className={isOperator ? 'op-page-heading' : undefined}>
-        <Title level={1} className="skylux-page-title">
-          {isOperator ? 'Công việc điều hành' : 'Công việc của tôi'}
-        </Title>
-        <div className="skylux-subtitle mt-1">
-          {isOperator
-            ? 'Theo dõi và quản lý công việc xử lý hồ sơ'
-            : 'Theo dõi và quản lý công việc được giao cho bạn'}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className={isOperator ? 'op-page-heading' : undefined}>
+          <Title level={1} className="skylux-page-title">
+            {isOperator
+              ? 'Công việc điều hành'
+              : isCeoAdmin
+              ? 'Lịch công việc & Hồ sơ'
+              : 'Công việc của tôi'}
+          </Title>
+          <div className="skylux-subtitle mt-1">
+            {isOperator
+              ? 'Theo dõi và quản lý công việc xử lý hồ sơ'
+              : isCeoAdmin
+              ? 'Lịch trình tour, dịch vụ đã khóa và quản lý tiến độ công việc'
+              : 'Theo dõi và quản lý công việc được giao cho bạn'}
+          </div>
         </div>
+
+        {isCeoAdmin && (
+          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setCeoView('CALENDAR')}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+                ceoView === 'CALENDAR'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <CalendarOutlined /> Lịch điều hành
+            </button>
+            <button
+              type="button"
+              onClick={() => setCeoView('BOARD')}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+                ceoView === 'BOARD'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <AppstoreOutlined /> Bảng Kanban
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
-        <div className="space-y-4">
-          <TaskSummaryCards metrics={metrics} isLoading={isLoading} />
+      {/* 4 thẻ thống kê tổng quan (Hôm nay, Quá hạn, Chờ xử lý, Hoàn thành tuần này) */}
+      <TaskSummaryCards metrics={metrics} isLoading={isLoading} />
 
-          <TaskFilterBar
-            timeRange={timeRange}
-            onTimeRangeChange={setTimeRange}
-            search={search}
-            onSearchChange={setSearch}
-            priority={priority}
-            onPriorityChange={setPriority}
-            onReload={() => refetch()}
-          />
+      {isCeoAdmin && ceoView === 'CALENDAR' ? (
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="min-w-0">
+            <CeoCalendarView />
+          </div>
+          <div className="min-w-0">
+            <TaskSidePanel
+              reminderTasks={reminderTasks}
+              dossierTasks={dossierTasks}
+              isLoading={isLoading}
+              onOpenTask={setSelectedTaskId}
+              className="block w-full"
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
+          <div className="space-y-4">
+            <TaskFilterBar
+              timeRange={timeRange}
+              onTimeRangeChange={setTimeRange}
+              search={search}
+              onSearchChange={setSearch}
+              priority={priority}
+              onPriorityChange={setPriority}
+              onReload={() => refetch()}
+            />
 
-          <TaskBoard
-            visibleTasks={visibleTasks}
-            isOperator={isOperator}
+            <TaskBoard
+              visibleTasks={visibleTasks}
+              isOperator={isOperator}
+              isLoading={isLoading}
+              onOpenTask={setSelectedTaskId}
+              onCreateTask={openCreate}
+            />
+          </div>
+
+          <TaskSidePanel
+            reminderTasks={reminderTasks}
+            dossierTasks={dossierTasks}
             isLoading={isLoading}
             onOpenTask={setSelectedTaskId}
-            onCreateTask={openCreate}
           />
         </div>
-
-        <TaskSidePanel
-          reminderTasks={reminderTasks}
-          dossierTasks={dossierTasks}
-          isLoading={isLoading}
-          onOpenTask={setSelectedTaskId}
-        />
-      </div>
+      )}
 
       <TaskDetailDrawer
         taskId={selectedTaskId}

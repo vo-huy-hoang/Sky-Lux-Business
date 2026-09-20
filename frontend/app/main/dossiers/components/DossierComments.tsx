@@ -135,7 +135,7 @@ export const DossierComments: React.FC<DossierCommentsProps> = ({
     >
       {isLoading ? (
         <div style={{ textAlign: 'center', padding: 24 }}>
-          <Spin tip="Đang tải bình luận..." />
+          <Spin description="Đang tải bình luận..." />
         </div>
       ) : filteredComments.length === 0 ? (
         <Empty

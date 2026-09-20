@@ -34,6 +34,7 @@ export interface EstimateCostLine {
   organizationId: string;
   estimateId: string;
   serviceCategoryId?: string;
+  categoryTitle?: string;
   supplierId?: string;
   description: string;
   quantity: number;

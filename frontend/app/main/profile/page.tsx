@@ -10,6 +10,7 @@ import {
   Col,
   Form,
   Input,
+  Modal,
   Row,
   Statistic,
   Switch,
@@ -28,8 +29,12 @@ import {
   SettingOutlined,
   UserOutlined,
 } from '@ant-design/icons';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { authService, AuthMeResponse } from '@/services/auth.service';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  authService,
+  AuthMeResponse,
+  UpdateUserSettingsPayload,
+} from '@/services/auth.service';
 import { kpiService, MyKpiItem } from '@/services/kpi.service';
 import { dossiersService } from '@/services/dossiers.service';
 import { DossierItem } from '@/types/dossier';
@@ -39,6 +44,20 @@ import { queryKeys } from '@/lib/query-keys';
 import { formatCurrency } from '@/lib/financial-calculations';
 
 const { Title, Text } = Typography;
+
+const defaultNotificationSettings = {
+  taskAssignments: false,
+  dossierUpdates: false,
+  appointmentReminders: false,
+  periodicReports: false,
+};
+
+const notificationSettingDefinitions = [
+  ['taskAssignments', 'Thông báo công việc mới', 'Nhận thông báo khi có công việc mới được giao'],
+  ['dossierUpdates', 'Thông báo hồ sơ cần cập nhật', 'Nhận thông báo khi hồ sơ có cập nhật'],
+  ['appointmentReminders', 'Nhắc lịch hẹn', 'Nhận nhắc nhở trước lịch hẹn'],
+  ['periodicReports', 'Báo cáo định kỳ', 'Nhận báo cáo hiệu suất định kỳ'],
+] as const;
 
 function normalizeProfile(profile: AuthMeResponse): UserProfile {
   return {
@@ -81,9 +100,13 @@ function activityStatus(status: string) {
 
 export default function ProfilePage() {
   const { message } = App.useApp();
+  const queryClient = useQueryClient();
+  const [profileForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
   const passwordSectionRef = useRef<HTMLDivElement>(null);
-  const [isPasswordEditing, setIsPasswordEditing] = useState(false);
+  const [isProfileEditing, setIsProfileEditing] = useState(false);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [notificationSettings, setNotificationSettings] = useState(defaultNotificationSettings);
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
   const isOperator = user?.roles?.includes('OPERATOR');
@@ -113,7 +136,21 @@ export default function ProfilePage() {
     ) {
       setUser(normalized);
     }
+    setTwoFactorEnabled(Boolean(meData.twoFactorEnabled));
+    setNotificationSettings({
+      ...defaultNotificationSettings,
+      ...(meData.notificationPreferences || {}),
+    });
   }, [meData, setUser]);
+
+  useEffect(() => {
+    if (!profile || !isProfileEditing) return;
+    profileForm.setFieldsValue({
+      fullName: profile.fullName || '',
+      phone: profile.phone || '',
+      avatarUrl: profile.avatarUrl || '',
+    });
+  }, [isProfileEditing, profile, profileForm]);
 
   const { data: kpiData } = useQuery({
     queryKey: queryKeys.kpis.myResults({ periodType: 'MONTHLY' }),
@@ -133,10 +170,39 @@ export default function ProfilePage() {
     onSuccess: () => {
       message.success('Đổi mật khẩu thành công');
       passwordForm.resetFields();
-      setIsPasswordEditing(false);
     },
     onError: (error: Error) => {
       message.error(error.message || 'Không thể đổi mật khẩu');
+    },
+  });
+
+  const updateProfileMutation = useMutation({
+    mutationFn: authService.updateProfile,
+    onSuccess: (updatedProfile) => {
+      const normalized = normalizeProfile(updatedProfile);
+      setUser(normalized);
+      queryClient.setQueryData(queryKeys.users.me(normalized.id), updatedProfile);
+      message.success('Cập nhật hồ sơ cá nhân thành công');
+      setIsProfileEditing(false);
+    },
+    onError: (error: Error) => {
+      message.error(error.message || 'Không thể cập nhật hồ sơ cá nhân');
+    },
+  });
+
+  const updateSettingsMutation = useMutation({
+    mutationFn: authService.updateSettings,
+    onSuccess: (updatedProfile) => {
+      setTwoFactorEnabled(Boolean(updatedProfile.twoFactorEnabled));
+      setNotificationSettings({
+        ...defaultNotificationSettings,
+        ...(updatedProfile.notificationPreferences || {}),
+      });
+      queryClient.setQueryData(queryKeys.users.me(updatedProfile.id), updatedProfile);
+      message.success('Đã lưu cài đặt cá nhân');
+    },
+    onError: (error: Error) => {
+      message.error(error.message || 'Không thể lưu cài đặt cá nhân');
     },
   });
 
@@ -147,7 +213,6 @@ export default function ProfilePage() {
   const dossierCountKpi = getKpiMetric(kpiItems, 'DOSSIER_COUNT');
 
   const scrollToPassword = () => {
-    setIsPasswordEditing(true);
     window.setTimeout(() => {
       passwordSectionRef.current?.scrollIntoView({
         behavior: 'smooth',
@@ -161,6 +226,15 @@ export default function ProfilePage() {
     changePasswordMutation.mutate({
       currentPassword: values.currentPassword,
       newPassword: values.newPassword,
+    });
+  };
+
+  const handleUpdateProfile = async () => {
+    const values = await profileForm.validateFields();
+    updateProfileMutation.mutate({
+      fullName: values.fullName.trim(),
+      phone: values.phone?.trim() || '',
+      avatarUrl: values.avatarUrl?.trim() || '',
     });
   };
 
@@ -214,9 +288,7 @@ export default function ProfilePage() {
                   size="small"
                   icon={<EditOutlined />}
                   className="skylux-outline-button mt-4"
-                  onClick={() =>
-                    message.info('Thông tin hồ sơ được quản lý bởi quản trị viên')
-                  }
+                  onClick={() => setIsProfileEditing(true)}
                 >
                   Chỉnh sửa hồ sơ
                 </Button>
@@ -320,9 +392,19 @@ export default function ProfilePage() {
                 </span>
                 <div className="flex-1">
                   <div className="text-sm font-semibold text-slate-800">Bảo mật 2 lớp</div>
-                  <div className="mt-1 text-xs text-slate-500">Chưa có API cấu hình bảo mật</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {twoFactorEnabled ? 'Đang bật bảo mật 2 lớp' : 'Bật để tăng bảo mật tài khoản'}
+                  </div>
                 </div>
-                <Switch size="small" disabled checked={false} aria-label="Bảo mật 2 lớp" />
+                <Switch
+                  size="small"
+                  checked={twoFactorEnabled}
+                  loading={updateSettingsMutation.isPending}
+                  onChange={(checked) =>
+                    updateSettingsMutation.mutate({ twoFactorEnabled: checked })
+                  }
+                  aria-label="Bảo mật 2 lớp"
+                />
               </div>
             </div>
           </Card>
@@ -342,26 +424,24 @@ export default function ProfilePage() {
               <Form.Item
                 name="currentPassword"
                 label="Mật khẩu hiện tại"
-                rules={[{ required: isPasswordEditing, message: 'Vui lòng nhập mật khẩu hiện tại' }]}
+                rules={[{ required: true, message: 'Vui lòng nhập mật khẩu hiện tại' }]}
               >
                 <Input.Password
                   placeholder="Nhập mật khẩu hiện tại"
                   prefix={<LockOutlined />}
-                  disabled={!isPasswordEditing}
                 />
               </Form.Item>
               <Form.Item
                 name="newPassword"
                 label="Mật khẩu mới"
                 rules={[
-                  { required: isPasswordEditing, message: 'Vui lòng nhập mật khẩu mới' },
+                  { required: true, message: 'Vui lòng nhập mật khẩu mới' },
                   { min: 6, message: 'Mật khẩu tối thiểu 6 ký tự' },
                 ]}
               >
                 <Input.Password
                   placeholder="Nhập mật khẩu mới"
                   prefix={<LockOutlined />}
-                  disabled={!isPasswordEditing}
                 />
               </Form.Item>
               <Form.Item
@@ -369,7 +449,7 @@ export default function ProfilePage() {
                 label="Xác nhận mật khẩu mới"
                 dependencies={['newPassword']}
                 rules={[
-                  { required: isPasswordEditing, message: 'Vui lòng xác nhận mật khẩu mới' },
+                  { required: true, message: 'Vui lòng xác nhận mật khẩu mới' },
                   ({ getFieldValue }) => ({
                     validator(_, value) {
                       if (!value || getFieldValue('newPassword') === value) return Promise.resolve();
@@ -381,7 +461,6 @@ export default function ProfilePage() {
                 <Input.Password
                   placeholder="Nhập lại mật khẩu mới"
                   prefix={<LockOutlined />}
-                  disabled={!isPasswordEditing}
                 />
               </Form.Item>
               <Button
@@ -390,7 +469,6 @@ export default function ProfilePage() {
                 icon={<CheckOutlined />}
                 className="skylux-primary-button"
                 loading={changePasswordMutation.isPending}
-                disabled={!isPasswordEditing}
                 onClick={handleChangePassword}
               >
                 Cập nhật mật khẩu
@@ -406,12 +484,7 @@ export default function ProfilePage() {
             styles={{ body: { padding: '8px 22px 20px' } }}
           >
             <div className="space-y-1">
-              {[
-                ['Thông báo công việc mới', 'Nhận thông báo khi có công việc mới được giao'],
-                ['Thông báo hồ sơ cần cập nhật', 'Nhận thông báo khi hồ sơ có cập nhật'],
-                ['Nhắc lịch hẹn', 'Nhận nhắc nhở trước lịch hẹn'],
-                ['Báo cáo định kỳ', 'Nhận báo cáo hiệu suất định kỳ'],
-              ].map(([title, description]) => (
+              {notificationSettingDefinitions.map(([key, title, description]) => (
                 <div key={title} className="flex items-center gap-4 py-3">
                   <span className="skylux-icon-bubble h-10 w-10 bg-[var(--color-primary-soft)] text-base text-[var(--color-primary-600)]">
                     <SettingOutlined />
@@ -420,11 +493,23 @@ export default function ProfilePage() {
                     <div className="text-sm font-semibold text-slate-800">{title}</div>
                     <div className="mt-1 text-xs text-slate-500">{description}</div>
                   </div>
-                  <Switch size="small" disabled checked={false} aria-label={title} />
+                  <Switch
+                    size="small"
+                    checked={notificationSettings[key]}
+                    loading={updateSettingsMutation.isPending}
+                    onChange={(checked) =>
+                      updateSettingsMutation.mutate({
+                        [key]: checked,
+                      } as UpdateUserSettingsPayload)
+                    }
+                    aria-label={title}
+                  />
                 </div>
               ))}
             </div>
-            <Text className="mt-3 block text-xs text-slate-400">Chưa có API lưu cài đặt thông báo.</Text>
+            <Text className="mt-3 block text-xs text-slate-400">
+              Các tùy chọn được lưu riêng theo từng tài khoản.
+            </Text>
           </Card>
         </Col>
       </Row>
@@ -467,6 +552,39 @@ export default function ProfilePage() {
       <div className="py-1 text-center text-xs text-slate-400">
         © {new Date().getFullYear()} SkyLux Travel. All rights reserved.
       </div>
+
+      <Modal
+        title="Chỉnh sửa hồ sơ cá nhân"
+        open={isProfileEditing}
+        onCancel={() => setIsProfileEditing(false)}
+        onOk={handleUpdateProfile}
+        okText="Lưu thay đổi"
+        cancelText="Hủy"
+        confirmLoading={updateProfileMutation.isPending}
+        destroyOnHidden
+      >
+        <Form form={profileForm} layout="vertical" requiredMark={false} className="pt-3">
+          <Form.Item
+            name="fullName"
+            label="Họ và tên"
+            rules={[
+              { required: true, message: 'Vui lòng nhập họ và tên' },
+              { min: 2, message: 'Họ và tên tối thiểu 2 ký tự' },
+            ]}
+          >
+            <Input placeholder="Nhập họ và tên" />
+          </Form.Item>
+          <Form.Item name="phone" label="Số điện thoại">
+            <Input placeholder="Nhập số điện thoại" />
+          </Form.Item>
+          <Form.Item name="avatarUrl" label="Ảnh đại diện (URL)">
+            <Input placeholder="Dán đường dẫn ảnh đại diện nếu có" />
+          </Form.Item>
+          <Text className="text-xs text-slate-500">
+            Email, mã nhân viên, phòng ban và quyền truy cập do quản trị viên quản lý.
+          </Text>
+        </Form>
+      </Modal>
     </div>
   );
 }

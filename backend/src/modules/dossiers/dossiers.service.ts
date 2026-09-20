@@ -50,6 +50,7 @@ export class DossiersService {
     const queryBuilder = this.dossierRepository
       .createQueryBuilder('dossier')
       .leftJoinAndSelect('dossier.customer', 'customer')
+      .leftJoinAndSelect('dossier.businessLine', 'businessLine')
       .leftJoinAndSelect('dossier.salesUser', 'salesUser')
       .leftJoinAndSelect('dossier.operatorUser', 'operatorUser')
       .where('dossier.organizationId = :organizationId', { organizationId });

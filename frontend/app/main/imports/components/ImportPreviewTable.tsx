@@ -20,6 +20,10 @@ import {
   PaginatedImportRowsResponse,
 } from "@/types/import";
 
+const vndFormatter = new Intl.NumberFormat("vi-VN", {
+  maximumFractionDigits: 0,
+});
+
 export interface ImportPreviewTableProps {
   session?: ImportSession;
   previewData?: PaginatedImportRowsResponse;
@@ -30,12 +34,12 @@ export interface ImportPreviewTableProps {
 function formatVND(num: number | string | undefined | null) {
   if (num === undefined || num === null || num === "") return "-";
   if (typeof num === "number") {
-    return new Intl.NumberFormat("vi-VN").format(num);
+    return vndFormatter.format(num);
   }
   const clean = String(num).trim().replace(/\./g, "").replace(/,/g, ".");
   const parsed = Number(clean);
   if (!isNaN(parsed) && isFinite(parsed)) {
-    return new Intl.NumberFormat("vi-VN").format(parsed);
+    return vndFormatter.format(parsed);
   }
   return String(num);
 }

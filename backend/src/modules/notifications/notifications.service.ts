@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Subject, Observable } from 'rxjs';
+import { merge, Subject, Observable } from 'rxjs';
 import { filter, map } from 'rxjs/operators';
 import { Notification } from './entities/notification.entity';
 import { CreateNotificationDto } from './dto/create-notification.dto';
@@ -27,7 +27,10 @@ export interface SendNotificationPayload {
 
 export interface NotificationEvent {
   type:
-    'notification.created' | 'notification.read' | 'notification.unread_count';
+    | 'notification.created'
+    | 'notification.read'
+    | 'notification.unread_count'
+    | 'payment.updated';
   organizationId: string;
   userId: string;
   data: any;
@@ -39,6 +42,20 @@ export class NotificationsService {
    * RxJS Event Stream cho phân hệ Realtime Notification
    */
   public readonly notificationEvent$ = new Subject<NotificationEvent>();
+  public readonly organizationEvent$ = new Subject<NotificationEvent>();
+
+  publishOrganizationEvent(event: {
+    type: 'payment.updated';
+    organizationId: string;
+    data: any;
+  }) {
+    this.organizationEvent$.next({
+      type: event.type,
+      organizationId: event.organizationId,
+      userId: '',
+      data: event.data,
+    });
+  }
 
   constructor(
     @InjectRepository(Notification)
@@ -312,11 +329,16 @@ export class NotificationsService {
    * Đăng ký luồng SSE thời gian thực cho một người dùng cụ thể
    */
   getNotificationsStream(user: CurrentUserPayload): Observable<MessageEvent> {
-    return this.notificationEvent$.asObservable().pipe(
+    const userEvents$ = this.notificationEvent$.pipe(
       filter(
-        (evt) =>
-          evt.organizationId === user.organizationId && evt.userId === user.id,
+        (evt) => evt.organizationId === user.organizationId && evt.userId === user.id,
       ),
+    );
+    const organizationEvents$ = this.organizationEvent$.pipe(
+      filter((evt) => evt.organizationId === user.organizationId),
+    );
+
+    return merge(userEvents$, organizationEvents$).pipe(
       map((evt) => ({
         data: {
           type: evt.type,

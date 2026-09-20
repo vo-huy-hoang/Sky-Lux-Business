@@ -157,7 +157,6 @@ export const APP_ROUTES: AppRoute[] = [
     title: 'Nhà cung cấp',
     subtitle: 'Quản lý danh sách đối tác cung ứng dịch vụ (khách sạn, xe, vé, land tour)',
     requiredPermissions: ['supplier.manage'],
-    excludeRoles: ['CEO_ADMIN'],
     order: 85,
   },
   {
