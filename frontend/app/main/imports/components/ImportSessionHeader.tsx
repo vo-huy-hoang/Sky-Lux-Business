@@ -40,18 +40,18 @@ export function ImportSessionHeader({
             <Statistic title="Trạng thái" valueRender={() => renderStatusTag(session?.status)} />
           </Col>
           <Col xs={12} sm={6} lg={3}>
-            <Statistic title="Tổng dòng" value={session?.totalRows || 0} />
+            <Statistic title="Tổng hồ sơ" value={session?.totalRows || 0} />
           </Col>
           <Col xs={12} sm={6} lg={3}>
             <Statistic
-              title="Hợp lệ"
+              title="Hồ sơ hợp lệ"
               value={session?.validRows || 0}
               styles={{ content: { color: '#007A55' } }}
             />
           </Col>
           <Col xs={12} sm={6} lg={3}>
             <Statistic
-              title="Dòng lỗi"
+              title="Hồ sơ lỗi"
               value={session?.errorRows || 0}
               styles={{
                 content: { color: session?.errorRows ? '#D93737' : '#6B7280' },
@@ -70,8 +70,8 @@ export function ImportSessionHeader({
         <Alert
           type="warning"
           showIcon
-          title="Phiên nhập có dòng dữ liệu lỗi"
-          description="Vui lòng sửa các dòng lỗi trong bảng trước khi xác nhận import."
+          title="Phiên nhập có hồ sơ lỗi"
+          description="Vui lòng sửa các lỗi hồ sơ trước khi xác nhận import."
         />
       )}
     </>

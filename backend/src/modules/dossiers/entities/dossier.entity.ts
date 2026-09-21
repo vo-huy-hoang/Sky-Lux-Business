@@ -45,11 +45,39 @@ export class Dossier extends BaseEntity {
   @Column({ name: 'customer_id', type: 'uuid' })
   customerId: string;
 
+  // Preserve the customer name from the source dossier/import. The related
+  // customer is a shared master record and may be edited independently.
+  @Column({
+    name: 'customer_name',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  customerName?: string;
+
   @Column({ name: 'business_line_id', type: 'uuid', nullable: true })
   businessLineId?: string;
 
   @Column({ name: 'market_type_id', type: 'uuid', nullable: true })
   marketTypeId?: string;
+
+  // Snapshot the labels from the imported workbook. These values intentionally
+  // do not depend on the optional master-data foreign keys above.
+  @Column({
+    name: 'business_line_name',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  businessLineName?: string;
+
+  @Column({
+    name: 'market_type_name',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  marketTypeName?: string;
 
   @Column({ name: 'sales_user_id', type: 'uuid', nullable: true })
   salesUserId?: string;

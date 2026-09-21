@@ -49,6 +49,8 @@ import { useFilterStore } from '@/lib/stores/filter-store';
 import { queryKeys } from '@/lib/query-keys';
 import { WidgetErrorBoundary } from '@/components/common/widget-error-boundary';
 import { formatCurrency } from '@/lib/financial-calculations';
+import { RevenueBreakdownToggle, RevenueBreakdownMode } from '@/components/ceo/RevenueBreakdownToggle';
+import { REVENUE_BREAKDOWN_COLORS } from '@/components/ceo/revenue-breakdown.constants';
 
 
 
@@ -192,7 +194,13 @@ export default function CeoDashboard() {
   const totalDossiers = funnel.reduce((sum: number, item: { status: string; count: number }) => sum + item.count, 0);
   const pendingCount = (funnelMap.get('SUBMITTED') || 0) + (funnelMap.get('IN_REVIEW') || 0);
   const latestDossiers = dossiers.slice(0, 6);
-  const revenueBreakdown = overview?.revenueBreakdown || [];
+  const [breakdownMode, setBreakdownMode] = React.useState<RevenueBreakdownMode>('MARKET_TYPE');
+  const chartBreakdown = React.useMemo(
+    () => breakdownMode === 'MARKET_TYPE'
+      ? (overview?.revenueBreakdown || []).map((item) => ({ name: item.marketTypeName, amount: item.amount }))
+      : (overview?.businessLineBreakdown || []).map((item) => ({ name: item.businessLineName, amount: item.amount })),
+    [breakdownMode, overview?.businessLineBreakdown, overview?.revenueBreakdown],
+  );
   const notificationsList = notificationsResponse?.data || [];
   const pendingApprovals = React.useMemo(
     () => [...(submittedApprovalsQuery.data?.data || []), ...(reviewingApprovalsQuery.data?.data || [])]
@@ -283,10 +291,10 @@ export default function CeoDashboard() {
   };
 
   const revenueData = {
-    labels: revenueBreakdown.map((item) => item.businessLineName),
+    labels: chartBreakdown.map((item) => item.name),
     datasets: [{
-      data: revenueBreakdown.map((item) => item.amount),
-      backgroundColor: ['#104E35', '#C49226', '#6389D6', '#8EADC8', '#7C59C8', '#14A9B5'],
+      data: chartBreakdown.map((item) => item.amount),
+      backgroundColor: REVENUE_BREAKDOWN_COLORS,
       borderColor: '#FFFFFF',
       borderWidth: 2,
     }],
@@ -429,27 +437,30 @@ export default function CeoDashboard() {
           </WidgetErrorBoundary>
         </div>
 
-        {/* CARD 2: Cơ cấu doanh thu theo mảng (col-span-4) */}
+        {/* CARD 2: Cơ cấu doanh thu theo cách phân loại (col-span-4) */}
         <div className="xl:col-span-4">
-          <WidgetErrorBoundary title="Cơ cấu doanh thu theo mảng">
+          <WidgetErrorBoundary title="Cơ cấu doanh thu theo cách phân loại">
             <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div>
                 {/* Header */}
-                <div className="text-[15px] font-bold text-slate-900 mb-2">Cơ cấu doanh thu theo mảng</div>
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                  <div className="text-[15px] font-bold text-slate-900">Cơ cấu doanh thu theo {breakdownMode === 'MARKET_TYPE' ? 'loại hình' : 'mảng'}</div>
+                  <RevenueBreakdownToggle value={breakdownMode} onChange={setBreakdownMode} />
+                </div>
 
                 {/* Body: Donut + Legend */}
                 <div className="flex items-center justify-between gap-4 sm:gap-6 my-auto py-2">
                   <div className="relative w-[180px] h-[180px] 2xl:w-[195px] 2xl:h-[195px] shrink-0">
-                    {revenueBreakdown.length ? <Doughnut data={revenueData} options={revenueOptions} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu doanh thu" />}
+                    {chartBreakdown.length ? <Doughnut data={revenueData} options={revenueOptions} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu doanh thu" />}
                   </div>
 
                   {/* Legend list */}
                   <div className="flex-1 space-y-3 min-w-0">
-                    {revenueBreakdown.slice(0, 5).map((item, index) => (
-                      <div key={item.businessLineName}>
+                    {chartBreakdown.slice(0, 5).map((item, index) => (
+                      <div key={item.name}>
                         <div className="flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: revenueData.datasets[0].backgroundColor[index] }} />
-                          <span className="text-xs font-semibold text-slate-800 truncate" title={item.businessLineName}>{item.businessLineName}</span>
+                          <span className="text-xs font-semibold text-slate-800 truncate" title={item.name}>{item.name}</span>
                         </div>
                         <div className="text-[11px] text-slate-500 pl-4.5 font-medium tabular-nums">{formatCurrency(item.amount)}</div>
                       </div>
@@ -460,7 +471,7 @@ export default function CeoDashboard() {
 
               {/* Total Footer */}
               <div className="text-xs text-slate-500 pt-3 border-t border-slate-100 mt-2">
-                Tổng doanh thu: <span className="font-semibold text-slate-700 tabular-nums">{formatCurrency(revenueBreakdown.reduce((sum, item) => sum + Number(item.amount || 0), 0))}</span>
+                Tổng doanh thu: <span className="font-semibold text-slate-700 tabular-nums">{formatCurrency(chartBreakdown.reduce((sum, item) => sum + Number(item.amount || 0), 0))}</span>
               </div>
             </div>
           </WidgetErrorBoundary>

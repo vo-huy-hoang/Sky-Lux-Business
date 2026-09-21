@@ -314,6 +314,7 @@ export async function runInitialSeed(dataSource: DataSource) {
         'dossier.view.team',
         'dossier.update',
         'dossier.approve',
+        'customer.manage',
         'estimate.view',
         'estimate.update',
         'import.manage',

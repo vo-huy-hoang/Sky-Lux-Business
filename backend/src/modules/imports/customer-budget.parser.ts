@@ -5,6 +5,7 @@ export const CUSTOMER_BUDGET_FORMAT = 'SKYLUX_CUSTOMER_BUDGET';
 export interface CustomerBudgetLine {
   description: string;
   supplierName?: string;
+  supplierId?: string;
   categoryName?: string;
   serviceCategoryCode?: string;
   quantity: number;
@@ -103,13 +104,46 @@ function parseDateRange(value: unknown): {
 } {
   const raw = text(value);
   const match = raw.match(
-    /^(\d{1,2})[/-](\d{1,2})\s*[-–]\s*(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/,
+    /^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{4}))?\s*[-–]\s*(\d{1,2})[/-](\d{1,2})(?:[/-](\d{4}))?$/,
   );
   if (!match) return { startDate: '', endDate: '' };
-  const [, startDay, startMonth, endDay, endMonth, year] = match;
+
+  const [
+    ,
+    startDay,
+    startMonth,
+    explicitStartYear,
+    endDay,
+    endMonth,
+    explicitEndYear,
+  ] = match;
+  const startMonthNumber = Number(startMonth);
+  const endMonthNumber = Number(endMonth);
+  const startDayNumber = Number(startDay);
+  const endDayNumber = Number(endDay);
+  const crossesCalendarYear =
+    endMonthNumber < startMonthNumber ||
+    (endMonthNumber === startMonthNumber && endDayNumber < startDayNumber);
+
+  // Excel templates commonly write `30/12-02/01/2027`, where the year is
+  // attached only to the end date. If the range crosses New Year, the start
+  // date belongs to the previous year. Explicit years always take precedence.
+  const endYear = explicitEndYear
+    ? Number(explicitEndYear)
+    : explicitStartYear
+      ? Number(explicitStartYear) + (crossesCalendarYear ? 1 : 0)
+      : undefined;
+  const startYear = explicitStartYear
+    ? Number(explicitStartYear)
+    : explicitEndYear
+      ? Number(explicitEndYear) - (crossesCalendarYear ? 1 : 0)
+      : undefined;
+
+  if (!startYear || !endYear) return { startDate: '', endDate: '' };
+
   return {
-    startDate: `${year}-${startMonth.padStart(2, '0')}-${startDay.padStart(2, '0')}`,
-    endDate: `${year}-${endMonth.padStart(2, '0')}-${endDay.padStart(2, '0')}`,
+    startDate: `${startYear}-${startMonth.padStart(2, '0')}-${startDay.padStart(2, '0')}`,
+    endDate: `${endYear}-${endMonth.padStart(2, '0')}-${endDay.padStart(2, '0')}`,
   };
 }
 
@@ -139,13 +173,21 @@ function serviceCategoryCode(
 }
 
 function businessLineCode(value: string, marketType: string): string {
-  const normalized = `${value} ${marketType}`.toUpperCase();
-  if (normalized.includes('MICE')) return 'MICE';
-  if (normalized.includes('OUTBOUND')) return 'TOUR_OUTBOUND';
-  if (normalized.includes('INBOUND')) return 'TOUR_INBOUND';
-  if (normalized.includes('VÉ') && normalized.includes('VISA')) {
+  const normalizedValue = value.toUpperCase();
+  const normalizedMarketType = marketType.toUpperCase();
+
+  // The Excel template stores the business line and market type separately.
+  // Do not let a market type such as INBOUND overwrite an explicit line such
+  // as SỰ KIỆN.
+  if (normalizedValue.includes('SỰ KIỆN') || normalizedValue.includes('MICE')) {
+    return 'MICE';
+  }
+  if (normalizedValue.includes('VÉ')) {
     return 'TICKET_VISA';
   }
+
+  if (normalizedMarketType.includes('OUTBOUND')) return 'TOUR_OUTBOUND';
+  if (normalizedMarketType.includes('INBOUND')) return 'TOUR_INBOUND';
   return 'TOUR_DOMESTIC';
 }
 
@@ -163,6 +205,7 @@ function marketTypeCode(value: string): string {
   if (normalized.includes('OUTBOUND') || normalized.includes('QUỐC TẾ')) {
     return 'OUTBOUND';
   }
+  if (normalized.includes('INBOUND')) return 'INBOUND';
   return 'DOMESTIC';
 }
 
@@ -233,7 +276,7 @@ export function parseCustomerBudgetWorkbook(
   for (let row = 20; row <= 51; row += 1) {
     const prefix = text(cell(`A${row}`));
     const description = text(cell(`B${row}`));
-    const supplierName = text(cell(`C${row}`));
+    const rawSupplierName = text(cell(`C${row}`));
     const quantity = number(cell(`D${row}`));
     const multiplier = number(cell(`E${row}`));
     const unitPrice = number(cell(`F${row}`));
@@ -263,6 +306,10 @@ export function parseCustomerBudgetWorkbook(
       unitPrice ?? (sourceAmount ?? 0) / safeQuantity / safeMultiplier;
     const amount =
       sourceAmount ?? safeQuantity * safeMultiplier * safeUnitPrice;
+    // Only section I (the numbered VAT cost categories such as 1.1-1.4)
+    // contains supplier data. Section II is a list of non-VAT input costs;
+    // values in its column C are notes/coverage details, not suppliers.
+    const supplierName = section === 'I' && categoryName ? rawSupplierName : '';
     const noteParts = [
       supplierName && `Nhà cung cấp: ${supplierName}`,
       progress && `Tiến độ: ${progress}`,

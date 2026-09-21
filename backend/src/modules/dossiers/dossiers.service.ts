@@ -101,10 +101,11 @@ export class DossiersService {
       });
     }
 
-    if (search) {
+    const normalizedSearch = search?.trim();
+    if (normalizedSearch) {
       queryBuilder.andWhere(
-        '(dossier.code ILIKE :search OR dossier.name ILIKE :search OR dossier.route ILIKE :search)',
-        { search: `%${search}%` },
+        '(dossier.code ILIKE :search OR dossier.name ILIKE :search OR dossier.route ILIKE :search OR dossier.customerName ILIKE :search OR customer.code ILIKE :search OR customer.displayName ILIKE :search OR customer.phone ILIKE :search OR customer.email ILIKE :search)',
+        { search: `%${normalizedSearch}%` },
       );
     }
 
@@ -206,7 +207,9 @@ export class DossiersService {
           },
         })
         .catch((err: Error) => {
-          this.logger.warn(`Lỗi ghi audit log xem hồ sơ ${id}: ${err?.message}`);
+          this.logger.warn(
+            `Lỗi ghi audit log xem hồ sơ ${id}: ${err?.message}`,
+          );
         });
     }
 
@@ -364,8 +367,11 @@ export class DossiersService {
       code: dossier.code,
       name: dossier.name,
       customerId: dossier.customerId,
+      customerName: dossier.customerName ?? null,
       businessLineId: dossier.businessLineId ?? null,
       marketTypeId: dossier.marketTypeId ?? null,
+      businessLineName: dossier.businessLineName ?? null,
+      marketTypeName: dossier.marketTypeName ?? null,
       salesUserId: dossier.salesUserId ?? null,
       operatorUserId: dossier.operatorUserId ?? null,
       status: dossier.status,

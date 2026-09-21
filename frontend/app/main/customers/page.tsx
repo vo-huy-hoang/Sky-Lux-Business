@@ -57,6 +57,9 @@ export default function CustomersPage() {
   const router = useRouter();
   const hasRole = useAuthStore((state) => state.hasRole);
   const isCeoAdmin = hasRole(['CEO_ADMIN', 'SUPER_ADMIN']);
+  const isOperator = hasRole('OPERATOR');
+  const isSales = hasRole('SALES');
+  const canDeleteCustomer = !isSales && (isCeoAdmin || isOperator);
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -232,22 +235,24 @@ export default function CustomersPage() {
             aria-label="Xem chi tiết khách hàng"
             onClick={() => handleViewDetail(record.id)}
           />
-          <Popconfirm
-            title="Xóa khách hàng"
-            description="Bạn có chắc chắn muốn xóa khách hàng này?"
-            onConfirm={() => deleteMutation.mutate(record.id)}
-            okText="Xóa"
-            cancelText="Hủy"
-            okButtonProps={{ danger: true }}
-          >
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              size="small"
-              aria-label="Xóa khách hàng"
-              loading={deleteMutation.isPending}
-            />
-          </Popconfirm>
+          {canDeleteCustomer && (
+            <Popconfirm
+              title="Xóa khách hàng"
+              description="Bạn có chắc chắn muốn xóa khách hàng này?"
+              onConfirm={() => deleteMutation.mutate(record.id)}
+              okText="Xóa"
+              cancelText="Hủy"
+              okButtonProps={{ danger: true }}
+            >
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                size="small"
+                aria-label="Xóa khách hàng"
+                loading={deleteMutation.isPending}
+              />
+            </Popconfirm>
+          )}
           <Button icon={<MoreOutlined />} size="small" aria-label="Mở thêm thao tác" />
         </Space>
       ),

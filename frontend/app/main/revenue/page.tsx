@@ -1,9 +1,9 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Link from 'next/link';
-import { message, Typography, Skeleton } from 'antd';
+import { DatePicker, message } from 'antd';
 import {
   AppstoreOutlined,
   BarChartOutlined,
@@ -18,7 +18,7 @@ import {
   PercentageOutlined,
   RightOutlined,
   RiseOutlined,
-  TeamOutlined,
+  ShopOutlined,
   WalletOutlined,
 } from '@ant-design/icons';
 import {
@@ -41,6 +41,8 @@ import { useCeoDashboard, useCeoMonthlyTrend, useOperatorSalesSummary } from '@/
 import OperatorRevenue from '@/components/operator/OperatorRevenue';
 import { WidgetErrorBoundary } from '@/components/common/widget-error-boundary';
 import { formatCurrency } from '@/lib/financial-calculations';
+import { RevenueBreakdownToggle, RevenueBreakdownMode } from '@/components/ceo/RevenueBreakdownToggle';
+import { REVENUE_BREAKDOWN_COLORS } from '@/components/ceo/revenue-breakdown.constants';
 
 ChartJS.register(
   ArcElement,
@@ -111,12 +113,15 @@ const barTopLabelsPlugin = {
 };
 
 function CeoRevenuePage() {
-  const [reportPeriod] = useState('Tháng 05/2025');
-  const [businessLine] = useState('Tất cả mảng');
+  const datePickerRef = useRef<any>(null);
+  const [marketType] = useState('Tất cả loại hình');
+  const [breakdownMode, setBreakdownMode] = useState<RevenueBreakdownMode>('MARKET_TYPE');
 
   const dateString = useFilterStore((state) => state.dateString);
+  const setDateString = useFilterStore((state) => state.setDateString);
   const anchorDate = dayjs(dateString);
   const year = anchorDate.year();
+  const reportPeriod = `Tháng ${anchorDate.format('MM/YYYY')}`;
 
   // API Hooks
   const { data: monthData } = useCeoDashboard({ periodType: 'MONTHLY', date: anchorDate.format('YYYY-MM-DD') });
@@ -224,21 +229,30 @@ function CeoRevenuePage() {
   };
 
   // 4. Donut Chart
-  const revenueBreakdown = monthData?.revenueBreakdown || [];
-  const totalBreakdown = revenueBreakdown.reduce((sum, b) => sum + Number(b.amount), 0);
-  const sortedBreakdown = [...revenueBreakdown].sort((a, b) => Number(b.amount) - Number(a.amount));
-  const donutColors = ['#104E35', '#2C7459', '#D48B1E', '#5B80C6', '#7C59C8', '#14A9B5', '#0284C7', '#E11D48'];
-  let currentAngle = 0;
-  const donutSlices = sortedBreakdown.map((item, i) => {
+  const breakdownRows = breakdownMode === 'MARKET_TYPE'
+    ? (monthData?.revenueBreakdown || []).map((item) => ({ name: item.marketTypeName, amount: item.amount }))
+    : (monthData?.businessLineBreakdown || []).map((item) => ({ name: item.businessLineName, amount: item.amount }));
+  const totalBreakdown = breakdownRows.reduce((sum, b) => sum + Number(b.amount), 0);
+  const sortedBreakdown = [...breakdownRows].sort((a, b) => Number(b.amount) - Number(a.amount));
+  type DonutSlice = {
+    name: string;
+    amount: number;
+    percentage: number;
+    startAngle: number;
+    endAngle: number;
+    midAngle: number;
+    color: string;
+  };
+  const donutSlices = sortedBreakdown.reduce<DonutSlice[]>((slices, item, i) => {
+    const currentAngle = slices.at(-1)?.endAngle || 0;
     const amount = Number(item.amount);
     const percentage = totalBreakdown > 0 ? (amount / totalBreakdown) * 100 : 0;
     const angle = (percentage / 100) * 360;
     const startAngle = currentAngle;
     const endAngle = currentAngle + angle;
     const midAngle = startAngle + angle / 2;
-    currentAngle = endAngle;
-    return { name: item.businessLineName, amount, percentage, startAngle, endAngle, midAngle, color: donutColors[i % donutColors.length] };
-  });
+    return [...slices, { name: item.name, amount, percentage, startAngle, endAngle, midAngle, color: REVENUE_BREAKDOWN_COLORS[i % REVENUE_BREAKDOWN_COLORS.length] }];
+  }, []);
 
   // 5. Bottom Section Data
   const customerColors = [
@@ -253,11 +267,14 @@ function CeoRevenuePage() {
     logoLetter: c.customerName.charAt(0).toUpperCase(), logoBg: customerColors[i % customerColors.length].logoBg,
   }));
 
-  const marketRows = (monthData?.marketBreakdown || []).map((m, i) => ({
-    key: String(i), market: m.marketName, dossiers: m.dossiers.toLocaleString(),
-    revenue: new Intl.NumberFormat('vi-VN').format(Math.round(Number(m.revenue) / 1_000_000)), profit: new Intl.NumberFormat('vi-VN').format(Math.round(Number(m.profit) / 1_000_000)),
-    share: currentMonthRev > 0 ? ((Number(m.revenue) / currentMonthRev) * 100).toFixed(1) + '%' : '0%',
-  }));
+  const supplierRows = (monthData?.supplierBreakdown || [])
+    .map((supplier) => ({
+      ...supplier,
+      amount: Number(supplier.amount || 0),
+    }))
+    .sort((a, b) => b.amount - a.amount);
+  const supplierTotal = supplierRows.reduce((sum, supplier) => sum + supplier.amount, 0);
+  const highestSupplierAmount = supplierRows[0]?.amount || 0;
 
   const quickReports = [
     { id: '1', title: 'Báo cáo doanh thu chi tiết', icon: <FileTextOutlined className="text-sm" />, iconBox: 'bg-[#E8F6ED] text-[#0A8A61] border border-[#C8EBD5]', href: '/main/reports' },
@@ -272,14 +289,35 @@ function CeoRevenuePage() {
       {/* 1. FILTER TOOLBAR & EXPORT BUTTONS */}
       <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 flex-1 max-w-4xl">
-            {/* Filter 1 */}
-            <div className="flex items-center justify-between px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:border-slate-300 transition-colors cursor-pointer text-xs">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 flex-1 max-w-4xl">
+              {/* Filter 1 */}
+            <div
+              onClick={() => {
+                const input = datePickerRef.current?.nativeElement?.querySelector('input') || datePickerRef.current?.input;
+                input?.focus?.();
+                input?.click?.();
+              }}
+              className="flex items-center justify-between px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:border-slate-300 transition-colors cursor-pointer text-xs"
+            >
               <div className="flex items-center gap-2 min-w-0">
                 <CalendarOutlined className="text-slate-400 text-sm shrink-0" />
                 <div className="min-w-0">
                   <div className="text-[10px] text-slate-400 leading-none">Kỳ báo cáo</div>
-                  <div className="font-semibold text-slate-800 text-xs truncate mt-0.5">{reportPeriod}</div>
+                  <DatePicker
+                    ref={datePickerRef}
+                    picker="month"
+                    value={anchorDate}
+                    onChange={(value) => {
+                      if (value) setDateString(value.startOf('month').format('YYYY-MM-DD'));
+                    }}
+                    format="MM/YYYY"
+                    allowClear={false}
+                    inputReadOnly
+                    variant="borderless"
+                    suffixIcon={null}
+                    className="!w-[70px] !p-0 !text-xs !border-0 !shadow-none !outline-none [&.ant-picker-focused]:!shadow-none [&.ant-picker-focused]:!border-transparent [&.ant-picker-focused]:!outline-none [&_.ant-picker-input>input]:!font-semibold [&_.ant-picker-input>input]:!text-slate-800 [&_.ant-picker-input>input]:!cursor-pointer [&_.ant-picker-input>input]:!outline-none [&_.ant-picker-input>input]:!shadow-none [&_.ant-picker-input>input]:!border-none [&_.ant-picker-input>input]:focus:!outline-none [&_.ant-picker-input>input]:focus-visible:!outline-none"
+                    aria-label={`Chọn ${reportPeriod}`}
+                  />
                 </div>
               </div>
               <DownOutlined className="text-[9px] text-slate-400 shrink-0 ml-1.5" />
@@ -289,8 +327,8 @@ function CeoRevenuePage() {
               <div className="flex items-center gap-2 min-w-0">
                 <AppstoreOutlined className="text-slate-400 text-sm shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-[10px] text-slate-400 leading-none">Mảng</div>
-                  <div className="font-semibold text-slate-800 text-xs truncate mt-0.5">{businessLine}</div>
+                  <div className="text-[10px] text-slate-400 leading-none">Loại hình</div>
+                  <div className="font-semibold text-slate-800 text-xs truncate mt-0.5">{marketType}</div>
                 </div>
               </div>
               <DownOutlined className="text-[9px] text-slate-400 shrink-0 ml-1.5" />
@@ -391,9 +429,15 @@ function CeoRevenuePage() {
         </div>
 
         <div>
-          <WidgetErrorBoundary title="Cơ cấu doanh thu theo mảng">
+          <WidgetErrorBoundary title="Cơ cấu doanh thu theo cách phân loại">
             <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
-              <div className="flex items-center justify-between mb-2"><span className="text-[15px] font-bold text-slate-900">Cơ cấu doanh thu theo mảng</span><span className="text-xs text-slate-400">Đơn vị: Triệu đồng</span></div>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                <span className="text-[15px] font-bold text-slate-900">Cơ cấu doanh thu theo {breakdownMode === 'MARKET_TYPE' ? 'loại hình' : 'mảng'}</span>
+                <div className="flex items-center gap-3">
+                  <RevenueBreakdownToggle value={breakdownMode} onChange={setBreakdownMode} />
+                  <span className="text-xs text-slate-400 whitespace-nowrap">Đơn vị: Triệu đồng</span>
+                </div>
+              </div>
               <div className="flex items-center justify-between gap-5 my-2">
                 <div className="relative w-[180px] h-[180px] shrink-0">
                   <svg viewBox="0 0 100 100" className="w-full h-full">
@@ -448,26 +492,57 @@ function CeoRevenuePage() {
           </div>
         </WidgetErrorBoundary>
 
-        <WidgetErrorBoundary title="Tổng hợp theo thị trường">
-          <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col h-full">
-            <div className="p-4 border-b border-[#E5E8E6]"><span className="text-[15px] font-bold text-slate-900">Tổng hợp theo thị trường</span></div>
-            <div className="p-0 flex-1 overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-slate-500 bg-slate-50 border-b border-slate-100">
-                  <tr>
-                    <th className="px-4 py-3 font-semibold">Thị trường</th><th className="px-4 py-3 font-semibold text-right">Hồ sơ</th><th className="px-4 py-3 font-semibold text-right">Doanh thu (Tr)</th><th className="px-4 py-3 font-semibold text-right">Lợi nhuận (Tr)</th><th className="px-4 py-3 font-semibold text-right">Tỷ trọng</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {marketRows.map((row) => (
-                    <tr key={row.key} className="hover:bg-slate-50">
-                      <td className="px-4 py-2.5 font-medium text-slate-800 whitespace-nowrap">{row.market}</td><td className="px-4 py-2.5 text-right text-slate-600 tabular-nums">{row.dossiers}</td><td className="px-4 py-2.5 text-right font-medium text-slate-900 tabular-nums">{row.revenue}</td><td className="px-4 py-2.5 text-right font-medium text-[#0A8A61] tabular-nums">{row.profit}</td>
-                      <td className="px-4 py-2.5 text-right"><span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-[#E8F6ED] text-[#0A8A61]">{row.share}</span></td>
-                    </tr>
-                  ))}
-                  {marketRows.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-sm text-slate-400">Chưa có dữ liệu</td></tr>}
-                </tbody>
-              </table>
+        <WidgetErrorBoundary title="Doanh thu Nhà cung cấp">
+          <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col h-full overflow-hidden">
+            <div className="p-4 border-b border-[#E5E8E6] flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-[#E8F6ED] text-[#0A8A61] border border-[#C8EBD5] flex items-center justify-center shrink-0"><ShopOutlined className="text-sm" /></div>
+                  <span className="text-[15px] font-bold text-slate-900">Doanh thu Nhà cung cấp</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1.5 ml-9">Xếp hạng theo chi phí thuần trong kỳ</p>
+              </div>
+              <span className="text-[11px] text-slate-400 whitespace-nowrap">Top {supplierRows.length} NCC</span>
+            </div>
+            <div className="p-4 flex-1">
+              {supplierRows.length > 0 ? (
+                <div className="space-y-4" role="list" aria-label="Doanh thu theo nhà cung cấp">
+                  {supplierRows.map((supplier, index) => {
+                    const share = supplierTotal > 0 ? (supplier.amount / supplierTotal) * 100 : 0;
+                    const width = highestSupplierAmount > 0 ? (supplier.amount / highestSupplierAmount) * 100 : 0;
+                    const barColor = index === 0 ? '#104E35' : index === 1 ? '#2F7D61' : '#A8CDBB';
+                    return (
+                      <div key={supplier.supplierId} role="listitem" className="group">
+                        <div className="flex items-center justify-between gap-3 mb-1.5">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="w-6 h-6 rounded-md bg-slate-50 border border-slate-100 text-[11px] font-bold text-slate-500 flex items-center justify-center shrink-0">{index + 1}</span>
+                            <div className="min-w-0">
+                              <div className="text-[13px] font-semibold text-slate-800 truncate">{supplier.supplierName}</div>
+                              <div className="text-[10px] text-slate-400 mt-0.5 truncate">{supplier.supplierCode} · {supplier.dossierCount} hồ sơ</div>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-[13px] font-bold text-slate-900 tabular-nums">{formatTrm(supplier.amount)} Tr</div>
+                            <div className="text-[10px] text-slate-400 tabular-nums">{share.toFixed(1)}%</div>
+                          </div>
+                        </div>
+                        <div className="h-2 rounded-full bg-slate-100 overflow-hidden" role="progressbar" aria-label={`${supplier.supplierName}: ${formatTrm(supplier.amount)} triệu đồng`} aria-valuenow={Math.round(width)} aria-valuemin={0} aria-valuemax={100}>
+                          <div className="h-full rounded-full transition-all duration-300 group-hover:brightness-95" style={{ width: `${width}%`, backgroundColor: barColor }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="h-full min-h-[170px] flex flex-col items-center justify-center text-center">
+                  <ShopOutlined className="text-2xl text-slate-300 mb-2" />
+                  <p className="text-sm text-slate-400">Chưa có dữ liệu nhà cung cấp trong kỳ</p>
+                </div>
+              )}
+            </div>
+            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-3">
+              <span className="text-[11px] text-slate-500">Tổng nhóm đang hiển thị</span>
+              <span className="text-sm font-bold text-[#0A8A61] tabular-nums">{formatTrm(supplierTotal)} Tr</span>
             </div>
           </div>
         </WidgetErrorBoundary>

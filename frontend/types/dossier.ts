@@ -73,8 +73,11 @@ export interface DossierItem {
   code: string;
   name: string;
   customerId: string;
+  customerName?: string;
   businessLineId?: string;
   marketTypeId?: string;
+  businessLineName?: string;
+  marketTypeName?: string;
   businessLine?: {
     id: string;
     code: string;

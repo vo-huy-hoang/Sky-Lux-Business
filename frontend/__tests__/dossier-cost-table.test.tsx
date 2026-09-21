@@ -755,6 +755,30 @@ describe("Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
       expect(screen.getByText("Loại hình: Nội địa")).toBeInTheDocument();
     });
 
+    it("ưu tiên tên Mảng và Loại hình được snapshot từ file Excel", () => {
+      const mockEstimate = {
+        id: "est-2",
+        revenueLines: [],
+        costLines: [],
+      };
+      renderWithQuery(
+        <DossierDetailTabs
+          estimate={mockEstimate}
+          dossierId="dossier-456"
+          dossier={{
+            businessLineName: "VÉ LẺ",
+            marketTypeName: "INBOUND",
+            businessLine: { code: "TICKET_VISA", name: "Tên master cũ" },
+            marketType: { name: "Tên master cũ" },
+          }}
+        />,
+      );
+
+      expect(screen.getByText("Mảng: VÉ LẺ")).toBeInTheDocument();
+      expect(screen.getByText("Loại hình: INBOUND")).toBeInTheDocument();
+      expect(screen.queryByText("Mảng: Tên master cũ")).not.toBeInTheDocument();
+    });
+
     it("DossierHeader không còn render thẻ Mảng và Loại hình dưới tiêu đề", () => {
       const mockDossier = {
         id: "dossier-123",

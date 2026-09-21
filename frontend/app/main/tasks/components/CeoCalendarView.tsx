@@ -70,11 +70,10 @@ export const SEGMENT_CONFIGS: Record<BusinessSegmentKey, SegmentConfig> = {
 };
 
 export function resolveSegment(dossier: DossierItem): SegmentConfig {
-  const blName = (dossier.businessLine?.name || '').toUpperCase();
-  const blCode = (dossier.businessLine?.code || '').toUpperCase();
+  const blName = (dossier.businessLineName || '').toUpperCase();
   const dName = (dossier.name || '').toUpperCase();
   const dRoute = (dossier.route || '').toUpperCase();
-  const combined = `${blName} ${blCode} ${dName} ${dRoute}`;
+  const combined = `${blName} ${dName} ${dRoute}`;
 
   if (
     combined.includes('XE') ||

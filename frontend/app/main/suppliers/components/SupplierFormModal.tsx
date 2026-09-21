@@ -8,12 +8,13 @@ import {
   Select,
   Row,
   Col,
-  message,
+  App,
 } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { suppliersService } from '@/services/suppliers.service';
 import { queryKeys } from '@/lib/query-keys';
 import { SupplierItem, CreateSupplierInput } from '@/types/supplier';
+import { useSupplierTypes } from '@/hooks/use-master-data';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -31,9 +32,15 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
   initialData,
   onSuccess,
 }) => {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
   const isEdit = Boolean(initialData);
+  const { data: supplierTypesResponse, isLoading: isSupplierTypesLoading } = useSupplierTypes(
+    { pageSize: 100, status: 'ACTIVE' },
+    { enabled: visible },
+  );
+  const supplierTypes = supplierTypesResponse?.data || [];
 
   useEffect(() => {
     if (visible) {
@@ -41,6 +48,7 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
         form.setFieldsValue({
           code: initialData.code,
           name: initialData.name,
+          supplierTypeId: initialData.supplierTypeId,
           taxCode: initialData.taxCode,
           contactName: initialData.contactName,
           phone: initialData.phone,
@@ -161,7 +169,7 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
         </Row>
 
         <Row gutter={16}>
-          <Col span={12}>
+          <Col span={8}>
             <Form.Item
               name="taxCode"
               label="Mã số thuế"
@@ -170,7 +178,23 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
               <Input placeholder="VD: 0101234567" />
             </Form.Item>
           </Col>
-          <Col span={12}>
+          <Col span={8}>
+            <Form.Item
+              name="supplierTypeId"
+              label="Loại nhà cung cấp"
+            >
+              <Select
+                allowClear
+                loading={isSupplierTypesLoading}
+                placeholder="Chọn loại NCC"
+                options={supplierTypes.map((supplierType) => ({
+                  label: supplierType.name,
+                  value: supplierType.id,
+                }))}
+              />
+            </Form.Item>
+          </Col>
+          <Col span={8}>
             <Form.Item
               name="status"
               label="Trạng thái"

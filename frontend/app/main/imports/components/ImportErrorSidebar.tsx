@@ -30,6 +30,7 @@ const CHECKLIST_ITEMS = [
 
 export function ImportErrorSidebar({ session, previewData, errorsData }: ImportErrorSidebarProps) {
   const { validCount, errorCount, warningCount, totalCount } = useImportValidation(previewData);
+  const importErrorRowCount = session?.errorRows ?? 0;
 
   return (
     <div className="space-y-4">
@@ -93,7 +94,7 @@ export function ImportErrorSidebar({ session, previewData, errorsData }: ImportE
                 <CheckCircleFilled />
               </div>
               <div className="text-xs font-semibold text-slate-700">
-                Dòng hợp lệ
+                Dòng chi tiết hợp lệ
               </div>
             </div>
             <div className="text-2xl font-bold font-mono text-emerald-800">
@@ -108,11 +109,11 @@ export function ImportErrorSidebar({ session, previewData, errorsData }: ImportE
                 <ExclamationCircleFilled />
               </div>
               <div className="text-xs font-semibold text-slate-700">
-                Dòng lỗi
+                Dòng chi tiết lỗi
               </div>
             </div>
             <div className="text-2xl font-bold font-mono text-rose-700">
-              {errorCount + (errorsData?.data?.length || 0)}
+              {errorCount}
             </div>
           </div>
 
@@ -123,7 +124,7 @@ export function ImportErrorSidebar({ session, previewData, errorsData }: ImportE
                 <WarningFilled />
               </div>
               <div className="text-xs font-semibold text-slate-700">
-                Cảnh báo
+                Cảnh báo dòng chi tiết
               </div>
             </div>
             <div className="text-2xl font-bold font-mono text-amber-700">
@@ -132,17 +133,29 @@ export function ImportErrorSidebar({ session, previewData, errorsData }: ImportE
           </div>
 
           <div className="pt-2 text-left text-xs font-medium text-slate-500">
-            Tổng dòng:{" "}
+            Tổng dòng chi tiết:{" "}
             <span className="font-semibold text-slate-800 font-mono">
               {totalCount}
             </span>
           </div>
 
+          {importErrorRowCount > 0 && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800">
+              <div className="font-bold">
+                Lỗi hồ sơ: {importErrorRowCount}
+              </div>
+              <div className="mt-1 text-[11px] text-rose-700/80">
+                Đây là lỗi ở hồ sơ import, không nằm trong các dòng chi tiết ở
+                trên.
+              </div>
+            </div>
+          )}
+
           {/* Lỗi từ hệ thống (Dossier-level errors) */}
           {errorsData?.data && errorsData.data.length > 0 && (
             <div className="pt-3 border-t border-slate-100">
               <div className="text-[11px] font-bold text-rose-800 uppercase tracking-wider mb-2">
-                Chi tiết lỗi dữ liệu:
+                Chi tiết lỗi hồ sơ:
               </div>
               <div className="space-y-2">
                 {errorsData.data.map((err, idx) => (
