@@ -77,8 +77,9 @@ export function DossierDetailTabs({
     }
   }, [activeTab, visitedTabs]);
 
-  const businessLine = dossier?.businessLineName;
-  const marketType = dossier?.marketTypeName;
+  const businessLine =
+    dossier?.businessLineName || dossier?.businessLine?.code?.split("_")[0];
+  const marketType = dossier?.marketTypeName || dossier?.marketType?.name;
 
   const classificationTags =
     businessLine || marketType ? (
