@@ -24,7 +24,16 @@ export interface CeoDashboardData {
   funnel: { status: string; count: number }[];
   vipCustomers: { customerName: string; spend: number }[];
   costBreakdown: { categoryName: string; amount: number }[];
-  revenueBreakdown: { businessLineName: string; amount: number }[];
+  revenueBreakdown: { marketTypeName: string; amount: number }[];
+  businessLineBreakdown: { businessLineName: string; amount: number }[];
+  supplierBreakdown: {
+    supplierId: string;
+    supplierCode: string;
+    supplierName: string;
+    amount: number;
+    grossAmount: number;
+    dossierCount: number;
+  }[];
   marketBreakdown: {
     marketName: string;
     dossiers: number;

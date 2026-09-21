@@ -33,6 +33,7 @@ import { QueryCommentDto } from './dto/query-comment.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { DossierWorkflowService } from '../approvals/dossier-workflow.service';
 import { WorkflowActionDto } from '../approvals/dto/workflow-action.dto';
 import { WorkflowListQueryDto } from '../approvals/dto/workflow-list-query.dto';
@@ -103,6 +104,7 @@ export class DossiersController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @RequirePermissions('dossier.update')
+  @Roles('OPERATOR', 'CEO_ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Xóa hồ sơ (API-DOSSIER-005)' })
   @ApiParam({ name: 'id', description: 'Dossier UUID' })
   @ApiResponse({ status: 204, description: 'Xóa thành công' })

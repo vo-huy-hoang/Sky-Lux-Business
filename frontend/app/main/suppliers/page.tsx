@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Table,
   Button,
@@ -11,7 +11,7 @@ import {
   Typography,
   Card,
   Popconfirm,
-  message,
+  App,
   Tooltip,
   Segmented,
 } from 'antd';
@@ -41,6 +41,7 @@ const { Option } = Select;
 
 export default function SuppliersPage() {
   const router = useRouter();
+  const { message } = App.useApp();
   const hasRole = useAuthStore((state) => state.hasRole);
   const isCeoAdmin = hasRole(['CEO_ADMIN', 'SUPER_ADMIN']);
 

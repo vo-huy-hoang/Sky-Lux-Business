@@ -11,6 +11,7 @@ import { ImportTemplate } from './entities/import-template.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { ImportSessionStatus } from '../../common/enums';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { CUSTOMER_BUDGET_FORMAT } from './customer-budget.parser';
 
 describe('ImportsService', () => {
   let service: ImportsService;
@@ -281,6 +282,236 @@ describe('ImportsService', () => {
         expect.objectContaining({
           createdBy: 'user-id',
           salesUserId: 'user-id',
+        }),
+      );
+    });
+
+    it('should store imported classification names when master data is unavailable', async () => {
+      const mockSession = {
+        id: 'session-id',
+        organizationId: 'org-id',
+        errorRows: 0,
+        uploadedBy: 'user-id',
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+      rowRepository.find.mockResolvedValue([
+        {
+          id: 'row-1',
+          sessionId: 'session-id',
+          status: 'VALID',
+          normalizedData: {
+            code: 'D-001',
+            name: 'Dossier 1',
+            businessLineCode: 'MISSING_LINE',
+            businessLineName: 'VÉ LẺ',
+            marketTypeCode: 'MISSING_TYPE',
+            marketTypeName: 'INBOUND',
+          },
+        },
+      ]);
+
+      const transactionManager = {
+        findOne: jest.fn().mockResolvedValue(null),
+        save: jest.fn().mockImplementation((_entity, data) => data),
+      };
+      dataSource.transaction.mockImplementationOnce((callback: any) =>
+        callback(transactionManager),
+      );
+
+      await expect(service.confirm('org-id', 'session-id')).resolves.toEqual({
+        message: 'Nhập dữ liệu thành công',
+        importedRowsCount: 1,
+      });
+      expect(dossierRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          businessLineName: 'VÉ LẺ',
+          marketTypeName: 'INBOUND',
+        }),
+      );
+      expect(dossierRepository.create.mock.calls[0][0]).not.toHaveProperty(
+        'businessLineId',
+      );
+      expect(dossierRepository.create.mock.calls[0][0]).not.toHaveProperty(
+        'marketTypeId',
+      );
+      expect(transactionManager.save).toHaveBeenCalled();
+    });
+
+    it('should snapshot the imported customer name without renaming the shared customer', async () => {
+      const mockSession = {
+        id: 'session-id',
+        organizationId: 'org-id',
+        errorRows: 0,
+        uploadedBy: 'user-id',
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+      rowRepository.find.mockResolvedValue([
+        {
+          id: 'row-1',
+          sessionId: 'session-id',
+          status: 'VALID',
+          normalizedData: {
+            code: 'D-001',
+            name: 'Dossier 1',
+            customerId: 'customer-1',
+            customerName: 'Nguyễn Văn D',
+            phone: '0900000000',
+          },
+        },
+      ]);
+      dossierRepository.create.mockImplementation((data) => data);
+
+      const transactionManager = {
+        update: jest.fn(),
+        save: jest.fn().mockImplementation((_entity, data) => data),
+      };
+      dataSource.transaction.mockImplementationOnce((callback: any) =>
+        callback(transactionManager),
+      );
+
+      await expect(service.confirm('org-id', 'session-id')).resolves.toEqual({
+        message: 'Nhập dữ liệu thành công',
+        importedRowsCount: 1,
+      });
+      expect(dossierRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ customerName: 'Nguyễn Văn D' }),
+      );
+      expect(transactionManager.update).toHaveBeenCalledWith(
+        expect.anything(),
+        { id: 'customer-1', organizationId: 'org-id' },
+        expect.not.objectContaining({ displayName: expect.anything() }),
+      );
+    });
+
+    it('should create a new customer for each valid customer-budget dossier', async () => {
+      const mockSession = {
+        id: 'session-id',
+        organizationId: 'org-id',
+        errorRows: 0,
+        uploadedBy: 'user-id',
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+      rowRepository.find.mockResolvedValue([
+        {
+          id: 'row-1',
+          sessionId: 'session-id',
+          status: 'VALID',
+          normalizedData: {
+            code: 'D-001',
+            name: 'Dossier 1',
+            importFormat: CUSTOMER_BUDGET_FORMAT,
+            customerName: 'Nguyễn Văn D',
+            phone: '0900000000',
+            email: 'nguyenvand@example.com',
+          },
+        },
+      ]);
+      dossierRepository.create.mockImplementation((data) => data);
+
+      const transactionManager = {
+        create: jest.fn((_entity, data) => ({ id: 'new-customer', ...data })),
+        save: jest.fn().mockImplementation((_entity, data) => data),
+        update: jest.fn(),
+      };
+      dataSource.transaction.mockImplementationOnce((callback: any) =>
+        callback(transactionManager),
+      );
+
+      await expect(service.confirm('org-id', 'session-id')).resolves.toEqual({
+        message: 'Nhập dữ liệu thành công',
+        importedRowsCount: 1,
+      });
+      expect(dossierRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customerId: 'new-customer',
+          customerName: 'Nguyễn Văn D',
+        }),
+      );
+    });
+
+    it('should create suppliers and supplier types from imported cost lines', async () => {
+      const mockSession = {
+        id: 'session-id',
+        organizationId: 'org-id',
+        errorRows: 0,
+        uploadedBy: 'user-id',
+        fileName: 'budget.xlsx',
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+      rowRepository.find.mockResolvedValue([
+        {
+          id: 'row-1',
+          sessionId: 'session-id',
+          status: 'VALID',
+          normalizedData: {
+            code: 'D-001',
+            name: 'Dossier 1',
+            importFormat: CUSTOMER_BUDGET_FORMAT,
+            customerName: 'Nguyễn Văn D',
+            costLines: [
+              {
+                description: 'Vé Hội An',
+                categoryName: 'VÉ THAM QUAN',
+                supplierName: 'Công ty Vé Hội An',
+                serviceCategoryCode: 'ENTRANCE_FEE',
+                quantity: 2,
+                multiplier: 1,
+                unitPrice: 100000,
+                vatRate: 10,
+                sourceAmount: 200000,
+                sortOrder: 0,
+              },
+            ],
+          },
+        },
+      ]);
+      dossierRepository.create.mockImplementation((data) => data);
+
+      const transactionManager = {
+        findOne: jest.fn().mockResolvedValue(null),
+        find: jest.fn().mockResolvedValue([]),
+        create: jest.fn((_entity, data) => data),
+        save: jest.fn().mockImplementation((entity, data) => {
+          const idByEntity = new Map([
+            ['Customer', 'customer-id'],
+            ['Dossier', 'dossier-id'],
+            ['SupplierType', 'supplier-type-id'],
+            ['Supplier', 'supplier-id'],
+            ['Estimate', 'estimate-id'],
+          ]);
+          const entityName = entity?.name || 'Entity';
+          return Promise.resolve({
+            id: idByEntity.get(entityName) || `${entityName.toLowerCase()}-id`,
+            ...data,
+          });
+        }),
+        update: jest.fn(),
+      };
+      dataSource.transaction.mockImplementationOnce((callback: any) =>
+        callback(transactionManager),
+      );
+
+      await expect(service.confirm('org-id', 'session-id')).resolves.toEqual({
+        message: 'Nhập dữ liệu thành công',
+        importedRowsCount: 1,
+      });
+
+      expect(transactionManager.save).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ name: 'VÉ THAM QUAN' }),
+      );
+      expect(transactionManager.save).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          name: 'Công ty Vé Hội An',
+          supplierTypeId: 'supplier-type-id',
+        }),
+      );
+      expect(transactionManager.save).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          supplierId: 'supplier-id',
+          categoryTitle: 'VÉ THAM QUAN',
         }),
       );
     });

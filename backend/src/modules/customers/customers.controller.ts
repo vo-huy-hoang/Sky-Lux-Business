@@ -28,6 +28,7 @@ import { UpdateContactDto } from './dto/update-contact.dto';
 import { QueryDossierDto } from '../dossiers/dto/query-dossier.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { QueryCustomerActivityDto } from './dto/query-customer-activity.dto';
 
 @ApiTags('Customers')
@@ -108,6 +109,7 @@ export class CustomersController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles('OPERATOR', 'CEO_ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Xóa khách hàng (API-CUSTOMER-005)' })
   @ApiParam({ name: 'id', description: 'Customer UUID' })
   @ApiResponse({ status: 204, description: 'Xóa thành công' })

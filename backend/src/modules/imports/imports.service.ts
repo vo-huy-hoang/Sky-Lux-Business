@@ -24,6 +24,8 @@ import { MarketType } from '../master-data/entities/market-type.entity';
 import { PassengerType } from '../master-data/entities/passenger-type.entity';
 import { ServiceCategory } from '../master-data/entities/service-category.entity';
 import { Unit } from '../master-data/entities/unit.entity';
+import { Supplier } from '../suppliers/entities/supplier.entity';
+import { SupplierType } from '../suppliers/entities/supplier-type.entity';
 
 import { UploadImportDto } from './dto/upload-import.dto';
 import { QueryImportDto } from './dto/query-import.dto';
@@ -34,7 +36,10 @@ import {
   ImportSessionStatus,
 } from '../../common/enums';
 import { sanitizeFileName } from '../../common/utils/filename.util';
-import { CUSTOMER_BUDGET_FORMAT } from './customer-budget.parser';
+import {
+  CUSTOMER_BUDGET_FORMAT,
+  CustomerBudgetLine,
+} from './customer-budget.parser';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
   AuditAction,
@@ -44,6 +49,30 @@ import {
 function formatVnd(amount?: number): string {
   if (amount === undefined || amount === null) return '0 đ';
   return `${new Intl.NumberFormat('vi-VN').format(Math.round(amount))} đ`;
+}
+
+function normalizeCatalogName(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function catalogCode(value: string, prefix: string, suffix = ''): string {
+  const normalized = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toUpperCase();
+  return `${prefix}-${normalized || 'OTHER'}${suffix ? `-${suffix}` : ''}`.slice(
+    0,
+    50,
+  );
 }
 
 @Injectable()
@@ -294,47 +323,37 @@ export class ImportsService {
           customerCode,
           importFormat,
           businessLineCode,
+          businessLineName,
           marketTypeCode,
+          marketTypeName,
           revenueLines = [],
           costLines = [],
           sourceSummary,
           ...dossierFields
         } = row.normalizedData;
 
-        let resolvedCustomerId = customerId;
+        // Customer-budget imports intentionally create one new customer per
+        // valid dossier. The preview processor has already rejected duplicate
+        // email/phone values, so do not reconnect the dossier to an existing
+        // customer here.
+        let resolvedCustomerId =
+          importFormat === CUSTOMER_BUDGET_FORMAT ? undefined : customerId;
         if (!resolvedCustomerId && importFormat === CUSTOMER_BUDGET_FORMAT) {
-          let customer = email
-            ? await transactionalEntityManager.findOne(Customer, {
-                where: { email, organizationId },
-              })
-            : null;
-          if (!customer && phone) {
-            customer = await transactionalEntityManager.findOne(Customer, {
-              where: { phone, organizationId },
-            });
-          }
-          if (!customer && customerName) {
-            customer = await transactionalEntityManager.findOne(Customer, {
-              where: { displayName: customerName, organizationId },
-            });
-          }
-          if (!customer) {
-            const generatedCode = `IMP-${id.slice(0, 8).toUpperCase()}`;
-            customer = transactionalEntityManager.create(Customer, {
-              organizationId,
-              code: generatedCode,
-              customerType: CustomerType.INDIVIDUAL,
-              displayName: customerName,
-              phone,
-              email,
-              dateOfBirth,
-            });
-            customer = await transactionalEntityManager.save(
-              Customer,
-              customer,
-            );
-          }
-          resolvedCustomerId = customer.id;
+          const generatedCode = `IMP-${id.slice(0, 8).toUpperCase()}`;
+          const customer = transactionalEntityManager.create(Customer, {
+            organizationId,
+            code: generatedCode,
+            customerType: CustomerType.INDIVIDUAL,
+            displayName: customerName,
+            phone,
+            email,
+            dateOfBirth,
+          });
+          const savedCustomer = await transactionalEntityManager.save(
+            Customer,
+            customer,
+          );
+          resolvedCustomerId = savedCustomer.id;
         }
 
         if (!resolvedCustomerId && importFormat === CUSTOMER_BUDGET_FORMAT) {
@@ -359,8 +378,11 @@ export class ImportsService {
           ...dossierFields,
           organizationId,
           customerId: resolvedCustomerId,
+          ...(customerName ? { customerName } : {}),
           ...(businessLine ? { businessLineId: businessLine.id } : {}),
           ...(marketType ? { marketTypeId: marketType.id } : {}),
+          ...(businessLineName ? { businessLineName } : {}),
+          ...(marketTypeName ? { marketTypeName } : {}),
           // Imported dossiers belong to the user who uploaded the file unless
           // an explicit assignment workflow is introduced later.
           ...(session.uploadedBy ? { salesUserId: session.uploadedBy } : {}),
@@ -377,6 +399,63 @@ export class ImportsService {
           const passengerTypes = new Map<string, string>();
           const units = new Map<string, string>();
           const serviceCategories = new Map<string, string>();
+          const supplierByName = new Map<string, Supplier>();
+          const supplierTypeByName = new Map<string, SupplierType>();
+          const supplierLines = costLines.filter((line) =>
+            Boolean(line.supplierName?.trim()),
+          );
+          const categoryNames: string[] = [];
+          const categoryNameKeys = new Set<string>();
+          for (const line of costLines as CustomerBudgetLine[]) {
+            const categoryName = line.categoryName?.trim();
+            const categoryKey = categoryName
+              ? normalizeCatalogName(categoryName)
+              : '';
+            if (categoryName && !categoryNameKeys.has(categoryKey)) {
+              categoryNameKeys.add(categoryKey);
+              categoryNames.push(categoryName);
+            }
+          }
+
+          // Read existing catalog records once per imported dossier so a
+          // repeated workbook reuses the same supplier and supplier type.
+          if (supplierLines.length > 0 || categoryNames.length > 0) {
+            const [existingSuppliers, existingSupplierTypes] =
+              await Promise.all([
+                transactionalEntityManager.find(Supplier, {
+                  where: { organizationId },
+                }),
+                transactionalEntityManager.find(SupplierType),
+              ]);
+            existingSuppliers.forEach((supplier) => {
+              supplierByName.set(normalizeCatalogName(supplier.name), supplier);
+            });
+            existingSupplierTypes.forEach((supplierType) => {
+              supplierTypeByName.set(
+                normalizeCatalogName(supplierType.name),
+                supplierType,
+              );
+            });
+          }
+
+          // Every numbered section in the workbook becomes a supplier type,
+          // even when that section has no supplier on one particular file.
+          for (const [sortOrder, categoryName] of categoryNames.entries()) {
+            const categoryKey = normalizeCatalogName(categoryName);
+            if (!supplierTypeByName.has(categoryKey)) {
+              const supplierType = await transactionalEntityManager.save(
+                SupplierType,
+                transactionalEntityManager.create(SupplierType, {
+                  code: catalogCode(categoryName, 'IMPORT-TYPE'),
+                  name: categoryName,
+                  status: 'ACTIVE',
+                  sortOrder,
+                }),
+              );
+              supplierTypeByName.set(categoryKey, supplierType);
+            }
+          }
+
           for (const line of revenueLines) {
             if (!passengerTypes.has(line.passengerTypeCode)) {
               const passengerType = await transactionalEntityManager.findOne(
@@ -405,6 +484,47 @@ export class ImportsService {
                   serviceCategory.id,
                 );
               }
+            }
+
+            if (line.supplierName?.trim()) {
+              const supplierName = line.supplierName.trim();
+              const supplierKey = normalizeCatalogName(supplierName);
+              let supplierTypeId: string | undefined;
+
+              if (line.categoryName?.trim()) {
+                const categoryName = line.categoryName.trim();
+                const categoryKey = normalizeCatalogName(categoryName);
+                const supplierType = supplierTypeByName.get(categoryKey);
+                supplierTypeId = supplierType?.id;
+              }
+
+              let supplier = supplierByName.get(supplierKey);
+              if (!supplier) {
+                supplier = await transactionalEntityManager.save(
+                  Supplier,
+                  transactionalEntityManager.create(Supplier, {
+                    organizationId,
+                    code: catalogCode(
+                      supplierName,
+                      'IMPORT-NCC',
+                      id.slice(0, 6).toUpperCase(),
+                    ),
+                    name: supplierName,
+                    supplierTypeId,
+                    status: 'ACTIVE',
+                  }),
+                );
+                supplierByName.set(supplierKey, supplier);
+              } else if (!supplier.supplierTypeId && supplierTypeId) {
+                supplier.supplierTypeId = supplierTypeId;
+                supplier = await transactionalEntityManager.save(
+                  Supplier,
+                  supplier,
+                );
+                supplierByName.set(supplierKey, supplier);
+              }
+
+              line.supplierId = supplier.id;
             }
           }
 
@@ -473,6 +593,8 @@ export class ImportsService {
                 serviceCategoryId: serviceCategories.get(
                   line.serviceCategoryCode,
                 ),
+                categoryTitle: line.categoryName,
+                supplierId: line.supplierId,
                 description: line.description,
                 quantity: line.quantity,
                 multiplier: line.multiplier,
@@ -488,16 +610,14 @@ export class ImportsService {
           }
         }
 
-        // Update customer details if customer exists and info was provided
-        if (
-          resolvedCustomerId &&
-          (phone || email || dateOfBirth || customerName)
-        ) {
+        // Update shared customer contact details only. The imported customer
+        // name is stored on the dossier as a snapshot so a new import cannot
+        // rename every older dossier that points to the same customer.
+        if (resolvedCustomerId && (phone || email || dateOfBirth)) {
           const updateCustomerData: any = {};
           if (phone) updateCustomerData.phone = phone;
           if (email) updateCustomerData.email = email;
           if (dateOfBirth) updateCustomerData.dateOfBirth = dateOfBirth;
-          if (customerName) updateCustomerData.displayName = customerName;
 
           await transactionalEntityManager.update(
             Customer,

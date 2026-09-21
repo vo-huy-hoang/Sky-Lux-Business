@@ -26,6 +26,40 @@ function sanitizeCellValue(value: any): string {
   return str;
 }
 
+function normalizeEmail(value: unknown): string {
+  if (typeof value !== 'string' && typeof value !== 'number') return '';
+  return String(value).trim().toLowerCase();
+}
+
+function normalizePhone(value: unknown): string {
+  if (typeof value !== 'string' && typeof value !== 'number') return '';
+  return String(value).replace(/\D/g, '');
+}
+
+function normalizeCompanyName(value: unknown): string {
+  if (typeof value !== 'string' && typeof value !== 'number') return '';
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function dateRangesMatch(
+  startDate: string,
+  endDate: string,
+  existingStartDate?: string,
+  existingEndDate?: string,
+): boolean {
+  if (!startDate || !endDate || !existingStartDate || !existingEndDate) {
+    return false;
+  }
+
+  return startDate === existingStartDate && endDate === existingEndDate;
+}
+
 @Processor('import-queue')
 export class ImportProcessor extends WorkerHost {
   constructor(
@@ -167,8 +201,22 @@ export class ImportProcessor extends WorkerHost {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const phoneRegex = /^[0-9+\s().-]{8,20}$/;
 
+    // A customer-budget workbook represents one dossier. For this import
+    // format, the same period is allowed for different companies and is
+    // rejected only when the company name is also the same.
+    const hasCustomerBudgetRows = rows.some(
+      (row) => row.rawData?.__importFormat === CUSTOMER_BUDGET_FORMAT,
+    );
+    const existingDossiers = hasCustomerBudgetRows
+      ? await this.dossierRepository.find({
+          where: { organizationId: session.organizationId },
+        })
+      : [];
+
     // Track codes across rows in the same file to detect internal duplicates
     const codeOccurrences = new Map<string, number[]>();
+    const emailOccurrences = new Map<string, number[]>();
+    const phoneOccurrences = new Map<string, number[]>();
     for (const r of rows) {
       const c = String(r.rawData?.[codeKey] || '').trim();
       if (c) {
@@ -176,6 +224,25 @@ export class ImportProcessor extends WorkerHost {
           codeOccurrences.set(c, []);
         }
         codeOccurrences.get(c)!.push(r.rowNumber);
+      }
+
+      const rawEmail =
+        r.rawData?.[emailKey] !== undefined
+          ? r.rawData[emailKey]
+          : r.rawData?.Email;
+      const rawPhone =
+        r.rawData?.[phoneKey] !== undefined
+          ? r.rawData[phoneKey]
+          : r.rawData?.['Số điện thoại'] || r.rawData?.['Số ĐT'];
+      const email = normalizeEmail(rawEmail);
+      const phone = normalizePhone(rawPhone);
+      if (email) {
+        if (!emailOccurrences.has(email)) emailOccurrences.set(email, []);
+        emailOccurrences.get(email)!.push(r.rowNumber);
+      }
+      if (phone) {
+        if (!phoneOccurrences.has(phone)) phoneOccurrences.set(phone, []);
+        phoneOccurrences.get(phone)!.push(r.rowNumber);
       }
     }
 
@@ -211,6 +278,8 @@ export class ImportProcessor extends WorkerHost {
           ? data[dobKey]
           : data['Ngày sinh nhật'] || data['Ngày sinh'] || '',
       ).trim();
+      const normalizedEmail = normalizeEmail(email);
+      const normalizedPhone = normalizePhone(phone);
 
       if (!code) {
         errors.push(`${codeKey} không được để trống`);
@@ -218,7 +287,7 @@ export class ImportProcessor extends WorkerHost {
         errors.push(
           `${codeKey} "${code}" bị trùng lặp tại các dòng: ${codeOccurrences.get(code)!.join(', ')} trong tệp tin`,
         );
-      } else {
+      } else if (!isCustomerBudget) {
         const existingDossier = await this.dossierRepository.findOne({
           where: { code, organizationId: session.organizationId },
           relations: { customer: true },
@@ -232,6 +301,26 @@ export class ImportProcessor extends WorkerHost {
         }
       }
 
+      if (isCustomerBudget && startDate && endDate && name) {
+        const normalizedName = normalizeCompanyName(name);
+        const duplicateCompanyDossier = existingDossiers.find(
+          (existingDossier) =>
+            normalizeCompanyName(existingDossier.name) === normalizedName &&
+            dateRangesMatch(
+              startDate,
+              endDate,
+              existingDossier.startDate,
+              existingDossier.endDate,
+            ),
+        );
+
+        if (duplicateCompanyDossier) {
+          errors.push(
+            `Đã tồn tại file dự toán của công ty "${name}" trong khoảng thời gian ${startDate} đến ${endDate}`,
+          );
+        }
+      }
+
       if (!name) {
         errors.push(`${nameKey} không được để trống`);
       }
@@ -240,6 +329,24 @@ export class ImportProcessor extends WorkerHost {
       }
       if (isCustomerBudget && !customerName) {
         errors.push(`${customerNameKey} không được để trống`);
+      }
+
+      const duplicateEmailRows = normalizedEmail
+        ? emailOccurrences.get(normalizedEmail) || []
+        : [];
+      if (duplicateEmailRows.length > 1) {
+        errors.push(
+          `${emailKey} "${email}" bị trùng trong tệp tin tại các dòng: ${duplicateEmailRows.join(', ')}`,
+        );
+      }
+
+      const duplicatePhoneRows = normalizedPhone
+        ? phoneOccurrences.get(normalizedPhone) || []
+        : [];
+      if (duplicatePhoneRows.length > 1) {
+        errors.push(
+          `${phoneKey} "${phone}" bị trùng trong tệp tin tại các dòng: ${duplicatePhoneRows.join(', ')}`,
+        );
       }
 
       // Customer fields validation
@@ -291,23 +398,29 @@ export class ImportProcessor extends WorkerHost {
           }
         }
       } else if (isCustomerBudget) {
-        if (email) {
-          customer = await this.customerRepository.findOne({
-            where: { email, organizationId: session.organizationId },
-          });
+        const customerByEmail = normalizedEmail
+          ? await this.customerRepository.findOne({
+              where: {
+                email: normalizedEmail,
+                organizationId: session.organizationId,
+              },
+            })
+          : null;
+        const customerByPhone = normalizedPhone
+          ? await this.customerRepository.findOne({
+              where: { phone, organizationId: session.organizationId },
+            })
+          : null;
+
+        if (customerByEmail) {
+          errors.push(
+            `${emailKey} "${email}" đã tồn tại trong danh sách khách hàng; không thể import hồ sơ mới`,
+          );
         }
-        if (!customer && phone) {
-          customer = await this.customerRepository.findOne({
-            where: { phone, organizationId: session.organizationId },
-          });
-        }
-        if (!customer && customerName) {
-          customer = await this.customerRepository.findOne({
-            where: {
-              displayName: customerName,
-              organizationId: session.organizationId,
-            },
-          });
+        if (customerByPhone) {
+          errors.push(
+            `${phoneKey} "${phone}" đã tồn tại trong danh sách khách hàng; không thể import hồ sơ mới`,
+          );
         }
       }
 
@@ -386,7 +499,9 @@ export class ImportProcessor extends WorkerHost {
             ? {
                 importFormat: CUSTOMER_BUDGET_FORMAT,
                 businessLineCode: data.__businessLineCode,
+                businessLineName: data.__businessLineName,
                 marketTypeCode: data.__marketTypeCode,
+                marketTypeName: data.__marketTypeName,
                 revenueLines: data.__revenueLines,
                 costLines: data.__costLines,
                 sourceSummary: data.__sourceSummary,

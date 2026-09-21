@@ -82,7 +82,7 @@ export default function ImportsPage() {
       </Row>
 
       {/* Bottom Floating Action Bar */}
-      {flow.currentSessionId && (
+      {flow.currentSessionId && flow.session?.status !== "CONFIRMED" && (
         <ImportFloatingActionBar
           session={flow.session}
           isValidating={flow.validateMutation.isPending}

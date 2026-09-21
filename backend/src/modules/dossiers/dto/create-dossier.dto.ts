@@ -34,6 +34,15 @@ export class CreateDossierDto {
   customerId: string;
 
   @ApiPropertyOptional({
+    description: 'Tên khách hàng tại thời điểm tạo hồ sơ',
+    example: 'Nguyễn Văn A',
+  })
+  @IsString({ message: 'Tên khách hàng phải là một chuỗi ký tự' })
+  @MaxLength(255, { message: 'Tên khách hàng không được vượt quá 255 ký tự' })
+  @IsOptional()
+  customerName?: string;
+
+  @ApiPropertyOptional({
     description: 'ID dòng nghiệp vụ',
     example: 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e',
   })
@@ -50,6 +59,26 @@ export class CreateDossierDto {
   })
   @IsOptional()
   marketTypeId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Tên mảng kinh doanh lấy từ nguồn dữ liệu, ví dụ VÉ LẺ',
+    example: 'VÉ LẺ',
+  })
+  @IsString({ message: 'Tên mảng kinh doanh phải là một chuỗi ký tự' })
+  @MaxLength(255, {
+    message: 'Tên mảng kinh doanh không được vượt quá 255 ký tự',
+  })
+  @IsOptional()
+  businessLineName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Tên loại hình lấy từ nguồn dữ liệu, ví dụ INBOUND',
+    example: 'INBOUND',
+  })
+  @IsString({ message: 'Tên loại hình phải là một chuỗi ký tự' })
+  @MaxLength(255, { message: 'Tên loại hình không được vượt quá 255 ký tự' })
+  @IsOptional()
+  marketTypeName?: string;
 
   @ApiPropertyOptional({
     description: 'ID nhân viên sales chịu trách nhiệm',

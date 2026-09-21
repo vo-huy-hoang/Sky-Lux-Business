@@ -220,7 +220,7 @@ export function DossierSummaryCards({
       <Col xs={24} md={12} xl={isDrawer ? 12 : 6}>
         <SummaryCard
           label="Khách hàng"
-          value={dossier?.customer?.displayName || dossier?.name || '-'}
+          value={dossier?.customerName || dossier?.customer?.displayName || dossier?.name || '-'}
           sub={dossier?.customer?.code}
           icon={<TeamOutlined />}
         />

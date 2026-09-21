@@ -45,9 +45,8 @@ function formatVND(num: number | string | undefined | null) {
 }
 
 export function ImportPreviewTable({
-  session: _session,
+  session,
   previewData: _previewData,
-  errorsData: _errorsData,
   isLoading,
 }: ImportPreviewTableProps) {
   const [activeTab, setActiveTab] = useState<
@@ -73,6 +72,11 @@ export function ImportPreviewTable({
     classification,
     summary,
   } = useImportValidation(_previewData);
+
+  // `errorCount` belongs to the detailed revenue/cost lines shown below.
+  // Session errors (for example, an existing dossier code) are errors for
+  // the imported dossier, not errors in one of those detail lines.
+  const importErrorRowCount = session?.errorRows ?? 0;
 
   // Filter revenue items
   const filteredRevenues = useMemo(() => {
@@ -211,7 +215,7 @@ export function ImportPreviewTable({
             <div className="text-xs font-bold text-slate-800">
               Phát hiện{" "}
               <span className="text-rose-600 font-extrabold bg-rose-100/90 px-1.5 py-0.5 rounded">
-                {errorCount + (_errorsData?.data?.length || 0)} dòng lỗi
+                {errorCount} dòng lỗi
               </span>{" "}
               và{" "}
               <span className="text-amber-700 font-extrabold bg-amber-100/90 px-1.5 py-0.5 rounded">
@@ -220,7 +224,7 @@ export function ImportPreviewTable({
               trong dữ liệu dự toán
             </div>
             <div className="text-[11px] text-slate-500 mt-0.5">
-              Các dòng này đã được{" "}
+              Các dòng chi tiết này đã được{" "}
               <span className="font-semibold text-rose-700">
                 tô màu hồng viền đỏ
               </span>{" "}
@@ -230,6 +234,12 @@ export function ImportPreviewTable({
               </span>{" "}
               trực quan ngay trong bảng để bạn dễ kiểm tra.
             </div>
+            {importErrorRowCount > 0 && (
+              <div className="text-[11px] text-rose-700 mt-1 font-medium">
+                Hồ sơ có {importErrorRowCount} lỗi cần xử lý riêng (không phải
+                lỗi của dòng chi tiết).
+              </div>
+            )}
           </div>
         </div>
 

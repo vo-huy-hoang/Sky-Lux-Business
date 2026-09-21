@@ -400,7 +400,7 @@ export class DashboardsService {
       queryDto.date,
     );
 
-    const cacheKey = `dashboard:ceo:v3:${organizationId}:${periodType}:${queryDto.date || 'current'}`;
+    const cacheKey = `dashboard:ceo:v6:${organizationId}:${periodType}:${queryDto.date || 'current'}`;
     if (this.redisService) {
       const cached = await this.redisService.get(cacheKey);
       if (cached) return cached;
@@ -412,7 +412,8 @@ export class DashboardsService {
       funnelBreakdown,
       vipCustomers,
       costBreakdown,
-      revenueBreakdown,
+      businessLineBreakdown,
+      supplierBreakdown,
       marketDossierBreakdown,
       marketRevenueBreakdown,
       marketCostBreakdown,
@@ -467,11 +468,13 @@ export class DashboardsService {
         .getRawMany(),
       this.revenueLineRepository
         .createQueryBuilder('line')
-        .select("COALESCE(businessLine.name, 'Chưa phân loại')", 'businessLineName')
+        .select(
+          "COALESCE(NULLIF(dossier.business_line_name, ''), 'Chưa phân loại')",
+          'businessLineName',
+        )
         .addSelect('SUM(line.netAmount)', 'amount')
         .innerJoin('line.estimate', 'estimate')
         .innerJoin('estimate.dossier', 'dossier')
-        .leftJoin('dossier.businessLine', 'businessLine')
         .where('dossier.organizationId = :organizationId', { organizationId })
         .andWhere('estimate.status = :status', {
           status: EstimateStatus.APPROVED,
@@ -480,49 +483,61 @@ export class DashboardsService {
           start: new Date(periodStart + 'T00:00:00Z'),
           end: new Date(periodEnd + 'T23:59:59Z'),
         })
-        .groupBy("COALESCE(businessLine.name, 'Chưa phân loại')")
+        .groupBy(
+          "COALESCE(NULLIF(dossier.business_line_name, ''), 'Chưa phân loại')",
+        )
         .orderBy('amount', 'DESC')
-        .getRawMany(),
-      this.dossierRepository
-        .createQueryBuilder('dossier')
-        .select("COALESCE(marketType.name, 'Chưa phân loại')", 'marketName')
-        .addSelect('COUNT(DISTINCT dossier.id)', 'dossiers')
-        .innerJoin('dossier.estimates', 'estimate')
-        .leftJoin('dossier.marketType', 'marketType')
-        .where('dossier.organizationId = :organizationId', { organizationId })
-        .andWhere('estimate.status = :status', {
-          status: EstimateStatus.APPROVED,
-        })
-        .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
-          start: new Date(periodStart + 'T00:00:00Z'),
-          end: new Date(periodEnd + 'T23:59:59Z'),
-        })
-        .groupBy("COALESCE(marketType.name, 'Chưa phân loại')")
-        .getRawMany(),
-      this.revenueLineRepository
-        .createQueryBuilder('line')
-        .select("COALESCE(marketType.name, 'Chưa phân loại')", 'marketName')
-        .addSelect('SUM(line.netAmount)', 'revenue')
-        .innerJoin('line.estimate', 'estimate')
-        .innerJoin('estimate.dossier', 'dossier')
-        .leftJoin('dossier.marketType', 'marketType')
-        .where('dossier.organizationId = :organizationId', { organizationId })
-        .andWhere('estimate.status = :status', {
-          status: EstimateStatus.APPROVED,
-        })
-        .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
-          start: new Date(periodStart + 'T00:00:00Z'),
-          end: new Date(periodEnd + 'T23:59:59Z'),
-        })
-        .groupBy("COALESCE(marketType.name, 'Chưa phân loại')")
         .getRawMany(),
       this.costLineRepository
         .createQueryBuilder('line')
-        .select("COALESCE(marketType.name, 'Chưa phân loại')", 'marketName')
-        .addSelect('SUM(line.netAmount)', 'cost')
+        .select('supplier.id', 'supplierId')
+        .addSelect('supplier.code', 'supplierCode')
+        .addSelect('supplier.name', 'supplierName')
+        // Supplier names come from every dossier. Financial values are
+        // intentionally restricted to dossiers locked by CEO_ADMIN.
+        .addSelect(
+          `COALESCE(SUM(CASE
+            WHEN dossier.status = :lockedDossierStatus
+             AND dossier.locked_at BETWEEN :lockedStart AND :lockedEnd
+            THEN line.net_amount
+            ELSE 0
+          END), 0)`,
+          'amount',
+        )
+        .addSelect(
+          `COALESCE(SUM(CASE
+            WHEN dossier.status = :lockedDossierStatus
+             AND dossier.locked_at BETWEEN :lockedStart AND :lockedEnd
+            THEN line.gross_amount
+            ELSE 0
+          END), 0)`,
+          'grossAmount',
+        )
+        .addSelect('COUNT(DISTINCT dossier.id)', 'dossierCount')
         .innerJoin('line.estimate', 'estimate')
         .innerJoin('estimate.dossier', 'dossier')
-        .leftJoin('dossier.marketType', 'marketType')
+        .innerJoin('line.supplier', 'supplier')
+        .where('dossier.organizationId = :organizationId', { organizationId })
+        .andWhere('line.organizationId = :organizationId', { organizationId })
+        .setParameters({
+          lockedDossierStatus: DossierStatus.LOCKED,
+          lockedStart: new Date(periodStart + 'T00:00:00Z'),
+          lockedEnd: new Date(periodEnd + 'T23:59:59Z'),
+        })
+        .groupBy('supplier.id')
+        .addGroupBy('supplier.code')
+        .addGroupBy('supplier.name')
+        .orderBy('amount', 'DESC')
+        .limit(6)
+        .getRawMany(),
+      this.dossierRepository
+        .createQueryBuilder('dossier')
+        .select(
+          "COALESCE(NULLIF(dossier.market_type_name, ''), 'Chưa phân loại')",
+          'marketName',
+        )
+        .addSelect('COUNT(DISTINCT dossier.id)', 'dossiers')
+        .innerJoin('dossier.estimates', 'estimate')
         .where('dossier.organizationId = :organizationId', { organizationId })
         .andWhere('estimate.status = :status', {
           status: EstimateStatus.APPROVED,
@@ -531,7 +546,52 @@ export class DashboardsService {
           start: new Date(periodStart + 'T00:00:00Z'),
           end: new Date(periodEnd + 'T23:59:59Z'),
         })
-        .groupBy("COALESCE(marketType.name, 'Chưa phân loại')")
+        .groupBy(
+          "COALESCE(NULLIF(dossier.market_type_name, ''), 'Chưa phân loại')",
+        )
+        .getRawMany(),
+      this.revenueLineRepository
+        .createQueryBuilder('line')
+        .select(
+          "COALESCE(NULLIF(dossier.market_type_name, ''), 'Chưa phân loại')",
+          'marketName',
+        )
+        .addSelect('SUM(line.netAmount)', 'revenue')
+        .innerJoin('line.estimate', 'estimate')
+        .innerJoin('estimate.dossier', 'dossier')
+        .where('dossier.organizationId = :organizationId', { organizationId })
+        .andWhere('estimate.status = :status', {
+          status: EstimateStatus.APPROVED,
+        })
+        .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
+          start: new Date(periodStart + 'T00:00:00Z'),
+          end: new Date(periodEnd + 'T23:59:59Z'),
+        })
+        .groupBy(
+          "COALESCE(NULLIF(dossier.market_type_name, ''), 'Chưa phân loại')",
+        )
+        .orderBy('revenue', 'DESC')
+        .getRawMany(),
+      this.costLineRepository
+        .createQueryBuilder('line')
+        .select(
+          "COALESCE(NULLIF(dossier.market_type_name, ''), 'Chưa phân loại')",
+          'marketName',
+        )
+        .addSelect('SUM(line.netAmount)', 'cost')
+        .innerJoin('line.estimate', 'estimate')
+        .innerJoin('estimate.dossier', 'dossier')
+        .where('dossier.organizationId = :organizationId', { organizationId })
+        .andWhere('estimate.status = :status', {
+          status: EstimateStatus.APPROVED,
+        })
+        .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
+          start: new Date(periodStart + 'T00:00:00Z'),
+          end: new Date(periodEnd + 'T23:59:59Z'),
+        })
+        .groupBy(
+          "COALESCE(NULLIF(dossier.market_type_name, ''), 'Chưa phân loại')",
+        )
         .getRawMany(),
       this.dossierRepository
         .createQueryBuilder('dossier')
@@ -563,7 +623,10 @@ export class DashboardsService {
       totalProfit = grossProfit;
     }
 
-    const marketMap = new Map<string, { dossiers: number; revenue: number; cost: number }>();
+    const marketMap = new Map<
+      string,
+      { dossiers: number; revenue: number; cost: number }
+    >();
     marketDossierBreakdown.forEach((row) => {
       marketMap.set(row.marketName, {
         dossiers: Number(row.dossiers || 0),
@@ -572,12 +635,20 @@ export class DashboardsService {
       });
     });
     marketRevenueBreakdown.forEach((row) => {
-      const current = marketMap.get(row.marketName) || { dossiers: 0, revenue: 0, cost: 0 };
+      const current = marketMap.get(row.marketName) || {
+        dossiers: 0,
+        revenue: 0,
+        cost: 0,
+      };
       current.revenue = Number(row.revenue || 0);
       marketMap.set(row.marketName, current);
     });
     marketCostBreakdown.forEach((row) => {
-      const current = marketMap.get(row.marketName) || { dossiers: 0, revenue: 0, cost: 0 };
+      const current = marketMap.get(row.marketName) || {
+        dossiers: 0,
+        revenue: 0,
+        cost: 0,
+      };
       current.cost = Number(row.cost || 0);
       marketMap.set(row.marketName, current);
     });
@@ -597,9 +668,21 @@ export class DashboardsService {
         categoryName: cb.categoryName,
         amount: Number(cb.amount),
       })),
-      revenueBreakdown: revenueBreakdown.map((rb) => ({
-        businessLineName: rb.businessLineName,
-        amount: Number(rb.amount),
+      revenueBreakdown: marketRevenueBreakdown.map((row) => ({
+        marketTypeName: row.marketName,
+        amount: Number(row.revenue || 0),
+      })),
+      businessLineBreakdown: businessLineBreakdown.map((row) => ({
+        businessLineName: row.businessLineName,
+        amount: Number(row.amount || 0),
+      })),
+      supplierBreakdown: supplierBreakdown.map((row) => ({
+        supplierId: row.supplierId,
+        supplierCode: row.supplierCode,
+        supplierName: row.supplierName,
+        amount: Number(row.amount || 0),
+        grossAmount: Number(row.grossAmount || 0),
+        dossierCount: Number(row.dossierCount || 0),
       })),
       marketBreakdown: Array.from(marketMap.entries())
         .map(([marketName, values]) => ({

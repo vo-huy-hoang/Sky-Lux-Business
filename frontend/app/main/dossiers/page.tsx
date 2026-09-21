@@ -42,6 +42,7 @@ const statusOptions = [
   { label: 'Đang xử lý', value: 'IN_REVIEW' },
   { label: 'Đã duyệt', value: 'APPROVED' },
   { label: 'Thành công', value: 'COMPLETED' },
+  { label: 'Đã khóa', value: 'LOCKED' },
   { label: 'Đã hủy', value: 'CANCELLED' },
 ];
 
@@ -58,6 +59,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   IN_REVIEW: { label: 'Đang xử lý', className: 'skylux-status-warning' },
   APPROVED: { label: 'Đã duyệt', className: 'skylux-status-valid' },
   COMPLETED: { label: 'Thành công', className: 'skylux-status-valid' },
+  LOCKED: { label: 'Đã khóa', className: 'skylux-status-danger' },
   CANCELLED: { label: 'Đã hủy', className: 'skylux-status-danger' },
   NEED_CHANGES: { label: 'Cần bổ sung', className: 'skylux-status-purple' },
 };
@@ -158,7 +160,7 @@ function DossiersContent() {
       width: 220,
       render: (_: unknown, record: DossierItem) => (
         <div className="flex flex-col">
-          <Text strong>{record.customer?.displayName || '-'}</Text>
+          <Text strong>{record.customerName || record.customer?.displayName || '-'}</Text>
           <Text type="secondary" className="text-xs">
             {record.customer?.code || record.customerId || '-'}
           </Text>

@@ -867,3 +867,22 @@ body {
   );
 }
 
+/* Borderless DatePicker reset */
+.ant-picker.ant-picker-borderless,
+.ant-picker.ant-picker-borderless.ant-picker-focused,
+.ant-picker.ant-picker-borderless:focus,
+.ant-picker.ant-picker-borderless:focus-within {
+  border: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.ant-picker.ant-picker-borderless .ant-picker-input > input,
+.ant-picker.ant-picker-borderless .ant-picker-input > input:focus,
+.ant-picker.ant-picker-borderless .ant-picker-input > input:focus-visible {
+  border: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}

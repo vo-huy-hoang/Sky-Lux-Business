@@ -77,10 +77,8 @@ export function DossierDetailTabs({
     }
   }, [activeTab, visitedTabs]);
 
-  const businessLine = dossier?.businessLine?.code?.startsWith("TOUR_")
-    ? "TOUR"
-    : dossier?.businessLine?.name;
-  const marketType = dossier?.marketType?.name;
+  const businessLine = dossier?.businessLineName;
+  const marketType = dossier?.marketTypeName;
 
   const classificationTags =
     businessLine || marketType ? (

@@ -146,7 +146,6 @@ export const APP_ROUTES: AppRoute[] = [
       ctx.isCeoAdmin ? 'Khách hàng & nhà cung cấp' : 'Khách hàng của tôi',
     subtitle: 'Quản lý thông tin và lịch sử khách hàng',
     requiredPermissions: ['customer.manage'],
-    excludeRoles: ['OPERATOR'],
     order: 80,
   },
   {

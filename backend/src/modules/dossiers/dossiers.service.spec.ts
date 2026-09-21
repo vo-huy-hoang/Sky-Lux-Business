@@ -112,6 +112,10 @@ describe('DossiersService', () => {
       const result = await service.findAll(mockUserPayload, queryDto);
 
       expect(repository.createQueryBuilder).toHaveBeenCalledWith('dossier');
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        '(dossier.code ILIKE :search OR dossier.name ILIKE :search OR dossier.route ILIKE :search OR dossier.customerName ILIKE :search OR customer.code ILIKE :search OR customer.displayName ILIKE :search OR customer.phone ILIKE :search OR customer.email ILIKE :search)',
+        { search: '%VIP%' },
+      );
       expect(result).toEqual({
         data: mockDossiers,
         meta: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
@@ -206,6 +210,9 @@ describe('DossiersService', () => {
         code: 'HS001',
         name: 'VIP Tour',
         customerId: 'cust-uuid',
+        customerName: 'Nguyễn Văn A',
+        businessLineName: 'VÉ LẺ',
+        marketTypeName: 'INBOUND',
       };
 
       repository.findOne.mockResolvedValue(null);
@@ -221,6 +228,13 @@ describe('DossiersService', () => {
         where: { code: 'HS001', organizationId: 'org-uuid' },
       });
       expect(repository.create).toHaveBeenCalled();
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customerName: 'Nguyễn Văn A',
+          businessLineName: 'VÉ LẺ',
+          marketTypeName: 'INBOUND',
+        }),
+      );
       expect(repository.save).toHaveBeenCalled();
       expect(result.status).toEqual(DossierStatus.DRAFT);
     });
@@ -276,6 +290,8 @@ describe('DossiersService', () => {
 
       const updateDto: UpdateDossierDto = {
         name: 'VIP Tour Updated',
+        businessLineName: 'SỰ KIỆN',
+        marketTypeName: 'INBOUND',
         status: DossierStatus.SUBMITTED, // DRAFT to SUBMITTED is legal
       };
 
@@ -287,6 +303,8 @@ describe('DossiersService', () => {
 
       expect(repository.save).toHaveBeenCalled();
       expect(result.name).toEqual('VIP Tour Updated');
+      expect(result.businessLineName).toEqual('SỰ KIỆN');
+      expect(result.marketTypeName).toEqual('INBOUND');
       expect(result.status).toEqual(DossierStatus.SUBMITTED);
     });
   });

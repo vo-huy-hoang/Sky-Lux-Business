@@ -75,9 +75,13 @@ export function ImportFloatingActionBar({
             title="Xác nhận import dữ liệu?"
             description={
               canConfirm
-                ? `Bạn có chắc chắn muốn nhập ${session?.validRows || 0} dòng hợp lệ vào hệ thống?`
-                : `Phiên này có ${session?.errorRows || 0} dòng lỗi. Bạn cần sửa các dòng lỗi trước khi xác nhận.`
+                ? `Xác nhận nhập ${session?.validRows || 0} hồ sơ hợp lệ? Cảnh báo chi tiết không chặn import.`
+                : `Có ${session?.errorRows || 0} hồ sơ lỗi. Hãy sửa lỗi trước khi import.`
             }
+            styles={{
+              root: { maxWidth: 'min(420px, calc(100vw - 32px))' },
+              content: { maxWidth: 380 },
+            }}
             onConfirm={onConfirm}
             disabled={!canConfirm}
             okText="Xác nhận import"

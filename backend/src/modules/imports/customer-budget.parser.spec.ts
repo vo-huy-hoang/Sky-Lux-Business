@@ -42,6 +42,7 @@ describe('customer-budget.parser', () => {
       A21: '1.1',
       B21: 'VÉ THAM QUAN',
       B22: 'Hội An - Người lớn',
+      C22: 'Công ty Vé Hội An',
       D22: 30,
       E22: 1,
       F22: 80000,
@@ -55,6 +56,13 @@ describe('customer-budget.parser', () => {
       E46: 3,
       F46: 10000,
       G46: 900000,
+      A51: 7,
+      B51: 'Bảo hiểm Du lịch trong nước',
+      C51: '120tr/vụ/ngày',
+      D51: 30,
+      E51: 1,
+      F51: 5000,
+      G51: 150000,
     };
     for (const [address, value] of Object.entries(values)) {
       sheet[address] = {
@@ -80,15 +88,108 @@ describe('customer-budget.parser', () => {
     expect(row.__marketTypeCode).toBe('DOMESTIC');
     expect(row.__marketTypeName).toBe('NỘI ĐỊA');
     expect(row.__revenueLines).toHaveLength(4);
-    expect(row.__costLines).toHaveLength(2);
+    expect(row.__costLines).toHaveLength(3);
     expect(row.__costLines[0]).toEqual(
       expect.objectContaining({
         serviceCategoryCode: 'ENTRANCE_FEE',
+        categoryName: 'VÉ THAM QUAN',
+        supplierName: 'Công ty Vé Hội An',
         quantity: 30,
         unitPrice: 80000,
         vatRate: 10,
         sourceAmount: 2400000,
       }),
     );
+    expect(row.__costLines[2].supplierName).toBeUndefined();
+  });
+
+  it('preserves SỰ KIỆN and INBOUND classifications for confirmation', () => {
+    const sheet = xlsx.utils.aoa_to_sheet([]);
+    const values: Record<string, unknown> = {
+      A9: 'DỰ TRÙ',
+      D9: 'TOUR CÔNG TY ABC',
+      F11: '30/08-02/09/2026',
+      H13: 'SỰ KIỆN',
+      H15: 'INBOUND',
+      A18: 'STT',
+    };
+    for (const [address, value] of Object.entries(values)) {
+      sheet[address] = {
+        v: value,
+        t: typeof value === 'number' ? 'n' : 's',
+      };
+    }
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, sheet, 'DỰ TOÁN');
+
+    const row = parseCustomerBudgetWorkbook(workbook);
+
+    expect(row.__businessLineName).toBe('SỰ KIỆN');
+    expect(row.__businessLineCode).toBe('MICE');
+    expect(row.__marketTypeName).toBe('INBOUND');
+    expect(row.__marketTypeCode).toBe('INBOUND');
+  });
+
+  it('maps VÉ LẺ to the ticket business line and keeps INBOUND', () => {
+    const sheet = xlsx.utils.aoa_to_sheet([]);
+    const values: Record<string, unknown> = {
+      A9: 'DỰ TRÙ',
+      D9: 'TOUR CÔNG TY ABC',
+      F11: '30/09-02/10/2026',
+      H13: 'VÉ LẺ',
+      H15: 'INBOUND',
+      A18: 'STT',
+    };
+    for (const [address, value] of Object.entries(values)) {
+      sheet[address] = { v: value, t: 's' };
+    }
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, sheet, 'DỰ TOÁN');
+
+    const row = parseCustomerBudgetWorkbook(workbook);
+
+    expect(row.__businessLineName).toBe('VÉ LẺ');
+    expect(row.__businessLineCode).toBe('TICKET_VISA');
+    expect(row.__marketTypeCode).toBe('INBOUND');
+  });
+
+  it('infers the start year as the previous year when a range crosses New Year', () => {
+    const sheet = xlsx.utils.aoa_to_sheet([]);
+    const values: Record<string, unknown> = {
+      A9: 'DỰ TRÙ',
+      D9: 'TOUR TẾT',
+      F11: '30/12-02/01/2027',
+      A18: 'STT',
+    };
+    for (const [address, value] of Object.entries(values)) {
+      sheet[address] = { v: value, t: 's' };
+    }
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, sheet, 'DỰ TOÁN');
+
+    const row = parseCustomerBudgetWorkbook(workbook);
+
+    expect(row['Ngày bắt đầu']).toBe('2026-12-30');
+    expect(row['Ngày kết thúc']).toBe('2027-01-02');
+  });
+
+  it('preserves explicit years when a range crosses New Year', () => {
+    const sheet = xlsx.utils.aoa_to_sheet([]);
+    const values: Record<string, unknown> = {
+      A9: 'DỰ TRÙ',
+      D9: 'TOUR TẾT',
+      F11: '30/12/2026-02/01/2027',
+      A18: 'STT',
+    };
+    for (const [address, value] of Object.entries(values)) {
+      sheet[address] = { v: value, t: 's' };
+    }
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, sheet, 'DỰ TOÁN');
+
+    const row = parseCustomerBudgetWorkbook(workbook);
+
+    expect(row['Ngày bắt đầu']).toBe('2026-12-30');
+    expect(row['Ngày kết thúc']).toBe('2027-01-02');
   });
 });

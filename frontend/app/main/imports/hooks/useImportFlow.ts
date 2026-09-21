@@ -101,12 +101,23 @@ export function useImportFlow() {
 
   const confirmMutation = useMutation({
     mutationFn: () => importsService.confirm(currentSessionId!),
-    onSuccess: (res) => {
-      message.success(`Nhập dữ liệu thành công! Đã chuyển ${res.importedRowsCount} hồ sơ vào hệ thống.`);
-      queryClient.invalidateQueries({ queryKey: ['import-session', currentSessionId] });
-      queryClient.invalidateQueries({ queryKey: ['import-preview', currentSessionId] });
-      queryClient.invalidateQueries({ queryKey: ['dossiers'] });
-      queryClient.invalidateQueries({ queryKey: ['customers'] });
+    onSuccess: async (res) => {
+      const importedRowsCount = res.importedRowsCount ?? session?.validRows ?? 0;
+
+      // Show the result immediately after the API confirms the transaction.
+      // The session status is refetched below so the success result card is
+      // rendered instead of leaving the user on the preview screen.
+      message.success({
+        content: `Import thành công! Đã lưu ${importedRowsCount} hồ sơ vào hệ thống.`,
+        duration: 5,
+      });
+
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.imports.all,
+      });
+      await refetchSession();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.dossiers.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.customers.all });
     },
     onError: (err: any) => {
       message.error(err?.message || 'Xác nhận nhập dữ liệu thất bại');
@@ -173,7 +184,10 @@ export function useImportFlow() {
     });
   };
 
-  const canConfirm = (session?.errorRows || 0) === 0 && (session?.validRows || 0) > 0;
+  const canConfirm =
+    session?.status !== 'CONFIRMED' &&
+    (session?.errorRows || 0) === 0 &&
+    (session?.validRows || 0) > 0;
 
   return {
     currentSessionId,

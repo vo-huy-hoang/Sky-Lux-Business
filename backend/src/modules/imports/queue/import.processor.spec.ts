@@ -6,6 +6,7 @@ import { ImportRow } from '../entities/import-row.entity';
 import { ImportError } from '../entities/import-error.entity';
 import { Customer } from '../../customers/entities/customer.entity';
 import { Dossier } from '../../dossiers/entities/dossier.entity';
+import { CUSTOMER_BUDGET_FORMAT } from '../customer-budget.parser';
 
 describe('ImportProcessor', () => {
   let processor: ImportProcessor;
@@ -44,6 +45,7 @@ describe('ImportProcessor', () => {
 
     dossierRepository = {
       findOne: jest.fn().mockResolvedValue(null),
+      find: jest.fn().mockResolvedValue([]),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -370,6 +372,141 @@ describe('ImportProcessor', () => {
       expect(savedRow.status).toBe('VALID');
       expect(savedRow.normalizedData.name).toBe("'=cmd|/c calc!A1");
       expect(savedRow.normalizedData.route).toBe("'+SUM(1,2)");
+    });
+
+    it('should reject a customer import when the phone belongs to another email', async () => {
+      const mockSession = {
+        id: 'session-customer-conflict',
+        organizationId: 'org-id',
+        template: null,
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+
+      const mockRows = [
+        {
+          id: 'row-customer-conflict',
+          rowNumber: 1,
+          rawData: {
+            'Mã hồ sơ': 'IMP-CONFLICT-01',
+            'Tên hồ sơ': 'Tour Conflict',
+            'Tên khách hàng': 'Nguyễn Văn B',
+            Email: 'nguyenvanb@gmail.com',
+            'Số điện thoại': '0974231555',
+            __importFormat: CUSTOMER_BUDGET_FORMAT,
+          },
+          status: 'PENDING',
+        },
+      ];
+      rowRepository.find.mockResolvedValue(mockRows);
+      customerRepository.findOne.mockImplementation(({ where }: any) => {
+        if (where.phone === '0974231555') {
+          return Promise.resolve({
+            id: 'existing-customer',
+            displayName: 'Nguyễn Văn D',
+            email: 'nguyenvand@gmail.com',
+            phone: '0974231555',
+          });
+        }
+        return Promise.resolve(null);
+      });
+
+      await (processor as any).handleValidateRows('session-customer-conflict');
+
+      const savedRow = rowRepository.save.mock.calls[0][0];
+      expect(savedRow.status).toBe('ERROR');
+      const savedErrors = errorRepository.save.mock.calls[0][0];
+      expect(
+        savedErrors.some((error: any) =>
+          error.errorMessage.includes('đã tồn tại trong danh sách khách hàng'),
+        ),
+      ).toBe(true);
+    });
+
+    it('should allow overlapping dates when the company name is different', async () => {
+      const mockSession = {
+        id: 'session-overlap-different-company',
+        organizationId: 'org-id',
+        template: null,
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+      dossierRepository.find.mockResolvedValue([
+        {
+          name: 'TOUR CÔNG TY ABC',
+          startDate: '2026-09-30',
+          endDate: '2026-10-02',
+        },
+      ]);
+
+      const mockRows = [
+        {
+          id: 'row-overlap-different-company',
+          rowNumber: 1,
+          rawData: {
+            'Mã hồ sơ': 'IMP-300926-TOUR-CONG-TY-XYZ',
+            'Tên hồ sơ': 'TOUR CÔNG TY XYZ',
+            'Tên khách hàng': 'Nguyễn Văn XYZ',
+            'Ngày bắt đầu': '2026-09-30',
+            'Ngày kết thúc': '2026-10-02',
+            __importFormat: CUSTOMER_BUDGET_FORMAT,
+          },
+          status: 'PENDING',
+        },
+      ];
+      rowRepository.find.mockResolvedValue(mockRows);
+
+      await (processor as any).handleValidateRows(
+        'session-overlap-different-company',
+      );
+
+      const savedRow = rowRepository.save.mock.calls[0][0];
+      expect(savedRow.status).toBe('VALID');
+      expect(errorRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('should reject overlapping dates when the company name is the same', async () => {
+      const mockSession = {
+        id: 'session-overlap-same-company',
+        organizationId: 'org-id',
+        template: null,
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+      dossierRepository.find.mockResolvedValue([
+        {
+          name: 'TOUR CÔNG TY ABC',
+          startDate: '2026-09-30',
+          endDate: '2026-10-02',
+        },
+      ]);
+
+      const mockRows = [
+        {
+          id: 'row-overlap-same-company',
+          rowNumber: 1,
+          rawData: {
+            'Mã hồ sơ': 'IMP-011026-TOUR-CONG-TY-ABC',
+            'Tên hồ sơ': 'tour cong ty abc',
+            'Tên khách hàng': 'Nguyễn Văn ABC',
+            'Ngày bắt đầu': '2026-09-30',
+            'Ngày kết thúc': '2026-10-02',
+            __importFormat: CUSTOMER_BUDGET_FORMAT,
+          },
+          status: 'PENDING',
+        },
+      ];
+      rowRepository.find.mockResolvedValue(mockRows);
+
+      await (processor as any).handleValidateRows(
+        'session-overlap-same-company',
+      );
+
+      const savedRow = rowRepository.save.mock.calls[0][0];
+      expect(savedRow.status).toBe('ERROR');
+      const savedErrors = errorRepository.save.mock.calls[0][0];
+      expect(
+        savedErrors.some((error: any) =>
+          error.errorMessage.includes('trong khoảng thời gian'),
+        ),
+      ).toBe(true);
     });
   });
 });
