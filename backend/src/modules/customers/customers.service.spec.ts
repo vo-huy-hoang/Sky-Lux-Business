@@ -33,12 +33,17 @@ describe('CustomersService', () => {
     orderBy: jest.fn().mockReturnThis(),
     skip: jest.fn().mockReturnThis(),
     take: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
+    addSelect: jest.fn().mockReturnThis(),
+    groupBy: jest.fn().mockReturnThis(),
     getManyAndCount: jest.fn(),
+    getRawMany: jest.fn().mockResolvedValue([]),
   };
 
   const mockCustomerRepository = {
     createQueryBuilder: jest.fn(() => mockQueryBuilder),
     findOne: jest.fn(),
+    find: jest.fn().mockResolvedValue([mockCustomer]),
     create: jest.fn((dto) => dto),
     save: jest.fn(),
     softRemove: jest.fn(),
@@ -113,6 +118,43 @@ describe('CustomersService', () => {
         data: mockCustomers,
         meta: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
       });
+    });
+
+    it('groups customers by normalized phone/email and sums dossier counts', async () => {
+      const first = {
+        ...mockCustomer,
+        id: 'customer-first',
+        phone: '097 423 1563',
+        email: 'Customer@Example.com',
+        createdAt: new Date('2026-01-01'),
+      } as unknown as Customer;
+      const duplicate = {
+        ...mockCustomer,
+        id: 'customer-duplicate',
+        phone: '0974231563',
+        email: 'customer@example.com',
+        createdAt: new Date('2026-02-01'),
+      } as unknown as Customer;
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([[first, duplicate], 2]);
+      mockQueryBuilder.getRawMany.mockResolvedValue([
+        { customerId: first.id, count: '1' },
+        { customerId: duplicate.id, count: '2' },
+      ]);
+
+      const result = await service.findAll('org-uuid', {
+        page: 1,
+        limit: 20,
+      });
+
+      expect(result.meta.total).toBe(1);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]).toEqual(
+        expect.objectContaining({
+          id: first.id,
+          customerIds: [first.id, duplicate.id],
+          dossierCount: 3,
+        }),
+      );
     });
   });
 

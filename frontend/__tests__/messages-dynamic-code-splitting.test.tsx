@@ -26,7 +26,11 @@ import CreateConversationModal, { CreateConversationModal as NamedModal } from '
 import ConversationInfoSidebar, { ConversationInfoSidebar as NamedSidebar } from '@/app/main/messages/components/ConversationInfoSidebar';
 
 const testQueryClient = new QueryClient({
-  defaultOptions: { queries: { retry: false } },
+  defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+});
+
+afterEach(() => {
+  testQueryClient.clear();
 });
 
 const renderWithProviders = (ui: React.ReactElement) =>

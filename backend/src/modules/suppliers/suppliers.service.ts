@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 import { Supplier } from './entities/supplier.entity';
 import { SupplierType } from './entities/supplier-type.entity';
 import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
@@ -27,6 +27,46 @@ export class SuppliersService {
     @InjectRepository(EstimateCostLine)
     private readonly estimateCostLineRepository: Repository<EstimateCostLine>,
   ) {}
+
+  /**
+   * Resolve the text entered in the supplier form to the existing catalog
+   * record, creating a catalog entry when this is a new supplier type.
+   */
+  private async findOrCreateSupplierType(name: string): Promise<SupplierType> {
+    const trimmedName = name.trim();
+    const existingType = await this.supplierTypeRepository.findOne({
+      where: { name: ILike(trimmedName) },
+    });
+    if (existingType) return existingType;
+
+    const baseCode =
+      trimmedName
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .toUpperCase()
+        .slice(0, 40) || 'CUSTOM';
+
+    let code = baseCode;
+    let suffix = 1;
+    while (
+      await this.supplierTypeRepository.findOne({
+        where: { code },
+      })
+    ) {
+      code = `${baseCode.slice(0, 40 - String(suffix).length - 1)}-${suffix}`;
+      suffix += 1;
+    }
+
+    const supplierType = this.supplierTypeRepository.create({
+      code,
+      name: trimmedName,
+      status: 'ACTIVE',
+      sortOrder: 0,
+    });
+    return this.supplierTypeRepository.save(supplierType);
+  }
 
   async findAll(
     user: CurrentUserPayload,
@@ -102,7 +142,8 @@ export class SuppliersService {
     user: CurrentUserPayload,
     createSupplierDto: CreateSupplierDto,
   ): Promise<Supplier> {
-    const { code, supplierTypeId } = createSupplierDto;
+    const { code, supplierTypeId, supplierTypeName, ...supplierData } =
+      createSupplierDto;
     const organizationId = user.organizationId;
 
     // Check code uniqueness inside organization
@@ -115,20 +156,28 @@ export class SuppliersService {
       );
     }
 
-    // Validate supplierTypeId if provided
-    if (supplierTypeId) {
+    let resolvedSupplierTypeId = supplierTypeId;
+    if (supplierTypeName?.trim()) {
+      const supplierType =
+        await this.findOrCreateSupplierType(supplierTypeName);
+      resolvedSupplierTypeId = supplierType.id;
+    }
+
+    // Validate a legacy supplierTypeId if provided directly by an API client.
+    if (resolvedSupplierTypeId && !supplierTypeName?.trim()) {
       const existingType = await this.supplierTypeRepository.findOne({
-        where: { id: supplierTypeId },
+        where: { id: resolvedSupplierTypeId },
       });
       if (!existingType) {
         throw new NotFoundException(
-          `Loại nhà cung cấp với ID "${supplierTypeId}" không tồn tại`,
+          `Loại nhà cung cấp với ID "${resolvedSupplierTypeId}" không tồn tại`,
         );
       }
     }
 
     const supplier = this.supplierRepository.create({
-      ...createSupplierDto,
+      ...supplierData,
+      supplierTypeId: resolvedSupplierTypeId,
       organizationId,
       status: createSupplierDto.status || 'ACTIVE',
     });
@@ -147,7 +196,8 @@ export class SuppliersService {
     updateSupplierDto: UpdateSupplierDto,
   ): Promise<Supplier> {
     const supplier = await this.findOne(user, id);
-    const { code, supplierTypeId, ...updateData } = updateSupplierDto;
+    const { code, supplierTypeId, supplierTypeName, ...updateData } =
+      updateSupplierDto;
     const organizationId = user.organizationId;
 
     if (code && code !== supplier.code) {
@@ -162,7 +212,19 @@ export class SuppliersService {
       supplier.code = code;
     }
 
-    if (supplierTypeId && supplierTypeId !== supplier.supplierTypeId) {
+    const hasSupplierTypeName = Object.prototype.hasOwnProperty.call(
+      updateSupplierDto,
+      'supplierTypeName',
+    );
+    if (hasSupplierTypeName) {
+      if (supplierTypeName?.trim()) {
+        const supplierType =
+          await this.findOrCreateSupplierType(supplierTypeName);
+        supplier.supplierTypeId = supplierType.id;
+      } else {
+        supplier.supplierTypeId = null;
+      }
+    } else if (supplierTypeId && supplierTypeId !== supplier.supplierTypeId) {
       const existingType = await this.supplierTypeRepository.findOne({
         where: { id: supplierTypeId },
       });

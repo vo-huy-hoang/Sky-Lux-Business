@@ -8,7 +8,7 @@ import {
   getWorkbookNetAmount,
   sumWorkbookGrossAmounts,
 } from "@/lib/financial-calculations";
-import { parseVatRate, classifyCategory } from "../utils";
+import { parseVatRate } from "../utils";
 
 export interface CostSummaryRow {
   key: string;
@@ -30,10 +30,7 @@ export function calculateCostSummaryRows(
 ): CostSummaryRow[] {
   const taxableRevenue = totalRevenueGross / EXCEL_VAT_DIVISOR;
   const serviceVatGross = costLines
-    .filter(
-      (line) =>
-        parseVatRate(line.vatRate) > 0 && classifyCategory(line).code !== "1.4",
-    )
+    .filter((line) => parseVatRate(line.vatRate) > 0)
     .reduce((sum, line) => sum + getWorkbookGrossAmount(line), 0);
   const serviceVatCost = serviceVatGross / EXCEL_VAT_DIVISOR;
 
@@ -91,7 +88,7 @@ export interface DossierFinancialSummary {
 /**
  * TICKET-51.2 & TICKET-55.1: Hook tính toán tài chính hồ sơ tour memoized
  * Đóng gói toàn bộ logic tính doanh thu, chi phí, lợi nhuận gộp, margin và các hàng tổng hợp chi phí (costSummaryRows)
- * theo chuẩn công thức kế toán Sky-Lux (thuế VAT 8% Excel divisor và quy tắc phân loại nhóm 1.4).
+ * theo chuẩn công thức kế toán Sky-Lux (thuế VAT 8% Excel divisor và toàn bộ nhóm I).
  */
 export function useDossierFinancials(
   estimate?: EstimateItem | null,
@@ -103,9 +100,7 @@ export function useDossierFinancials(
     const cost = (estimate?.costLines || []).reduce(
       (sum: number, line: any) =>
         sum +
-        (parseVatRate(line.vatRate) > 0 && classifyCategory(line).code === "1.4"
-          ? 0
-          : getWorkbookNetAmount(line, parseVatRate(line.vatRate) > 0)),
+        getWorkbookNetAmount(line, parseVatRate(line.vatRate) > 0),
       0,
     );
 

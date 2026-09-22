@@ -88,6 +88,18 @@ export class CreateSupplierDto {
   supplierTypeId?: string;
 
   @ApiPropertyOptional({
+    description:
+      'Tên loại nhà cung cấp nhập trực tiếp; hệ thống sẽ dùng loại đã có hoặc tạo loại mới',
+    example: 'Vé tham quan',
+  })
+  @IsString({ message: 'Tên loại nhà cung cấp phải là một chuỗi ký tự' })
+  @MaxLength(255, {
+    message: 'Tên loại nhà cung cấp không được vượt quá 255 ký tự',
+  })
+  @IsOptional()
+  supplierTypeName?: string;
+
+  @ApiPropertyOptional({
     description: 'Trạng thái nhà cung cấp',
     enum: ['ACTIVE', 'INACTIVE', 'LOCKED'],
     default: 'ACTIVE',

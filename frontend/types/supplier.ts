@@ -12,7 +12,8 @@ export interface SupplierType {
 export interface SupplierItem {
   id: string;
   organizationId: string;
-  supplierTypeId?: string;
+  supplierTypeId?: string | null;
+  supplierTypeName?: string;
   supplierType?: SupplierType;
   code: string;
   name: string;
@@ -31,6 +32,7 @@ export interface CreateSupplierInput {
   code: string;
   name: string;
   supplierTypeId?: string;
+  supplierTypeName?: string;
   taxCode?: string;
   contactName?: string;
   phone?: string;

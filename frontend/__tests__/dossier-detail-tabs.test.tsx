@@ -99,7 +99,11 @@ jest.mock('@/components/dossiers/detail/components/CostSummaryTable', () => {
 });
 
 const testQueryClient = new QueryClient({
-  defaultOptions: { queries: { retry: false } },
+  defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+});
+
+afterEach(() => {
+  testQueryClient.clear();
 });
 
 const renderWithProviders = (ui: React.ReactElement) => {
@@ -348,4 +352,3 @@ describe('DossierDetailTabs (Phase 49 Lazy Mounting & Duplicate Render Eliminati
     expect(screen.queryByTestId('cost-table')).not.toBeInTheDocument();
   });
 });
-

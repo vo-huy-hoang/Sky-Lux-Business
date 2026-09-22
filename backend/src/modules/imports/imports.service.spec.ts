@@ -63,6 +63,7 @@ describe('ImportsService', () => {
     dataSource = {
       transaction: jest.fn().mockImplementation((cb) => {
         const mockManager = {
+          find: jest.fn().mockResolvedValue([]),
           save: jest
             .fn()
             .mockImplementation((entityClass, data) => Promise.resolve(data)),
@@ -280,6 +281,7 @@ describe('ImportsService', () => {
       expect(dataSource.transaction).toHaveBeenCalled();
       expect(dossierRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
+          code: expect.stringMatching(/^\d{6}-DOSSIER-1$/),
           createdBy: 'user-id',
           salesUserId: 'user-id',
         }),
@@ -409,6 +411,7 @@ describe('ImportsService', () => {
       dossierRepository.create.mockImplementation((data) => data);
 
       const transactionManager = {
+        find: jest.fn().mockResolvedValue([]),
         create: jest.fn((_entity, data) => ({ id: 'new-customer', ...data })),
         save: jest.fn().mockImplementation((_entity, data) => data),
         update: jest.fn(),
@@ -426,6 +429,58 @@ describe('ImportsService', () => {
           customerId: 'new-customer',
           customerName: 'Nguyễn Văn D',
         }),
+      );
+    });
+
+    it('should reuse a customer when imported phone or email matches', async () => {
+      const mockSession = {
+        id: 'session-id',
+        organizationId: 'org-id',
+        errorRows: 0,
+        uploadedBy: 'user-id',
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+      rowRepository.find.mockResolvedValue([
+        {
+          id: 'row-1',
+          sessionId: 'session-id',
+          status: 'VALID',
+          normalizedData: {
+            code: 'D-002',
+            name: 'Dossier 2',
+            importFormat: CUSTOMER_BUDGET_FORMAT,
+            customerName: 'Nguyễn Văn Hùng',
+            phone: '097 423 1563',
+            email: 'CUSTOMER@EXAMPLE.COM',
+          },
+        },
+      ]);
+      dossierRepository.create.mockImplementation((data) => data);
+
+      const transactionManager = {
+        find: jest.fn().mockResolvedValue([
+          {
+            id: 'existing-customer',
+            organizationId: 'org-id',
+            phone: '0974231563',
+            email: 'customer@example.com',
+          },
+        ]),
+        create: jest.fn(),
+        save: jest.fn().mockImplementation((_entity, data) => data),
+        update: jest.fn(),
+      };
+      dataSource.transaction.mockImplementationOnce((callback: any) =>
+        callback(transactionManager),
+      );
+
+      await expect(service.confirm('org-id', 'session-id')).resolves.toEqual({
+        message: 'Nhập dữ liệu thành công',
+        importedRowsCount: 1,
+      });
+
+      expect(dossierRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ customerId: 'existing-customer' }),
       );
     });
 

@@ -77,7 +77,7 @@ describe('customer-budget.parser', () => {
     const row = parseCustomerBudgetWorkbook(workbook);
 
     expect(row.__importFormat).toBe(CUSTOMER_BUDGET_FORMAT);
-    expect(row['Mã hồ sơ']).toBe('IMP-300726-TOUR-CONG-TY-ABC');
+    expect(row['Mã hồ sơ']).toBe('300726-TOUR-CONG-TY-ABC');
     expect(row['Tên hồ sơ']).toBe('TOUR CÔNG TY ABC');
     expect(row['Số điện thoại']).toBe('0974231555');
     expect(row['Ngày bắt đầu']).toBe('2026-07-30');

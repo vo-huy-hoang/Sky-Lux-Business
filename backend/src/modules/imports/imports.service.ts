@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { randomInt } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -73,6 +74,26 @@ function catalogCode(value: string, prefix: string, suffix = ''): string {
     0,
     50,
   );
+}
+
+function normalizeCustomerPhone(value?: string | null): string {
+  return String(value ?? '').replace(/\D/g, '');
+}
+
+function normalizeCustomerEmail(value?: string | null): string {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+function generateImportedDossierCode(name?: unknown): string {
+  const nameSlug = String(name || 'DOSSIER')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toUpperCase()
+    .slice(0, 30);
+  const randomNumber = randomInt(100000, 1000000).toString();
+  return `${randomNumber}-${nameSlug || 'DOSSIER'}`.slice(0, 50);
 }
 
 @Injectable()
@@ -332,28 +353,52 @@ export class ImportsService {
           ...dossierFields
         } = row.normalizedData;
 
-        // Customer-budget imports intentionally create one new customer per
-        // valid dossier. The preview processor has already rejected duplicate
-        // email/phone values, so do not reconnect the dossier to an existing
-        // customer here.
+        // Customer-budget imports create one dossier per workbook row while
+        // reusing the shared customer master when phone/email identifies the
+        // same person. Duplicate contact values are valid here.
         let resolvedCustomerId =
           importFormat === CUSTOMER_BUDGET_FORMAT ? undefined : customerId;
         if (!resolvedCustomerId && importFormat === CUSTOMER_BUDGET_FORMAT) {
-          const generatedCode = `IMP-${id.slice(0, 8).toUpperCase()}`;
-          const customer = transactionalEntityManager.create(Customer, {
-            organizationId,
-            code: generatedCode,
-            customerType: CustomerType.INDIVIDUAL,
-            displayName: customerName,
-            phone,
-            email,
-            dateOfBirth,
-          });
-          const savedCustomer = await transactionalEntityManager.save(
-            Customer,
-            customer,
+          const normalizedPhone = normalizeCustomerPhone(phone);
+          const normalizedEmail = normalizeCustomerEmail(email);
+          const existingCustomers =
+            normalizedPhone || normalizedEmail
+              ? await transactionalEntityManager.find(Customer, {
+                  where: { organizationId },
+                  order: { createdAt: 'ASC' },
+                })
+              : [];
+          const matchingCustomers = existingCustomers.filter(
+            (candidate: Customer) =>
+              (normalizedPhone &&
+                normalizeCustomerPhone(candidate.phone) === normalizedPhone) ||
+              (normalizedEmail &&
+                normalizeCustomerEmail(candidate.email) === normalizedEmail),
           );
-          resolvedCustomerId = savedCustomer.id;
+          const existingCustomer = matchingCustomers[0];
+
+          if (existingCustomer) {
+            // A customer is the shared master record. Each import still
+            // creates its own dossier, but matching phone/email reuses this
+            // customer instead of creating a duplicate row.
+            resolvedCustomerId = existingCustomer.id;
+          } else {
+            const generatedCode = `IMP-${id.slice(0, 8).toUpperCase()}`;
+            const customer = transactionalEntityManager.create(Customer, {
+              organizationId,
+              code: generatedCode,
+              customerType: CustomerType.INDIVIDUAL,
+              displayName: customerName,
+              phone,
+              email,
+              dateOfBirth,
+            });
+            const savedCustomer = await transactionalEntityManager.save(
+              Customer,
+              customer,
+            );
+            resolvedCustomerId = savedCustomer.id;
+          }
         }
 
         if (!resolvedCustomerId && importFormat === CUSTOMER_BUDGET_FORMAT) {
@@ -376,6 +421,7 @@ export class ImportsService {
         // Map normalizedData directly to Dossier properties
         const dossierData = {
           ...dossierFields,
+          code: generateImportedDossierCode(dossierFields.name),
           organizationId,
           customerId: resolvedCustomerId,
           ...(customerName ? { customerName } : {}),

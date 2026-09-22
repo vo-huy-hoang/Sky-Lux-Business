@@ -37,6 +37,7 @@ describe('ImportProcessor', () => {
 
     customerRepository = {
       findOne: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
       create: jest.fn((dto) => dto),
       save: jest.fn((entity) =>
         Promise.resolve({ id: 'auto-cust-uuid', ...entity }),
@@ -264,7 +265,7 @@ describe('ImportProcessor', () => {
       expect(savedRow.normalizedData.customerId).toBe('auto-cust-uuid');
     });
 
-    it('should detect in-file duplicate dossier codes and flag error', async () => {
+    it('should allow duplicate dossier codes during import validation', async () => {
       const mockSession = {
         id: 'session-dup',
         organizationId: 'org-id',
@@ -299,11 +300,9 @@ describe('ImportProcessor', () => {
 
       await (processor as any).handleValidateRows('session-dup');
 
-      expect(errorRepository.save).toHaveBeenCalled();
-      const savedErrors = errorRepository.save.mock.calls[0][0];
-      expect(
-        savedErrors.some((e: any) => e.errorMessage.includes('bị trùng lặp')),
-      ).toBe(true);
+      expect(rowRepository.save.mock.calls[0][0].status).toBe('VALID');
+      expect(rowRepository.save.mock.calls[1][0].status).toBe('VALID');
+      expect(errorRepository.save).not.toHaveBeenCalled();
     });
 
     it('should reject invalid date range when endDate is before startDate', async () => {
@@ -374,7 +373,7 @@ describe('ImportProcessor', () => {
       expect(savedRow.normalizedData.route).toBe("'+SUM(1,2)");
     });
 
-    it('should reject a customer import when the phone belongs to another email', async () => {
+    it('should block a customer import when the phone matches an existing customer but the email is new', async () => {
       const mockSession = {
         id: 'session-customer-conflict',
         organizationId: 'org-id',
@@ -398,28 +397,161 @@ describe('ImportProcessor', () => {
         },
       ];
       rowRepository.find.mockResolvedValue(mockRows);
-      customerRepository.findOne.mockImplementation(({ where }: any) => {
-        if (where.phone === '0974231555') {
-          return Promise.resolve({
-            id: 'existing-customer',
-            displayName: 'Nguyễn Văn D',
-            email: 'nguyenvand@gmail.com',
-            phone: '0974231555',
-          });
-        }
-        return Promise.resolve(null);
-      });
+      customerRepository.find.mockResolvedValue([
+        {
+          id: 'existing-customer',
+          displayName: 'Nguyễn Văn D',
+          email: 'nguyenvand@gmail.com',
+          phone: '0974231555',
+        },
+      ]);
 
       await (processor as any).handleValidateRows('session-customer-conflict');
 
       const savedRow = rowRepository.save.mock.calls[0][0];
       expect(savedRow.status).toBe('ERROR');
       const savedErrors = errorRepository.save.mock.calls[0][0];
-      expect(
-        savedErrors.some((error: any) =>
-          error.errorMessage.includes('đã tồn tại trong danh sách khách hàng'),
-        ),
-      ).toBe(true);
+      expect(savedErrors[0].errorMessage).toContain(
+        'số điện thoại đã thuộc khách hàng',
+      );
+    });
+
+    it('should block a customer import when the email matches an existing customer but the phone is new', async () => {
+      const mockSession = {
+        id: 'session-email-conflict',
+        organizationId: 'org-id',
+        template: null,
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+
+      const mockRows = [
+        {
+          id: 'row-email-conflict',
+          rowNumber: 1,
+          rawData: {
+            'Mã hồ sơ': 'IMPORT-EMAIL-CONFLICT',
+            'Tên hồ sơ': 'Tour Email Conflict',
+            'Tên khách hàng': 'Nguyễn Văn C',
+            Email: 'nguyenvanc@gmail.com',
+            'Số điện thoại': '0974231999',
+            __importFormat: CUSTOMER_BUDGET_FORMAT,
+          },
+          status: 'PENDING',
+        },
+      ];
+      rowRepository.find.mockResolvedValue(mockRows);
+      customerRepository.find.mockResolvedValue([
+        {
+          id: 'existing-customer',
+          displayName: 'Nguyễn Văn D',
+          email: 'nguyenvanc@gmail.com',
+          phone: '0974231555',
+        },
+      ]);
+
+      await (processor as any).handleValidateRows('session-email-conflict');
+
+      const savedRow = rowRepository.save.mock.calls[0][0];
+      expect(savedRow.status).toBe('ERROR');
+      expect(errorRepository.save.mock.calls[0][0][0].errorMessage).toContain(
+        'email đã thuộc khách hàng',
+      );
+    });
+
+    it('should block a customer import when phone and email belong to different customers', async () => {
+      const mockSession = {
+        id: 'session-cross-customer-conflict',
+        organizationId: 'org-id',
+        template: null,
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+
+      const mockRows = [
+        {
+          id: 'row-cross-customer-conflict',
+          rowNumber: 1,
+          rawData: {
+            'Mã hồ sơ': 'IMPORT-CROSS-CUSTOMER',
+            'Tên hồ sơ': 'Tour Cross Customer Conflict',
+            'Tên khách hàng': 'Nguyễn Văn E',
+            Email: 'nguyenvane@gmail.com',
+            'Số điện thoại': '0974231000',
+            __importFormat: CUSTOMER_BUDGET_FORMAT,
+          },
+          status: 'PENDING',
+        },
+      ];
+      rowRepository.find.mockResolvedValue(mockRows);
+      customerRepository.find.mockResolvedValue([
+        {
+          id: 'phone-customer',
+          displayName: 'Khách hàng theo phone',
+          email: 'phone@example.com',
+          phone: '0974231000',
+        },
+        {
+          id: 'email-customer',
+          displayName: 'Khách hàng theo email',
+          email: 'nguyenvane@gmail.com',
+          phone: '0974231999',
+        },
+      ]);
+
+      await (processor as any).handleValidateRows(
+        'session-cross-customer-conflict',
+      );
+
+      const savedRow = rowRepository.save.mock.calls[0][0];
+      expect(savedRow.status).toBe('ERROR');
+      expect(errorRepository.save.mock.calls[0][0][0].errorMessage).toContain(
+        'xung đột khách hàng',
+      );
+    });
+
+    it('should allow repeated full phone/email pairs for multiple dossiers', async () => {
+      const mockSession = {
+        id: 'session-repeated-customer',
+        organizationId: 'org-id',
+        template: null,
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+
+      const sharedContact = {
+        Email: 'same-customer@example.com',
+        'Số điện thoại': '0974231001',
+        __importFormat: CUSTOMER_BUDGET_FORMAT,
+      };
+      const mockRows = [
+        {
+          id: 'row-shared-1',
+          rowNumber: 1,
+          rawData: {
+            ...sharedContact,
+            'Mã hồ sơ': 'IMPORT-SHARED-1',
+            'Tên hồ sơ': 'Tour Shared 1',
+            'Tên khách hàng': 'Nguyễn Văn F',
+          },
+          status: 'PENDING',
+        },
+        {
+          id: 'row-shared-2',
+          rowNumber: 2,
+          rawData: {
+            ...sharedContact,
+            'Mã hồ sơ': 'IMPORT-SHARED-2',
+            'Tên hồ sơ': 'Tour Shared 2',
+            'Tên khách hàng': 'Nguyễn Văn F',
+          },
+          status: 'PENDING',
+        },
+      ];
+      rowRepository.find.mockResolvedValue(mockRows);
+
+      await (processor as any).handleValidateRows('session-repeated-customer');
+
+      expect(rowRepository.save.mock.calls[0][0].status).toBe('VALID');
+      expect(rowRepository.save.mock.calls[1][0].status).toBe('VALID');
+      expect(errorRepository.save).not.toHaveBeenCalled();
     });
 
     it('should allow overlapping dates when the company name is different', async () => {
@@ -463,7 +595,7 @@ describe('ImportProcessor', () => {
       expect(errorRepository.save).not.toHaveBeenCalled();
     });
 
-    it('should reject overlapping dates when the company name is the same', async () => {
+    it('should allow overlapping dates when the company name is the same', async () => {
       const mockSession = {
         id: 'session-overlap-same-company',
         organizationId: 'org-id',
@@ -500,13 +632,8 @@ describe('ImportProcessor', () => {
       );
 
       const savedRow = rowRepository.save.mock.calls[0][0];
-      expect(savedRow.status).toBe('ERROR');
-      const savedErrors = errorRepository.save.mock.calls[0][0];
-      expect(
-        savedErrors.some((error: any) =>
-          error.errorMessage.includes('trong khoảng thời gian'),
-        ),
-      ).toBe(true);
+      expect(savedRow.status).toBe('VALID');
+      expect(errorRepository.save).not.toHaveBeenCalled();
     });
   });
 });

@@ -69,7 +69,7 @@ describe('useDossierFinancials (Phase 51: Memoized Financial Seam)', () => {
     expect(result.current.margin).toBe('50.00');
   });
 
-  it('correctly handles Section 1.4 VAT exemption rule', () => {
+  it('includes every VAT cost line from Section I, including Section 1.4', () => {
     const mockEstimate = {
       id: 'est-2',
       dossierId: 'dos-2',
@@ -100,7 +100,7 @@ describe('useDossierFinancials (Phase 51: Memoized Financial Seam)', () => {
           multiplier: 1,
           unitPrice: 5000000,
           grossAmount: 5000000,
-          vatRate: 10, // VAT > 0 on 1.4 => cost contributes 0 per formula
+          vatRate: 10,
           categoryTitle: 'DỊCH VỤ KHÁC',
           createdAt: '',
           updatedAt: '',
@@ -112,9 +112,9 @@ describe('useDossierFinancials (Phase 51: Memoized Financial Seam)', () => {
 
     const { result } = renderHook(() => useDossierFinancials(mockEstimate));
 
-    expect(result.current.cost).toBe(0);
-    expect(result.current.profit).toBe(result.current.revenue);
-    expect(result.current.margin).toBe('100.00');
+    expect(result.current.cost).toBe(5000000 / 1.08);
+    expect(result.current.profit).toBe(10000000 - 5000000 / 1.08);
+    expect(result.current.margin).toBe('53.70');
   });
 
   it('memoizes calculation results and preserves reference when lines do not change', () => {

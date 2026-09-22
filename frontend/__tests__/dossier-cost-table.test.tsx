@@ -464,10 +464,10 @@ describe("Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
       const rowNoVat = rows.find((r) => r.key === "service-no-vat")!;
       const rowTotal = rows.find((r) => r.key === "total")!;
 
-      expect(rowVat.cost).toBe(111310006 / 1.08);
+      expect(rowVat.cost).toBe(196310006 / 1.08);
       expect(rowNoVat.cost).toBe(4850000);
-      expect(rowTotal.cost).toBe(111310006 / 1.08 + 4850000);
-      expect(rowTotal.grossProfit).toBe(27085179.62962964);
+      expect(rowTotal.cost).toBe(196310006 / 1.08 + 4850000);
+      expect(rowTotal.grossProfit).toBe(-51618524.07407406);
     });
   });
 

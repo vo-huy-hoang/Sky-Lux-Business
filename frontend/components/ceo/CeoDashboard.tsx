@@ -12,7 +12,6 @@ import {
   Skeleton,
   Table,
   Tag,
-  Typography,
 } from 'antd';
 import {
   ArrowRightOutlined,
@@ -25,7 +24,6 @@ import {
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ArcElement,
   CategoryScale,
   Chart as ChartJS,
   ChartOptions,
@@ -35,7 +33,7 @@ import {
   PointElement,
   Tooltip,
 } from 'chart.js';
-import { Doughnut, Line } from 'react-chartjs-2';
+import { Line } from 'react-chartjs-2';
 import { dossiersService } from '@/services/dossiers.service';
 import { estimatesService } from '@/services/estimates.service';
 import { usersService } from '@/services/users.service';
@@ -50,13 +48,12 @@ import { queryKeys } from '@/lib/query-keys';
 import { WidgetErrorBoundary } from '@/components/common/widget-error-boundary';
 import { formatCurrency } from '@/lib/financial-calculations';
 import { RevenueBreakdownToggle, RevenueBreakdownMode } from '@/components/ceo/RevenueBreakdownToggle';
-import { REVENUE_BREAKDOWN_COLORS } from '@/components/ceo/revenue-breakdown.constants';
+import { getRevenueDonutSlices, RevenueDonutChart } from '@/components/ceo/RevenueDonutChart';
 
 
 
 
 ChartJS.register(
-  ArcElement,
   CategoryScale,
   Legend,
   LineElement,
@@ -66,8 +63,6 @@ ChartJS.register(
 );
 
 
-
-const { Text } = Typography;
 
 const STATUS_META: Record<string, { label: string; className: string; color: string }> = {
   DRAFT: { label: 'Mới nhập', className: 'skylux-status-info', color: '#98A19D' },
@@ -201,6 +196,18 @@ export default function CeoDashboard() {
       : (overview?.businessLineBreakdown || []).map((item) => ({ name: item.businessLineName, amount: item.amount })),
     [breakdownMode, overview?.businessLineBreakdown, overview?.revenueBreakdown],
   );
+  const sortedChartBreakdown = React.useMemo(
+    () => [...chartBreakdown].sort((a, b) => Number(b.amount) - Number(a.amount)),
+    [chartBreakdown],
+  );
+  const chartBreakdownTotal = React.useMemo(
+    () => sortedChartBreakdown.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+    [sortedChartBreakdown],
+  );
+  const donutSlices = React.useMemo(
+    () => getRevenueDonutSlices(sortedChartBreakdown),
+    [sortedChartBreakdown],
+  );
   const notificationsList = notificationsResponse?.data || [];
   const pendingApprovals = React.useMemo(
     () => [...(submittedApprovalsQuery.data?.data || []), ...(reviewingApprovalsQuery.data?.data || [])]
@@ -285,38 +292,6 @@ export default function CeoDashboard() {
           color: '#94A3B8',
           font: { size: 11, weight: 500 },
           callback: (value) => (value === 0 ? '0' : `${value}B`),
-        },
-      },
-    },
-  };
-
-  const revenueData = {
-    labels: chartBreakdown.map((item) => item.name),
-    datasets: [{
-      data: chartBreakdown.map((item) => item.amount),
-      backgroundColor: REVENUE_BREAKDOWN_COLORS,
-      borderColor: '#FFFFFF',
-      borderWidth: 2,
-    }],
-  };
-
-  const revenueOptions: ChartOptions<'doughnut'> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    cutout: '62%',
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          title: (items) => {
-            const label = items[0]?.label || '';
-            if (label.length > 20 && label.includes('(')) {
-              const idx = label.indexOf('(');
-              return [label.slice(0, idx).trim(), label.slice(idx).trim()];
-            }
-            return label;
-          },
-          label: (context) => ` Doanh thu: ${formatCurrency(Number(context.parsed))}`,
         },
       },
     },
@@ -450,19 +425,24 @@ export default function CeoDashboard() {
 
                 {/* Body: Donut + Legend */}
                 <div className="flex items-center justify-between gap-4 sm:gap-6 my-auto py-2">
-                  <div className="relative w-[180px] h-[180px] 2xl:w-[195px] 2xl:h-[195px] shrink-0">
-                    {chartBreakdown.length ? <Doughnut data={revenueData} options={revenueOptions} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu doanh thu" />}
-                  </div>
+                  {chartBreakdown.length ? (
+                    <RevenueDonutChart
+                      items={sortedChartBreakdown}
+                      total={chartBreakdownTotal}
+                      ariaLabel="Cơ cấu doanh thu theo cách phân loại"
+                      className="w-[180px] h-[180px] 2xl:w-[195px] 2xl:h-[195px]"
+                    />
+                  ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu doanh thu" />}
 
                   {/* Legend list */}
                   <div className="flex-1 space-y-3 min-w-0">
-                    {chartBreakdown.slice(0, 5).map((item, index) => (
-                      <div key={item.name}>
+                    {donutSlices.slice(0, 5).map((slice) => (
+                      <div key={slice.name}>
                         <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: revenueData.datasets[0].backgroundColor[index] }} />
-                          <span className="text-xs font-semibold text-slate-800 truncate" title={item.name}>{item.name}</span>
+                          <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: slice.color }} />
+                          <span className="text-xs font-semibold text-slate-800 truncate" title={slice.name}>{slice.name}</span>
                         </div>
-                        <div className="text-[11px] text-slate-500 pl-4.5 font-medium tabular-nums">{formatCurrency(item.amount)}</div>
+                        <div className="text-[11px] text-slate-500 pl-4.5 font-medium tabular-nums">{formatCurrency(slice.amount)} ({Math.round(slice.percentage)}%)</div>
                       </div>
                     ))}
                   </div>
@@ -471,7 +451,7 @@ export default function CeoDashboard() {
 
               {/* Total Footer */}
               <div className="text-xs text-slate-500 pt-3 border-t border-slate-100 mt-2">
-                Tổng doanh thu: <span className="font-semibold text-slate-700 tabular-nums">{formatCurrency(chartBreakdown.reduce((sum, item) => sum + Number(item.amount || 0), 0))}</span>
+                Tổng doanh thu: <span className="font-semibold text-slate-700 tabular-nums">{formatCurrency(chartBreakdownTotal)}</span>
               </div>
             </div>
           </WidgetErrorBoundary>

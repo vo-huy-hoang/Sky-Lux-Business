@@ -364,7 +364,7 @@ describe('DossierDetailView Refactored Integration Test Suite (Phase 52 - TICKET
     expect(screen.getByTestId('documents-tab')).toHaveAttribute('data-active', 'false');
   });
 
-  it('Kịch bản 4 (Financial Calculations & VAT Seam): Tính đúng doanh thu thuần chia 1.08, chi phí trừ nhóm 1.4 và margin', async () => {
+  it('Kịch bản 4 (Financial Calculations & VAT Seam): Tính đúng doanh thu thuần chia 1.08, cộng toàn bộ mục I và margin', async () => {
     useAuthStore.setState({
       user: { id: 'usr-op', roles: ['OPERATOR'] } as any,
       isAuthenticated: true,
@@ -378,13 +378,13 @@ describe('DossierDetailView Refactored Integration Test Suite (Phase 52 - TICKET
     });
 
     // Doanh thu gộp: 108,000,000 -> Doanh thu thuần (chia 1.08): 100,000,000 đ
-    // Chi phí: 54,000,000 / 1.08 = 50,000,000 đ (Gala 1.4 có VAT bị loại khỏi chi phí theo quy tắc)
-    // Lợi nhuận gộp = 100,000,000 - 50,000,000 = 50,000,000 đ
-    // Tỷ suất lợi nhuận (margin) = 50.00%
+    // Chi phí: (54,000,000 + 5,000,000) / 1.08 = 54,629,629.63 đ
+    // Lợi nhuận gộp = 100,000,000 - 54,629,629.63 = 45,370,370.37 đ
+    // Tỷ suất lợi nhuận (margin) = 45.37%
     await waitFor(() => {
       expect(screen.getAllByText(/100\.000\.000/).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/50\.000\.000/).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/50\.00%/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/54\.629\.630/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/45\.37%/).length).toBeGreaterThan(0);
     });
   });
 
@@ -453,4 +453,3 @@ describe('DossierDetailView Refactored Integration Test Suite (Phase 52 - TICKET
     expect(useDossierUIStore.getState().visitedTabs).toEqual({ overview: true });
   });
 });
-

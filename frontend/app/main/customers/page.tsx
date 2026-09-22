@@ -21,6 +21,7 @@ import {
 } from 'antd';
 import {
   ArrowUpOutlined,
+  CalendarOutlined,
   DeleteOutlined,
   EyeOutlined,
   FolderOpenOutlined,
@@ -51,6 +52,12 @@ function initials(name?: string) {
     .map((part) => part[0])
     .join('')
     .toUpperCase();
+}
+
+function formatDateOnly(dateStr?: string) {
+  if (!dateStr) return '-';
+  const match = dateStr.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : dateStr;
 }
 
 export default function CustomersPage() {
@@ -205,11 +212,23 @@ export default function CustomersPage() {
       render: (phone?: string) => phone || '-',
     },
     {
+      title: 'Ngày sinh',
+      dataIndex: 'dateOfBirth',
+      key: 'dateOfBirth',
+      width: 120,
+      render: (dateOfBirth?: string) => (
+        <span className="inline-flex items-center gap-1.5">
+          <CalendarOutlined className="text-slate-400" />
+          {formatDateOnly(dateOfBirth)}
+        </span>
+      ),
+    },
+    {
       title: 'Hồ sơ',
-      key: 'contacts',
+      key: 'dossiers',
       width: 95,
       render: (_: unknown, record: CustomerItem) => (
-        <Tag className="skylux-status-valid">{record.contacts?.length || 0}</Tag>
+        <Tag className="skylux-status-valid">{record.dossierCount || 0}</Tag>
       ),
     },
     {
@@ -386,7 +405,7 @@ export default function CustomersPage() {
           loading={isLoading}
           className="skylux-table"
           locale={{ emptyText: <Empty description="Chưa có khách hàng từ API" /> }}
-          scroll={{ x: 1120 }}
+          scroll={{ x: 1240 }}
           pagination={{
             current: page,
             pageSize,

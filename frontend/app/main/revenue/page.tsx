@@ -42,7 +42,7 @@ import OperatorRevenue from '@/components/operator/OperatorRevenue';
 import { WidgetErrorBoundary } from '@/components/common/widget-error-boundary';
 import { formatCurrency } from '@/lib/financial-calculations';
 import { RevenueBreakdownToggle, RevenueBreakdownMode } from '@/components/ceo/RevenueBreakdownToggle';
-import { REVENUE_BREAKDOWN_COLORS } from '@/components/ceo/revenue-breakdown.constants';
+import { getRevenueDonutSlices, RevenueDonutChart } from '@/components/ceo/RevenueDonutChart';
 
 ChartJS.register(
   ArcElement,
@@ -54,40 +54,6 @@ ChartJS.register(
   PointElement,
   ChartTooltip,
 );
-
-// Polar Math for SVG Donut slices
-function polarToCartesian(centerX: number, centerY: number, radius: number, angleInDegrees: number) {
-  const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180.0;
-  return {
-    x: centerX + radius * Math.cos(angleInRadians),
-    y: centerY + radius * Math.sin(angleInRadians),
-  };
-}
-
-function describeDonutSlice(
-  centerX: number,
-  centerY: number,
-  radius: number,
-  innerRadius: number,
-  startAngle: number,
-  endAngle: number,
-) {
-  const adjustedEndAngle = endAngle - startAngle >= 360 ? startAngle + 359.999 : endAngle;
-  const start = polarToCartesian(centerX, centerY, radius, adjustedEndAngle);
-  const end = polarToCartesian(centerX, centerY, radius, startAngle);
-  const innerStart = polarToCartesian(centerX, centerY, innerRadius, adjustedEndAngle);
-  const innerEnd = polarToCartesian(centerX, centerY, innerRadius, startAngle);
-
-  const largeArcFlag = adjustedEndAngle - startAngle <= 180 ? '0' : '1';
-
-  return [
-    'M', start.x, start.y,
-    'A', radius, radius, 0, largeArcFlag, 0, end.x, end.y,
-    'L', innerEnd.x, innerEnd.y,
-    'A', innerRadius, innerRadius, 0, largeArcFlag, 1, innerStart.x, innerStart.y,
-    'Z',
-  ].join(' ');
-}
 
 // Chart.js plugin to draw value labels above bars for Card 2
 const barTopLabelsPlugin = {
@@ -232,27 +198,8 @@ function CeoRevenuePage() {
   const breakdownRows = breakdownMode === 'MARKET_TYPE'
     ? (monthData?.revenueBreakdown || []).map((item) => ({ name: item.marketTypeName, amount: item.amount }))
     : (monthData?.businessLineBreakdown || []).map((item) => ({ name: item.businessLineName, amount: item.amount }));
-  const totalBreakdown = breakdownRows.reduce((sum, b) => sum + Number(b.amount), 0);
   const sortedBreakdown = [...breakdownRows].sort((a, b) => Number(b.amount) - Number(a.amount));
-  type DonutSlice = {
-    name: string;
-    amount: number;
-    percentage: number;
-    startAngle: number;
-    endAngle: number;
-    midAngle: number;
-    color: string;
-  };
-  const donutSlices = sortedBreakdown.reduce<DonutSlice[]>((slices, item, i) => {
-    const currentAngle = slices.at(-1)?.endAngle || 0;
-    const amount = Number(item.amount);
-    const percentage = totalBreakdown > 0 ? (amount / totalBreakdown) * 100 : 0;
-    const angle = (percentage / 100) * 360;
-    const startAngle = currentAngle;
-    const endAngle = currentAngle + angle;
-    const midAngle = startAngle + angle / 2;
-    return [...slices, { name: item.name, amount, percentage, startAngle, endAngle, midAngle, color: REVENUE_BREAKDOWN_COLORS[i % REVENUE_BREAKDOWN_COLORS.length] }];
-  }, []);
+  const donutSlices = getRevenueDonutSlices(sortedBreakdown);
 
   // 5. Bottom Section Data
   const customerColors = [
@@ -439,22 +386,13 @@ function CeoRevenuePage() {
                 </div>
               </div>
               <div className="flex items-center justify-between gap-5 my-2">
-                <div className="relative w-[180px] h-[180px] shrink-0">
-                  <svg viewBox="0 0 100 100" className="w-full h-full">
-                    <text x="50" y="46" textAnchor="middle" fill="#64748B" fontSize="4.5" fontWeight="500">Tổng doanh thu</text>
-                    <text x="50" y="55" textAnchor="middle" fill="#0F172A" fontSize="6.5" fontWeight="bold">{formatTrm(currentMonthRev)} Tr</text>
-                    {donutSlices.map((slice, i) => (
-                      <React.Fragment key={i}>
-                        <path d={describeDonutSlice(50, 50, 48, 27, slice.startAngle, slice.endAngle)} fill={slice.color} stroke="#FFFFFF" strokeWidth="1.5" />
-                        {slice.percentage > 4 && (
-                          <text x={polarToCartesian(50, 50, 37.5, slice.midAngle).x} y={polarToCartesian(50, 50, 37.5, slice.midAngle).y} fill="#FFFFFF" fontSize={slice.percentage > 10 ? "6" : "4.5"} fontWeight="bold" textAnchor="middle" dominantBaseline="central">
-                            {Math.round(slice.percentage)}%
-                          </text>
-                        )}
-                      </React.Fragment>
-                    ))}
-                  </svg>
-                </div>
+                <RevenueDonutChart
+                  items={sortedBreakdown}
+                  total={currentMonthRev}
+                  totalDisplay={formatTrm(currentMonthRev)}
+                  ariaLabel="Cơ cấu doanh thu theo cách phân loại"
+                  className="w-[180px] h-[180px]"
+                />
                 <div className="flex-1 space-y-3 min-w-0">
                   {donutSlices.map((slice, i) => (
                     <div key={i}>

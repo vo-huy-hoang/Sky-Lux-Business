@@ -22,6 +22,24 @@ import {
   AuditEntityType,
 } from '../audit-logs/audit-event.constants';
 
+type CustomerGroup = {
+  customer: Customer;
+  customerIds: string[];
+};
+
+type CustomerListItem = Customer & {
+  customerIds: string[];
+  dossierCount: number;
+};
+
+function normalizePhone(value?: string | null): string {
+  return String(value ?? '').replace(/\D/g, '');
+}
+
+function normalizeEmail(value?: string | null): string {
+  return String(value ?? '').trim().toLowerCase();
+}
+
 @Injectable()
 export class CustomersService {
   constructor(
@@ -37,7 +55,7 @@ export class CustomersService {
   async findAll(
     organizationId: string,
     queryDto: QueryCustomerDto,
-  ): Promise<PaginatedResponse<Customer>> {
+  ): Promise<PaginatedResponse<CustomerListItem>> {
     const { page, limit, search, customerType, status } = queryDto;
     const queryBuilder = this.customerRepository
       .createQueryBuilder('customer')
@@ -61,20 +79,34 @@ export class CustomersService {
       );
     }
 
-    queryBuilder
-      .orderBy('customer.createdAt', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit);
+    // Load the filtered tenant set before pagination so duplicate customer
+    // records can be collapsed into one visible customer row. Pagination is
+    // applied after identity grouping below.
+    queryBuilder.orderBy('customer.createdAt', 'ASC');
 
-    const [items, total] = await queryBuilder.getManyAndCount();
+    const [items] = await queryBuilder.getManyAndCount();
+    const groups = this.groupCustomers(items);
+    const allCustomerIds = groups.flatMap((group) => group.customerIds);
+    const dossierCounts = await this.getDossierCounts(
+      organizationId,
+      allCustomerIds,
+    );
+    const total = groups.length;
     const totalPages = Math.ceil(total / limit);
+    const paginatedGroups = groups.slice((page - 1) * limit, page * limit);
 
     return {
-      data: items.map((customer) => {
+      data: paginatedGroups.map(({ customer, customerIds }) => {
         customer.assignedSales = toPublicUser(
           customer.assignedSales,
         ) as typeof customer.assignedSales;
-        return customer;
+        return Object.assign(customer, {
+          customerIds,
+          dossierCount: customerIds.reduce(
+            (sum, customerId) => sum + (dossierCounts.get(customerId) || 0),
+            0,
+          ),
+        }) as CustomerListItem;
       }),
       meta: {
         page,
@@ -83,6 +115,98 @@ export class CustomersService {
         totalPages,
       },
     };
+  }
+
+  private groupCustomers(customers: Customer[]): CustomerGroup[] {
+    const parent = new Map<string, string>();
+    const phoneOwner = new Map<string, string>();
+    const emailOwner = new Map<string, string>();
+
+    const find = (id: string): string => {
+      const current = parent.get(id);
+      if (!current || current === id) return id;
+      const root = find(current);
+      parent.set(id, root);
+      return root;
+    };
+
+    const union = (left: string, right: string) => {
+      const leftRoot = find(left);
+      const rightRoot = find(right);
+      if (leftRoot !== rightRoot) parent.set(rightRoot, leftRoot);
+    };
+
+    customers.forEach((customer) => parent.set(customer.id, customer.id));
+    customers.forEach((customer) => {
+      const phone = normalizePhone(customer.phone);
+      const email = normalizeEmail(customer.email);
+      if (phone) {
+        const previous = phoneOwner.get(phone);
+        if (previous) union(customer.id, previous);
+        else phoneOwner.set(phone, customer.id);
+      }
+      if (email) {
+        const previous = emailOwner.get(email);
+        if (previous) union(customer.id, previous);
+        else emailOwner.set(email, customer.id);
+      }
+    });
+
+    const grouped = new Map<string, Customer[]>();
+    customers.forEach((customer) => {
+      const root = find(customer.id);
+      const group = grouped.get(root) || [];
+      group.push(customer);
+      grouped.set(root, group);
+    });
+
+    return [...grouped.values()].map((members) => {
+      // The first record is the stable master record; later imports contribute
+      // dossiers to it without creating another visible customer row.
+      members.sort((a, b) => {
+        const left = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const right = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return left - right;
+      });
+      return {
+        customer: members[0],
+        customerIds: members.map((member) => member.id),
+      };
+    });
+  }
+
+  private async getDossierCounts(
+    organizationId: string,
+    customerIds: string[],
+  ): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+    if (customerIds.length === 0) return counts;
+
+    const rows = await this.dossierRepository
+      .createQueryBuilder('dossier')
+      .select('dossier.customerId', 'customerId')
+      .addSelect('COUNT(dossier.id)', 'count')
+      .where('dossier.organizationId = :organizationId', { organizationId })
+      .andWhere('dossier.customerId IN (:...customerIds)', { customerIds })
+      .groupBy('dossier.customerId')
+      .getRawMany();
+
+    rows.forEach((row: { customerId: string; count: string | number }) => {
+      counts.set(row.customerId, Number(row.count) || 0);
+    });
+    return counts;
+  }
+
+  private async resolveCustomerGroupIds(customer: Customer): Promise<string[]> {
+    const customers = await this.customerRepository.find({
+      where: { organizationId: customer.organizationId },
+      order: { createdAt: 'ASC' },
+    });
+    return (
+      this.groupCustomers(customers).find((group) =>
+        group.customerIds.includes(customer.id),
+      )?.customerIds || [customer.id]
+    );
   }
 
   async findOne(
@@ -458,10 +582,11 @@ export class CustomersService {
     queryDto: QueryDossierDto,
   ) {
     // 1. Kiểm tra khách hàng tồn tại trong tổ chức
-    await this.findOne(organizationId, customerId);
+    const customer = await this.findOne(organizationId, customerId);
 
     const { page = 1, limit = 20, search, status, priority } = queryDto;
     const skip = (page - 1) * limit;
+    const customerIds = await this.resolveCustomerGroupIds(customer);
 
     const queryBuilder = this.dossierRepository
       .createQueryBuilder('dossier')
@@ -472,7 +597,7 @@ export class CustomersService {
       .leftJoinAndSelect('dossier.estimates', 'estimates')
       .leftJoinAndSelect('estimates.revenueLines', 'revenueLines')
       .where('dossier.organizationId = :organizationId', { organizationId })
-      .andWhere('dossier.customerId = :customerId', { customerId });
+      .andWhere('dossier.customerId IN (:...customerIds)', { customerIds });
 
     if (status) {
       queryBuilder.andWhere('dossier.status = :status', { status });

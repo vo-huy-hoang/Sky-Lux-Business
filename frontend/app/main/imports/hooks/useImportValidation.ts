@@ -14,6 +14,7 @@ export interface ValidatedLine {
   quantity: number;
   multiplier?: number;
   unitPrice: number | string;
+  sourceAmount?: number | string;
   unitPriceError?: boolean;
   vatRate: number | string;
   vatRateError?: boolean;
@@ -55,11 +56,24 @@ function classificationLabel(value: unknown, fallback: string): string {
 }
 
 function amountOf(line: ValidatedLine): number {
+  const sourceAmount = Number(line.sourceAmount);
+  if (Number.isFinite(sourceAmount)) return sourceAmount;
+
   return (
     Number(line.quantity ?? 0) *
     Number(line.multiplier ?? 1) *
     Number(line.unitPrice ?? 0)
   );
+}
+
+function vatRateOf(value: unknown): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const normalized = String(value ?? "")
+    .trim()
+    .replace(/%/g, "")
+    .replace(/,/g, ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 /**
@@ -75,13 +89,12 @@ export function calculateImportSummary(
     0,
   );
   const service10CostGross = costs
-    .filter(
-      (line) =>
-        Number(line.vatRate) > 0 && line.serviceCategoryCode !== "OTHER",
-    )
+    // Every VAT cost line belongs to Section I, including uncategorized
+    // entries such as Section I.4 ("CÁC DỊCH VỤ KHÁC").
+    .filter((line) => vatRateOf(line.vatRate) > 0)
     .reduce((sum, line) => sum + amountOf(line), 0);
   const service0CostGross = costs
-    .filter((line) => Number(line.vatRate) === 0)
+    .filter((line) => vatRateOf(line.vatRate) === 0)
     .reduce((sum, line) => sum + amountOf(line), 0);
 
   const service10Revenue = totalRevenueGross / EXCEL_VAT_DIVISOR;
@@ -214,14 +227,24 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
 
         const safeQuantity = line.quantity ?? 1;
         const safeMultiplier = line.multiplier ?? 1;
+        const sourceAmount = Number(line.sourceAmount);
+        const hasSourceAmount = Number.isFinite(sourceAmount);
+        const rawUnitPrice = Number(line.unitPrice);
+        const hasUnitPrice = Number.isFinite(rawUnitPrice);
         const calcPrice =
-          line.unitPrice ??
-          (line.sourceAmount ?? 0) / safeQuantity / safeMultiplier;
+          line.unitPrice === undefined ||
+          (hasSourceAmount && rawUnitPrice === 0 && sourceAmount !== 0)
+            ? (hasSourceAmount ? sourceAmount : 0) /
+              safeQuantity /
+              safeMultiplier
+            : rawUnitPrice;
         const calcAmount = safeQuantity * safeMultiplier * calcPrice;
+        const sourceOrCalculatedAmount = hasSourceAmount
+          ? sourceAmount
+          : calcAmount;
 
         if (
-          typeof line.unitPrice !== "number" &&
-          typeof line.sourceAmount !== "number"
+          !hasUnitPrice && !hasSourceAmount
         ) {
           status = "ERROR";
           statusMessage = "Thiếu Đơn giá và Thành tiền";
@@ -231,13 +254,13 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
           status = "ERROR";
           statusMessage = "Đơn giá không hợp lệ";
           unitPriceError = true;
-        } else if (calcAmount < 0) {
+        } else if (sourceOrCalculatedAmount < 0) {
           status = "ERROR";
           statusMessage = "Thành tiền không hợp lệ";
           totalAmountError = true;
         } else if (
           line.vatRate !== undefined &&
-          (line.vatRate < 0 || line.vatRate > 100)
+          (vatRateOf(line.vatRate) < 0 || vatRateOf(line.vatRate) > 100)
         ) {
           status = "ERROR";
           statusMessage = "VAT không hợp lệ";
@@ -252,7 +275,7 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
         else if (status === "ERROR") errorCount++;
         totalCount++;
 
-        totalCost += calcAmount;
+        totalCost += sourceOrCalculatedAmount;
 
         costs.push({
           id: `cost-${idx}`,
@@ -263,10 +286,11 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
           multiplier: safeMultiplier,
           unitText: "Gói",
           unitPrice: calcPrice,
+          sourceAmount: line.sourceAmount,
           unitPriceError,
           vatRate: line.vatRate || 0,
           vatRateError,
-          totalAmount: calcAmount,
+          totalAmount: sourceOrCalculatedAmount,
           totalAmountError,
           status,
           statusMessage,

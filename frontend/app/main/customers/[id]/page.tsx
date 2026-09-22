@@ -96,6 +96,13 @@ function formatDate(dateStr?: string) {
   });
 }
 
+function formatDateOnly(dateStr?: string) {
+  if (!dateStr) return '-';
+  const match = dateStr.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+  return formatDate(dateStr);
+}
+
 const activityPresentation: Record<
   string,
   { icon: React.ReactNode; bg: string }
@@ -475,7 +482,7 @@ export default function CustomerDetailPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3.5 gap-x-6 text-xs border-t border-slate-100 pt-4">
+          <div className="grid grid-cols-1 gap-y-3.5 text-xs border-t border-slate-100 pt-4">
             <div className="flex items-center gap-2">
               <TagOutlined className="text-slate-400 text-sm shrink-0" />
               <span className="text-slate-500">Loại khách hàng:</span>
@@ -492,7 +499,7 @@ export default function CustomerDetailPage() {
               </span>
             </div>
 
-            <div className="flex items-center gap-2 sm:col-span-2">
+            <div className="flex items-center gap-2">
               <UserOutlined className="text-slate-400 text-sm shrink-0" />
               <span className="text-slate-500 shrink-0">Người liên hệ chính:</span>
               <span className="font-medium text-slate-800 ml-auto truncate">
@@ -520,11 +527,19 @@ export default function CustomerDetailPage() {
               </span>
             </div>
 
-            <div className="flex items-start gap-2 sm:col-span-2">
+            <div className="flex items-start gap-2">
               <EnvironmentOutlined className="text-slate-400 text-sm shrink-0 mt-0.5" />
               <span className="text-slate-500 shrink-0">Địa chỉ:</span>
               <span className="font-medium text-slate-800 ml-auto text-right">
                 {customer.address || '-'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <CalendarOutlined className="text-slate-400 text-sm shrink-0" />
+              <span className="text-slate-500">Ngày sinh:</span>
+              <span className="font-medium text-slate-800 ml-auto">
+                {formatDateOnly(customer.dateOfBirth)}
               </span>
             </div>
           </div>
@@ -734,7 +749,7 @@ export default function CustomerDetailPage() {
 
             {activeTab === 'info' && (
               <div className="p-4 space-y-3 text-xs">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   <div>
                     <span className="text-slate-400 block mb-0.5">Mã số thuế:</span>
                     <span className="font-semibold text-slate-800">{customer.taxCode || '-'}</span>
@@ -742,6 +757,12 @@ export default function CustomerDetailPage() {
                   <div>
                     <span className="text-slate-400 block mb-0.5">Ngày tạo hồ sơ:</span>
                     <span className="font-semibold text-slate-800">{formatDate(customer.createdAt)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">Ngày sinh:</span>
+                    <span className="font-semibold text-slate-800">
+                      {formatDateOnly(customer.dateOfBirth)}
+                    </span>
                   </div>
                   <div>
                     <span className="text-slate-400 block mb-0.5">Sales phụ trách:</span>

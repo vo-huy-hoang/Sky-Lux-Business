@@ -837,8 +837,8 @@ export class DashboardsService {
   /**
    * Matches the yellow "Lợi nhuận gộp" total in the dossier detail view.
    * The imported Excel amounts are calculated from quantity × multiplier ×
-   * unit price. VAT lines are divided by 1.08, except category 1.4, which
-   * is intentionally excluded by the workbook summary formula.
+   * unit price. Every VAT line from Section I is divided by 1.08, including
+   * category 1.4 ("CÁC DỊCH VỤ KHÁC").
    */
   private async calculateGrossProfitForEstimates(
     estimateIds: string[],
@@ -866,12 +866,6 @@ export class DashboardsService {
     );
     const totalCost = costLines.reduce((sum, line) => {
       const vatRate = this.toFiniteNumber(line.vatRate);
-      const categoryCode = this.classifyCostCategory(line);
-
-      if (vatRate > 0 && categoryCode === '1.4') {
-        return sum;
-      }
-
       const workbookAmount = this.getWorkbookGrossAmount(line);
       return sum + (vatRate > 0 ? workbookAmount / 1.08 : workbookAmount);
     }, 0);
@@ -889,76 +883,6 @@ export class DashboardsService {
       this.toFiniteNumber(line.multiplier, 1) *
       this.toFiniteNumber(line.unitPrice)
     );
-  }
-
-  private classifyCostCategory(line: {
-    description?: string | null;
-    categoryTitle?: string | null;
-    serviceCategory?: { name?: string | null } | null;
-  }): string {
-    const explicitCategory = (
-      line.categoryTitle ||
-      line.serviceCategory?.name ||
-      ''
-    )
-      .toUpperCase()
-      .trim();
-
-    if (explicitCategory === 'VÉ THAM QUAN') return '1.1';
-    if (explicitCategory === 'KHÁCH SẠN') return '1.2';
-    if (explicitCategory === 'ĂN UỐNG') return '1.2b';
-    if (explicitCategory === 'VẬN CHUYỂN') return '1.3';
-    if (explicitCategory === 'CÁC DỊCH VỤ KHÁC') return '1.4';
-
-    const description = (line.description || '').toLowerCase();
-    const category = (line.serviceCategory?.name || '').toLowerCase();
-
-    if (
-      description.includes('gala') ||
-      description.includes('team building') ||
-      description.includes('hội nghị') ||
-      category.includes('chi phí khác')
-    ) {
-      return '1.4';
-    }
-    if (
-      description.includes('vé tham quan') ||
-      description.includes('hội an') ||
-      description.includes('bà nà') ||
-      description.includes('đại nội') ||
-      category.includes('vé tham quan')
-    ) {
-      return '1.1';
-    }
-    if (
-      description.includes('khách sạn') ||
-      description.includes('mường thanh') ||
-      description.includes('hương giang') ||
-      description.includes('phòng') ||
-      category.includes('khách sạn')
-    ) {
-      return '1.2';
-    }
-    if (
-      description.includes('ăn uống') ||
-      description.includes('madam lân') ||
-      description.includes('cơm niêu') ||
-      description.includes('trưa ngày') ||
-      description.includes('tối ngày') ||
-      category.includes('nhà hàng')
-    ) {
-      return '1.2b';
-    }
-    if (
-      description.includes('xe') ||
-      description.includes('vận chuyển') ||
-      description.includes('triệu bảo ý') ||
-      category.includes('vận chuyển')
-    ) {
-      return '1.3';
-    }
-
-    return '1.4';
   }
 
   private toFiniteNumber(value: unknown, fallback = 0): number {

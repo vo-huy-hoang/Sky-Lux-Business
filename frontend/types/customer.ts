@@ -31,6 +31,10 @@ export interface CustomerItem {
     email: string;
   };
   contacts?: CustomerContact[];
+  /** IDs of legacy customer rows grouped by phone/email identity. */
+  customerIds?: string[];
+  /** Number of dossiers across the grouped customer rows. */
+  dossierCount?: number;
   createdAt: string;
   updatedAt: string;
 }

@@ -10,7 +10,7 @@ export class Supplier extends BaseEntity {
   organizationId: string;
 
   @Column({ name: 'supplier_type_id', type: 'uuid', nullable: true })
-  supplierTypeId?: string;
+  supplierTypeId?: string | null;
 
   @Index()
   @Column({ type: 'varchar', length: 50 })

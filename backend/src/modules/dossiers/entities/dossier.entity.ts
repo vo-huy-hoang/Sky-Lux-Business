@@ -35,7 +35,6 @@ export class Dossier extends BaseEntity {
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;
 
-  @Index({ unique: true })
   @Column({ type: 'varchar', length: 50 })
   code: string;
 

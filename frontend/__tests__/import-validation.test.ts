@@ -23,8 +23,18 @@ describe('calculateImportSummary', () => {
           status: 'VALID',
         },
         {
-          id: 'cost-no-vat',
+          id: 'cost-vat-other',
           stt: 2,
+          quantity: 1,
+          unitPrice: 0,
+          sourceAmount: 85_000_000,
+          vatRate: 10,
+          serviceCategoryCode: 'OTHER',
+          status: 'VALID',
+        },
+        {
+          id: 'cost-no-vat',
+          stt: 3,
           quantity: 1,
           unitPrice: 4_850_000,
           vatRate: 0,
@@ -34,10 +44,10 @@ describe('calculateImportSummary', () => {
     );
 
     expect(summary.service10.netRevenue).toBe(135_000_000);
-    expect(summary.service10.netCost).toBe(111_310_006 / 1.08);
+    expect(summary.service10.netCost).toBe(196_310_006 / 1.08);
     expect(summary.service0.netCost).toBe(4_850_000);
-    expect(summary.total.netCost).toBe(103_064_820.37037036 + 4_850_000);
-    expect(summary.total.grossProfit).toBe(27_085_179.62962964);
-    expect(summary.profitMargin).toBe('20.1%');
+    expect(summary.total.netCost).toBe(196_310_006 / 1.08 + 4_850_000);
+    expect(summary.total.grossProfit).toBe(-51_618_524.07407406);
+    expect(summary.profitMargin).toBe('-38.2%');
   });
 });

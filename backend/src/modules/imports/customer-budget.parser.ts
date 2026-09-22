@@ -240,7 +240,7 @@ export function parseCustomerBudgetWorkbook(
   const { startDate, endDate } = parseDateRange(cell('F11'));
   const tourDuration = text(cell('H11'));
   const startCode = formatDateCode(startDate);
-  const code = `IMP-${startCode}-${slug(title).slice(0, 30)}`.slice(0, 50);
+  const code = `${startCode}-${slug(title).slice(0, 30)}`.slice(0, 50);
   const phoneRaw = text(cell('E10')).replace(/\D/g, '');
   const phone = phoneRaw.length === 9 ? `0${phoneRaw}` : phoneRaw;
 
