@@ -11,6 +11,7 @@ import { ImportError } from './entities/import-error.entity';
 import { ImportTemplate } from './entities/import-template.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { getQueueToken } from '@nestjs/bullmq';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
 describe('Imports Module (Integration)', () => {
   let controller: ImportsController;
@@ -20,6 +21,15 @@ describe('Imports Module (Integration)', () => {
 
   const orgA = 'org-A-uuid';
   const orgB = 'org-B-uuid';
+  const importActor = {
+    id: 'user-uuid',
+    organizationId: orgA,
+    employeeCode: 'EMP-001',
+    fullName: 'Import Operator',
+    email: 'operator@example.com',
+    roles: [],
+    permissions: [],
+  } satisfies CurrentUserPayload;
 
   const mockSessionOfOrgB = {
     id: 'session-B-uuid',
@@ -168,7 +178,7 @@ describe('Imports Module (Integration)', () => {
       sessionRepository.findOne.mockResolvedValue(mockSessionWithError);
 
       await expect(
-        controller.confirm(orgA, 'session-error-uuid', 'user-uuid'),
+        controller.confirm(importActor, 'session-error-uuid'),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -195,9 +205,8 @@ describe('Imports Module (Integration)', () => {
       rowRepository.find.mockResolvedValue(mockRows as any);
 
       const result = await controller.confirm(
-        orgA,
+        importActor,
         'session-valid-uuid',
-        'user-uuid',
       );
 
       expect(result).toEqual({
