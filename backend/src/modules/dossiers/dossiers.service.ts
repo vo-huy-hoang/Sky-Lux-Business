@@ -602,7 +602,9 @@ export class DossiersService {
         DossierStatus.IN_REVIEW,
         DossierStatus.CANCELLED,
       ],
+      [DossierStatus.EDITING]: [DossierStatus.RESUBMITTED, DossierStatus.CANCELLED],
       [DossierStatus.APPROVED]: [
+        DossierStatus.EDITING,
         DossierStatus.COMPLETED,
         DossierStatus.LOCKED,
         DossierStatus.CANCELLED,

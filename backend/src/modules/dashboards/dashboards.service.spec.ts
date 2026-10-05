@@ -177,7 +177,6 @@ describe('DashboardsService', () => {
         getCount: jest.fn().mockResolvedValue(3),
       };
       dossierRepository.createQueryBuilder.mockReturnValue(mockDossierQB);
-
       const mockTaskQB = {
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
@@ -188,6 +187,41 @@ describe('DashboardsService', () => {
         getRawMany: jest.fn().mockResolvedValue([{ status: 'TODO', count: 4 }]),
       };
       taskRepository.createQueryBuilder.mockReturnValue(mockTaskQB);
+
+      const mockRevenueQB = {
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+      };
+      revenueLineRepository.createQueryBuilder.mockReturnValue(mockRevenueQB);
+
+      const mockCostQB = {
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        setParameters: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        addGroupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+      };
+      costLineRepository.createQueryBuilder.mockReturnValue(mockCostQB);
+
+      const mockEstimateQB = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+      estimateRepository.createQueryBuilder.mockReturnValue(mockEstimateQB);
       supplierRepository.count.mockResolvedValue(15);
 
       const result = await service.getOperatorDashboard('org-id', {

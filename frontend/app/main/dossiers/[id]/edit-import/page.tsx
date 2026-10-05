@@ -245,7 +245,13 @@ export default function EditImportDossierPage() {
         onCancel={() => router.push(`/main/dossiers/${dossierId}`)}
         onSaveDraft={() => saveMutation.mutate({ navigateBack: false })}
         onSaveAndSubmit={() => {
-          saveMutation.mutate({ navigateBack: true });
+          const shouldResubmit = ['APPROVED', 'EDITING'].includes(
+            dossier?.status || '',
+          );
+          saveMutation.mutate({
+            submitStatus: shouldResubmit ? EstimateStatus.SUBMITTED : undefined,
+            navigateBack: true,
+          });
         }}
       />
     </div>

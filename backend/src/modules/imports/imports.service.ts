@@ -33,6 +33,7 @@ import { QueryImportDto } from './dto/query-import.dto';
 import { UpdateImportRowDto } from './dto/update-import-row.dto';
 import {
   CustomerType,
+  DossierStatus,
   EstimateStatus,
   ImportSessionStatus,
 } from '../../common/enums';
@@ -308,7 +309,12 @@ export class ImportsService {
     return { message: 'Tiến trình kiểm duyệt đang được chạy lại dưới nền' };
   }
 
-  async confirm(organizationId: string, id: string, actorUserId?: string) {
+  async confirm(
+    organizationId: string,
+    id: string,
+    actorUserId?: string,
+    importedDossierStatus = DossierStatus.DRAFT,
+  ) {
     const session = await this.findOne(organizationId, id);
 
     // Reject if session contains error rows
@@ -423,6 +429,7 @@ export class ImportsService {
           ...dossierFields,
           code: generateImportedDossierCode(dossierFields.name),
           organizationId,
+          status: importedDossierStatus,
           customerId: resolvedCustomerId,
           ...(customerName ? { customerName } : {}),
           ...(businessLine ? { businessLineId: businessLine.id } : {}),
@@ -580,7 +587,12 @@ export class ImportsService {
               organizationId,
               dossierId: savedDossier.id,
               versionNo: 1,
-              status: EstimateStatus.DRAFT,
+              status:
+                importedDossierStatus === DossierStatus.IN_REVIEW
+                  ? EstimateStatus.IN_REVIEW
+                  : importedDossierStatus === DossierStatus.SUBMITTED
+                    ? EstimateStatus.SUBMITTED
+                    : EstimateStatus.DRAFT,
               sourceImportSessionId: id,
               currency: 'VND',
               createdBy: session.uploadedBy,
@@ -697,6 +709,12 @@ export class ImportsService {
     return {
       message: 'Nhập dữ liệu thành công',
       importedRowsCount: validRows.length,
+      ...(importedDossierStatus === DossierStatus.SUBMITTED
+        ? { sentToOperations: true }
+        : {}),
+      ...(importedDossierStatus === DossierStatus.IN_REVIEW
+        ? { underReview: true }
+        : {}),
     };
   }
 }

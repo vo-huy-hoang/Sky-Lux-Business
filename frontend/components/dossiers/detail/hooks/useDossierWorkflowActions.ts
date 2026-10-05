@@ -3,6 +3,7 @@ import {
   useApproveDossier,
   useRequestChangesDossier,
   useStartReviewDossier,
+  useReturnToOperationsDossier,
   useSubmitDossier,
   useResubmitDossier,
   useCompleteDossier,
@@ -12,12 +13,14 @@ import { useDossierUIStore } from '../stores/useDossierUIStore';
 
 export interface UseDossierWorkflowActionsProps {
   dossierId: string;
+  isCeoAdmin?: boolean;
   onClose?: () => void;
   refetchAll?: () => void;
 }
 
 export function useDossierWorkflowActions({
   dossierId,
+  isCeoAdmin = false,
   onClose,
   refetchAll,
 }: UseDossierWorkflowActionsProps) {
@@ -31,6 +34,7 @@ export function useDossierWorkflowActions({
   const approveMutation = useApproveDossier();
   const requestChangesMutation = useRequestChangesDossier();
   const startReviewMutation = useStartReviewDossier();
+  const returnToOperationsMutation = useReturnToOperationsDossier();
   const submitMutation = useSubmitDossier();
   const resubmitMutation = useResubmitDossier();
   const completeMutation = useCompleteDossier();
@@ -40,6 +44,7 @@ export function useDossierWorkflowActions({
     approveMutation.isPending ||
     requestChangesMutation.isPending ||
     startReviewMutation.isPending ||
+    returnToOperationsMutation.isPending ||
     submitMutation.isPending ||
     resubmitMutation.isPending ||
     completeMutation.isPending ||
@@ -65,7 +70,11 @@ export function useDossierWorkflowActions({
           dossierId,
           data: { note: actionNote },
         });
-        message.success('Đã gửi yêu cầu bổ sung cho Sales thành công!');
+        message.success(
+          isCeoAdmin
+            ? 'Đã gửi yêu cầu bổ sung cho Sales và Điều hành phụ trách.'
+            : 'Đã gửi yêu cầu bổ sung cho Sales thành công!',
+        );
       } else if (modalAction === 'LOCK') {
         await lockMutation.mutateAsync({
           dossierId,
@@ -100,6 +109,20 @@ export function useDossierWorkflowActions({
         err?.response?.data?.message ||
           err?.message ||
           'Không thể bắt đầu xem xét hồ sơ',
+      );
+    }
+  };
+
+  const handleReturnToOperations = async () => {
+    try {
+      await returnToOperationsMutation.mutateAsync({ dossierId });
+      message.success('Đã gửi hồ sơ về hàng chờ Điều hành.');
+      refetchAll?.();
+    } catch (err: any) {
+      message.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          'Không thể gửi hồ sơ về Điều hành',
       );
     }
   };
@@ -140,6 +163,7 @@ export function useDossierWorkflowActions({
     isActionLoading,
     handleExecuteModalAction,
     handleStartReview,
+    handleReturnToOperations,
     handleSubmit,
     handleResubmit,
   };

@@ -101,6 +101,10 @@ export function useNotificationsRealtime(options?: { enabled?: boolean }) {
               queryKey: queryKeys.notifications.unreadCount(),
             });
 
+            if (newNotif.type === 'TASK') {
+              queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+            }
+
             const dossierId = newNotif.metadata?.dossierId;
             if (dossierId) {
               queryClient.invalidateQueries({

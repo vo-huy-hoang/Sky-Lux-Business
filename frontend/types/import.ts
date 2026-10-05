@@ -98,3 +98,10 @@ export interface UploadImportInput {
 export interface UpdateImportRowInput {
   rawData: Record<string, any>;
 }
+
+export interface ConfirmImportResponse {
+  message: string;
+  importedRowsCount: number;
+  sentToOperations?: boolean;
+  underReview?: boolean;
+}

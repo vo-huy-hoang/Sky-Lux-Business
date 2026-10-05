@@ -88,6 +88,12 @@ export function useStartReviewDossier() {
   );
 }
 
+export function useReturnToOperationsDossier() {
+  return useWorkflowMutation(({ dossierId, data }) =>
+    workflowService.returnToOperations(dossierId, data),
+  );
+}
+
 /**
  * API-WORKFLOW-003: Yêu cầu Sales bổ sung hồ sơ
  */

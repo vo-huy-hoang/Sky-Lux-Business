@@ -40,6 +40,7 @@ import { queryKeys } from '@/lib/query-keys';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useRouter } from 'next/navigation';
 import { useDebounce } from '@/hooks/use-debounce';
+import { SupplierManagementContent } from '../suppliers/components/SupplierManagementContent';
 
 const { Title, Text } = Typography;
 
@@ -74,6 +75,7 @@ export default function CustomersPage() {
   const debouncedSearch = useDebounce(search, 350);
   const [customerType, setCustomerType] = useState<CustomerType | undefined>();
   const [status, setStatus] = useState<string | undefined>();
+  const [activeDirectoryTab, setActiveDirectoryTab] = useState<'customers' | 'suppliers'>('customers');
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: queryKeys.customers.list({
@@ -314,8 +316,8 @@ export default function CustomersPage() {
       {isCeoAdmin && (
         <Segmented
           block
-          value="customers"
-          onChange={(value) => value === 'suppliers' && router.push('/main/suppliers')}
+          value={activeDirectoryTab}
+          onChange={(value) => setActiveDirectoryTab(value as 'customers' | 'suppliers')}
           options={[{ label: 'Khách hàng', value: 'customers' }, { label: 'Nhà cung cấp', value: 'suppliers' }]}
           className="max-w-[420px]"
         />
@@ -329,6 +331,10 @@ export default function CustomersPage() {
         </div>
       </div>
 
+      {activeDirectoryTab === 'suppliers' && isCeoAdmin ? (
+        <SupplierManagementContent />
+      ) : (
+        <>
       <Row gutter={[16, 16]}>
         {metricCards.map((metric) => (
           <Col xs={24} sm={12} xl={6} key={metric.label}>
@@ -420,6 +426,8 @@ export default function CustomersPage() {
           }}
         />
       </Card>
+        </>
+      )}
     </div>
   );
 }

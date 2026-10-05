@@ -75,7 +75,9 @@ export const EstimateBottomActionBar: React.FC<
               onClick={onSaveAndSubmit}
               className="h-10 rounded-xl bg-[#063826] hover:bg-[#084D34] text-white font-semibold text-xs px-5 border-none shadow-md"
             >
-              Lưu thay đổi
+              {['APPROVED', 'EDITING'].includes(dossierStatus || '')
+                ? 'Gửi lại duyệt'
+                : 'Lưu thay đổi'}
             </Button>
           </>
         ) : (
@@ -96,7 +98,9 @@ export const EstimateBottomActionBar: React.FC<
               onClick={onSaveAndSubmit}
               className="h-10 rounded-xl bg-[#063826] hover:bg-[#084D34] text-white font-semibold text-xs px-5 border-none shadow-md"
             >
-              Lưu thay đổi
+              {['APPROVED', 'EDITING'].includes(dossierStatus || '')
+                ? 'Gửi lại duyệt'
+                : 'Lưu thay đổi'}
             </Button>
           </>
         )}

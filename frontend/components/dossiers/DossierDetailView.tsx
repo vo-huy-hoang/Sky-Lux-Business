@@ -63,6 +63,7 @@ export default function DossierDetailView({
   // Workflow Actions Hook (TanStack mutations & Zustand UI modal synchronization)
   const workflow = useDossierWorkflowActions({
     dossierId,
+    isCeoAdmin,
     onClose,
     refetchAll: () => {
       dossierQuery.refetch();
@@ -159,6 +160,7 @@ export default function DossierDetailView({
         isCeoAdmin={isCeoAdmin}
         isActionLoading={workflow.isActionLoading}
         onStartReview={workflow.handleStartReview}
+        onReturnToOperations={workflow.handleReturnToOperations}
         onSubmit={workflow.handleSubmit}
         onResubmit={workflow.handleResubmit}
         onOpenModal={(action) => workflow.setModalAction(action)}
@@ -167,6 +169,7 @@ export default function DossierDetailView({
       {/* 6. Modal xác nhận hành động duyệt / yêu cầu bổ sung */}
       <DossierActionModal
         isActionLoading={workflow.isActionLoading}
+        isCeoAdmin={isCeoAdmin}
         onConfirm={workflow.handleExecuteModalAction}
       />
     </div>

@@ -36,6 +36,7 @@ export interface AppRoute {
   requiredPermissions?: string[];
   allowedRoles?: string[];
   excludeRoles?: string[];
+  hideFromNavigationRoles?: string[];
   order: number;
 }
 
@@ -93,16 +94,10 @@ export const APP_ROUTES: AppRoute[] = [
     key: '/main/imports',
     path: '/main/imports',
     icon: React.createElement(FileExcelOutlined),
-    label: (ctx) =>
-      ctx.isOperator ? 'Kiểm tra dữ liệu nhập' : 'Import dự toán Excel',
-    title: (ctx) =>
-      ctx.isOperator ? 'Kiểm tra dữ liệu nhập' : 'Import dự toán Excel',
-    subtitle: (ctx) =>
-      ctx.isOperator
-        ? 'Rà soát dữ liệu dự toán được nhập từ file Excel'
-        : 'Tải lên và kiểm tra bảng tính dự toán chi phí',
+    label: 'Import dự toán Excel',
+    title: 'Import dự toán Excel',
+    subtitle: 'Tải lên và kiểm tra bảng tính dự toán chi phí',
     requiredPermissions: ['import.manage'],
-    excludeRoles: ['CEO_ADMIN'],
     order: 40,
   },
   {
@@ -114,6 +109,7 @@ export const APP_ROUTES: AppRoute[] = [
     subtitle: 'Tổng hợp hiệu suất và doanh số của đội ngũ kinh doanh',
     allowedRoles: ['OPERATOR', 'SUPER_ADMIN', 'CEO_ADMIN'],
     excludeRoles: ['CEO_ADMIN'],
+    hideFromNavigationRoles: ['OPERATOR'],
     order: 50,
   },
   {
@@ -124,6 +120,7 @@ export const APP_ROUTES: AppRoute[] = [
     title: 'Doanh thu & thống kê',
     subtitle: 'Phân tích doanh thu, lợi nhuận và cơ cấu hoạt động',
     allowedRoles: ['OPERATOR', 'SUPER_ADMIN', 'CEO_ADMIN'],
+    hideFromNavigationRoles: ['OPERATOR'],
     order: 60,
   },
   {
@@ -156,6 +153,7 @@ export const APP_ROUTES: AppRoute[] = [
     title: 'Nhà cung cấp',
     subtitle: 'Quản lý danh sách đối tác cung ứng dịch vụ (khách sạn, xe, vé, land tour)',
     requiredPermissions: ['supplier.manage'],
+    hideFromNavigationRoles: ['CEO_ADMIN', 'SUPER_ADMIN'],
     order: 85,
   },
   {

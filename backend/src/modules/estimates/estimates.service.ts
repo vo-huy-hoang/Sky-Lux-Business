@@ -14,7 +14,7 @@ import { UpdateEstimateDto } from './dto/update-estimate.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { DossiersService } from '../dossiers/dossiers.service';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
-import { EstimateStatus } from '../../common/enums';
+import { DossierStatus, EstimateStatus } from '../../common/enums';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
   AuditAction,
@@ -266,25 +266,41 @@ export class EstimatesService {
     const previousStatus = estimate.status;
     const previousValue = this.totalRevenue(estimate);
 
-    if (
-      estimate.status === EstimateStatus.APPROVED ||
-      estimate.status === EstimateStatus.SUPERSEDED
-    ) {
+    if (estimate.status === EstimateStatus.SUPERSEDED) {
       throw new BadRequestException(
-        'Bản báo giá đã được duyệt hoặc thay thế, không thể chỉnh sửa thông tin',
+        'Bản báo giá đã được thay thế, không thể chỉnh sửa thông tin',
       );
     }
 
     const { status, note, currency, revenueLines, costLines } =
       updateEstimateDto;
 
-    if (status && status !== estimate.status) {
-      this.validateStatusTransition(estimate.status, status);
-      estimate.status = status;
-      if (status === EstimateStatus.APPROVED) {
+    const requestedStatus = status ?? estimate.status;
+    const wasApproved = estimate.status === EstimateStatus.APPROVED;
+    if (
+      wasApproved &&
+      estimate.dossier?.status !== DossierStatus.APPROVED &&
+      estimate.dossier?.status !== DossierStatus.EDITING
+    ) {
+      throw new BadRequestException(
+        'Chỉ có thể sửa dự toán khi hồ sơ đang ở trạng thái Đã duyệt',
+      );
+    }
+    const nextStatus = wasApproved
+      ? requestedStatus === EstimateStatus.SUBMITTED
+        ? EstimateStatus.SUBMITTED
+        : EstimateStatus.EDITING
+      : requestedStatus;
+
+    if (nextStatus !== estimate.status) {
+      if (!(wasApproved && nextStatus === EstimateStatus.SUBMITTED)) {
+        this.validateStatusTransition(estimate.status, nextStatus);
+      }
+      estimate.status = nextStatus;
+      if (nextStatus === EstimateStatus.APPROVED) {
         estimate.approvedBy = user.id;
         estimate.approvedAt = new Date();
-      } else if (status === EstimateStatus.SUBMITTED) {
+      } else if (nextStatus === EstimateStatus.SUBMITTED) {
         estimate.submittedBy = user.id;
         estimate.submittedAt = new Date();
       }
@@ -379,6 +395,26 @@ export class EstimatesService {
     }
 
     const updatedEstimate = await this.estimateRepository.save(estimate);
+    const dossierStatus = estimate.dossier?.status;
+    if (wasApproved || dossierStatus === DossierStatus.EDITING) {
+      const targetDossierStatus =
+        updatedEstimate.status === EstimateStatus.SUBMITTED
+          ? DossierStatus.RESUBMITTED
+          : DossierStatus.EDITING;
+      if (
+        dossierStatus === DossierStatus.APPROVED &&
+        targetDossierStatus === DossierStatus.RESUBMITTED
+      ) {
+        await this.dossiersService.update(user, estimate.dossierId, {
+          status: DossierStatus.EDITING,
+        });
+      }
+      if (dossierStatus !== targetDossierStatus) {
+        await this.dossiersService.update(user, estimate.dossierId, {
+          status: targetDossierStatus,
+        });
+      }
+    }
     const afterData = this.auditSnapshot(updatedEstimate);
     await this.auditLogsService.record({
       organizationId,
@@ -470,7 +506,11 @@ export class EstimatesService {
         EstimateStatus.DRAFT,
         EstimateStatus.SUBMITTED,
       ],
-      [EstimateStatus.APPROVED]: [EstimateStatus.SUPERSEDED],
+      [EstimateStatus.EDITING]: [EstimateStatus.SUBMITTED],
+      [EstimateStatus.APPROVED]: [
+        EstimateStatus.SUPERSEDED,
+        EstimateStatus.EDITING,
+      ],
       [EstimateStatus.REJECTED]: [EstimateStatus.DRAFT],
       [EstimateStatus.SUPERSEDED]: [],
     };

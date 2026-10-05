@@ -1,6 +1,7 @@
 import { apiClient, RequestOptions } from '@/lib/api-client';
 import {
   ImportSession,
+  ConfirmImportResponse,
   PaginatedImportRowsResponse,
   PaginatedImportErrorsResponse,
   QueryImportParams,
@@ -77,7 +78,7 @@ export const importsService = {
    * API-IMPORT-007: Xác nhận nhập dữ liệu hợp lệ chính thức
    */
   confirm: (id: string) => {
-    return apiClient.post<any, { message: string; importedRowsCount: number }>(
+    return apiClient.post<any, ConfirmImportResponse>(
       `/imports/${id}/confirm`,
     );
   },

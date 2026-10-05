@@ -26,7 +26,9 @@ import { UploadImportDto } from './dto/upload-import.dto';
 import { QueryImportDto } from './dto/query-import.dto';
 import { UpdateImportRowDto } from './dto/update-import-row.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { DossierStatus } from '../../common/enums';
 
 @ApiTags('Imports')
 @ApiBearerAuth('JWT-auth')
@@ -152,10 +154,18 @@ export class ImportsController {
   })
   @ApiResponse({ status: 200, description: 'Đồng bộ dữ liệu thành công' })
   confirm(
-    @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser() user: CurrentUserPayload,
     @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser('id') actorUserId: string,
   ) {
-    return this.importsService.confirm(organizationId, id, actorUserId);
+    return this.importsService.confirm(
+      user.organizationId,
+      id,
+      user.id,
+      user.roles.includes('CEO_ADMIN')
+        ? DossierStatus.IN_REVIEW
+        : user.roles.includes('OPERATOR')
+          ? DossierStatus.SUBMITTED
+          : DossierStatus.DRAFT,
+    );
   }
 }
