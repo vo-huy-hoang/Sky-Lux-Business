@@ -107,8 +107,14 @@ export function useImportFlow() {
       // Show the result immediately after the API confirms the transaction.
       // The session status is refetched below so the success result card is
       // rendered instead of leaving the user on the preview screen.
+      const successMessage = res.sentToOperations
+        ? `Import thành công! Đã lưu và gửi ${importedRowsCount} hồ sơ đến Điều hành.`
+        : res.underReview
+          ? `Import thành công! Đã lưu ${importedRowsCount} hồ sơ và chuyển sang Đang xem xét.`
+          : `Import thành công! Đã lưu ${importedRowsCount} hồ sơ vào hệ thống.`;
+
       message.success({
-        content: `Import thành công! Đã lưu ${importedRowsCount} hồ sơ vào hệ thống.`,
+        content: successMessage,
         duration: 5,
       });
 

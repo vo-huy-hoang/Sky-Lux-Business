@@ -28,11 +28,13 @@ const { Title } = Typography;
 
 export default function TasksPage() {
   const hasRole = useAuthStore((state) => state.hasRole);
+  const currentUserId = useAuthStore((state) => state.user?.id);
   const isOperator = hasRole('OPERATOR');
   const isCeoAdmin = hasRole(['CEO_ADMIN', 'SUPER_ADMIN']);
+  const isPersonalTasks = !isOperator && !isCeoAdmin;
   const [ceoView, setCeoView] = useState<'CALENDAR' | 'BOARD'>('CALENDAR');
 
-  const [timeRange, setTimeRange] = useState<TimeRange>('TODAY');
+  const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 350);
   const [priority, setPriority] = useState<TaskPriority | undefined>();
@@ -40,13 +42,24 @@ export default function TasksPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createStatus, setCreateStatus] = useState<TaskStatus>('TODO');
 
+  const taskQuery = useMemo(
+    () => ({
+      page: 1,
+      limit: 100,
+      ...(isPersonalTasks && currentUserId
+        ? { assignedTo: currentUserId }
+        : {}),
+    }),
+    [currentUserId, isPersonalTasks],
+  );
+
   // Fetch tasks via Deep Hook (API-TASKS-001)
   const {
     tasks: allTasks,
     isLoading,
     isError,
     refetch,
-  } = useTasksList({ page: 1, limit: 100 });
+  } = useTasksList(taskQuery);
 
   // Fetch dossiers for association in create modal
   const { data: dossiersData } = useQuery({

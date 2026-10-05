@@ -46,9 +46,10 @@ export function DossierStepsCard({
                   : undefined,
             },
             {
-              title: 'Cần bổ sung',
+              title: dossierStatus === 'EDITING' ? 'Đang sửa' : 'Cần bổ sung',
               content:
                 dossierStatus === 'NEED_CHANGES' ||
+                dossierStatus === 'EDITING' ||
                 estimate?.status === EstimateStatus.NEED_CHANGES
                   ? 'Trạng thái hiện tại'
                   : undefined,

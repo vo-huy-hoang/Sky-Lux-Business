@@ -198,6 +198,11 @@ export class TasksService {
     this.recalculateTaskProgress(task);
 
     const savedTask = await this.taskRepository.save(task);
+    // Clear cached lists before emitting the assignment notification so the
+    // recipient's realtime refetch cannot read stale task data.
+    await this.redisService.delByPattern(
+      `skylux:tasks::api:tasks:org:${user.organizationId}:*`,
+    );
     if (
       this.notificationsService &&
       savedTask.assignedTo &&
@@ -217,9 +222,6 @@ export class TasksService {
         // Không để lỗi gửi thông báo làm gián đoạn việc lưu công việc
       }
     }
-    await this.redisService.delByPattern(
-      `skylux:tasks::api:tasks:org:${user.organizationId}:*`,
-    );
     return {
       data: this.toTaskResponseDto(savedTask),
       meta: {},
@@ -299,6 +301,13 @@ export class TasksService {
     this.recalculateTaskProgress(task);
 
     const savedTask = await this.taskRepository.save(task);
+    // Invalidate both list and detail caches before sending transfer events.
+    await this.redisService.delByPattern(
+      `skylux:tasks::api:tasks:org:${user.organizationId}:*`,
+    );
+    await this.redisService.delByPattern(
+      `skylux:tasks::api:tasks:id:${id}:org:${user.organizationId}:*`,
+    );
     if (
       this.notificationsService &&
       savedTask.assignedTo &&
@@ -319,12 +328,6 @@ export class TasksService {
         // Không để lỗi gửi thông báo làm gián đoạn việc cập nhật công việc
       }
     }
-    await this.redisService.delByPattern(
-      `skylux:tasks::api:tasks:org:${user.organizationId}:*`,
-    );
-    await this.redisService.delByPattern(
-      `skylux:tasks::api:tasks:id:${id}:org:${user.organizationId}:*`,
-    );
     return {
       data: this.toTaskResponseDto(savedTask),
       meta: {},

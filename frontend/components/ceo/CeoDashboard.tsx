@@ -15,12 +15,10 @@ import {
 } from 'antd';
 import {
   ArrowRightOutlined,
-  CheckCircleOutlined,
   ClockCircleOutlined,
   DollarOutlined,
   FolderOpenOutlined,
   LineChartOutlined,
-  TeamOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -36,10 +34,8 @@ import {
 import { Line } from 'react-chartjs-2';
 import { dossiersService } from '@/services/dossiers.service';
 import { estimatesService } from '@/services/estimates.service';
-import { usersService } from '@/services/users.service';
 import { EstimateItem, EstimateStatus } from '@/types/estimate';
 import { DossierItem } from '@/types/dossier';
-import { UserItem } from '@/types/user';
 import { CeoMonthlyTrendItem } from '@/types/dashboard';
 import { useCeoDashboard, useCeoMonthlyTrend, useOperatorSalesSummary } from '@/hooks/dashboards';
 import { useNotificationsQuery } from '@/hooks/useNotificationsRealtime';
@@ -67,8 +63,10 @@ ChartJS.register(
 const STATUS_META: Record<string, { label: string; className: string; color: string }> = {
   DRAFT: { label: 'Mới nhập', className: 'skylux-status-info', color: '#98A19D' },
   SUBMITTED: { label: 'Đã gửi', className: 'skylux-status-purple', color: '#7C59C8' },
+  RESUBMITTED: { label: 'Đã gửi lại', className: 'skylux-status-purple', color: '#7C59C8' },
   IN_REVIEW: { label: 'Đang xử lý', className: 'skylux-status-warning', color: '#E39A16' },
   NEED_CHANGES: { label: 'Cần bổ sung', className: 'skylux-status-purple', color: '#2E82C4' },
+  EDITING: { label: 'Đang sửa', className: 'skylux-status-warning', color: '#D48806' },
   APPROVED: { label: 'Đã duyệt', className: 'skylux-status-valid', color: '#0A8A61' },
   COMPLETED: { label: 'Hoàn thành', className: 'skylux-status-valid', color: '#0F3D2E' },
   CANCELLED: { label: 'Đã hủy', className: 'skylux-status-danger', color: '#DC3F46' },
@@ -155,11 +153,6 @@ export default function CeoDashboard() {
     queryFn: ({ signal }) => dossiersService.getDossiers({ page: 1, limit: 6 }, { signal }),
   });
 
-  const { data: userResponse, isLoading: isLoadingUsers } = useQuery<{ data: UserItem[] } | UserItem[]>({
-    queryKey: queryKeys.users.list({ page: 1, pageSize: 50 }),
-    queryFn: ({ signal }) => usersService.getUsers({ page: 1, pageSize: 50 }, { signal }),
-  });
-
   const { data: monthlyTrend = [], isLoading: isLoadingTrend } = useCeoMonthlyTrend(selectedYear);
   const { data: salesSummary = [], isLoading: isLoadingSales } = useOperatorSalesSummary();
   const { data: notificationsResponse, isLoading: isLoadingNotifications } = useNotificationsQuery({ page: 1, limit: 3 });
@@ -178,12 +171,6 @@ export default function CeoDashboard() {
     ),
   });
   const dossiers = dossierResponse?.data || [];
-  const users: UserItem[] = Array.isArray(userResponse)
-    ? userResponse
-    : userResponse?.data || [];
-  const activeSales = users.filter(
-    (user: UserItem) => user.status === 'ACTIVE' && user.roles?.some((role: { code: string }) => role.code === 'SALES'),
-  ).length;
   const funnel = overview?.funnel || [];
   const funnelMap = new Map<string, number>(funnel.map((item: { status: string; count: number }) => [item.status, item.count]));
   const totalDossiers = funnel.reduce((sum: number, item: { status: string; count: number }) => sum + item.count, 0);
@@ -354,23 +341,17 @@ export default function CeoDashboard() {
   return (
     <div className="ceo-dashboard space-y-4">
       <Row gutter={[12, 12]}>
-        <Col xs={24} sm={12} lg={8} xl={4}>
+        <Col xs={24} sm={12} lg={6}>
           <MetricCard label="Tổng doanh thu tháng" value={formatCurrency(overview?.totalRevenue)} hint="Dữ liệu dự toán đã duyệt" icon={<DollarOutlined />} loading={isLoadingOverview} />
         </Col>
-        <Col xs={24} sm={12} lg={8} xl={4}>
+        <Col xs={24} sm={12} lg={6}>
           <MetricCard label="Lợi nhuận tháng" value={formatCurrency(overview?.totalProfit)} hint="Theo lợi nhuận gộp trong hồ sơ" icon={<LineChartOutlined />} loading={isLoadingOverview} />
         </Col>
-        <Col xs={24} sm={12} lg={8} xl={4}>
+        <Col xs={24} sm={12} lg={6}>
           <MetricCard label="Hồ sơ toàn hệ thống" value={totalDossiers} hint="Tổng theo trạng thái" icon={<FolderOpenOutlined />} tone="blue" loading={isLoadingOverview} />
         </Col>
-        <Col xs={24} sm={12} lg={8} xl={4}>
+        <Col xs={24} sm={12} lg={6}>
           <MetricCard label="Hồ sơ chờ duyệt" value={pendingCount} hint="Đã gửi và đang xem xét" icon={<ClockCircleOutlined />} tone="gold" loading={isLoadingOverview} />
-        </Col>
-        <Col xs={24} sm={12} lg={8} xl={4}>
-          <MetricCard label="Thời gian đóng hồ sơ" value={`${overview?.avgDossierClosingDays || 0} ngày`} hint="Trung bình hồ sơ hoàn thành" icon={<CheckCircleOutlined />} tone="purple" loading={isLoadingOverview} />
-        </Col>
-        <Col xs={24} sm={12} lg={8} xl={4}>
-          <MetricCard label="Sales hoạt động" value={activeSales} hint="Tài khoản Sales đang hoạt động" icon={<TeamOutlined />} loading={isLoadingUsers} />
         </Col>
       </Row>
 
@@ -491,37 +472,33 @@ export default function CeoDashboard() {
                   {isLoadingApprovals ? <Skeleton active paragraph={{ rows: 5 }} /> : pendingApprovals.length ? pendingApprovals.map((item: EstimateItem) => (
                     <div
                       key={item.id}
-                      className="grid grid-cols-[82px_98px_minmax(0,1fr)_62px_95px_44px] items-center gap-2 text-xs"
+                      className="grid grid-cols-1 items-center gap-x-3 gap-y-2 text-xs sm:grid-cols-[minmax(0,1fr)_auto]"
                     >
-                      {/* Badge */}
-                      <span
-                        className={`px-1.5 py-0.5 rounded text-[10.5px] font-medium border text-center truncate ${item.status === EstimateStatus.IN_REVIEW ? 'bg-[#EBF5FB] text-[#2E82C4] border-[#D1E8F7]' : 'bg-[#FEF5E7] text-[#B7791F] border-[#FDE3B8]'}`}
-                      >
-                        {item.status === EstimateStatus.IN_REVIEW ? 'Đang xử lý' : 'Chờ duyệt'}
-                      </span>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span
+                          className={`w-[82px] shrink-0 px-1.5 py-0.5 rounded text-[10.5px] font-medium border text-center truncate ${item.status === EstimateStatus.IN_REVIEW ? 'bg-[#EBF5FB] text-[#2E82C4] border-[#D1E8F7]' : 'bg-[#FEF5E7] text-[#B7791F] border-[#FDE3B8]'}`}
+                        >
+                          {item.status === EstimateStatus.IN_REVIEW ? 'Đang xử lý' : 'Chờ duyệt'}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="max-w-[40%] shrink-0 truncate font-semibold text-slate-700 text-xs">
+                              {item.dossier?.code || item.dossierId.slice(0, 8)}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-slate-800 font-medium" title={item.dossier?.name || item.dossier?.route || 'Dự toán'}>
+                              {item.dossier?.name || item.dossier?.route || 'Dự toán'}
+                            </span>
+                          </div>
+                          <span className="mt-1 block text-[11px] text-slate-400">
+                            {formatDateTime(item.submittedAt || item.createdAt)}
+                          </span>
+                        </div>
+                      </div>
 
-                      {/* Code */}
-                      <span className="font-semibold text-slate-700 text-xs truncate">
-                        {item.dossier?.code || item.dossierId.slice(0, 8)}
-                      </span>
-
-                      {/* Title */}
-                      <span className="truncate text-slate-800 font-medium" title={item.dossier?.name || item.dossier?.route || 'Dự toán'}>
-                        {item.dossier?.name || item.dossier?.route || 'Dự toán'}
-                      </span>
-
-                      {/* Time */}
-                      <span className="text-[11px] text-slate-400 whitespace-nowrap text-right">
-                        {formatDateTime(item.submittedAt || item.createdAt)}
-                      </span>
-
-                      {/* Amount */}
-                      <span className="font-semibold text-slate-900 tabular-nums whitespace-nowrap text-right">
-                        {formatCurrency(item.totalRevenue)}
-                      </span>
-
-                      {/* Button */}
-                      <div className="text-right">
+                      <div className="flex items-center justify-end gap-3 pl-[90px] sm:pl-0">
+                        <span className="font-semibold text-slate-900 tabular-nums whitespace-nowrap">
+                          {formatCurrency(item.totalRevenue)}
+                        </span>
                         <Link href="/main/approvals">
                           <button
                             type="button"

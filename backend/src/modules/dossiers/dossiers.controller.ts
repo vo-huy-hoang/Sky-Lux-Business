@@ -139,6 +139,18 @@ export class DossiersController {
     return this.dossierWorkflowService.startReview(user, id, dto);
   }
 
+  @Post(':id/return-to-operations')
+  @RequirePermissions('dossier.update')
+  @Roles('CEO_ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Chuyển hồ sơ đang xem xét về hàng chờ Điều hành' })
+  returnToOperations(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: WorkflowActionDto,
+  ) {
+    return this.dossierWorkflowService.returnToOperations(user, id, dto);
+  }
+
   @Post(':id/request-changes')
   @RequirePermissions('dossier.update')
   @ApiOperation({ summary: 'Yêu cầu Sales bổ sung hồ sơ (API-WORKFLOW-003)' })

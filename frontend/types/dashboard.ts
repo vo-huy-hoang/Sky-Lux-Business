@@ -16,6 +16,19 @@ export interface OperatorDashboardData {
   overdueTasksCount: number;
   tasksBreakdown: { status: string; count: number }[];
   totalSuppliers: number;
+  revenueBreakdown: { marketTypeName: string; amount: number }[];
+  businessLineBreakdown: { businessLineName: string; amount: number }[];
+  supplierBreakdown: {
+    supplierId: string;
+    supplierCode: string;
+    supplierName: string;
+    amount: number;
+    grossAmount: number;
+    dossierCount: number;
+  }[];
+  totalProfit: number;
+  totalDossiersCount: number;
+  pendingApprovalsCount: number;
 }
 
 export interface CeoDashboardData {

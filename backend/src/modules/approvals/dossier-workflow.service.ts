@@ -35,6 +35,7 @@ import {
 type WorkflowAction =
   | 'SUBMIT'
   | 'START_REVIEW'
+  | 'RETURN_TO_OPERATIONS'
   | 'REQUEST_CHANGES'
   | 'RESUBMIT'
   | 'APPROVE'
@@ -64,6 +65,14 @@ export class DossierWorkflowService {
     dto: WorkflowActionDto,
   ) {
     return this.execute(user, dossierId, dto, 'START_REVIEW');
+  }
+
+  returnToOperations(
+    user: CurrentUserPayload,
+    dossierId: string,
+    dto: WorkflowActionDto,
+  ) {
+    return this.execute(user, dossierId, dto, 'RETURN_TO_OPERATIONS');
   }
 
   requestChanges(
@@ -403,13 +412,14 @@ export class DossierWorkflowService {
     const isAssignedOperator =
       user.roles.includes('OPERATOR') &&
       (!dossier.operatorUserId || dossier.operatorUserId === user.id);
-    const allowed = (['SUBMIT', 'RESUBMIT'] as WorkflowAction[]).includes(
-      action,
-    )
-      ? isSalesOwner
-      : action === 'LOCK'
+    const allowed =
+      action === 'RETURN_TO_OPERATIONS'
         ? false
-        : isAssignedOperator;
+        : (['SUBMIT', 'RESUBMIT'] as WorkflowAction[]).includes(action)
+          ? isSalesOwner
+          : action === 'LOCK'
+            ? false
+            : isAssignedOperator;
     if (!allowed)
       throw new ForbiddenException(
         'Vai trò hiện tại không có quyền thực hiện bước workflow này',
@@ -420,6 +430,7 @@ export class DossierWorkflowService {
     const expected: Record<WorkflowAction, DossierStatus[]> = {
       SUBMIT: [DossierStatus.DRAFT],
       START_REVIEW: [DossierStatus.SUBMITTED, DossierStatus.RESUBMITTED],
+      RETURN_TO_OPERATIONS: [DossierStatus.IN_REVIEW],
       REQUEST_CHANGES: [DossierStatus.IN_REVIEW],
       RESUBMIT: [DossierStatus.NEED_CHANGES],
       APPROVE: [DossierStatus.IN_REVIEW],
@@ -444,6 +455,7 @@ export class DossierWorkflowService {
     const statusByAction: Record<WorkflowAction, DossierStatus> = {
       SUBMIT: DossierStatus.SUBMITTED,
       START_REVIEW: DossierStatus.IN_REVIEW,
+      RETURN_TO_OPERATIONS: DossierStatus.SUBMITTED,
       REQUEST_CHANGES: DossierStatus.NEED_CHANGES,
       RESUBMIT: DossierStatus.RESUBMITTED,
       APPROVE: DossierStatus.APPROVED,
@@ -466,6 +478,7 @@ export class DossierWorkflowService {
     const statusByAction: Partial<Record<WorkflowAction, EstimateStatus>> = {
       SUBMIT: EstimateStatus.SUBMITTED,
       START_REVIEW: EstimateStatus.IN_REVIEW,
+      RETURN_TO_OPERATIONS: EstimateStatus.SUBMITTED,
       REQUEST_CHANGES: EstimateStatus.NEED_CHANGES,
       RESUBMIT: EstimateStatus.SUBMITTED,
       APPROVE: EstimateStatus.APPROVED,
@@ -494,19 +507,42 @@ export class DossierWorkflowService {
   ) {
     if (!estimate) return;
     const repository = manager.getRepository(ApprovalRequest);
-    if (action === 'SUBMIT' || action === 'RESUBMIT') {
-      await repository.save(
-        repository.create({
-          organizationId: user.organizationId,
-          dossierId: dossier.id,
-          estimateId: estimate.id,
-          stepNo: 1,
-          stepCode: 'OPERATOR_REVIEW',
-          reviewerUserId: dossier.operatorUserId,
-          status: ApprovalStatus.PENDING,
-          comment: note,
-        }),
-      );
+    if (
+      action === 'SUBMIT' ||
+      action === 'RESUBMIT' ||
+      action === 'RETURN_TO_OPERATIONS'
+    ) {
+      const pendingApproval =
+        action === 'RETURN_TO_OPERATIONS'
+          ? await repository.findOne({
+              where: {
+                dossierId: dossier.id,
+                estimateId: estimate.id,
+                organizationId: user.organizationId,
+                status: ApprovalStatus.PENDING,
+              },
+              order: { requestedAt: 'DESC' },
+            })
+          : null;
+
+      if (pendingApproval) {
+        pendingApproval.requestedAt = new Date();
+        pendingApproval.comment = note;
+        await repository.save(pendingApproval);
+      } else {
+        await repository.save(
+          repository.create({
+            organizationId: user.organizationId,
+            dossierId: dossier.id,
+            estimateId: estimate.id,
+            stepNo: 1,
+            stepCode: 'OPERATOR_REVIEW',
+            reviewerUserId: dossier.operatorUserId,
+            status: ApprovalStatus.PENDING,
+            comment: note,
+          }),
+        );
+      }
       return;
     }
     if (action !== 'REQUEST_CHANGES' && action !== 'APPROVE') return;
@@ -661,6 +697,21 @@ export class DossierWorkflowService {
       }
     }
 
+    if (action === 'RETURN_TO_OPERATIONS') {
+      const recipientId = dossier.operatorUserId;
+      if (recipientId && recipientId !== actor.id) {
+        await this.notificationsService.notify({
+          organizationId: actor.organizationId,
+          userId: recipientId,
+          title: `Hồ sơ ${dossier.code} đã được gửi lại Điều hành`,
+          content: `CEO/Admin đã chuyển hồ sơ "${dossierName}" về hàng chờ Điều hành.`,
+          type: 'DOSSIER',
+          linkUrl,
+          metadata: { dossierId: dossier.id, action },
+        });
+      }
+    }
+
     // 2. START_REVIEW: Operator begins review
     if (action === 'START_REVIEW') {
       const recipientId = dossier.salesUserId;
@@ -677,15 +728,24 @@ export class DossierWorkflowService {
       }
     }
 
-    // 3. REQUEST_CHANGES: Operator requests changes
+    // 3. REQUEST_CHANGES: notify the assigned Sales and Operator users.
     if (action === 'REQUEST_CHANGES') {
-      const recipientId = dossier.salesUserId;
-      if (recipientId && recipientId !== actor.id) {
+      const recipients = [
+        ...new Set([dossier.salesUserId, dossier.operatorUserId].filter(
+          (recipientId): recipientId is string =>
+            Boolean(recipientId && recipientId !== actor.id),
+        )),
+      ];
+      const requesterLabel = this.isAdmin(actor)
+        ? 'Ban điều hành'
+        : 'Điều hành viên';
+
+      for (const recipientId of recipients) {
         await this.notificationsService.notify({
           organizationId: actor.organizationId,
           userId: recipientId,
           title: `Hồ sơ ${dossier.code} yêu cầu điều chỉnh`,
-          content: `Điều hành viên ${actor.fullName || ''} yêu cầu chỉnh sửa: "${note || 'Vui lòng kiểm tra lại dự toán'}".`,
+          content: `${requesterLabel} ${actor.fullName || ''} yêu cầu chỉnh sửa: "${note || 'Vui lòng kiểm tra lại dự toán'}".`,
           type: 'DOSSIER',
           linkUrl,
           metadata: { dossierId: dossier.id, action, note, changeRequestId },

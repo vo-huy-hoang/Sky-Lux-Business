@@ -103,7 +103,7 @@ export default function TaskSidePanel({
                 showInfo={false}
                 size="small"
                 strokeColor="#007A55"
-                trailColor="#EEF2F1"
+                railColor="#EEF2F1"
                 className="mt-1"
               />
             </button>

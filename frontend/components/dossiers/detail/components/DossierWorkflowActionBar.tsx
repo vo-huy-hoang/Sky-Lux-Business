@@ -24,6 +24,7 @@ export interface DossierWorkflowActionBarProps {
   isCeoAdmin?: boolean;
   isActionLoading: boolean;
   onStartReview: () => void;
+  onReturnToOperations?: () => void;
   onSubmit: () => void;
   onResubmit: () => void;
   onOpenModal: (action: DossierWorkflowAction) => void;
@@ -38,6 +39,7 @@ export function DossierWorkflowActionBar({
   isCeoAdmin = false,
   isActionLoading,
   onStartReview,
+  onReturnToOperations,
   onSubmit,
   onResubmit,
   onOpenModal,
@@ -100,15 +102,28 @@ export function DossierWorkflowActionBar({
 
             {canOperate && dossierStatus === 'IN_REVIEW' && (
               <>
-                <Button
-                  size={isDrawer ? 'middle' : 'large'}
-                  icon={<MessageOutlined />}
-                  className="border-amber-500 text-amber-700 hover:border-amber-600 hover:text-amber-800"
-                  loading={isActionLoading}
-                  onClick={() => onOpenModal('REQUEST_CHANGES')}
-                >
-                  Yêu cầu bổ sung
-                </Button>
+                {isCeoAdmin && (
+                  <Button
+                    size={isDrawer ? 'middle' : 'large'}
+                    icon={<SendOutlined />}
+                    className="border-slate-300 text-slate-700 hover:text-slate-900"
+                    loading={isActionLoading}
+                    onClick={onReturnToOperations}
+                  >
+                    Gửi lại Điều hành
+                  </Button>
+                )}
+                {!isCeoAdmin && (
+                  <Button
+                    size={isDrawer ? 'middle' : 'large'}
+                    icon={<MessageOutlined />}
+                    className="border-amber-500 text-amber-700 hover:border-amber-600 hover:text-amber-800"
+                    loading={isActionLoading}
+                    onClick={() => onOpenModal('REQUEST_CHANGES')}
+                  >
+                    Yêu cầu bổ sung
+                  </Button>
+                )}
                 <Button
                   size={isDrawer ? 'middle' : 'large'}
                   type="primary"
@@ -120,6 +135,18 @@ export function DossierWorkflowActionBar({
                   Duyệt hồ sơ
                 </Button>
               </>
+            )}
+
+            {isCeoAdmin && dossierStatus === 'IN_REVIEW' && (
+              <Button
+                size={isDrawer ? 'middle' : 'large'}
+                icon={<MessageOutlined />}
+                className="border-amber-500 text-amber-700 hover:border-amber-600 hover:text-amber-800"
+                loading={isActionLoading}
+                onClick={() => onOpenModal('REQUEST_CHANGES')}
+              >
+                Yêu cầu bổ sung
+              </Button>
             )}
 
             {canOperate && dossierStatus === 'APPROVED' && (

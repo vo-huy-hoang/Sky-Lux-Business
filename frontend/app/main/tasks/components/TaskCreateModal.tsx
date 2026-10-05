@@ -1,18 +1,22 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { Alert, App, Form, Input, Modal, Select } from 'antd';
+import { Alert, App, Form, Input, Modal, Select, Spin } from 'antd';
 import { WarningOutlined } from '@ant-design/icons';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { tasksService } from '@/services/tasks.service';
 import { queryKeys } from '@/lib/query-keys';
 import { CreateTaskInput, TaskPriority, TaskStatus } from '@/types/task';
+import { usersService } from '@/services/users.service';
+import type { UserItem } from '@/types/user';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import { priorityMeta, statusMeta } from '../helpers';
 
 export interface CreateTaskFormValues {
   title: string;
   description?: string;
   priority: TaskPriority;
+  assignedTo?: string;
   dossierId?: string;
   dueAt?: string;
 }
@@ -38,6 +42,45 @@ export default function TaskCreateModal({
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [form] = Form.useForm<CreateTaskFormValues>();
+  const hasRole = useAuthStore((state) => state.hasRole);
+  const canAssignUsers = hasRole(['CEO_ADMIN', 'SUPER_ADMIN']);
+
+  const { data: usersData, isLoading: isLoadingUsers } = useQuery({
+    queryKey: queryKeys.users.list({ page: 1, pageSize: 100, status: 'ACTIVE' }),
+    queryFn: async () => {
+      const params = { pageSize: 100, status: 'ACTIVE' as const };
+      const firstPage = await usersService.getUsers({ ...params, page: 1 });
+      if (firstPage.meta.totalPages <= 1) return firstPage;
+
+      const remainingPages = await Promise.all(
+        Array.from({ length: firstPage.meta.totalPages - 1 }, (_, index) =>
+          usersService.getUsers({ ...params, page: index + 2 }),
+        ),
+      );
+      return {
+        ...firstPage,
+        data: [
+          ...firstPage.data,
+          ...remainingPages.flatMap((page) => page.data),
+        ],
+      };
+    },
+    enabled: open && canAssignUsers,
+  });
+
+  const assigneeOptions = (usersData?.data || [])
+    .filter((user: UserItem) =>
+      user.roles?.some((role) => ['SALES', 'OPERATOR'].includes(role.code)),
+    )
+    .map((user: UserItem) => {
+      const roleLabels = user.roles
+        ?.filter((role) => ['SALES', 'OPERATOR'].includes(role.code))
+        .map((role) => (role.code === 'SALES' ? 'Sales' : 'Điều hành'));
+      return {
+        value: user.id,
+        label: `${user.fullName} · ${roleLabels?.join(', ')}`,
+      };
+    });
 
   useEffect(() => {
     if (open) {
@@ -51,6 +94,7 @@ export default function TaskCreateModal({
         title: values.title.trim(),
         description: values.description?.trim() || undefined,
         priority: values.priority,
+        assignedTo: values.assignedTo || undefined,
         dossierId: values.dossierId || undefined,
         dueAt: values.dueAt ? new Date(values.dueAt).toISOString() : undefined,
       };
@@ -130,6 +174,18 @@ export default function TaskCreateModal({
             }))}
           />
         </Form.Item>
+        {canAssignUsers && (
+          <Form.Item name="assignedTo" label="Người phụ trách">
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="Chọn account Sales hoặc Điều hành"
+              notFoundContent={isLoadingUsers ? <Spin size="small" /> : undefined}
+              options={assigneeOptions}
+            />
+          </Form.Item>
+        )}
         {createStatus !== 'TODO' && (
           <Alert
             type="info"

@@ -39,7 +39,9 @@ const statusOptions = [
   { label: 'Tất cả', value: '' },
   { label: 'Mới nhập', value: 'DRAFT' },
   { label: 'Đã gửi', value: 'SUBMITTED' },
+  { label: 'Đã gửi lại', value: 'RESUBMITTED' },
   { label: 'Đang xử lý', value: 'IN_REVIEW' },
+  { label: 'Đang sửa', value: 'EDITING' },
   { label: 'Đã duyệt', value: 'APPROVED' },
   { label: 'Thành công', value: 'COMPLETED' },
   { label: 'Đã khóa', value: 'LOCKED' },
@@ -56,12 +58,14 @@ const priorityOptions = [
 const statusConfig: Record<string, { label: string; className: string }> = {
   DRAFT: { label: 'Mới nhập', className: 'skylux-status-info' },
   SUBMITTED: { label: 'Đã gửi', className: 'skylux-status-purple' },
+  RESUBMITTED: { label: 'Đã gửi lại', className: 'skylux-status-purple' },
   IN_REVIEW: { label: 'Đang xử lý', className: 'skylux-status-warning' },
   APPROVED: { label: 'Đã duyệt', className: 'skylux-status-valid' },
   COMPLETED: { label: 'Thành công', className: 'skylux-status-valid' },
   LOCKED: { label: 'Đã khóa', className: 'skylux-status-danger' },
   CANCELLED: { label: 'Đã hủy', className: 'skylux-status-danger' },
   NEED_CHANGES: { label: 'Cần bổ sung', className: 'skylux-status-purple' },
+  EDITING: { label: 'Đang sửa', className: 'skylux-status-warning' },
 };
 
 function formatDate(value?: string) {

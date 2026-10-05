@@ -75,8 +75,10 @@ export function MainSidebar({ userCtx }: MainSidebarProps) {
   );
 
   const menuItems: MenuProps['items'] = useMemo(() => {
-    const accessibleRoutes = getAccessibleRoutes(userCtx);
-    return accessibleRoutes.map((r) => ({
+    const navigationRoutes = getAccessibleRoutes(userCtx).filter(
+      (route) => !route.hideFromNavigationRoles?.some((role) => userCtx.roles?.includes(role)),
+    );
+    return navigationRoutes.map((r) => ({
       key: r.key,
       icon: r.icon,
       label: (

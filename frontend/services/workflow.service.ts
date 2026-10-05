@@ -32,6 +32,10 @@ export const workflowService = {
   startReview: (dossierId: string, data?: WorkflowActionInput) =>
     executeWorkflowAction(dossierId, 'start-review', data),
 
+  /** Return a dossier under review to the operator queue. */
+  returnToOperations: (dossierId: string, data?: WorkflowActionInput) =>
+    executeWorkflowAction(dossierId, 'return-to-operations', data),
+
   /**
    * API-WORKFLOW-003: Yêu cầu Sales bổ sung hồ sơ
    */
@@ -90,4 +94,3 @@ export const workflowService = {
     );
   },
 };
-

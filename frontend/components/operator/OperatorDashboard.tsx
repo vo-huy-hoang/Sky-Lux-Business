@@ -2,30 +2,19 @@
 
 import React, { useMemo } from 'react';
 import Link from 'next/link';
-import { Avatar, Button, Card, Empty, Skeleton, Table, Tag, Typography } from 'antd';
-import { Chart, Doughnut } from 'react-chartjs-2';
+import { Avatar, Card, Empty, Skeleton, Table, Tag, Typography } from 'antd';
 import {
   BarChartOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
   ExclamationCircleOutlined,
   FolderOpenOutlined,
+  LineChartOutlined,
   RightOutlined,
   ShopOutlined,
 } from '@ant-design/icons';
 
 import { useQuery } from '@tanstack/react-query';
-import {
-  ArcElement,
-  BarElement,
-  CategoryScale,
-  Chart as ChartJS,
-  Legend,
-  LineElement,
-  LinearScale,
-  PointElement,
-  Tooltip as ChartTooltip,
-} from 'chart.js';
 import {
   useOperatorDashboard,
   useOperatorMonthlyTrend,
@@ -35,11 +24,11 @@ import { useDossiersList } from '@/hooks/dossiers';
 import { tasksService } from '@/services/tasks.service';
 import { DossierItem } from '@/types/dossier';
 import { TaskItem } from '@/types/task';
-import { OperatorMonthlyTrendItem } from '@/types/dashboard';
 import { queryKeys } from '@/lib/query-keys';
 import { formatCurrency } from '@/lib/financial-calculations';
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, ChartTooltip, Legend);
+import { WidgetErrorBoundary } from '@/components/common/widget-error-boundary';
+import { RevenueBreakdownToggle, RevenueBreakdownMode } from '@/components/ceo/RevenueBreakdownToggle';
+import { getRevenueDonutSlices, RevenueDonutChart } from '@/components/ceo/RevenueDonutChart';
 
 const { Text } = Typography;
 
@@ -51,6 +40,8 @@ const statusMeta: Record<string, { label: string; color: string; className: stri
   COMPLETED: { label: 'Hoàn thành', color: '#075440', className: 'op-status-valid' },
   CANCELLED: { label: 'Đã hủy', color: '#D94A4A', className: 'op-status-danger' },
   NEED_CHANGES: { label: 'Cần bổ sung', color: '#FF7A45', className: 'op-status-warning' },
+  RESUBMITTED: { label: 'Đã gửi lại', color: '#2E82C4', className: 'op-status-neutral' },
+  EDITING: { label: 'Đang sửa', color: '#D48806', className: 'op-status-warning' },
 };
 
 function getStatus(status?: string) {
@@ -65,40 +56,50 @@ function formatMoney(value?: number) {
   return formatCurrency(value);
 }
 
-function formatCompactRevenue(value?: number | string) {
-  return formatCurrency(value, { compact: true, showSymbol: false });
+function formatTrm(value?: number) {
+  return formatCurrency(Math.round(Number(value || 0) / 1_000_000), { showSymbol: false });
 }
 
-function MetricCard({
+function SummaryMetricCard({
   label,
   value,
-  note,
   icon,
-  tone = 'green',
+  tone,
+  loading,
 }: {
   label: string;
   value: React.ReactNode;
-  note: string;
   icon: React.ReactNode;
-  tone?: 'green' | 'gold' | 'orange' | 'blue';
+  tone: 'green' | 'blue' | 'gold' | 'orange';
+  loading: boolean;
 }) {
+  const toneClasses = {
+    green: 'bg-[#E8F6ED] text-[#0A8A61] border-[#C8EBD5]',
+    blue: 'bg-[#E6F7FF] text-[#0958D9] border-[#BAE0FF]',
+    gold: 'bg-[#FFF2E8] text-[#D46B08] border-[#FFD8BF]',
+    orange: 'bg-[#FFF2E8] text-[#D46B08] border-[#FFD8BF]',
+  };
+
   return (
-    <Card className="op-card op-kpi-card">
-      <div className="flex items-center gap-4">
-        <span className={`op-metric-icon op-metric-${tone}`}>{icon}</span>
-        <div className="min-w-0">
-          <Text className="text-sm text-[var(--op-text-muted)]">{label}</Text>
-          <div className="mt-1 text-[28px] font-bold leading-none tabular-nums text-[var(--op-primary-900)]">
-            {value}
+    <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-2 xl:p-2.5 2xl:p-3.5 flex flex-col justify-between h-full min-w-0">
+      <div className="flex items-center gap-2 xl:gap-2.5 min-w-0">
+        <div className={`w-7 h-7 2xl:w-8 2xl:h-8 rounded-lg border flex items-center justify-center shrink-0 ${toneClasses[tone]} [&_.anticon]:text-sm`}>
+          {icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <span className="text-xs text-slate-500 font-medium leading-tight line-clamp-2">{label}</span>
+          <div className="text-[12px] 2xl:text-[15.5px] font-bold text-slate-900 tabular-nums leading-snug mt-0.5 whitespace-nowrap">
+            {loading ? <Skeleton.Input active size="small" /> : value}
           </div>
-          <Text className="mt-2 block text-xs text-[var(--op-text-muted)]">{note}</Text>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
 export default function OperatorDashboard() {
+  const [breakdownMode, setBreakdownMode] = React.useState<RevenueBreakdownMode>('MARKET_TYPE');
+
   // 1. Tiêu thụ 3 API Aggregations từ Backend (Siêu nhanh & có Cache)
   const { data: operatorData, isLoading: isLoadingOperator } = useOperatorDashboard();
   const { data: monthlyTrends = [], isLoading: isLoadingTrend } = useOperatorMonthlyTrend(6);
@@ -142,53 +143,35 @@ export default function OperatorDashboard() {
       .slice(0, 5);
   }, [salesSummary]);
 
-  // Biểu đồ Xu hướng doanh thu & Hồ sơ 6 tháng gần nhất
-  const chartData = useMemo(() => {
-    return {
-      labels: monthlyTrends.map((t: OperatorMonthlyTrendItem) => t.label || t.monthKey),
-      datasets: [
-        {
-          type: 'bar' as const,
-          label: 'Doanh thu (đ)',
-          data: monthlyTrends.map((t: OperatorMonthlyTrendItem) => t.totalRevenue),
-          backgroundColor: '#004230',
-          borderRadius: 6,
-          borderSkipped: false,
-          barThickness: 22,
-          yAxisID: 'revenue',
-        },
-        {
-          type: 'line' as const,
-          label: 'Hồ sơ đã duyệt',
-          data: monthlyTrends.map((t: OperatorMonthlyTrendItem) => t.approvedDossiers),
-          borderColor: '#D3A11B',
-          backgroundColor: '#D3A11B',
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          tension: 0.35,
-          borderWidth: 2.5,
-          yAxisID: 'dossiers',
-        },
-      ],
-    };
-  }, [monthlyTrends]);
-
-  // Biểu đồ Trạng thái công việc / Phân bố độ ưu tiên
-  const donutData = useMemo(() => {
-    const tasksBreakdown = operatorData?.tasksBreakdown || [];
-    return {
-      labels: tasksBreakdown.map((t: { status: string; count: number }) => t.status),
-      datasets: [
-        {
-          data: tasksBreakdown.map((t: { status: string; count: number }) => t.count),
-          backgroundColor: ['#D3A11B', '#3487C8', '#0B7A5B', '#D94A4A', '#8462C7'],
-          borderWidth: 2,
-          borderColor: '#FFFFFF',
-          hoverOffset: 4,
-        },
-      ],
-    };
-  }, [operatorData?.tasksBreakdown]);
+  const chartBreakdown = useMemo(
+    () => breakdownMode === 'MARKET_TYPE'
+      ? (operatorData?.revenueBreakdown || []).map((item) => ({ name: item.marketTypeName, amount: item.amount }))
+      : (operatorData?.businessLineBreakdown || []).map((item) => ({ name: item.businessLineName, amount: item.amount })),
+    [breakdownMode, operatorData?.businessLineBreakdown, operatorData?.revenueBreakdown],
+  );
+  const sortedChartBreakdown = useMemo(
+    () => [...chartBreakdown].sort((a, b) => Number(b.amount) - Number(a.amount)),
+    [chartBreakdown],
+  );
+  const chartBreakdownTotal = useMemo(
+    () => sortedChartBreakdown.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+    [sortedChartBreakdown],
+  );
+  const donutSlices = useMemo(
+    () => getRevenueDonutSlices(sortedChartBreakdown),
+    [sortedChartBreakdown],
+  );
+  const supplierRows = useMemo(
+    () => (operatorData?.supplierBreakdown || [])
+      .map((supplier) => ({ ...supplier, amount: Number(supplier.amount || 0) }))
+      .sort((a, b) => b.amount - a.amount),
+    [operatorData?.supplierBreakdown],
+  );
+  const supplierTotal = useMemo(
+    () => supplierRows.reduce((sum, supplier) => sum + supplier.amount, 0),
+    [supplierRows],
+  );
+  const highestSupplierAmount = supplierRows[0]?.amount || 0;
 
   const loading =
     isLoadingOperator ||
@@ -196,13 +179,6 @@ export default function OperatorDashboard() {
     isLoadingSales ||
     isLoadingDossiers ||
     isLoadingTasks;
-
-  const currentMonth = new Intl.DateTimeFormat('vi-VN', {
-    month: 'numeric',
-    year: 'numeric',
-  }).format(new Date());
-
-  const hasChartData = monthlyTrends.some((item: OperatorMonthlyTrendItem) => item.totalRevenue > 0 || item.totalDossiers > 0);
 
   const dossierColumns = [
     {
@@ -255,160 +231,60 @@ export default function OperatorDashboard() {
   return (
     <div className="op-page space-y-4">
       {/* 1. THẺ KPI TỔNG QUAN */}
-      <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
-        <MetricCard
-          label="Hồ sơ đang xử lý"
-          value={activeDossiers}
-          note="Tổng số hồ sơ đang vận hành"
-          icon={<FolderOpenOutlined />}
-        />
-        <MetricCard
-          label="Ưu tiên cao / Khẩn cấp"
-          value={priorityDossiers}
-          note="Cần xử lý gấp"
-          icon={<ExclamationCircleOutlined />}
-          tone="orange"
-        />
-        <MetricCard
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-7">
+        <SummaryMetricCard
           label="Doanh thu tháng này"
           value={formatMoney(totalMonthRevenue)}
-          note={`Doanh thu ghi nhận ${currentMonth}`}
           icon={<BarChartOutlined />}
           tone="gold"
+          loading={isLoadingTrend}
         />
-        <MetricCard
+        <SummaryMetricCard
+          label="Lợi nhuận tháng"
+          value={formatCurrency(operatorData?.totalProfit || 0)}
+          icon={<LineChartOutlined />}
+          tone="green"
+          loading={isLoadingOperator}
+        />
+        <SummaryMetricCard
+          label="Hồ sơ toàn hệ thống"
+          value={operatorData?.totalDossiersCount || 0}
+          icon={<FolderOpenOutlined />}
+          tone="blue"
+          loading={isLoadingOperator}
+        />
+        <SummaryMetricCard
+          label="Hồ sơ chờ duyệt"
+          value={operatorData?.pendingApprovalsCount || 0}
+          icon={<ClockCircleOutlined />}
+          tone="gold"
+          loading={isLoadingOperator}
+        />
+        <SummaryMetricCard
+          label="Hồ sơ đang xử lý"
+          value={activeDossiers}
+          icon={<FolderOpenOutlined />}
+          tone="green"
+          loading={isLoadingOperator}
+        />
+        <SummaryMetricCard
+          label="Ưu tiên cao / Khẩn cấp"
+          value={priorityDossiers}
+          icon={<ExclamationCircleOutlined />}
+          tone="orange"
+          loading={isLoadingOperator}
+        />
+        <SummaryMetricCard
           label="Nhà cung cấp đối tác"
           value={totalSuppliers}
-          note="Hệ thống đối tác cung ứng"
           icon={<ShopOutlined />}
           tone="blue"
+          loading={isLoadingOperator}
         />
       </section>
 
-      {/* 2. BIỂU ĐỒ & BẢNG XẾP HẠNG */}
-      <section className="grid gap-4 2xl:grid-cols-[1.35fr_1fr_1.05fr]">
-        <Card
-          className="op-card"
-          title={`Xu hướng Doanh thu & Hồ sơ (6 tháng gần nhất)`}
-          extra={
-            <Button size="small" type="dashed">
-              Theo tháng
-            </Button>
-          }
-        >
-          <div className="h-[306px]">
-            {loading ? (
-              <Skeleton active paragraph={{ rows: 8 }} />
-            ) : hasChartData ? (
-              <Chart
-                type="bar"
-                data={chartData}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  interaction: { mode: 'index', intersect: false },
-                  plugins: {
-                    legend: {
-                      position: 'top',
-                      align: 'start',
-                      labels: { usePointStyle: true, boxWidth: 8 },
-                    },
-                    tooltip: {
-                      callbacks: {
-                        label: (context) =>
-                          context.dataset.yAxisID === 'revenue'
-                            ? `${context.dataset.label}: ${formatCurrency(Number(context.parsed.y || 0))}`
-                            : `${context.dataset.label}: ${Number(context.parsed.y || 0)} hồ sơ`,
-                      },
-                    },
-                  },
-                  scales: {
-                    x: { grid: { display: false }, border: { display: false } },
-                    revenue: {
-                      beginAtZero: true,
-                      min: 0,
-                      suggestedMax: 10_000_000,
-                      position: 'left',
-                      grid: { color: '#EEF0EF' },
-                      border: { display: false },
-                      ticks: {
-                        callback: (value) => formatCompactRevenue(value),
-                      },
-                    },
-                    dossiers: {
-                      beginAtZero: true,
-                      min: 0,
-                      suggestedMax: 5,
-                      position: 'right',
-                      grid: { drawOnChartArea: false },
-                      border: { display: false },
-                      ticks: {
-                        precision: 0,
-                        callback: (value) => `${value}`,
-                      },
-                    },
-                  },
-                }}
-              />
-            ) : (
-              <Empty description="Chưa có dữ liệu doanh thu từ hệ thống" />
-            )}
-          </div>
-        </Card>
-
-        <Card className="op-card" title="Phân bổ Công việc Vận hành">
-          <div className="relative h-[210px]">
-            {loading ? (
-              <Skeleton active />
-            ) : (operatorData?.tasksBreakdown?.length || 0) > 0 ? (
-              <>
-                <Doughnut
-                  data={donutData}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    cutout: '68%',
-                    plugins: {
-                      legend: { display: false },
-                      tooltip: {
-                        callbacks: {
-                          label: (context) => `${context.label}: ${context.parsed} công việc`,
-                        },
-                      },
-                    },
-                  }}
-                />
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <Text className="text-xs text-[var(--op-text-muted)]">Tổng công việc</Text>
-                  <strong className="text-3xl tabular-nums text-[var(--op-primary-900)]">
-                    {operatorData?.tasksBreakdown?.reduce((sum: number, t: { status: string; count: number }) => sum + t.count, 0) || 0}
-                  </strong>
-                </div>
-              </>
-            ) : (
-              <Empty description="Chưa có dữ liệu công việc" />
-            )}
-          </div>
-          <div className="mt-3 space-y-2">
-            {operatorData?.tasksBreakdown?.map((task: { status: string; count: number }, idx: number) => (
-              <div key={task.status} className="flex items-center justify-between text-sm">
-                <span className="flex items-center gap-2">
-                  <i
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{
-                      backgroundColor: ['#D3A11B', '#3487C8', '#0B7A5B', '#D94A4A', '#8462C7'][
-                        idx % 5
-                      ],
-                    }}
-                  />
-                  {task.status}
-                </span>
-                <strong className="tabular-nums">{task.count}</strong>
-              </div>
-            ))}
-          </div>
-        </Card>
-
+      {/* 2. BẢNG XẾP HẠNG SALES */}
+      <section className="grid gap-4 xl:grid-cols-4">
         <Card
           className="op-card"
           title="Top Sales theo Hiệu suất"
@@ -446,10 +322,45 @@ export default function OperatorDashboard() {
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu Sales" />
           )}
         </Card>
-      </section>
 
-      {/* 3. BẢNG HỒ SƠ GẦN ĐÂY & NHẮC NHỞ */}
-      <section className="grid gap-4 2xl:grid-cols-[0.9fr_1.95fr_0.9fr]">
+        <WidgetErrorBoundary title="Cơ cấu doanh thu theo cách phân loại">
+          <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                <div className="text-[15px] font-bold text-slate-900">Cơ cấu doanh thu theo {breakdownMode === 'MARKET_TYPE' ? 'loại hình' : 'mảng'}</div>
+                <RevenueBreakdownToggle value={breakdownMode} onChange={setBreakdownMode} />
+              </div>
+
+              <div className="flex items-center justify-between gap-4 sm:gap-6 my-auto py-2">
+                {chartBreakdown.length ? (
+                  <RevenueDonutChart
+                    items={sortedChartBreakdown}
+                    total={chartBreakdownTotal}
+                    ariaLabel="Cơ cấu doanh thu theo cách phân loại"
+                    className="w-[132px] h-[132px] xl:w-[150px] xl:h-[150px] 2xl:w-[195px] 2xl:h-[195px]"
+                  />
+                ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu doanh thu" />}
+
+                <div className="flex-1 min-w-0 space-y-2 2xl:space-y-3">
+                  {donutSlices.slice(0, 5).map((slice) => (
+                    <div key={slice.name}>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: slice.color }} />
+                        <span className="text-[10px] 2xl:text-xs font-semibold text-slate-800 truncate" title={slice.name}>{slice.name}</span>
+                      </div>
+                      <div className="text-[9px] 2xl:text-[11px] text-slate-500 pl-4.5 font-medium tabular-nums">{formatCurrency(slice.amount)} ({Math.round(slice.percentage)}%)</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-500 pt-3 border-t border-slate-100 mt-2">
+              Tổng doanh thu: <span className="font-semibold text-slate-700 tabular-nums">{formatCurrency(chartBreakdownTotal)}</span>
+            </div>
+          </div>
+        </WidgetErrorBoundary>
+
         <Card
           className="op-card"
           title="Việc cần xử lý hôm nay"
@@ -497,27 +408,6 @@ export default function OperatorDashboard() {
           )}
         </Card>
 
-        <Card
-          className="op-card"
-          title="Hồ sơ gần đây"
-          extra={
-            <Link href="/main/dossiers">
-              Xem tất cả <RightOutlined />
-            </Link>
-          }
-        >
-          <Table
-            className="op-table"
-            size="small"
-            rowKey="id"
-            dataSource={recentDossiers}
-            columns={dossierColumns}
-            loading={loading}
-            pagination={false}
-            scroll={{ x: 920 }}
-          />
-        </Card>
-
         <Card className="op-card" title="Nhắc nhở vận hành">
           <div className="space-y-4">
             <div className="op-reminder">
@@ -549,6 +439,86 @@ export default function OperatorDashboard() {
             </div>
           </div>
         </Card>
+      </section>
+
+      {/* 3. BẢNG HỒ SƠ GẦN ĐÂY & NHẮC NHỞ */}
+      <section className="grid gap-4 xl:grid-cols-[1.95fr_1.3fr]">
+        <Card
+          className="op-card"
+          title="Hồ sơ gần đây"
+          extra={
+            <Link href="/main/dossiers">
+              Xem tất cả <RightOutlined />
+            </Link>
+          }
+        >
+          <Table
+            className="op-table"
+            size="small"
+            rowKey="id"
+            dataSource={recentDossiers}
+            columns={dossierColumns}
+            loading={loading}
+            pagination={false}
+            scroll={{ x: 920 }}
+          />
+        </Card>
+
+        <WidgetErrorBoundary title="Doanh thu Nhà cung cấp">
+          <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col h-full overflow-hidden">
+            <div className="p-4 border-b border-[#E5E8E6] flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-[#E8F6ED] text-[#0A8A61] border border-[#C8EBD5] flex items-center justify-center shrink-0"><ShopOutlined className="text-sm" /></div>
+                  <span className="text-[15px] font-bold text-slate-900">Doanh thu Nhà cung cấp</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1.5 ml-9">Xếp hạng theo chi phí thuần trong kỳ</p>
+              </div>
+              <span className="text-[11px] text-slate-400 whitespace-nowrap">Top {supplierRows.length} NCC</span>
+            </div>
+            <div className="p-4 flex-1">
+              {supplierRows.length > 0 ? (
+                <div className="space-y-4" role="list" aria-label="Doanh thu theo nhà cung cấp">
+                  {supplierRows.map((supplier, index) => {
+                    const share = supplierTotal > 0 ? (supplier.amount / supplierTotal) * 100 : 0;
+                    const width = highestSupplierAmount > 0 ? (supplier.amount / highestSupplierAmount) * 100 : 0;
+                    const barColor = index === 0 ? '#104E35' : index === 1 ? '#2F7D61' : '#A8CDBB';
+                    return (
+                      <div key={supplier.supplierId} role="listitem" className="group">
+                        <div className="flex items-center justify-between gap-3 mb-1.5">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="w-6 h-6 rounded-md bg-slate-50 border border-slate-100 text-[11px] font-bold text-slate-500 flex items-center justify-center shrink-0">{index + 1}</span>
+                            <div className="min-w-0">
+                              <div className="text-[13px] font-semibold text-slate-800 truncate">{supplier.supplierName}</div>
+                              <div className="text-[10px] text-slate-400 mt-0.5 truncate">{supplier.supplierCode} · {supplier.dossierCount} hồ sơ</div>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-[13px] font-bold text-slate-900 tabular-nums">{formatTrm(supplier.amount)} Tr</div>
+                            <div className="text-[10px] text-slate-400 tabular-nums">{share.toFixed(1)}%</div>
+                          </div>
+                        </div>
+                        <div className="h-2 rounded-full bg-slate-100 overflow-hidden" role="progressbar" aria-label={`${supplier.supplierName}: ${formatTrm(supplier.amount)} triệu đồng`} aria-valuenow={Math.round(width)} aria-valuemin={0} aria-valuemax={100}>
+                          <div className="h-full rounded-full transition-all duration-300 group-hover:brightness-95" style={{ width: `${width}%`, backgroundColor: barColor }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="h-full min-h-[170px] flex flex-col items-center justify-center text-center">
+                  <ShopOutlined className="text-2xl text-slate-300 mb-2" />
+                  <p className="text-sm text-slate-400">Chưa có dữ liệu nhà cung cấp trong kỳ</p>
+                </div>
+              )}
+            </div>
+            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-3">
+              <span className="text-[11px] text-slate-500">Tổng nhóm đang hiển thị</span>
+              <span className="text-sm font-bold text-[#0A8A61] tabular-nums">{formatTrm(supplierTotal)} Tr</span>
+            </div>
+          </div>
+        </WidgetErrorBoundary>
+
       </section>
     </div>
   );

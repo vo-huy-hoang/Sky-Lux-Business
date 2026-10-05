@@ -9,11 +9,13 @@ const { TextArea } = Input;
 
 export interface DossierActionModalProps {
   isActionLoading: boolean;
+  isCeoAdmin?: boolean;
   onConfirm: () => void;
 }
 
 export function DossierActionModal({
   isActionLoading,
+  isCeoAdmin = false,
   onConfirm,
 }: DossierActionModalProps) {
   const modalAction = useDossierUIStore((s) => s.modalAction);
@@ -22,11 +24,17 @@ export function DossierActionModal({
   const resetModal = useDossierUIStore((s) => s.resetModal);
 
   const config = modalAction ? WORKFLOW_ACTION_CONFIG[modalAction] : null;
+  const requestChangesForCeo =
+    isCeoAdmin && modalAction === 'REQUEST_CHANGES';
 
   return (
     <Modal
       open={modalAction !== null}
-      title={config?.title || 'Thao tác hồ sơ tour'}
+      title={
+        requestChangesForCeo
+          ? 'Yêu cầu Sales và Điều hành bổ sung hồ sơ tour'
+          : config?.title || 'Thao tác hồ sơ tour'
+      }
       okText={config?.okText || 'Xác nhận'}
       cancelText="Hủy bỏ"
       okButtonProps={{
@@ -38,7 +46,9 @@ export function DossierActionModal({
     >
       <div className="space-y-3 py-2">
         <p className="text-sm text-slate-600">
-          {config?.description}
+          {requestChangesForCeo
+            ? 'Yêu cầu này sẽ được gửi đồng thời đến Sales và Điều hành đang phụ trách hồ sơ.'
+            : config?.description}
         </p>
         <TextArea
           rows={4}

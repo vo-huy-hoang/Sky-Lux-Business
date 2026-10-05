@@ -141,19 +141,25 @@ export class DashboardsService {
       queryDto.date,
     );
 
-    const cacheKey = `dashboard:operator:${organizationId}:${periodType}:${queryDto.date || 'current'}`;
+    const cacheKey = `dashboard:operator:v4:${organizationId}:${periodType}:${queryDto.date || 'current'}`;
     if (this.redisService) {
       const cached = await this.redisService.get(cacheKey);
       if (cached) return cached;
     }
 
-    // Parallel DB queries: active dossiers + priority breakdown + overdue tasks + task breakdown + total suppliers
+    // Parallel DB queries: operator metrics and approved revenue breakdowns
     const [
       activeDossiersCount,
       priorityBreakdown,
       overdueTasksCount,
       tasksBreakdown,
       totalSuppliers,
+      revenueBreakdown,
+      supplierBreakdown,
+      businessLineBreakdown,
+      totalDossiersCount,
+      pendingApprovalsCount,
+      approvedEstimates,
     ] = await Promise.all([
       this.dossierRepository
         .createQueryBuilder('dossier')
@@ -198,7 +204,117 @@ export class DashboardsService {
       this.supplierRepository.count({
         where: { organizationId },
       }),
+      this.revenueLineRepository
+        .createQueryBuilder('line')
+        .select(
+          "COALESCE(NULLIF(dossier.market_type_name, ''), 'Chưa phân loại')",
+          'marketTypeName',
+        )
+        .addSelect('SUM(line.netAmount)', 'amount')
+        .innerJoin('line.estimate', 'estimate')
+        .innerJoin('estimate.dossier', 'dossier')
+        .where('dossier.organizationId = :organizationId', { organizationId })
+        .andWhere('estimate.status = :status', {
+          status: EstimateStatus.APPROVED,
+        })
+        .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
+          start: new Date(periodStart + 'T00:00:00Z'),
+          end: new Date(periodEnd + 'T23:59:59Z'),
+        })
+        .groupBy(
+          "COALESCE(NULLIF(dossier.market_type_name, ''), 'Chưa phân loại')",
+        )
+        .orderBy('amount', 'DESC')
+        .getRawMany(),
+      this.costLineRepository
+        .createQueryBuilder('line')
+        .select('supplier.id', 'supplierId')
+        .addSelect('supplier.code', 'supplierCode')
+        .addSelect('supplier.name', 'supplierName')
+        .addSelect(
+          `COALESCE(SUM(CASE
+            WHEN dossier.status = :lockedDossierStatus
+             AND dossier.locked_at BETWEEN :lockedStart AND :lockedEnd
+            THEN line.net_amount
+            ELSE 0
+          END), 0)`,
+          'amount',
+        )
+        .addSelect(
+          `COALESCE(SUM(CASE
+            WHEN dossier.status = :lockedDossierStatus
+             AND dossier.locked_at BETWEEN :lockedStart AND :lockedEnd
+            THEN line.gross_amount
+            ELSE 0
+          END), 0)`,
+          'grossAmount',
+        )
+        .addSelect('COUNT(DISTINCT dossier.id)', 'dossierCount')
+        .innerJoin('line.estimate', 'estimate')
+        .innerJoin('estimate.dossier', 'dossier')
+        .innerJoin('line.supplier', 'supplier')
+        .where('dossier.organizationId = :organizationId', { organizationId })
+        .andWhere('line.organizationId = :organizationId', { organizationId })
+        .setParameters({
+          lockedDossierStatus: DossierStatus.LOCKED,
+          lockedStart: new Date(periodStart + 'T00:00:00Z'),
+          lockedEnd: new Date(periodEnd + 'T23:59:59Z'),
+        })
+        .groupBy('supplier.id')
+        .addGroupBy('supplier.code')
+        .addGroupBy('supplier.name')
+        .orderBy('amount', 'DESC')
+        .limit(6)
+        .getRawMany(),
+      this.revenueLineRepository
+        .createQueryBuilder('line')
+        .select(
+          "COALESCE(NULLIF(dossier.business_line_name, ''), 'Chưa phân loại')",
+          'businessLineName',
+        )
+        .addSelect('SUM(line.netAmount)', 'amount')
+        .innerJoin('line.estimate', 'estimate')
+        .innerJoin('estimate.dossier', 'dossier')
+        .where('dossier.organizationId = :organizationId', { organizationId })
+        .andWhere('estimate.status = :status', {
+          status: EstimateStatus.APPROVED,
+        })
+        .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
+          start: new Date(periodStart + 'T00:00:00Z'),
+          end: new Date(periodEnd + 'T23:59:59Z'),
+        })
+        .groupBy(
+          "COALESCE(NULLIF(dossier.business_line_name, ''), 'Chưa phân loại')",
+        )
+        .orderBy('amount', 'DESC')
+        .getRawMany(),
+      this.dossierRepository.count({ where: { organizationId } }),
+      this.dossierRepository.count({
+        where: {
+          organizationId,
+          status: In([DossierStatus.SUBMITTED, DossierStatus.IN_REVIEW]),
+        },
+      }),
+      this.estimateRepository
+        .createQueryBuilder('estimate')
+        .innerJoin('estimate.dossier', 'dossier')
+        .where('dossier.organizationId = :organizationId', { organizationId })
+        .andWhere('estimate.status = :status', {
+          status: EstimateStatus.APPROVED,
+        })
+        .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
+          start: new Date(periodStart + 'T00:00:00Z'),
+          end: new Date(periodEnd + 'T23:59:59Z'),
+        })
+        .getMany(),
     ]);
+
+    const totalProfit = approvedEstimates.length
+      ? await this.calculateGrossProfitForEstimates(
+          approvedEstimates.map((estimate) => estimate.id),
+          organizationId,
+        )
+      : 0;
 
     const result = {
       activeDossiersCount,
@@ -212,6 +328,25 @@ export class DashboardsService {
         count: Number(t.count),
       })),
       totalSuppliers,
+      totalDossiersCount,
+      pendingApprovalsCount,
+      totalProfit,
+      revenueBreakdown: revenueBreakdown.map((row) => ({
+        marketTypeName: row.marketTypeName,
+        amount: Number(row.amount || 0),
+      })),
+      businessLineBreakdown: businessLineBreakdown.map((row) => ({
+        businessLineName: row.businessLineName,
+        amount: Number(row.amount || 0),
+      })),
+      supplierBreakdown: supplierBreakdown.map((row) => ({
+        supplierId: row.supplierId,
+        supplierCode: row.supplierCode,
+        supplierName: row.supplierName,
+        amount: Number(row.amount || 0),
+        grossAmount: Number(row.grossAmount || 0),
+        dossierCount: Number(row.dossierCount || 0),
+      })),
     };
 
     if (this.redisService) {
