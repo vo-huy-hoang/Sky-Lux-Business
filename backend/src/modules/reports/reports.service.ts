@@ -643,10 +643,14 @@ export class ReportsService {
 
   private applyDateFilter(qb: SelectQueryBuilder<any>, query: ReportQueryDto) {
     if (query.periodStart && query.periodEnd) {
-      qb.andWhere(
-        'DATE(dossier.lockedAt) BETWEEN :periodStart AND :periodEnd',
-        { periodStart: query.periodStart, periodEnd: query.periodEnd },
-      );
+      const startTimestamp = `${query.periodStart} 00:00:00`;
+      const endTimestamp = `${query.periodEnd} 23:59:59.999`;
+
+      qb.andWhere('dossier.lockedAt IS NOT NULL')
+        .andWhere(
+          'dossier.lockedAt >= :periodStart AND dossier.lockedAt <= :periodEnd',
+          { periodStart: startTimestamp, periodEnd: endTimestamp },
+        );
     }
   }
 
