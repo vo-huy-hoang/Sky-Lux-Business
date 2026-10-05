@@ -15,6 +15,10 @@ import {
   isCustomerBudgetWorkbook,
   parseCustomerBudgetWorkbook,
 } from '../customer-budget.parser';
+import {
+  CustomerIdentity,
+  CustomerIdentityIndex,
+} from './customer-identity-index';
 
 function sanitizeCellValue(value: any): string {
   if (value === null || value === undefined) return '';
@@ -23,113 +27,6 @@ function sanitizeCellValue(value: any): string {
     return `'${str}`;
   }
   return str;
-}
-
-type CustomerIdentity = Pick<
-  Customer,
-  'id' | 'displayName' | 'phone' | 'email'
->;
-
-function normalizeCustomerPhone(value?: string | null): string {
-  return String(value ?? '').replace(/\D/g, '');
-}
-
-function normalizeCustomerEmail(value?: string | null): string {
-  return String(value ?? '')
-    .trim()
-    .toLowerCase();
-}
-
-function normalizeCustomerName(value?: string | null): string {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/gi, 'd')
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase();
-}
-
-function customerIdentityConflict(
-  customers: CustomerIdentity[],
-  phone: string,
-  email: string,
-  name: string,
-): string | null {
-  const normalizedPhone = normalizeCustomerPhone(phone);
-  const normalizedEmail = normalizeCustomerEmail(email);
-  if (!normalizedPhone && !normalizedEmail) return null;
-
-  const phoneMatches = normalizedPhone
-    ? customers.filter(
-        (customer) =>
-          normalizeCustomerPhone(customer.phone) === normalizedPhone,
-      )
-    : [];
-  const emailMatches = normalizedEmail
-    ? customers.filter(
-        (customer) =>
-          normalizeCustomerEmail(customer.email) === normalizedEmail,
-      )
-    : [];
-  const phoneIds = new Set(phoneMatches.map((customer) => customer.id));
-  const emailIds = new Set(emailMatches.map((customer) => customer.id));
-  const matchedIds = new Set([...phoneIds, ...emailIds]);
-
-  if (!matchedIds.size) return null;
-
-  const exactPairMatch =
-    normalizedPhone &&
-    normalizedEmail &&
-    phoneIds.size === 1 &&
-    emailIds.size === 1 &&
-    [...phoneIds][0] === [...emailIds][0];
-
-  if (exactPairMatch) {
-    const matchedCustomer = phoneMatches[0];
-    if (
-      normalizeCustomerName(matchedCustomer.displayName) ===
-      normalizeCustomerName(name)
-    ) {
-      return null;
-    }
-
-    return `Cảnh báo xung đột khách hàng: số điện thoại và email khớp khách hàng "${matchedCustomer.displayName}" nhưng tên trong file là "${name}". Không tự động gộp hồ sơ; hãy kiểm tra và chọn lại dữ liệu.`;
-  }
-
-  const matchedCustomers = customers.filter((customer) =>
-    matchedIds.has(customer.id),
-  );
-  const names = matchedCustomers
-    .map((customer) => customer.displayName || customer.id)
-    .filter(Boolean)
-    .map((name) => `"${name}"`)
-    .join(', ');
-
-  if (phoneMatches.length && emailMatches.length) {
-    return `Cảnh báo xung đột khách hàng: số điện thoại và email đang thuộc các khách hàng khác nhau (${names}). Không tự động gộp hồ sơ; hãy kiểm tra và chọn lại dữ liệu.`;
-  }
-
-  const matchedField = phoneMatches.length ? 'số điện thoại' : 'email';
-  return `Cảnh báo khách hàng: ${matchedField} đã thuộc khách hàng ${names || 'khác'}, nhưng thông tin còn lại không khớp. Không tự động gộp hồ sơ; hãy kiểm tra và chọn lại dữ liệu.`;
-}
-
-function hasExactCustomerIdentity(
-  customers: CustomerIdentity[],
-  phone: string,
-  email: string,
-): boolean {
-  const normalizedPhone = normalizeCustomerPhone(phone);
-  const normalizedEmail = normalizeCustomerEmail(email);
-  return Boolean(
-    normalizedPhone &&
-    normalizedEmail &&
-    customers.some(
-      (customer) =>
-        normalizeCustomerPhone(customer.phone) === normalizedPhone &&
-        normalizeCustomerEmail(customer.email) === normalizedEmail,
-    ),
-  );
 }
 
 @Processor('import-queue')
@@ -259,6 +156,7 @@ export class ImportProcessor extends WorkerHost {
           order: { createdAt: 'ASC' },
         })
       : [];
+    const identityIndex = new CustomerIdentityIndex(identityCandidates);
 
     let validRowsCount = 0;
     let errorRowsCount = 0;
@@ -314,12 +212,7 @@ export class ImportProcessor extends WorkerHost {
           : data['Ngày sinh nhật'] || data['Ngày sinh'] || '',
       ).trim();
       const identityConflict = isCustomerBudget
-        ? customerIdentityConflict(
-            identityCandidates,
-            phone,
-            email,
-            customerName,
-          )
+        ? identityIndex.checkConflict(phone, email, customerName)
         : null;
       if (identityConflict) errors.push(identityConflict);
       if (!name) {
@@ -426,9 +319,9 @@ export class ImportProcessor extends WorkerHost {
         if (
           isCustomerBudget &&
           (phone || email) &&
-          !hasExactCustomerIdentity(identityCandidates, phone, email)
+          !identityIndex.hasExactIdentity(phone, email)
         ) {
-          identityCandidates.push({
+          identityIndex.addCandidate({
             id: `import-${row.id}`,
             displayName: customerName,
             phone,

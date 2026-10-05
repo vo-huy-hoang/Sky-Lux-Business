@@ -187,4 +187,46 @@ describe('ReportsService', () => {
       expect(qbMock.orderBy).toHaveBeenCalled();
     });
   });
+
+  describe('Sargable Locked Date Filtering (No Fallback)', () => {
+    it('applies sargable range comparison without wrapping column in DATE()', () => {
+      const andWhereMock = jest.fn().mockReturnThis();
+      const qbMock: any = {
+        andWhere: andWhereMock,
+      };
+
+      const query: any = {
+        periodStart: '2026-01-01',
+        periodEnd: '2026-01-31',
+      };
+
+      (service as any).applyDateFilter(qbMock, query);
+
+      expect(andWhereMock).toHaveBeenCalledWith('dossier.lockedAt IS NOT NULL');
+      expect(andWhereMock).toHaveBeenCalledWith(
+        'dossier.lockedAt >= :periodStart AND dossier.lockedAt <= :periodEnd',
+        {
+          periodStart: '2026-01-01 00:00:00',
+          periodEnd: '2026-01-31 23:59:59.999',
+        },
+      );
+
+      // Verify no non-sargable DATE() function wrap and NO COALESCE fallback
+      const calls = andWhereMock.mock.calls.map((c) => c[0]);
+      for (const callArg of calls) {
+        expect(callArg).not.toContain('DATE(dossier.lockedAt)');
+        expect(callArg).not.toContain('COALESCE');
+      }
+    });
+
+    it('skips applying date filter when period boundaries are missing', () => {
+      const andWhereMock = jest.fn().mockReturnThis();
+      const qbMock: any = {
+        andWhere: andWhereMock,
+      };
+
+      (service as any).applyDateFilter(qbMock, {} as any);
+      expect(andWhereMock).not.toHaveBeenCalled();
+    });
+  });
 });
