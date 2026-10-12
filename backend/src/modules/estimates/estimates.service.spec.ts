@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { EstimatesService } from './estimates.service';
 import { Estimate } from './entities/estimate.entity';
 import { EstimateRevenueLine } from './entities/estimate-revenue-line.entity';
@@ -20,6 +20,8 @@ describe('EstimatesService', () => {
   let revenueLineRepository: jest.Mocked<Repository<EstimateRevenueLine>>;
   let costLineRepository: jest.Mocked<Repository<EstimateCostLine>>;
   let dossiersService: jest.Mocked<DossiersService>;
+  let dataSource: jest.Mocked<DataSource>;
+  let mockTransactionalEntityManager: any;
 
   const mockUserPayload = {
     id: 'user-uuid',
@@ -53,6 +55,22 @@ describe('EstimatesService', () => {
   };
 
   beforeEach(async () => {
+    mockTransactionalEntityManager = {
+      getRepository: jest.fn((entity: any) => {
+        if (entity === EstimateRevenueLine) return revenueLineRepository;
+        if (entity === EstimateCostLine) return costLineRepository;
+        return estimateRepository;
+      }),
+      delete: jest.fn(),
+      save: jest.fn((entity: any) => estimateRepository.save(entity)),
+    };
+
+    const mockDataSource = {
+      transaction: jest.fn(async (cb: any) =>
+        cb(mockTransactionalEntityManager),
+      ),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EstimatesService,
@@ -95,7 +113,10 @@ describe('EstimatesService', () => {
             delete: jest.fn(),
           },
         },
-
+        {
+          provide: DataSource,
+          useValue: mockDataSource,
+        },
         {
           provide: DossiersService,
           useValue: mockDossiersService,
@@ -112,6 +133,7 @@ describe('EstimatesService', () => {
     revenueLineRepository = module.get(getRepositoryToken(EstimateRevenueLine));
     costLineRepository = module.get(getRepositoryToken(EstimateCostLine));
     dossiersService = module.get(DossiersService);
+    dataSource = module.get(DataSource);
   });
 
   afterEach(() => {
@@ -310,6 +332,7 @@ describe('EstimatesService', () => {
         updateDto,
       );
 
+      expect(dataSource.transaction).toHaveBeenCalled();
       expect(revenueLineRepository.delete).toHaveBeenCalledWith(['rev-line-1']);
       expect(estimateRepository.save).toHaveBeenCalled();
       expect(result.status).toEqual(EstimateStatus.SUBMITTED);
@@ -319,6 +342,26 @@ describe('EstimatesService', () => {
       expect(revenueLineRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({ estimateId: 'est-uuid' }),
       );
+    });
+
+    it('should execute inside database transaction and propagate errors on rollback', async () => {
+      const activeEstimate = {
+        ...mockEstimate,
+        status: EstimateStatus.DRAFT,
+        revenueLines: [],
+        costLines: [],
+      } as unknown as Estimate;
+
+      estimateRepository.findOne.mockResolvedValue(activeEstimate);
+      estimateRepository.save.mockRejectedValue(
+        new Error('Database disk write error'),
+      );
+
+      await expect(
+        service.update(mockUserPayload, 'est-uuid', { note: 'Crash test' }),
+      ).rejects.toThrow('Database disk write error');
+
+      expect(dataSource.transaction).toHaveBeenCalled();
     });
 
     it('should attach newly added cost lines to the estimate before saving', async () => {

@@ -15,7 +15,7 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m' # No Color
 
-TOTAL_STAGES=5
+TOTAL_STAGES=6
 CURRENT_STAGE=0
 
 stage_header() {
@@ -232,6 +232,29 @@ if [ -f "docker-compose.prod.yml" ]; then
 else
     step_warn "Chưa tìm thấy file docker-compose.prod.yml tại $PROJECT_DIR."
     step_info "GitHub Actions CD sẽ tự động copy file này lên máy chủ khi bạn push commit lên branch 'main'."
+fi
+
+# ------------------------------------------------------------------------------
+# STAGE 6: AUTOMATED NIGHTLY CRONTAB BACKUP SETUP
+# ------------------------------------------------------------------------------
+stage_header "Thiết lập Lịch Tự động Sao lưu CSDL (Crontab)"
+
+CRON_FILE="/etc/cron.d/skylux-backup"
+step_info "Kiểm tra cấu hình cron job sao lưu định kỳ lúc 02:00 sáng..."
+
+if confirm "Bạn có muốn kích hoạt lịch tự động sao lưu CSDL hàng ngày lúc 02:00 sáng?"; then
+    cat << 'EOF' > "$CRON_FILE"
+# ==============================================================================
+# Sky-Lux CRM — Daily Automated Database Backup & Retention Schedule
+# Chạy mỗi ngày lúc 02:00 sáng, tự động nén và đồng bộ Cloudflare R2 / S3
+# ==============================================================================
+0 2 * * * root /bin/bash /opt/skylux/infra/scripts/backup-db.sh >> /var/log/skylux-backup.log 2>&1
+EOF
+    chmod 0644 "$CRON_FILE" 2>/dev/null || true
+    step_success "Đã tạo cấu hình cron job tự động tại $CRON_FILE."
+    step_info "Nhật ký sao lưu hàng đêm sẽ được lưu tại: /var/log/skylux-backup.log"
+else
+    step_info "Bỏ qua thiết lập cron job tự động (bạn có thể cấu hình sau thủ công)."
 fi
 
 echo -e "\n${BOLD}${GREEN}================================================================${NC}"

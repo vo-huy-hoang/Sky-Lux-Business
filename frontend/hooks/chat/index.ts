@@ -35,4 +35,4 @@ export {
 } from './use-chat-realtime';
 export type { UseChatRealtimeOptions } from './use-chat-realtime';
 
-export { calculateBackoffWithJitter } from '@/lib/backoff';
+export { calculateBackoffWithJitter, calculateSseBackoffWithJitter } from '@/lib/backoff';

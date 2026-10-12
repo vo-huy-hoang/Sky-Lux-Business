@@ -18,6 +18,7 @@ import {
 import { MainSidebar } from '@/components/layout/MainSidebar';
 import { MainHeader } from '@/components/layout/MainHeader';
 import { NotificationDrawer } from '@/components/layout/NotificationDrawer';
+import { RealtimeConnectionIndicator } from '@/components/common/RealtimeConnectionIndicator';
 
 const { Content } = Layout;
 
@@ -159,6 +160,7 @@ export default function MainLayout({
         </Content>
 
         <NotificationDrawer />
+        <RealtimeConnectionIndicator />
       </Layout>
     </Layout>
   );

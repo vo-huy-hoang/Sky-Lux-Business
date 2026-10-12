@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Estimate } from './entities/estimate.entity';
 import { EstimateRevenueLine } from './entities/estimate-revenue-line.entity';
 import { EstimateCostLine } from './entities/estimate-cost-line.entity';
@@ -65,6 +65,7 @@ export class EstimatesService {
     private readonly costLineRepository: Repository<EstimateCostLine>,
     private readonly dossiersService: DossiersService,
     private readonly auditLogsService: AuditLogsService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async findAll(
@@ -309,92 +310,109 @@ export class EstimatesService {
     if (note !== undefined) estimate.note = note;
     if (currency !== undefined) estimate.currency = currency;
 
-    // Sync revenue lines
-    if (revenueLines) {
-      const inputIds = revenueLines
-        .map((l) => l.id)
-        .filter(Boolean) as string[];
-      const existingIds = estimate.revenueLines.map((l) => l.id);
+    // Wrap line sync and estimate save in an atomic database transaction
+    const updatedEstimate = await this.dataSource.transaction(
+      async (manager) => {
+        const revRepo = manager.getRepository(EstimateRevenueLine);
+        const costRepo = manager.getRepository(EstimateCostLine);
+        const estRepo = manager.getRepository(Estimate);
 
-      // Remove lines not in input
-      const idsToDelete = existingIds.filter((eid) => !inputIds.includes(eid));
-      if (idsToDelete.length > 0) {
-        await this.revenueLineRepository.delete(idsToDelete);
-      }
+        // Sync revenue lines
+        if (revenueLines) {
+          const inputIds = revenueLines
+            .map((l) => l.id)
+            .filter(Boolean) as string[];
+          const existingIds = estimate.revenueLines.map((l) => l.id);
 
-      // Update or create input lines
-      estimate.revenueLines = revenueLines.map((line) => {
-        const netAmount = calculateLineNetAmount(line);
-        const grossAmount = calculateLineGrossAmount(line);
-
-        if (line.id) {
-          const existing = estimate.revenueLines.find(
-            (el) => el.id === line.id,
+          // Remove lines not in input
+          const idsToDelete = existingIds.filter(
+            (eid) => !inputIds.includes(eid),
           );
-          return Object.assign(existing || new EstimateRevenueLine(), {
-            ...line,
-            netAmount,
-            grossAmount,
-          });
-        } else {
-          return this.revenueLineRepository.create({
-            ...line,
-            organizationId,
-            estimateId: id,
-            netAmount,
-            grossAmount,
-          });
-        }
-      });
-    }
+          if (idsToDelete.length > 0) {
+            await revRepo.delete(idsToDelete);
+          }
 
-    // Sync cost lines
-    if (costLines) {
-      const inputIds = costLines.map((l) => l.id).filter(Boolean) as string[];
-      const existingIds = estimate.costLines.map((l) => l.id);
+          // Update or create input lines
+          estimate.revenueLines = revenueLines.map((line) => {
+            const netAmount = calculateLineNetAmount(line);
+            const grossAmount = calculateLineGrossAmount(line);
 
-      // Remove lines not in input
-      const idsToDelete = existingIds.filter((eid) => !inputIds.includes(eid));
-      if (idsToDelete.length > 0) {
-        await this.costLineRepository.delete(idsToDelete);
-      }
-
-      // Update or create input lines
-      estimate.costLines = costLines.map((line) => {
-        const netAmount = calculateLineNetAmount(line);
-        const grossAmount = calculateLineGrossAmount(line);
-
-        if (line.id) {
-          const existing = estimate.costLines.find((el) => el.id === line.id);
-          const sourceAmount =
-            line.sourceAmount === null
-              ? null
-              : (line.sourceAmount ?? existing?.sourceAmount ?? null);
-          const note =
-            sourceAmount === null
-              ? removeSourceAmountNote(line.note ?? existing?.note)
-              : line.note;
-          return Object.assign(existing || new EstimateCostLine(), {
-            ...line,
-            sourceAmount,
-            note,
-            netAmount,
-            grossAmount,
-          });
-        } else {
-          return this.costLineRepository.create({
-            ...line,
-            organizationId,
-            estimateId: id,
-            sourceAmount: line.sourceAmount ?? null,
-            netAmount,
-            grossAmount,
+            if (line.id) {
+              const existing = estimate.revenueLines.find(
+                (el) => el.id === line.id,
+              );
+              return Object.assign(existing || new EstimateRevenueLine(), {
+                ...line,
+                netAmount,
+                grossAmount,
+              });
+            } else {
+              return revRepo.create({
+                ...line,
+                organizationId,
+                estimateId: id,
+                netAmount,
+                grossAmount,
+              });
+            }
           });
         }
-      });
-    }
 
-    const updatedEstimate = await this.estimateRepository.save(estimate);
+        // Sync cost lines
+        if (costLines) {
+          const inputIds = costLines
+            .map((l) => l.id)
+            .filter(Boolean) as string[];
+          const existingIds = estimate.costLines.map((l) => l.id);
+
+          // Remove lines not in input
+          const idsToDelete = existingIds.filter(
+            (eid) => !inputIds.includes(eid),
+          );
+          if (idsToDelete.length > 0) {
+            await costRepo.delete(idsToDelete);
+          }
+
+          // Update or create input lines
+          estimate.costLines = costLines.map((line) => {
+            const netAmount = calculateLineNetAmount(line);
+            const grossAmount = calculateLineGrossAmount(line);
+
+            if (line.id) {
+              const existing = estimate.costLines.find(
+                (el) => el.id === line.id,
+              );
+              const sourceAmount =
+                line.sourceAmount === null
+                  ? null
+                  : (line.sourceAmount ?? existing?.sourceAmount ?? null);
+              const note =
+                sourceAmount === null
+                  ? removeSourceAmountNote(line.note ?? existing?.note)
+                  : line.note;
+              return Object.assign(existing || new EstimateCostLine(), {
+                ...line,
+                sourceAmount,
+                note,
+                netAmount,
+                grossAmount,
+              });
+            } else {
+              return costRepo.create({
+                ...line,
+                organizationId,
+                estimateId: id,
+                sourceAmount: line.sourceAmount ?? null,
+                netAmount,
+                grossAmount,
+              });
+            }
+          });
+        }
+
+        return await estRepo.save(estimate);
+      },
+    );
     const dossierStatus = estimate.dossier?.status;
     if (wasApproved || dossierStatus === DossierStatus.EDITING) {
       const targetDossierStatus =

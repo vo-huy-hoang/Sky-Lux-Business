@@ -1,43 +1,99 @@
 #!/bin/bash
+# ==============================================================================
+# Sky-Lux CRM - Production Deployment Script with Automated Backup & Rollback
+# ==============================================================================
 
 set -e
 
-PROJECT_DIR="/opt/skylux"
-
+PROJECT_DIR="${PROJECT_DIR:-/opt/skylux}"
 COMPOSE_FILE="docker-compose.prod.yml"
 
-echo "================================="
-echo "Starting Skylux deployment"
-echo "================================="
+echo "=========================================================="
+echo "         🚀 STARTING SKY-LUX CRM DEPLOYMENT               "
+echo "=========================================================="
 
-cd $PROJECT_DIR
+cd "$PROJECT_DIR"
 
-echo "Pull latest Docker images"
+# 1. Capture current running version for rollback safety
+PREVIOUS_APP_VERSION=$(grep '^APP_VERSION=' .env 2>/dev/null | cut -d '=' -f2 || true)
+if [ -n "$PREVIOUS_APP_VERSION" ]; then
+  echo "Current version in production: $PREVIOUS_APP_VERSION"
+  touch .env.previous
+  sed -i '/^APP_VERSION=/d' .env.previous 2>/dev/null || true
+  echo "APP_VERSION=$PREVIOUS_APP_VERSION" >> .env.previous
+fi
 
-docker compose \
-  -f $COMPOSE_FILE \
-  pull
+# 2. Check for SSL certificates before proceeding
+echo "Verifying SSL certificates..."
+CERT_DIR="/opt/skylux/infra/nginx/certs"
+if [ ! -f "${CERT_DIR}/origin.pem" ] || [ ! -f "${CERT_DIR}/origin-key.pem" ]; then
+  echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
+  echo "✖ ERROR: SSL Certificates are missing on the VPS!"
+  echo "Expected files: "
+  echo "  - ${CERT_DIR}/origin.pem"
+  echo "  - ${CERT_DIR}/origin-key.pem"
+  echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
+  exit 1
+fi
+echo "✔ SSL certificates verified."
 
-echo "Running database migration"
+# 3. Pull latest Docker images
+echo "Pulling latest Docker images..."
+docker compose -f "$COMPOSE_FILE" pull
 
-docker compose \
-  -f $COMPOSE_FILE \
-  run \
-  --rm backend \
-  npm run migration:run:prod
+# 4. PRE-MIGRATION BACKUP GATE: Create database snapshot before any schema changes
+echo "=========================================================="
+echo "Creating pre-deployment database backup snapshot..."
+echo "=========================================================="
+BACKUP_PREFIX="skylux_pre_deploy" bash infra/scripts/backup-db.sh
 
-echo "Restarting application"
+# 5. Run database migrations safely
+echo "Running database migrations..."
+if ! docker compose -f "$COMPOSE_FILE" run --rm backend npm run migration:run:prod; then
+  echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
+  echo "✖ ERROR: Database migration failed! Aborting deployment."
+  echo "Database is safe. The snapshot was taken before this step."
+  echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
+  exit 1
+fi
+echo "✔ Database migrations completed successfully."
 
-docker compose \
-  -f $COMPOSE_FILE \
-  up \
-  -d \
-  --remove-orphans
+# 6. Restart application services
+echo "Restarting application containers..."
+docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
 
-echo "Cleaning unused images"
+# 7. Post-deployment health verification & auto-rollback gate
+echo "Verifying service health status..."
+HEALTHY=0
+for i in $(seq 1 12); do
+  if docker compose -f "$COMPOSE_FILE" exec -T nginx wget -qO- http://backend:3001/api/health >/dev/null 2>&1; then
+    HEALTHY=1
+    break
+  fi
+  echo "Waiting for services to become healthy ($i/12, sleep 5s)..."
+  sleep 5
+done
 
+if [ "$HEALTHY" -ne 1 ]; then
+  echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
+  echo "✖ ERROR: Service health check failed after 60 seconds!"
+  if [ -n "$PREVIOUS_APP_VERSION" ]; then
+    echo "Initiating automatic rollback to previous version: ${PREVIOUS_APP_VERSION}..."
+    bash infra/scripts/rollback.sh "$PREVIOUS_APP_VERSION"
+  fi
+  echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
+  exit 1
+fi
+echo "✔ Services verified healthy and responding to HTTP requests."
+
+# 8. Reload Nginx configuration
+echo "Reloading Nginx proxy configuration..."
+docker compose -f "$COMPOSE_FILE" exec -T nginx nginx -s reload || true
+
+# 9. Cleanup unused images
+echo "Cleaning up dangling images..."
 docker image prune -f
 
-echo "================================="
-echo "Deployment completed"
-echo "================================="
+echo "=========================================================="
+echo "✔ DEPLOYMENT COMPLETED SUCCESSFULLY                       "
+echo "=========================================================="

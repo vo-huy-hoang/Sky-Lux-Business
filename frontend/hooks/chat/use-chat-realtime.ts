@@ -6,7 +6,7 @@ import { useAuthStore } from '@/lib/stores/auth-store';
 import { useChatUIStore, TypingUser } from '@/lib/stores/chat-ui-store';
 import { apiClient, API_BASE_URL } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
-import { calculateBackoffWithJitter } from '@/lib/backoff';
+import { calculateBackoffWithJitter, calculateSseBackoffWithJitter } from '@/lib/backoff';
 import { appendMessageToCache, removeMessageFromCache } from './cache-reducers';
 import {
   Message,
@@ -128,7 +128,13 @@ export const useChatRealtime = (
         setReconnectAttempt(0);
         setChatStatus('connected');
         setConnectionStatus('connected');
+        // Invalidate và đồng bộ hóa (sync delta) danh sách hội thoại và tin nhắn của hội thoại đang mở
         queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
+        if (activeConversationIdRef.current) {
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.chat.messages(activeConversationIdRef.current),
+          });
+        }
       };
 
       eventSource.onmessage = (event) => {
@@ -243,13 +249,13 @@ export const useChatRealtime = (
         eventSource.close();
         eventSourceRef.current = null;
 
-        // Full Jitter Exponential Backoff
+        // Exponential Backoff với Jitter (Phase 4: 1s, 2s, 4s... max 15s)
         const nextAttempt = attemptRef.current + 1;
         attemptRef.current = nextAttempt;
         setReconnectAttempt(nextAttempt);
 
-        // Giới hạn tối đa 5 lần thử lại tự động: dừng vòng lặp và chuyển sang chế độ chờ nút bấm thủ công
-        if (nextAttempt > 5) {
+        // Giới hạn tối đa 10 lần thử lại tự động trước khi chuyển sang chờ bấm thủ công
+        if (nextAttempt > 10) {
           setChatStatus('reconnect_failed');
           setConnectionStatus('reconnect_failed');
           return;
@@ -263,7 +269,7 @@ export const useChatRealtime = (
           return;
         }
 
-        const delay = calculateBackoffWithJitter(nextAttempt);
+        const delay = calculateSseBackoffWithJitter(nextAttempt);
 
         if (retryTimerRef.current) {
           clearTimeout(retryTimerRef.current);
