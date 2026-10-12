@@ -1,9 +1,9 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class GrantImportManageToCeoAdmin1787939000020
+export class GrantImportManageToCeoAdmin1787939000023
   implements MigrationInterface
 {
-  name = 'GrantImportManageToCeoAdmin1787939000020';
+  name = 'GrantImportManageToCeoAdmin1787939000023';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`

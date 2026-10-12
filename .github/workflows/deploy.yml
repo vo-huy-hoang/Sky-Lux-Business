@@ -152,6 +152,15 @@ jobs:
             export APP_VERSION=${{ github.sha }}
             export REGISTRY_OWNER=${{ steps.image_owner.outputs.owner }}
 
+            # Capture current running version for rollback safety
+            PREVIOUS_APP_VERSION=$(grep '^APP_VERSION=' .env 2>/dev/null | cut -d '=' -f2 || true)
+            if [ -n "$PREVIOUS_APP_VERSION" ]; then
+              echo "Saving previous version: $PREVIOUS_APP_VERSION"
+              touch .env.previous
+              sed -i '/^APP_VERSION=/d' .env.previous 2>/dev/null || true
+              echo "APP_VERSION=$PREVIOUS_APP_VERSION" >> .env.previous
+            fi
+
             # Persist variables in .env for manual docker compose operations
             touch .env
             sed -i '/^APP_VERSION=/d' .env
@@ -165,11 +174,42 @@ jobs:
             echo "Pull latest images"
             docker compose -f docker-compose.prod.yml pull
 
+            echo "Creating pre-deployment database backup snapshot..."
+            BACKUP_PREFIX="skylux_pre_deploy_${APP_VERSION:0:8}" bash infra/scripts/backup-db.sh
+
             echo "Run database migration"
-            docker compose -f docker-compose.prod.yml run --rm backend npm run migration:run:prod
+            if ! docker compose -f docker-compose.prod.yml run --rm backend npm run migration:run:prod; then
+              echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
+              echo "ERROR: Database migration failed! Aborting deployment."
+              echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
+              exit 1
+            fi
 
             echo "Restart services"
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            echo "Verifying service health status..."
+            HEALTHY=0
+            for i in $(seq 1 12); do
+              if docker compose -f docker-compose.prod.yml exec -T nginx wget -qO- http://backend:3001/api/health >/dev/null 2>&1; then
+                HEALTHY=1
+                break
+              fi
+              echo "Waiting for services to become healthy ($i/12, sleep 5s)..."
+              sleep 5
+            done
+
+            if [ "$HEALTHY" -ne 1 ]; then
+              echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
+              echo "ERROR: Service health check failed after 60 seconds!"
+              if [ -n "$PREVIOUS_APP_VERSION" ]; then
+                echo "Initiating automatic rollback to previous version: ${PREVIOUS_APP_VERSION}..."
+                bash infra/scripts/rollback.sh "$PREVIOUS_APP_VERSION"
+              fi
+              echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
+              exit 1
+            fi
+            echo "Services verified healthy and responding to HTTP requests."
 
             echo "Reload Nginx configuration"
             docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload || true

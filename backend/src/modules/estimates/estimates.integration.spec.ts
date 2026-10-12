@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { EstimatesController } from './estimates.controller';
 import { EstimatesService } from './estimates.service';
@@ -78,6 +78,32 @@ describe('Estimates Module (Integration)', () => {
           useValue: {
             create: jest.fn((dto) => dto),
             delete: jest.fn(),
+          },
+        },
+        {
+          provide: DataSource,
+          useValue: {
+            transaction: jest.fn(async (cb: any) =>
+              cb({
+                getRepository: jest.fn((entity: any) => {
+                  if (entity === EstimateRevenueLine) {
+                    return {
+                      create: jest.fn((dto) => dto),
+                      delete: jest.fn(),
+                    };
+                  }
+                  if (entity === EstimateCostLine) {
+                    return {
+                      create: jest.fn((dto) => dto),
+                      delete: jest.fn(),
+                    };
+                  }
+                  return estimateRepository;
+                }),
+                save: jest.fn((entity: any) => estimateRepository.save(entity)),
+                delete: jest.fn(),
+              }),
+            ),
           },
         },
         {

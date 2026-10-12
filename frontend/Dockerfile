@@ -43,7 +43,14 @@ COPY --from=builder \
 
 COPY --from=builder \
  --chown=nextjs:nodejs \
+ /app/.next/static ./static-dist
+
+COPY --from=builder \
+ --chown=nextjs:nodejs \
  /app/.next/static ./.next/static
+
+COPY --chown=nextjs:nodejs scripts/docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
 
 
 USER nextjs
@@ -54,5 +61,6 @@ ENV PORT=3000
 
 ENV HOSTNAME="0.0.0.0"
 
+ENTRYPOINT ["./docker-entrypoint.sh"]
 
 CMD ["node","server.js"]

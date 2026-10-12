@@ -12,6 +12,13 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
+  // Enable graceful shutdown hooks for clean database and worker teardown
+  app.enableShutdownHooks();
+
+  process.on('SIGTERM', () => {
+    logger.warn('🛑 SIGTERM received: Draining in-flight requests and closing connections...');
+  });
+
   // Security
   app.use(helmet());
   const corsOrigins = (

@@ -10,7 +10,7 @@ import { useNotificationStore } from '@/lib/stores/notification-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { NotificationItem, NotificationQuery } from '@/types/notification';
-import { calculateBackoffWithJitter } from '@/lib/backoff';
+import { calculateBackoffWithJitter, calculateSseBackoffWithJitter } from '@/lib/backoff';
 
 /**
  * Hook kết nối luồng Server-Sent Events (SSE) nhận thông báo thời gian thực
@@ -21,6 +21,7 @@ export function useNotificationsRealtime(options?: { enabled?: boolean }) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const setNotificationsStatus = useUIStore((state) => state.setNotificationsStatus);
+  const reconnectTrigger = useUIStore((state) => state.reconnectTrigger);
   const syncSingleBackendNotification = useNotificationStore(
     (state) => state.syncSingleBackendNotification,
   );
@@ -79,8 +80,9 @@ export function useNotificationsRealtime(options?: { enabled?: boolean }) {
       eventSource.onopen = () => {
         attemptRef.current = 0;
         setNotificationsStatus('connected');
-        // Invalidate và làm mới dữ liệu thông báo khi kết nối thành công
+        // Invalidate và làm mới dữ liệu thông báo & số lượng chưa đọc khi kết nối thành công (sync delta)
         queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.notifications.unreadCount() });
       };
 
       eventSource.onmessage = (event) => {
@@ -156,11 +158,11 @@ export function useNotificationsRealtime(options?: { enabled?: boolean }) {
         eventSource.close();
         eventSourceRef.current = null;
 
-        // Full Jitter Exponential Backoff (tối đa 5 lần)
+        // Exponential Backoff với Jitter (Phase 4: 1s, 2s, 4s... max 15s)
         const nextAttempt = attemptRef.current + 1;
         attemptRef.current = nextAttempt;
 
-        if (nextAttempt > 5) {
+        if (nextAttempt > 10) {
           setNotificationsStatus('reconnect_failed');
           return;
         }
@@ -172,7 +174,7 @@ export function useNotificationsRealtime(options?: { enabled?: boolean }) {
           return;
         }
 
-        const delay = calculateBackoffWithJitter(nextAttempt);
+        const delay = calculateSseBackoffWithJitter(nextAttempt);
         if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
         retryTimerRef.current = setTimeout(() => {
           connectRef.current();
@@ -195,6 +197,15 @@ export function useNotificationsRealtime(options?: { enabled?: boolean }) {
   useEffect(() => {
     connectRef.current = connect;
   }, [connect]);
+
+  // Phản hồi khi người dùng bấm "Thử lại" thủ công từ UI banner/indicator
+  useEffect(() => {
+    if (reconnectTrigger > 0) {
+      attemptRef.current = 0;
+      setNotificationsStatus('reconnecting');
+      connect();
+    }
+  }, [reconnectTrigger, connect, setNotificationsStatus]);
 
   useEffect(() => {
     if (!enabled) return;

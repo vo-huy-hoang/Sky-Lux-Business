@@ -237,14 +237,14 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
             <>
               <LoadingOutlined className="animate-spin text-sm" />
               <span>
-                Đang kết nối lại hệ thống thời gian thực (lần thử #{reconnectAttempt}/5)...
+                Đang kết nối lại hệ thống thời gian thực (lần thử #{reconnectAttempt})...
               </span>
             </>
           )}
           {connectionStatus === 'reconnect_failed' && (
             <div className="flex items-center justify-center gap-3">
               <span>
-                ⚠️ Không thể kết nối với máy chủ thời gian thực sau 5 lần thử.
+                ⚠️ Không thể kết nối với máy chủ thời gian thực sau các lần thử tự động.
               </span>
               <button
                 type="button"
