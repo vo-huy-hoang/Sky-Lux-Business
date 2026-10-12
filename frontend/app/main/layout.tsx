@@ -108,6 +108,14 @@ export default function MainLayout({
     return isPathAccessible(pathname, userCtx);
   }, [pathname, userCtx]);
 
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      const pageTitle = routeMeta.title || 'Bảng điều khiển';
+      const roleSuffix = isCeoAdmin ? 'SkyLux CEO' : isOperator ? 'SkyLux Điều Hành' : isSales ? 'SkyLux Sales' : 'SkyLux Travel';
+      document.title = `${pageTitle} | ${roleSuffix}`;
+    }
+  }, [routeMeta.title, isCeoAdmin, isOperator, isSales]);
+
   return (
     <Layout
       hasSider

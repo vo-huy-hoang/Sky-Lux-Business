@@ -63,7 +63,7 @@ export function DossierStepsCard({
       ) : (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="Hồ sơ chưa có dự toán từ API"
+          description="Hồ sơ chưa có dữ liệu dự toán"
         />
       )}
     </Card>

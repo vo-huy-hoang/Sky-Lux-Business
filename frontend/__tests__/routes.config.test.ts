@@ -187,4 +187,55 @@ describe('routes.config - Permission-Driven Dynamic Navigation', () => {
     expect(isPathAccessible('/main/dossiers/dc6c0291-7bbd-4514', ceoCtx)).toBe(true);
     expect(isPathAccessible('/main/dossiers/dc6c0291-7bbd-4514', unauthorizedCtx)).toBe(false);
   });
+
+  it('CEO_ADMIN / SUPER_ADMIN: tasks route is labeled "Lịch trình điều hành"', () => {
+    const ceoCtx: UserContext = {
+      isOperator: false,
+      isSales: false,
+      isCeoAdmin: true,
+      isSuperAdmin: false,
+    };
+
+    const meta = getRouteMeta('/main/tasks', ceoCtx);
+    expect(meta.title).toBe('Lịch trình điều hành');
+    expect(meta.subtitle).toBe('Theo dõi lịch trình các đoàn tour và dịch vụ toàn công ty');
+
+    const accessible = getAccessibleRoutes(ceoCtx);
+    const taskRoute = accessible.find((r) => r.path === '/main/tasks');
+    expect(taskRoute).toBeDefined();
+    expect(typeof taskRoute!.label === 'function' ? taskRoute!.label(ceoCtx) : taskRoute!.label).toBe('Lịch trình điều hành');
+  });
+
+  it('CEO_ADMIN: 14 menus ordered by CEO Mental Model and Decision Pyramid', () => {
+    const ceoCtx: UserContext = {
+      roles: ['CEO_ADMIN'],
+      permissions: ['*'],
+      isOperator: false,
+      isSales: false,
+      isCeoAdmin: true,
+      isSuperAdmin: false,
+    };
+
+    const routes = getAccessibleRoutes(ceoCtx).filter(
+      (route) => !route.hideFromNavigationRoles?.some((role) => ceoCtx.roles?.includes(role)),
+    );
+    const paths = routes.map((r) => r.path);
+
+    expect(paths).toEqual([
+      '/main/dashboard',
+      '/main/approvals',
+      '/main/tasks',
+      '/main/dossiers',
+      '/main/revenue',
+      '/main/reports',
+      '/main/kpi',
+      '/main/customers',
+      '/main/imports',
+      '/main/messages',
+      '/main/users',
+      '/main/settings',
+      '/main/audit-logs',
+      '/main/profile',
+    ]);
+  });
 });

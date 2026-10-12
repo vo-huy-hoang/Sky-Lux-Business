@@ -101,15 +101,18 @@ function MetricCard({
   label,
   value,
   icon,
+  hint,
   tone = 'green',
   loading,
+  href,
 }: {
   label: string;
   value: React.ReactNode;
   icon: React.ReactNode;
-  hint?: string; // Kept for compatibility, but not rendered in compact mode
+  hint?: string;
   tone?: 'green' | 'gold' | 'blue' | 'purple';
   loading?: boolean;
+  href?: string;
 }) {
   const toneClasses = {
     green: 'bg-[#E8F6ED] text-[#0A8A61] border-[#C8EBD5]',
@@ -118,21 +121,53 @@ function MetricCard({
     purple: 'bg-[#F9F0FF] text-[#531DAB] border-[#E8D0FF]',
   };
 
-  return (
-    <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5 flex flex-col justify-between h-full">
+  const cardBody = (
+    <div
+      className={`bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5 flex flex-col justify-between h-full transition-all duration-200 ${
+        href ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 hover:border-slate-300 group' : ''
+      }`}
+    >
       <div className="flex items-center gap-2.5">
-        <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${toneClasses[tone]} [&_.anticon]:text-sm`}>
+        <div
+          className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${toneClasses[tone]} [&_.anticon]:text-sm transition-transform duration-200 ${
+            href ? 'group-hover:scale-105' : ''
+          }`}
+        >
           {icon}
         </div>
         <div className="min-w-0 flex-1">
-          <span className="text-xs text-slate-500 font-medium leading-tight line-clamp-2">{label}</span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-500 font-medium leading-tight line-clamp-2">
+              {label}
+            </span>
+            {href && (
+              <span className="text-[11px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity ml-1 shrink-0 font-mono">
+                ↗
+              </span>
+            )}
+          </div>
           <div className="text-[15px] xl:text-[15.5px] font-bold text-slate-900 tabular-nums leading-snug mt-0.5 whitespace-nowrap">
             {loading ? <Skeleton.Input active size="small" /> : value}
           </div>
+          {hint && (
+            <div className="text-[11px] text-slate-400 mt-1 truncate font-normal">
+              {hint}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className="block h-full no-underline text-inherit" aria-label={`Xem chi tiết ${label}`}>
+        {cardBody}
+      </Link>
+    );
+  }
+
+  return cardBody;
 }
 
 export default function CeoDashboard() {
@@ -327,13 +362,28 @@ export default function CeoDashboard() {
     { title: 'Cập nhật cuối', dataIndex: 'updatedAt', width: 160, render: formatDateTime },
   ];
 
+  const currentMonthLabel = React.useMemo(() => {
+    const now = new Date();
+    return `Tháng ${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+  }, []);
+
+  const revenueHint =
+    Number(overview?.totalRevenue || 0) > 0
+      ? 'Dữ liệu hồ sơ đã khóa sổ'
+      : 'Chưa có hồ sơ khóa sổ tháng này';
+
+  const profitHint =
+    Number(overview?.totalProfit || 0) > 0
+      ? 'Theo lợi nhuận gộp hồ sơ'
+      : 'Chưa có hồ sơ khóa sổ tháng này';
+
   if (isOverviewError) {
     return (
       <Alert
         type="error"
         showIcon
         title="Không thể tải dữ liệu điều hành"
-        description="API dashboard CEO chưa phản hồi. Hãy kiểm tra kết nối rồi tải lại trang."
+        description="Hệ thống dashboard CEO chưa phản hồi. Hãy kiểm tra kết nối rồi tải lại trang."
       />
     );
   }
@@ -342,16 +392,46 @@ export default function CeoDashboard() {
     <div className="ceo-dashboard space-y-4">
       <Row gutter={[12, 12]}>
         <Col xs={24} sm={12} lg={6}>
-          <MetricCard label="Tổng doanh thu tháng" value={formatCurrency(overview?.totalRevenue)} hint="Dữ liệu dự toán đã duyệt" icon={<DollarOutlined />} loading={isLoadingOverview} />
+          <MetricCard
+            label={`Doanh thu ${currentMonthLabel}`}
+            value={formatCurrency(overview?.totalRevenue)}
+            hint={revenueHint}
+            icon={<DollarOutlined />}
+            loading={isLoadingOverview}
+            href="/main/revenue"
+          />
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <MetricCard label="Lợi nhuận tháng" value={formatCurrency(overview?.totalProfit)} hint="Theo lợi nhuận gộp trong hồ sơ" icon={<LineChartOutlined />} loading={isLoadingOverview} />
+          <MetricCard
+            label={`Lợi nhuận ${currentMonthLabel}`}
+            value={formatCurrency(overview?.totalProfit)}
+            hint={profitHint}
+            icon={<LineChartOutlined />}
+            loading={isLoadingOverview}
+            href="/main/revenue"
+          />
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <MetricCard label="Hồ sơ toàn hệ thống" value={totalDossiers} hint="Tổng theo trạng thái" icon={<FolderOpenOutlined />} tone="blue" loading={isLoadingOverview} />
+          <MetricCard
+            label="Hồ sơ toàn hệ thống"
+            value={totalDossiers}
+            hint="Tổng theo mọi trạng thái"
+            icon={<FolderOpenOutlined />}
+            tone="blue"
+            loading={isLoadingOverview}
+            href="/main/dossiers"
+          />
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <MetricCard label="Hồ sơ chờ duyệt" value={pendingCount} hint="Đã gửi và đang xem xét" icon={<ClockCircleOutlined />} tone="gold" loading={isLoadingOverview} />
+          <MetricCard
+            label="Hồ sơ chờ duyệt"
+            value={pendingCount}
+            hint={pendingCount > 0 ? 'Cần CEO xem xét và duyệt' : 'Không có hồ sơ tồn đọng'}
+            icon={<ClockCircleOutlined />}
+            tone="gold"
+            loading={isLoadingOverview}
+            href="/main/approvals"
+          />
         </Col>
       </Row>
 
@@ -364,7 +444,7 @@ export default function CeoDashboard() {
               <div>
                 {/* Header */}
                 <div className="flex items-center justify-between">
-                  <span className="text-[15px] font-bold text-slate-900">Doanh thu theo tháng</span>
+                  <h2 className="text-[15px] font-bold text-slate-900 m-0">Doanh thu theo tháng</h2>
                   <div className="flex items-center gap-2">
                     <span className="px-2.5 py-1 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-700">
                       Năm {selectedYear}
@@ -386,7 +466,7 @@ export default function CeoDashboard() {
 
                 {/* Chart */}
                 <div className="h-[215px] w-full">
-                  {isLoadingTrend ? <Skeleton active paragraph={{ rows: 5 }} /> : monthlyTrend.length ? <Line data={displayLineData} options={displayLineOptions} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu doanh thu từ API" />}
+                  {isLoadingTrend ? <Skeleton active paragraph={{ rows: 5 }} /> : monthlyTrend.length ? <Line data={displayLineData} options={displayLineOptions} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa phát sinh doanh thu khóa sổ trong năm" />}
                 </div>
               </div>
             </div>
@@ -400,7 +480,7 @@ export default function CeoDashboard() {
               <div>
                 {/* Header */}
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
-                  <div className="text-[15px] font-bold text-slate-900">Cơ cấu doanh thu theo {breakdownMode === 'MARKET_TYPE' ? 'loại hình' : 'mảng'}</div>
+                  <h2 className="text-[15px] font-bold text-slate-900 m-0">Cơ cấu doanh thu theo {breakdownMode === 'MARKET_TYPE' ? 'loại hình' : 'mảng'}</h2>
                   <RevenueBreakdownToggle value={breakdownMode} onChange={setBreakdownMode} />
                 </div>
 
@@ -413,7 +493,7 @@ export default function CeoDashboard() {
                       ariaLabel="Cơ cấu doanh thu theo cách phân loại"
                       className="w-[180px] h-[180px] 2xl:w-[195px] 2xl:h-[195px]"
                     />
-                  ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu doanh thu" />}
+                  ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có giao dịch khóa sổ trong kỳ này" />}
 
                   {/* Legend list */}
                   <div className="flex-1 space-y-3 min-w-0">
@@ -443,7 +523,7 @@ export default function CeoDashboard() {
           <WidgetErrorBoundary title="Hồ sơ theo trạng thái">
             <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div>
-                <div className="text-[15px] font-bold text-slate-900 mb-1">Hồ sơ theo trạng thái</div>
+                <h2 className="text-[15px] font-bold text-slate-900 mb-1">Hồ sơ theo trạng thái</h2>
                 <div className="divide-y divide-slate-100 text-xs">
                   {statusRows.map((row) => (
                     <div key={row.key} className="flex items-center justify-between py-2">
@@ -467,7 +547,7 @@ export default function CeoDashboard() {
           <WidgetErrorBoundary title="Phê duyệt cần xử lý hôm nay">
             <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div>
-                <div className="text-[15px] font-bold text-slate-900 mb-3">Phê duyệt cần xử lý hôm nay</div>
+                <h2 className="text-[15px] font-bold text-slate-900 mb-3">Phê duyệt cần xử lý hôm nay</h2>
                 <div className="space-y-3">
                   {isLoadingApprovals ? <Skeleton active paragraph={{ rows: 5 }} /> : pendingApprovals.length ? pendingApprovals.map((item: EstimateItem) => (
                     <div
@@ -509,7 +589,7 @@ export default function CeoDashboard() {
                         </Link>
                       </div>
                     </div>
-                  )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có hồ sơ chờ duyệt từ API" />}
+                  )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Tuyệt vời! Hiện không có hồ sơ nào đang chờ duyệt" />}
                 </div>
               </div>
 
@@ -530,7 +610,7 @@ export default function CeoDashboard() {
             <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-[15px] font-bold text-slate-900">Top 5 Sales theo doanh thu</span>
+                  <h2 className="text-[15px] font-bold text-slate-900 m-0">Top 5 Sales theo doanh thu</h2>
                 </div>
 
                 <div className="space-y-3.5">
@@ -555,7 +635,7 @@ export default function CeoDashboard() {
                         {formatCurrency(sales.totalRevenue)}
                       </span>
                     </div>
-                  )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có doanh thu Sales từ API" />}
+                  )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa ghi nhận doanh số khóa sổ của Sales" />}
                 </div>
               </div>
 
@@ -575,9 +655,9 @@ export default function CeoDashboard() {
           <WidgetErrorBoundary title="Thông báo & nhanh chóng">
             <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div>
-                <div className="flex items-center gap-2 text-[15px] font-bold text-slate-900 mb-3">
+                <div className="flex items-center gap-2 mb-3">
                   <ClockCircleOutlined className="text-[#F59E0B] text-base" />
-                  <span>Thông báo & nhanh chóng</span>
+                  <h2 className="text-[15px] font-bold text-slate-900 m-0">Thông báo & nhanh chóng</h2>
                 </div>
 
                 <div className="space-y-2.5">
@@ -599,7 +679,7 @@ export default function CeoDashboard() {
                         <ArrowRightOutlined className="text-sm" />
                       </Link>
                     </div>
-                  )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có thông báo từ API" />}
+                  )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Hệ thống vận hành ổn định, không có thông báo mới" />}
                 </div>
               </div>
 
@@ -630,7 +710,7 @@ export default function CeoDashboard() {
               pagination={false}
               className="ceo-table"
               scroll={{ x: 1080 }}
-              locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hồ sơ từ API" /> }}
+              locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hồ sơ phát sinh gần đây" /> }}
             />
           </Card>
         </WidgetErrorBoundary>
@@ -648,7 +728,7 @@ export default function CeoDashboard() {
                 ))}
               </div>
             ) : (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có doanh thu khách hàng từ API" />
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có doanh số khách hàng trong kỳ" />
             )}
           </Card>
         </WidgetErrorBoundary>

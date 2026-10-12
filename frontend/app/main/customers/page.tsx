@@ -286,7 +286,7 @@ export default function CustomersPage() {
       value: summary.total,
       icon: <TeamOutlined />,
       bubble: 'bg-[var(--color-primary-soft)] text-[var(--color-primary-600)]',
-      hint: 'Từ API khách hàng',
+      hint: 'Khách hàng toàn hệ thống',
     },
     {
       label: 'Đang chăm sóc',
@@ -410,7 +410,7 @@ export default function CustomersPage() {
           rowKey="id"
           loading={isLoading}
           className="skylux-table"
-          locale={{ emptyText: <Empty description="Chưa có khách hàng từ API" /> }}
+          locale={{ emptyText: <Empty description="Chưa có khách hàng nào trong hệ thống" /> }}
           scroll={{ x: 1240 }}
           pagination={{
             current: page,

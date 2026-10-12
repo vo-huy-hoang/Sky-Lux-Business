@@ -23,9 +23,9 @@ export default function ImportsPage() {
     <div className="space-y-4 pb-28 max-w-[1600px] mx-auto">
       {/* Page Title & Subtitle */}
       <div>
-        <h1 className="text-xl font-bold text-slate-900 tracking-tight mb-0.5">
+        <h2 className="text-xl font-bold text-slate-900 tracking-tight mb-0.5">
           Import dự toán Excel
-        </h1>
+        </h2>
         <p className="text-xs text-slate-500 mb-0">
           Tạo dự toán mới bằng cách import file Excel theo mẫu chuẩn của SkyLux
           Travel.
