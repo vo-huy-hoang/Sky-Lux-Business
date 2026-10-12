@@ -5,6 +5,12 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Sky-Lux CRM - Hệ Thống Quản Lý Tour & Dự Toán Báo Giá',
   description: 'Nền tảng quản lý điều hành tour, dự toán chiết tính và CRM chuyên biệt cho Sky-Lux Travel Corporation',
+  robots: {
+    index: false,
+    follow: false,
+    noarchive: true,
+    nosnippet: true,
+  },
 };
 
 export default function RootLayout({

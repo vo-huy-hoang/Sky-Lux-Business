@@ -66,12 +66,14 @@ function SummaryMetricCard({
   icon,
   tone,
   loading,
+  href,
 }: {
   label: string;
   value: React.ReactNode;
   icon: React.ReactNode;
   tone: 'green' | 'blue' | 'gold' | 'orange';
   loading: boolean;
+  href?: string;
 }) {
   const toneClasses = {
     green: 'bg-[#E8F6ED] text-[#0A8A61] border-[#C8EBD5]',
@@ -80,8 +82,12 @@ function SummaryMetricCard({
     orange: 'bg-[#FFF2E8] text-[#D46B08] border-[#FFD8BF]',
   };
 
-  return (
-    <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-2 xl:p-2.5 2xl:p-3.5 flex flex-col justify-between h-full min-w-0">
+  const cardContent = (
+    <div
+      className={`bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-2 xl:p-2.5 2xl:p-3.5 flex flex-col justify-between h-full min-w-0 ${
+        href ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 hover:border-slate-300 transition-all duration-200' : ''
+      }`}
+    >
       <div className="flex items-center gap-2 xl:gap-2.5 min-w-0">
         <div className={`w-7 h-7 2xl:w-8 2xl:h-8 rounded-lg border flex items-center justify-center shrink-0 ${toneClasses[tone]} [&_.anticon]:text-sm`}>
           {icon}
@@ -95,6 +101,16 @@ function SummaryMetricCard({
       </div>
     </div>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className="block h-full group focus:outline-none focus:ring-2 focus:ring-[#0B7A5B] rounded-xl">
+        {cardContent}
+      </Link>
+    );
+  }
+
+  return cardContent;
 }
 
 export default function OperatorDashboard() {
@@ -231,13 +247,15 @@ export default function OperatorDashboard() {
   return (
     <div className="op-page space-y-4">
       {/* 1. THẺ KPI TỔNG QUAN */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-7">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5" aria-label="Chỉ số vận hành điều hành">
+        {/* Tạm thời comment 2 thẻ Doanh thu & Lợi nhuận - sau này cần thì mở lại
         <SummaryMetricCard
           label="Doanh thu tháng này"
           value={formatMoney(totalMonthRevenue)}
           icon={<BarChartOutlined />}
           tone="gold"
           loading={isLoadingTrend}
+          href="/main/revenue"
         />
         <SummaryMetricCard
           label="Lợi nhuận tháng"
@@ -245,13 +263,16 @@ export default function OperatorDashboard() {
           icon={<LineChartOutlined />}
           tone="green"
           loading={isLoadingOperator}
+          href="/main/revenue"
         />
+        */}
         <SummaryMetricCard
           label="Hồ sơ toàn hệ thống"
           value={operatorData?.totalDossiersCount || 0}
           icon={<FolderOpenOutlined />}
           tone="blue"
           loading={isLoadingOperator}
+          href="/main/dossiers"
         />
         <SummaryMetricCard
           label="Hồ sơ chờ duyệt"
@@ -259,6 +280,7 @@ export default function OperatorDashboard() {
           icon={<ClockCircleOutlined />}
           tone="gold"
           loading={isLoadingOperator}
+          href="/main/dossiers?status=SUBMITTED"
         />
         <SummaryMetricCard
           label="Hồ sơ đang xử lý"
@@ -266,6 +288,7 @@ export default function OperatorDashboard() {
           icon={<FolderOpenOutlined />}
           tone="green"
           loading={isLoadingOperator}
+          href="/main/dossiers?status=IN_REVIEW"
         />
         <SummaryMetricCard
           label="Ưu tiên cao / Khẩn cấp"
@@ -273,6 +296,7 @@ export default function OperatorDashboard() {
           icon={<ExclamationCircleOutlined />}
           tone="orange"
           loading={isLoadingOperator}
+          href="/main/dossiers?priority=HIGH"
         />
         <SummaryMetricCard
           label="Nhà cung cấp đối tác"
@@ -280,14 +304,15 @@ export default function OperatorDashboard() {
           icon={<ShopOutlined />}
           tone="blue"
           loading={isLoadingOperator}
+          href="/main/suppliers"
         />
       </section>
 
       {/* 2. BẢNG XẾP HẠNG SALES */}
-      <section className="grid gap-4 xl:grid-cols-4">
+      <section className="grid gap-4 xl:grid-cols-4" aria-label="Báo cáo tiến độ và công việc">
         <Card
           className="op-card"
-          title="Top Sales theo Hiệu suất"
+          title={<h2 className="text-[15px] font-bold text-slate-900 m-0 leading-normal">Top Sales theo Hiệu suất</h2>}
           extra={
             <Link href="/main/sales">
               Xem chi tiết <RightOutlined />
@@ -327,7 +352,7 @@ export default function OperatorDashboard() {
           <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
             <div>
               <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
-                <div className="text-[15px] font-bold text-slate-900">Cơ cấu doanh thu theo {breakdownMode === 'MARKET_TYPE' ? 'loại hình' : 'mảng'}</div>
+                <h2 className="text-[15px] font-bold text-slate-900 m-0 leading-normal">Cơ cấu doanh thu theo {breakdownMode === 'MARKET_TYPE' ? 'loại hình' : 'mảng'}</h2>
                 <RevenueBreakdownToggle value={breakdownMode} onChange={setBreakdownMode} />
               </div>
 
@@ -363,7 +388,7 @@ export default function OperatorDashboard() {
 
         <Card
           className="op-card"
-          title="Việc cần xử lý hôm nay"
+          title={<h2 className="text-[15px] font-bold text-slate-900 m-0 leading-normal">Việc cần xử lý hôm nay</h2>}
           extra={
             <Link href="/main/tasks">
               Xem tất cả <RightOutlined />
@@ -408,44 +433,59 @@ export default function OperatorDashboard() {
           )}
         </Card>
 
-        <Card className="op-card" title="Nhắc nhở vận hành">
+        <Card className="op-card" title={<h2 className="text-[15px] font-bold text-slate-900 m-0 leading-normal">Nhắc nhở vận hành</h2>}>
           <div className="space-y-4">
-            <div className="op-reminder">
-              <CheckCircleOutlined />
-              <div>
-                <Text strong>Quá hạn công việc</Text>
-                <Text className="block text-xs text-[var(--op-text-muted)]">
-                  {overdueTasks} công việc cần đôn đốc hạn xử lý
-                </Text>
+            <Link
+              href="/main/tasks"
+              className="op-reminder hover:bg-[#E8F6ED]/60 transition-all cursor-pointer group block"
+            >
+              <div className="flex items-start gap-2.5">
+                <CheckCircleOutlined className="mt-0.5 group-hover:scale-110 transition-transform text-[#0A8A61]" />
+                <div className="min-w-0 flex-1">
+                  <Text strong className="group-hover:text-[#0A8A61] transition-colors">Quá hạn công việc</Text>
+                  <Text className="block text-xs text-[var(--op-text-muted)]">
+                    {overdueTasks} công việc cần đôn đốc hạn xử lý
+                  </Text>
+                </div>
               </div>
-            </div>
-            <div className="op-reminder">
-              <ExclamationCircleOutlined />
-              <div>
-                <Text strong>Ưu tiên xử lý</Text>
-                <Text className="block text-xs text-[var(--op-text-muted)]">
-                  {priorityDossiers} hồ sơ mức độ ưu tiên cao
-                </Text>
+            </Link>
+            <Link
+              href="/main/dossiers?priority=HIGH"
+              className="op-reminder hover:bg-[#FFF2E8]/70 transition-all cursor-pointer group block"
+            >
+              <div className="flex items-start gap-2.5">
+                <ExclamationCircleOutlined className="mt-0.5 group-hover:scale-110 transition-transform text-[#D46B08]" />
+                <div className="min-w-0 flex-1">
+                  <Text strong className="group-hover:text-[#D46B08] transition-colors">Ưu tiên xử lý</Text>
+                  <Text className="block text-xs text-[var(--op-text-muted)]">
+                    {priorityDossiers} hồ sơ mức độ ưu tiên cao
+                  </Text>
+                </div>
               </div>
-            </div>
-            <div className="op-reminder">
-              <ShopOutlined />
-              <div>
-                <Text strong>Mạng lưới đối tác</Text>
-                <Text className="block text-xs text-[var(--op-text-muted)]">
-                  {totalSuppliers} nhà cung cấp đang sẵn sàng
-                </Text>
+            </Link>
+            <Link
+              href="/main/suppliers"
+              className="op-reminder hover:bg-[#E6F7FF]/60 transition-all cursor-pointer group block"
+            >
+              <div className="flex items-start gap-2.5">
+                <ShopOutlined className="mt-0.5 group-hover:scale-110 transition-transform text-[#0958D9]" />
+                <div className="min-w-0 flex-1">
+                  <Text strong className="group-hover:text-[#0958D9] transition-colors">Mạng lưới đối tác</Text>
+                  <Text className="block text-xs text-[var(--op-text-muted)]">
+                    {totalSuppliers} nhà cung cấp đang sẵn sàng
+                  </Text>
+                </div>
               </div>
-            </div>
+            </Link>
           </div>
         </Card>
       </section>
 
       {/* 3. BẢNG HỒ SƠ GẦN ĐÂY & NHẮC NHỞ */}
-      <section className="grid gap-4 xl:grid-cols-[1.95fr_1.3fr]">
+      <section className="grid gap-4 xl:grid-cols-[1.95fr_1.3fr]" aria-label="Hồ sơ và mạng lưới nhà cung cấp">
         <Card
           className="op-card"
-          title="Hồ sơ gần đây"
+          title={<h2 className="text-[15px] font-bold text-slate-900 m-0 leading-normal">Hồ sơ gần đây</h2>}
           extra={
             <Link href="/main/dossiers">
               Xem tất cả <RightOutlined />
@@ -470,7 +510,7 @@ export default function OperatorDashboard() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-[#E8F6ED] text-[#0A8A61] border border-[#C8EBD5] flex items-center justify-center shrink-0"><ShopOutlined className="text-sm" /></div>
-                  <span className="text-[15px] font-bold text-slate-900">Doanh thu Nhà cung cấp</span>
+                  <h2 className="text-[15px] font-bold text-slate-900 m-0 leading-normal">Doanh thu Nhà cung cấp</h2>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1.5 ml-9">Xếp hạng theo chi phí thuần trong kỳ</p>
               </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Avatar,
   Button,
@@ -96,6 +96,7 @@ function DossiersContent() {
   const searchParams = useSearchParams();
   const salesUserId = searchParams.get('salesUserId') || undefined;
   const statusParam = searchParams.get('status') || undefined;
+  const priorityParam = searchParams.get('priority') || undefined;
 
   const hasRole = useAuthStore((state) => state.hasRole);
   const isCeoAdmin = hasRole(['CEO_ADMIN', 'SUPER_ADMIN']);
@@ -105,7 +106,15 @@ function DossiersContent() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 350);
   const [status, setStatus] = useState<string | undefined>(statusParam);
-  const [priority, setPriority] = useState<string>();
+  const [priority, setPriority] = useState<string | undefined>(priorityParam);
+
+  useEffect(() => {
+    setStatus(statusParam);
+  }, [statusParam]);
+
+  useEffect(() => {
+    setPriority(priorityParam);
+  }, [priorityParam]);
 
   const { data, isLoading, refetch } = useDossiersList({
     page,
@@ -406,7 +415,7 @@ function DossiersContent() {
           rowKey="id"
           loading={isLoading}
           className={isOperator ? 'op-table' : 'skylux-table'}
-          locale={{ emptyText: <Empty description="Chưa có hồ sơ từ API" /> }}
+          locale={{ emptyText: <Empty description="Chưa có hồ sơ nào trong hệ thống" /> }}
           scroll={{ x: 1380 }}
           pagination={{
             current: page,

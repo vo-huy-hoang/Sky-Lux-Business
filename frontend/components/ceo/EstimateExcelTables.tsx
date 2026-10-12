@@ -79,7 +79,7 @@ export default function EstimateExcelTables({
       <section aria-labelledby="passenger-revenue-heading">
         <div className="mb-2 flex items-center justify-between gap-4">
           <h3 id="passenger-revenue-heading" className="m-0 text-sm font-bold text-[var(--ceo-text)]">Doanh thu theo khách đoàn / loại khách</h3>
-          <Text className="text-xs text-[var(--ceo-text-muted)]">Nguồn: dữ liệu dự toán từ API</Text>
+          <Text className="text-xs text-[var(--ceo-text-muted)]">Nguồn: Dữ liệu dự toán hệ thống</Text>
         </div>
         <Table
           rowKey="key"
@@ -113,7 +113,7 @@ export default function EstimateExcelTables({
           size="small"
           className="ceo-table ceo-excel-table"
           scroll={{ x: 1020 }}
-          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dòng doanh thu từ API" /> }}
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dòng doanh thu" /> }}
           summary={() => revenues.length ? (
             <Table.Summary.Row className="ceo-total-row">
               <Table.Summary.Cell index={0} colSpan={6}><Text strong>TỔNG CỘNG</Text></Table.Summary.Cell>
@@ -137,7 +137,7 @@ export default function EstimateExcelTables({
           size="small"
           className="ceo-table ceo-excel-table"
           scroll={{ x: 1120 }}
-          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dòng chi phí từ API" /> }}
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dòng chi phí" /> }}
           summary={() => costs.length ? (
             <Table.Summary.Row className="ceo-total-row">
               <Table.Summary.Cell index={0} colSpan={7}><Text strong>TỔNG CỘNG</Text></Table.Summary.Cell>

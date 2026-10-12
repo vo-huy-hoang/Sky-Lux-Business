@@ -544,7 +544,7 @@ export default function ProfilePage() {
           </div>
         ) : (
           <div className="px-5 py-10 text-center text-sm text-slate-500">
-            Chưa có dữ liệu hoạt động từ API.
+            Chưa có dữ liệu hoạt động gần đây.
           </div>
         )}
       </Card>

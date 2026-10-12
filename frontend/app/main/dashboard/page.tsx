@@ -512,7 +512,7 @@ function OperationalDashboard() {
                   ))}
                 </div>
               ) : (
-                <Empty description="Chưa có dữ liệu công việc từ API" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                <Empty description="Chưa có dữ liệu công việc phát sinh" image={Empty.PRESENTED_IMAGE_SIMPLE} />
               )}
             </Card>
           </WidgetErrorBoundary>

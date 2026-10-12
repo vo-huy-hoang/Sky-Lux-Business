@@ -56,6 +56,41 @@ export const APP_ROUTES: AppRoute[] = [
     order: 10,
   },
   {
+    key: '/main/approvals',
+    path: '/main/approvals',
+    icon: React.createElement(AuditOutlined),
+    label: 'Hồ sơ chờ duyệt',
+    title: 'Hồ sơ chờ duyệt',
+    subtitle: 'Danh sách hồ sơ đang chờ CEO/Admin xem xét và phê duyệt',
+    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN'],
+    order: 20,
+  },
+  {
+    key: '/main/tasks',
+    path: '/main/tasks',
+    icon: React.createElement(CheckSquareOutlined),
+    label: (ctx) =>
+      ctx.isCeoAdmin
+        ? 'Lịch trình điều hành'
+        : ctx.isOperator
+        ? 'Công việc điều hành'
+        : 'Công việc của tôi',
+    title: (ctx) =>
+      ctx.isCeoAdmin
+        ? 'Lịch trình điều hành'
+        : ctx.isOperator
+        ? 'Công việc điều hành'
+        : 'Công việc của tôi',
+    subtitle: (ctx) =>
+      ctx.isCeoAdmin
+        ? 'Theo dõi lịch trình các đoàn tour và dịch vụ toàn công ty'
+        : ctx.isOperator
+        ? 'Theo dõi và quản lý công việc xử lý hồ sơ'
+        : 'Quản lý danh sách đầu việc cần thực hiện',
+    requiredPermissions: ['task.manage'],
+    order: 30,
+  },
+  {
     key: '/main/dossiers',
     path: '/main/dossiers',
     icon: React.createElement(FolderOpenOutlined),
@@ -78,39 +113,7 @@ export const APP_ROUTES: AppRoute[] = [
         ? 'Danh sách hồ sơ và dự toán cần kiểm tra điều hành'
         : 'Danh sách hồ sơ và dự toán của bạn',
     requiredPermissions: ['dossier.view.own', 'dossier.view.team', 'dossier.view.all'],
-    order: 20,
-  },
-  {
-    key: '/main/approvals',
-    path: '/main/approvals',
-    icon: React.createElement(AuditOutlined),
-    label: 'Hồ sơ chờ duyệt',
-    title: 'Hồ sơ chờ duyệt',
-    subtitle: 'Danh sách hồ sơ đang chờ CEO/Admin xem xét và phê duyệt',
-    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN'],
-    order: 30,
-  },
-  {
-    key: '/main/imports',
-    path: '/main/imports',
-    icon: React.createElement(FileExcelOutlined),
-    label: 'Import dự toán Excel',
-    title: 'Import dự toán Excel',
-    subtitle: 'Tải lên và kiểm tra bảng tính dự toán chi phí',
-    requiredPermissions: ['import.manage'],
     order: 40,
-  },
-  {
-    key: '/main/sales',
-    path: '/main/sales',
-    icon: React.createElement(TeamOutlined),
-    label: 'Quản lý Sales',
-    title: 'Quản lý Sales',
-    subtitle: 'Tổng hợp hiệu suất và doanh số của đội ngũ kinh doanh',
-    allowedRoles: ['OPERATOR', 'SUPER_ADMIN', 'CEO_ADMIN'],
-    excludeRoles: ['CEO_ADMIN'],
-    hideFromNavigationRoles: ['OPERATOR'],
-    order: 50,
   },
   {
     key: '/main/revenue',
@@ -121,6 +124,16 @@ export const APP_ROUTES: AppRoute[] = [
     subtitle: 'Phân tích doanh thu, lợi nhuận và cơ cấu hoạt động',
     allowedRoles: ['OPERATOR', 'SUPER_ADMIN', 'CEO_ADMIN'],
     hideFromNavigationRoles: ['OPERATOR'],
+    order: 50,
+  },
+  {
+    key: '/main/reports',
+    path: '/main/reports',
+    icon: React.createElement(FileTextOutlined),
+    label: 'Báo cáo',
+    title: 'Báo cáo',
+    subtitle: 'Tạo và xuất các báo cáo quản trị dành cho CEO/Admin',
+    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN'],
     order: 60,
   },
   {
@@ -157,59 +170,26 @@ export const APP_ROUTES: AppRoute[] = [
     order: 85,
   },
   {
-    key: '/main/tasks',
-    path: '/main/tasks',
-    icon: React.createElement(CheckSquareOutlined),
-    label: (ctx) =>
-      ctx.isOperator ? 'Công việc điều hành' : 'Công việc của tôi',
-    title: (ctx) =>
-      ctx.isOperator ? 'Công việc điều hành' : 'Công việc của tôi',
-    subtitle: (ctx) =>
-      ctx.isOperator
-        ? 'Theo dõi và quản lý công việc xử lý hồ sơ'
-        : 'Quản lý danh sách đầu việc cần thực hiện',
-    requiredPermissions: ['task.manage'],
-    order: 90,
-  },
-  {
-    key: '/main/users',
-    path: '/main/users',
+    key: '/main/sales',
+    path: '/main/sales',
     icon: React.createElement(TeamOutlined),
-    label: 'Người dùng & phân quyền',
-    title: 'Người dùng & phân quyền',
-    subtitle: 'Quản trị tài khoản, phòng ban và vai trò truy cập',
-    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN'],
-    order: 100,
+    label: 'Quản lý Sales',
+    title: 'Quản lý Sales',
+    subtitle: 'Tổng hợp hiệu suất và doanh số của đội ngũ kinh doanh',
+    allowedRoles: ['OPERATOR', 'SUPER_ADMIN', 'CEO_ADMIN'],
+    excludeRoles: ['CEO_ADMIN'],
+    hideFromNavigationRoles: ['OPERATOR'],
+    order: 88,
   },
   {
-    key: '/main/settings',
-    path: '/main/settings',
-    icon: React.createElement(SettingOutlined),
-    label: 'Cấu hình hệ thống',
-    title: 'Cấu hình hệ thống',
-    subtitle: 'Thiết lập danh mục và thông số vận hành dùng chung',
-    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN'],
-    order: 110,
-  },
-  {
-    key: '/main/audit-logs',
-    path: '/main/audit-logs',
-    icon: React.createElement(HistoryOutlined),
-    label: 'Nhật ký hoạt động',
-    title: 'Nhật ký hoạt động',
-    subtitle: 'Theo dõi và kiểm tra toàn bộ lịch sử thao tác trong hệ thống',
-    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN'],
-    order: 120,
-  },
-  {
-    key: '/main/reports',
-    path: '/main/reports',
-    icon: React.createElement(FileTextOutlined),
-    label: 'Báo cáo',
-    title: 'Báo cáo',
-    subtitle: 'Tạo và xuất các báo cáo quản trị dành cho CEO/Admin',
-    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN'],
-    order: 130,
+    key: '/main/imports',
+    path: '/main/imports',
+    icon: React.createElement(FileExcelOutlined),
+    label: 'Import dự toán Excel',
+    title: 'Import dự toán Excel',
+    subtitle: 'Tải lên và kiểm tra bảng tính dự toán chi phí',
+    requiredPermissions: ['import.manage'],
+    order: 90,
   },
   {
     key: '/main/messages',
@@ -219,7 +199,37 @@ export const APP_ROUTES: AppRoute[] = [
     title: 'Tin nhắn',
     subtitle: 'Trao đổi nội bộ và cập nhật tiến độ công việc',
     requiredPermissions: ['chat.access'],
-    order: 140,
+    order: 100,
+  },
+  {
+    key: '/main/users',
+    path: '/main/users',
+    icon: React.createElement(TeamOutlined),
+    label: 'Người dùng & phân quyền',
+    title: 'Người dùng & phân quyền',
+    subtitle: 'Quản trị tài khoản, phòng ban và vai trò truy cập',
+    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN'],
+    order: 110,
+  },
+  {
+    key: '/main/settings',
+    path: '/main/settings',
+    icon: React.createElement(SettingOutlined),
+    label: 'Cấu hình hệ thống',
+    title: 'Cấu hình hệ thống',
+    subtitle: 'Thiết lập danh mục và thông số vận hành dùng chung',
+    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN'],
+    order: 120,
+  },
+  {
+    key: '/main/audit-logs',
+    path: '/main/audit-logs',
+    icon: React.createElement(HistoryOutlined),
+    label: 'Nhật ký hoạt động',
+    title: 'Nhật ký hoạt động',
+    subtitle: 'Theo dõi và kiểm tra toàn bộ lịch sử thao tác trong hệ thống',
+    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN'],
+    order: 130,
   },
   {
     key: '/main/profile',
@@ -228,7 +238,7 @@ export const APP_ROUTES: AppRoute[] = [
     label: 'Hồ sơ cá nhân',
     title: 'Hồ sơ cá nhân',
     subtitle: 'Xem và cập nhật thông tin tài khoản, đổi mật khẩu',
-    order: 150,
+    order: 140,
   },
 ];
 
@@ -243,7 +253,7 @@ export function canAccessRoute(route: AppRoute, ctx: UserContext): boolean {
   }
 
   // Super Admin và CEO_ADMIN có quyền truy cập mặc định trừ khi bị exclude
-  if (ctx.isSuperAdmin || ctx.permissions?.includes('*')) {
+  if (ctx.isSuperAdmin || ctx.isCeoAdmin || ctx.permissions?.includes('*')) {
     return true;
   }
 
