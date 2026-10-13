@@ -142,6 +142,7 @@ export default function RoleTableSection({
         loading={isLoading}
         pagination={{ pageSize: 20 }}
         className="border border-slate-100 rounded-lg overflow-hidden"
+        scroll={{ x: 700 }}
       />
     </div>
   );

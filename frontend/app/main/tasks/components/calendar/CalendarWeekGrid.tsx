@@ -32,7 +32,9 @@ export default function CalendarWeekGrid({
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-7 gap-2">
+      <div className="w-full overflow-x-auto pb-2">
+        <div className="min-w-[680px]">
+          <div className="grid grid-cols-7 gap-2">
         {weekDays.map((day) => {
           const dayStr = day.date.format('YYYY-MM-DD');
           const activeDossiers = lockedDossiers.filter((d) => {
@@ -95,6 +97,8 @@ export default function CalendarWeekGrid({
             </div>
           );
         })}
+      </div>
+        </div>
       </div>
     </div>
   );

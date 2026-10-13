@@ -485,18 +485,18 @@ export default function CeoDashboard() {
                 </div>
 
                 {/* Body: Donut + Legend */}
-                <div className="flex items-center justify-between gap-4 sm:gap-6 my-auto py-2">
+                <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-5 sm:gap-6 my-auto py-2">
                   {chartBreakdown.length ? (
                     <RevenueDonutChart
                       items={sortedChartBreakdown}
                       total={chartBreakdownTotal}
                       ariaLabel="Cơ cấu doanh thu theo cách phân loại"
-                      className="w-[180px] h-[180px] 2xl:w-[195px] 2xl:h-[195px]"
+                      className="w-[180px] h-[180px] 2xl:w-[195px] 2xl:h-[195px] shrink-0"
                     />
                   ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có giao dịch khóa sổ trong kỳ này" />}
 
                   {/* Legend list */}
-                  <div className="flex-1 space-y-3 min-w-0">
+                  <div className="w-full sm:flex-1 space-y-3 min-w-0">
                     {donutSlices.slice(0, 5).map((slice) => (
                       <div key={slice.name}>
                         <div className="flex items-center gap-2">

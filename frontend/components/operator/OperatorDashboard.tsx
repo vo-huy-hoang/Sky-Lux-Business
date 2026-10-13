@@ -356,17 +356,17 @@ export default function OperatorDashboard() {
                 <RevenueBreakdownToggle value={breakdownMode} onChange={setBreakdownMode} />
               </div>
 
-              <div className="flex items-center justify-between gap-4 sm:gap-6 my-auto py-2">
+              <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-4 sm:gap-6 my-auto py-2">
                 {chartBreakdown.length ? (
                   <RevenueDonutChart
                     items={sortedChartBreakdown}
                     total={chartBreakdownTotal}
                     ariaLabel="Cơ cấu doanh thu theo cách phân loại"
-                    className="w-[132px] h-[132px] xl:w-[150px] xl:h-[150px] 2xl:w-[195px] 2xl:h-[195px]"
+                    className="w-[132px] h-[132px] xl:w-[150px] xl:h-[150px] 2xl:w-[195px] 2xl:h-[195px] shrink-0"
                   />
                 ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu doanh thu" />}
 
-                <div className="flex-1 min-w-0 space-y-2 2xl:space-y-3">
+                <div className="w-full sm:flex-1 min-w-0 space-y-2 2xl:space-y-3">
                   {donutSlices.slice(0, 5).map((slice) => (
                     <div key={slice.name}>
                       <div className="flex items-center gap-2">

@@ -111,7 +111,7 @@ export default function PermissionMatrixModal() {
       width={900}
       destroyOnHidden
     >
-      <div className="py-2 max-h-[65vh] overflow-y-auto pr-2 space-y-6">
+      <div className="py-2 max-h-[65dvh] overflow-y-auto pr-2 space-y-6">
         <div className="flex justify-between items-center bg-blue-50 p-3 rounded-xl border border-blue-100">
           <span className="text-xs font-medium text-blue-900">
             Đã chọn: <strong>{selectedPermCodes.length}</strong> quyền
