@@ -357,6 +357,7 @@ export default function UserTableSection({
           },
         }}
         className="border border-slate-100 rounded-lg overflow-hidden"
+        scroll={{ x: 800 }}
       />
     </div>
   );

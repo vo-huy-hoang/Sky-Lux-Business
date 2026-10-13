@@ -132,26 +132,26 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
   return (
     <>
       <Header
-        className="skylux-app-header sticky top-0 z-20 flex items-center justify-between border-b border-[var(--color-border)] px-7"
+        className="skylux-app-header sticky top-0 z-20 flex items-center justify-between border-b border-[var(--color-border)] px-4 sm:px-6 lg:px-7"
         style={{ height: 78, backgroundColor: '#FFFFFF' }}
       >
-        <div className="flex flex-1 items-center gap-4">
+        <div className="flex flex-1 items-center gap-2 sm:gap-4 min-w-0">
           <Button
             type="text"
             icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             onClick={toggleSidebar}
-            className="text-slate-600"
+            className="text-slate-600 flex items-center justify-center min-w-[44px] min-h-[44px]"
             aria-label={collapsed ? 'Mở menu' : 'Thu gọn menu'}
           />
 
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {routeMeta.icon && (
-              <span className="text-[26px] text-[#D97706] flex items-center shrink-0">
+              <span className="text-[22px] sm:text-[26px] text-[#D97706] flex items-center shrink-0">
                 {routeMeta.icon}
               </span>
             )}
             <div className="min-w-0">
-              <h1 className="m-0 truncate text-[23px] font-bold leading-tight text-[var(--color-text)]">
+              <h1 className="m-0 truncate text-lg sm:text-[23px] font-bold leading-tight text-[var(--color-text)]">
                 {routeMeta.title}
               </h1>
               <div className="mt-0.5 hidden truncate text-xs text-[var(--color-text-muted)] md:block">
@@ -161,7 +161,7 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
           </div>
         </div>
 
-        <Space size={14}>
+        <Space size={10} className="gap-2 sm:gap-3.5">
           {!isCeoAdmin && (
             <Button
               className="skylux-date-control hidden md:inline-flex"
@@ -183,6 +183,7 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
               icon={<BellOutlined className="text-lg text-slate-600" />}
               aria-label="Thông báo"
               onClick={() => setNotificationsDrawerOpen(true)}
+              className="flex items-center justify-center min-w-[44px] min-h-[44px]"
             />
           </Badge>
           {isCeoAdmin && (
@@ -192,6 +193,7 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
               icon={<MessageOutlined className="text-lg text-slate-600" />}
               aria-label="Tin nhắn"
               onClick={() => router.push('/main/messages')}
+              className="flex items-center justify-center min-w-[44px] min-h-[44px]"
             />
           )}
 
@@ -200,7 +202,7 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
             placement="bottomRight"
             trigger={['click']}
           >
-            <button className="flex cursor-pointer items-center gap-3 rounded-lg border-0 bg-transparent px-2 py-1 text-left transition-colors hover:bg-slate-100">
+            <button className="flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center gap-3 rounded-lg border-0 bg-transparent px-2 py-1 text-left transition-colors hover:bg-slate-100">
               <Avatar
                 size={42}
                 src={user?.avatarUrl}

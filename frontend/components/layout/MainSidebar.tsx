@@ -100,45 +100,57 @@ export function MainSidebar({ userCtx }: MainSidebarProps) {
     if (key && key !== pathname) {
       router.push(key);
     }
+    if (isMobile) {
+      setSidebarCollapsed(true);
+    }
   };
 
   return (
-    <Sider
-      trigger={null}
-      collapsible
-      collapsed={collapsed}
-      width={238}
-      collapsedWidth={isMobile ? 0 : 72}
-      breakpoint="lg"
-      onBreakpoint={(broken) => {
-        setIsMobile(broken);
-        setSidebarCollapsed(broken);
-      }}
-      theme="dark"
-      className="skylux-sidebar"
-      style={{
-        overflow: 'auto',
-        height: '100dvh',
-        position: isMobile ? 'fixed' : 'sticky',
-        top: 0,
-        left: 0,
-        zIndex: isMobile ? 40 : undefined,
-        backgroundColor: '#004533',
-      }}
-    >
-      <div className="px-4 pb-6 pt-5">
-        <BrandLogo collapsed={collapsed} />
-      </div>
+    <>
+      {isMobile && !collapsed && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs transition-opacity"
+          onClick={() => setSidebarCollapsed(true)}
+          aria-hidden="true"
+        />
+      )}
+      <Sider
+        trigger={null}
+        collapsible
+        collapsed={collapsed}
+        width={238}
+        collapsedWidth={isMobile ? 0 : 72}
+        breakpoint="lg"
+        onBreakpoint={(broken) => {
+          setIsMobile(broken);
+          setSidebarCollapsed(broken);
+        }}
+        theme="dark"
+        className="skylux-sidebar"
+        style={{
+          overflow: 'auto',
+          height: '100dvh',
+          position: isMobile ? 'fixed' : 'sticky',
+          top: 0,
+          left: 0,
+          zIndex: isMobile ? 40 : undefined,
+          backgroundColor: '#004533',
+        }}
+      >
+        <div className="px-4 pb-6 pt-5">
+          <BrandLogo collapsed={collapsed} />
+        </div>
 
-      <Menu
-        mode="inline"
-        selectedKeys={[selectedKey]}
-        items={menuItems}
-        onClick={handleMenuClick}
-        className="skylux-side-menu border-r-0 px-3 pb-6 font-semibold"
-        style={{ background: 'transparent' }}
-      />
-    </Sider>
+        <Menu
+          mode="inline"
+          selectedKeys={[selectedKey]}
+          items={menuItems}
+          onClick={handleMenuClick}
+          className="skylux-side-menu border-r-0 px-3 pb-6 font-semibold"
+          style={{ background: 'transparent' }}
+        />
+      </Sider>
+    </>
   );
 }
 

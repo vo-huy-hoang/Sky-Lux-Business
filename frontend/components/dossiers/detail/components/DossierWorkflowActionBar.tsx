@@ -50,14 +50,14 @@ export function DossierWorkflowActionBar({
     <div
       className={
         isDrawer
-          ? 'sticky bottom-0 left-0 right-0 z-20 -mx-6 -mb-6 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-3px_14px_rgb(15_61_46_/_0.07)] backdrop-blur-sm'
+          ? 'sticky bottom-0 left-0 right-0 z-20 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-3px_14px_rgb(15_61_46_/_0.07)] backdrop-blur-sm'
           : `fixed bottom-0 right-0 z-20 border-t border-[var(--ceo-border)] bg-white/95 p-3 shadow-[0_-3px_14px_rgb(15_61_46_/_0.07)] backdrop-blur-sm transition-[left] duration-200 ease-in-out ${
               sidebarCollapsed ? 'left-0 lg:left-[72px]' : 'left-0 lg:left-[238px]'
             }`
       }
     >
       <div
-        className={`mx-auto flex flex-wrap items-center justify-center gap-3 ${
+        className={`mx-auto flex flex-wrap items-center justify-center gap-2 sm:gap-3 ${
           isDrawer ? 'justify-end' : 'max-w-[1000px] sm:justify-end'
         }`}
       >

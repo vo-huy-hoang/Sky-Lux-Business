@@ -18,7 +18,8 @@ export default function CalendarMonthGrid({
   onOpenDossier,
 }: CalendarMonthGridProps) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200">
+    <div className="w-full overflow-x-auto pb-1">
+      <div className="min-w-[680px] overflow-hidden rounded-xl border border-slate-200">
       {/* Header: MON, TUE, WED, THU, FRI, SAT, SUN */}
       <div className="grid grid-cols-7 border-b border-slate-200 bg-[#f1f4f9] text-center">
         {WEEKDAYS.map((day) => (
@@ -162,5 +163,6 @@ export default function CalendarMonthGrid({
         })}
       </div>
     </div>
-  );
+  </div>
+);
 }

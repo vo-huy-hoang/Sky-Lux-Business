@@ -8,7 +8,7 @@ export default function Error({
   reset: () => void;
 }) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+    <main className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 px-6 text-center">
       <h1 className="text-2xl font-semibold">Something went wrong</h1>
       <p className="max-w-md text-sm text-zinc-600">
         {error.message || "The page could not be loaded."}

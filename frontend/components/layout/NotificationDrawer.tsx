@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Drawer, Tooltip, Popconfirm } from 'antd';
 import {
@@ -153,6 +153,16 @@ export function NotificationDrawer() {
   const setOpen = useUIStore((state) => state.setNotificationsDrawerOpen);
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread'>('all');
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 480);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const notifications = useNotificationStore((state) => state.notifications);
   const clearAll = useNotificationStore((state) => state.clearAll);
@@ -202,7 +212,8 @@ export function NotificationDrawer() {
       placement="right"
       onClose={() => setOpen(false)}
       open={open}
-      size={440}
+      width={isMobile ? '100%' : 440}
+      className="max-w-full"
       styles={{
         header: { display: 'none' },
         body: { padding: 0, background: '#F8FAF9', display: 'flex', flexDirection: 'column' },
@@ -257,8 +268,11 @@ export function NotificationDrawer() {
                   placement="bottomRight"
                 >
                   <Tooltip title="Xóa tất cả" placement="bottom">
-                    <button className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer border-0 bg-transparent">
-                      <DeleteOutlined className="text-xs" />
+                    <button
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer border-0 bg-transparent"
+                      aria-label="Xóa tất cả"
+                    >
+                      <DeleteOutlined className="text-sm" />
                     </button>
                   </Tooltip>
                 </Popconfirm>
@@ -268,10 +282,10 @@ export function NotificationDrawer() {
             {/* Close Button */}
             <button
               onClick={() => setOpen(false)}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors ml-1 cursor-pointer border-0 bg-transparent"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors ml-1 cursor-pointer border-0 bg-transparent"
               aria-label="Đóng"
             >
-              <CloseOutlined className="text-xs" />
+              <CloseOutlined className="text-sm" />
             </button>
           </div>
         </div>
@@ -429,24 +443,26 @@ export function NotificationDrawer() {
                           </span>
                         )}
 
-                        {/* Quick Action Icons visible on hover */}
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 ml-2">
+                        {/* Quick Action Icons visible on mobile or desktop hover */}
+                        <div className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center gap-1 ml-2">
                           {isUnread && (
                             <Tooltip title="Đánh dấu đã đọc" placement="top">
                               <button
                                 onClick={(e) => handleMarkSingleRead(e, item)}
-                                className="w-5 h-5 rounded flex items-center justify-center text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer border-0 bg-transparent"
+                                className="w-8 h-8 md:w-6 md:h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 active:bg-emerald-100 transition-colors cursor-pointer border-0 bg-transparent"
+                                aria-label="Đánh dấu đã đọc"
                               >
-                                <CheckOutlined className="text-[10px]" />
+                                <CheckOutlined className="text-xs md:text-[10px]" />
                               </button>
                             </Tooltip>
                           )}
                           <Tooltip title="Xóa" placement="top">
                             <button
                               onClick={(e) => handleDeleteSingle(e, item.id)}
-                              className="w-5 h-5 rounded flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer border-0 bg-transparent"
+                              className="w-8 h-8 md:w-6 md:h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:bg-rose-100 transition-colors cursor-pointer border-0 bg-transparent"
+                              aria-label="Xóa"
                             >
-                              <DeleteOutlined className="text-[10px]" />
+                              <DeleteOutlined className="text-xs md:text-[10px]" />
                             </button>
                           </Tooltip>
                         </div>
