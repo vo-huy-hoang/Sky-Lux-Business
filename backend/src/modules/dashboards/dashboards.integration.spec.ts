@@ -10,6 +10,7 @@ import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entit
 import { Task } from '../tasks/entities/task.entity';
 import { Supplier } from '../suppliers/entities/supplier.entity';
 import { KpiResult } from '../kpis/entities/kpi-result.entity';
+import { User } from '../users/entities/user.entity';
 import { KpiPeriodType } from '../../common/enums';
 
 describe('Dashboards Module (Integration)', () => {
@@ -48,6 +49,10 @@ describe('Dashboards Module (Integration)', () => {
     createQueryBuilder: jest.fn(),
   };
 
+  const mockUserRepository = {
+    createQueryBuilder: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [DashboardsController],
@@ -80,6 +85,10 @@ describe('Dashboards Module (Integration)', () => {
         {
           provide: getRepositoryToken(KpiResult),
           useValue: mockKpiResultRepository,
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: mockUserRepository,
         },
       ],
     }).compile();

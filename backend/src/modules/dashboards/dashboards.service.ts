@@ -9,6 +9,7 @@ import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entit
 import { Task } from '../tasks/entities/task.entity';
 import { Supplier } from '../suppliers/entities/supplier.entity';
 import { KpiResult } from '../kpis/entities/kpi-result.entity';
+import { User } from '../users/entities/user.entity';
 import { RedisService } from '../../common/redis/redis.service';
 import {
   DossierStatus,
@@ -34,6 +35,8 @@ export class DashboardsService {
     private readonly supplierRepository: Repository<Supplier>,
     @InjectRepository(KpiResult)
     private readonly kpiResultRepository: Repository<KpiResult>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     @Optional()
     private readonly redisService?: RedisService,
   ) {}
@@ -357,18 +360,24 @@ export class DashboardsService {
   }
 
   async getOperatorSalesSummary(organizationId: string) {
-    const cacheKey = `dashboard:operator:sales-summary:${organizationId}`;
+    const cacheKey = `dashboard:operator:sales-summary:v2:${organizationId}`;
     if (this.redisService) {
       const cached = await this.redisService.get(cacheKey);
       if (cached) return cached;
     }
 
-    // Parallel DB queries: dossiers + salesRevenue + salesCost
+    // Parallel DB queries: every Sales user + revenue and costs by Sales.
     const [dossiers, salesRevenue, salesCost] = await Promise.all([
-      this.dossierRepository
-        .createQueryBuilder('dossier')
-        .leftJoin('dossier.salesUser', 'user')
-        .select('dossier.salesUserId', 'salesUserId')
+      this.userRepository
+        .createQueryBuilder('user')
+        .innerJoin('user.roles', 'role')
+        .leftJoin(
+          Dossier,
+          'dossier',
+          'dossier.salesUserId = user.id AND dossier.organizationId = :organizationId',
+          { organizationId },
+        )
+        .select('user.id', 'salesUserId')
         .addSelect('user.fullName', 'salesUserName')
         .addSelect('user.email', 'salesUserEmail')
         .addSelect('user.employeeCode', 'employeeCode')
@@ -381,9 +390,10 @@ export class DashboardsService {
           `COUNT(CASE WHEN dossier.status = 'COMPLETED' THEN 1 END)`,
           'completedDossiers',
         )
-        .where('dossier.organizationId = :organizationId', { organizationId })
-        .andWhere('dossier.salesUserId IS NOT NULL')
-        .groupBy('dossier.salesUserId')
+        .where('user.organizationId = :organizationId', { organizationId })
+        .andWhere('role.code = :salesRole', { salesRole: 'SALES' })
+        .andWhere('role.organizationId = :organizationId', { organizationId })
+        .groupBy('user.id')
         .addGroupBy('user.fullName')
         .addGroupBy('user.email')
         .addGroupBy('user.employeeCode')
@@ -530,12 +540,13 @@ export class DashboardsService {
 
   async getCeoDashboard(organizationId: string, queryDto: QueryDashboardDto) {
     const periodType = queryDto.periodType || KpiPeriodType.MONTHLY;
+    const allTime = queryDto.allTime === true;
     const { periodStart, periodEnd } = this.getPeriodDates(
       periodType,
       queryDto.date,
     );
 
-    const cacheKey = `dashboard:ceo:v6:${organizationId}:${periodType}:${queryDto.date || 'current'}`;
+    const cacheKey = `dashboard:ceo:v7:${organizationId}:${allTime ? 'all-time' : `${periodType}:${queryDto.date || 'current'}`}`;
     if (this.redisService) {
       const cached = await this.redisService.get(cacheKey);
       if (cached) return cached;
@@ -561,7 +572,8 @@ export class DashboardsService {
         .andWhere('estimate.status = :status', {
           status: EstimateStatus.APPROVED,
         })
-        .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
+        .andWhere('(:allTime = true OR estimate.approvedAt BETWEEN :start AND :end)', {
+          allTime,
           start: new Date(periodStart + 'T00:00:00Z'),
           end: new Date(periodEnd + 'T23:59:59Z'),
         })
@@ -614,7 +626,8 @@ export class DashboardsService {
         .andWhere('estimate.status = :status', {
           status: EstimateStatus.APPROVED,
         })
-        .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
+        .andWhere('(:allTime = true OR estimate.approvedAt BETWEEN :start AND :end)', {
+          allTime,
           start: new Date(periodStart + 'T00:00:00Z'),
           end: new Date(periodEnd + 'T23:59:59Z'),
         })
@@ -633,7 +646,7 @@ export class DashboardsService {
         .addSelect(
           `COALESCE(SUM(CASE
             WHEN dossier.status = :lockedDossierStatus
-             AND dossier.locked_at BETWEEN :lockedStart AND :lockedEnd
+             AND (:allTime = true OR dossier.locked_at BETWEEN :lockedStart AND :lockedEnd)
             THEN line.net_amount
             ELSE 0
           END), 0)`,
@@ -642,7 +655,7 @@ export class DashboardsService {
         .addSelect(
           `COALESCE(SUM(CASE
             WHEN dossier.status = :lockedDossierStatus
-             AND dossier.locked_at BETWEEN :lockedStart AND :lockedEnd
+             AND (:allTime = true OR dossier.locked_at BETWEEN :lockedStart AND :lockedEnd)
             THEN line.gross_amount
             ELSE 0
           END), 0)`,
@@ -655,6 +668,7 @@ export class DashboardsService {
         .where('dossier.organizationId = :organizationId', { organizationId })
         .andWhere('line.organizationId = :organizationId', { organizationId })
         .setParameters({
+          allTime,
           lockedDossierStatus: DossierStatus.LOCKED,
           lockedStart: new Date(periodStart + 'T00:00:00Z'),
           lockedEnd: new Date(periodEnd + 'T23:59:59Z'),
@@ -677,7 +691,8 @@ export class DashboardsService {
         .andWhere('estimate.status = :status', {
           status: EstimateStatus.APPROVED,
         })
-        .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
+        .andWhere('(:allTime = true OR estimate.approvedAt BETWEEN :start AND :end)', {
+          allTime,
           start: new Date(periodStart + 'T00:00:00Z'),
           end: new Date(periodEnd + 'T23:59:59Z'),
         })
@@ -698,7 +713,8 @@ export class DashboardsService {
         .andWhere('estimate.status = :status', {
           status: EstimateStatus.APPROVED,
         })
-        .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
+        .andWhere('(:allTime = true OR estimate.approvedAt BETWEEN :start AND :end)', {
+          allTime,
           start: new Date(periodStart + 'T00:00:00Z'),
           end: new Date(periodEnd + 'T23:59:59Z'),
         })
@@ -720,7 +736,8 @@ export class DashboardsService {
         .andWhere('estimate.status = :status', {
           status: EstimateStatus.APPROVED,
         })
-        .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
+        .andWhere('(:allTime = true OR estimate.approvedAt BETWEEN :start AND :end)', {
+          allTime,
           start: new Date(periodStart + 'T00:00:00Z'),
           end: new Date(periodEnd + 'T23:59:59Z'),
         })
@@ -842,8 +859,9 @@ export class DashboardsService {
   async getCeoMonthlyTrend(
     organizationId: string,
     year = new Date().getFullYear(),
+    allTime = false,
   ) {
-    const cacheKey = `dashboard:ceo:monthly-trend:${organizationId}:${year}`;
+    const cacheKey = `dashboard:ceo:monthly-trend:${organizationId}:${allTime ? 'all-time' : year}`;
     if (this.redisService) {
       const cached = await this.redisService.get(cacheKey);
       if (cached) return cached;
@@ -863,7 +881,8 @@ export class DashboardsService {
         .andWhere('estimate.status = :status', {
           status: EstimateStatus.APPROVED,
         })
-        .andWhere('estimate.approvedAt BETWEEN :startDate AND :endDate', {
+        .andWhere('(:allTime = true OR estimate.approvedAt BETWEEN :startDate AND :endDate)', {
+          allTime,
           startDate,
           endDate,
         })
@@ -879,7 +898,8 @@ export class DashboardsService {
         .andWhere('estimate.status = :status', {
           status: EstimateStatus.APPROVED,
         })
-        .andWhere('estimate.approvedAt BETWEEN :startDate AND :endDate', {
+        .andWhere('(:allTime = true OR estimate.approvedAt BETWEEN :startDate AND :endDate)', {
+          allTime,
           startDate,
           endDate,
         })
@@ -893,7 +913,8 @@ export class DashboardsService {
           'approvedDossiers',
         )
         .where('dossier.organizationId = :organizationId', { organizationId })
-        .andWhere('dossier.createdAt BETWEEN :startDate AND :endDate', {
+        .andWhere('(:allTime = true OR dossier.createdAt BETWEEN :startDate AND :endDate)', {
+          allTime,
           startDate,
           endDate,
         })
@@ -923,9 +944,13 @@ export class DashboardsService {
       approvedDossiers: number;
     }> = [];
 
-    for (let month = 1; month <= 12; month++) {
-      const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-      const label = `T${String(month).padStart(2, '0')}`;
+    const monthKeys = allTime
+      ? [...new Set([...revMap.keys(), ...costMap.keys(), ...dossierMap.keys()])].sort()
+      : Array.from({ length: 12 }, (_, index) => `${year}-${String(index + 1).padStart(2, '0')}`);
+
+    for (const monthKey of monthKeys) {
+      const [monthYear, monthNumber] = monthKey.split('-');
+      const label = allTime ? `T${monthNumber}/${monthYear}` : `T${monthNumber}`;
       const totalRevenue = revMap.get(monthKey) || 0;
       const totalCost = costMap.get(monthKey) || 0;
       const totalProfit = totalRevenue - totalCost;

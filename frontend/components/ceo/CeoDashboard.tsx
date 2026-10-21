@@ -7,18 +7,29 @@ import {
   Button,
   Card,
   Col,
+  DatePicker,
   Empty,
   Row,
+  Select,
   Skeleton,
   Table,
   Tag,
 } from 'antd';
 import {
   ArrowRightOutlined,
+  BarChartOutlined,
   ClockCircleOutlined,
+  CalendarOutlined,
   DollarOutlined,
+  FileExcelOutlined,
+  FilePdfOutlined,
+  FileTextOutlined,
   FolderOpenOutlined,
+  GlobalOutlined,
   LineChartOutlined,
+  RightOutlined,
+  ShopOutlined,
+  WalletOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -45,6 +56,8 @@ import { WidgetErrorBoundary } from '@/components/common/widget-error-boundary';
 import { formatCurrency } from '@/lib/financial-calculations';
 import { RevenueBreakdownToggle, RevenueBreakdownMode } from '@/components/ceo/RevenueBreakdownToggle';
 import { getRevenueDonutSlices, RevenueDonutChart } from '@/components/ceo/RevenueDonutChart';
+import dayjs from 'dayjs';
+import { utils, writeFile } from 'xlsx';
 
 
 
@@ -73,6 +86,14 @@ const STATUS_META: Record<string, { label: string; className: string; color: str
   LOCKED: { label: 'Đã khóa', className: 'skylux-status-danger', color: '#A62D34' },
 };
 
+const customerLogoColors = [
+  'bg-[#F97316] text-white',
+  'bg-[#0284C7] text-white',
+  'bg-[#059669] text-white',
+  'bg-[#E11D48] text-white',
+  'bg-[#1E293B] text-white',
+];
+
 function statusMeta(status?: string) {
   return STATUS_META[status || ''] || {
     label: status || 'Chưa xác định',
@@ -81,10 +102,6 @@ function statusMeta(status?: string) {
   };
 }
 
-
-function formatCompactCurrency(value?: number | string) {
-  return formatCurrency(value, { compact: true, showSymbol: false });
-}
 
 function formatDateTime(value?: string) {
   if (!value) return '-';
@@ -173,12 +190,19 @@ function MetricCard({
 export default function CeoDashboard() {
 
   const selectedYear = useFilterStore((state) => state.selectedYear);
+  const dateString = useFilterStore((state) => state.dateString);
+  const setDateString = useFilterStore((state) => state.setDateString);
+  const [allTime, setAllTime] = React.useState(false);
+  const anchorDate = dayjs(dateString);
 
   const {
     data: overview,
     isLoading: isLoadingOverview,
     isError: isOverviewError,
-  } = useCeoDashboard({ periodType: 'MONTHLY' });
+  } = useCeoDashboard({
+    periodType: 'MONTHLY',
+    ...(allTime ? { allTime: true } : { date: anchorDate.format('YYYY-MM-DD') }),
+  });
 
   const { data: dossierResponse, isLoading: isLoadingDossiers } = useQuery<{
     data: DossierItem[];
@@ -188,7 +212,7 @@ export default function CeoDashboard() {
     queryFn: ({ signal }) => dossiersService.getDossiers({ page: 1, limit: 6 }, { signal }),
   });
 
-  const { data: monthlyTrend = [], isLoading: isLoadingTrend } = useCeoMonthlyTrend(selectedYear);
+  const { data: monthlyTrend = [], isLoading: isLoadingTrend } = useCeoMonthlyTrend(selectedYear, undefined, allTime);
   const { data: salesSummary = [], isLoading: isLoadingSales } = useOperatorSalesSummary();
   const { data: notificationsResponse, isLoading: isLoadingNotifications } = useNotificationsQuery({ page: 1, limit: 3 });
   const submittedApprovalsQuery = useQuery({
@@ -230,6 +254,26 @@ export default function CeoDashboard() {
     () => getRevenueDonutSlices(sortedChartBreakdown),
     [sortedChartBreakdown],
   );
+  const supplierRows = React.useMemo(
+    () => [...(overview?.supplierBreakdown || [])]
+      .map((supplier) => ({ ...supplier, amount: Number(supplier.amount || 0) }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 6),
+    [overview?.supplierBreakdown],
+  );
+  const supplierTotal = React.useMemo(
+    () => supplierRows.reduce((total, supplier) => total + supplier.amount, 0),
+    [supplierRows],
+  );
+  const highestSupplierAmount = supplierRows[0]?.amount || 0;
+  const topCustomers = (overview?.vipCustomers || []).slice(0, 5);
+  const quickReports = [
+    { title: 'Báo cáo doanh thu chi tiết', icon: <FileTextOutlined />, iconBox: 'bg-[#E8F6ED] text-[#0A8A61] border-[#C8EBD5]', href: '/main/reports' },
+    { title: 'Báo cáo lợi nhuận theo mảng', icon: <DollarOutlined />, iconBox: 'bg-[#FEF5E7] text-[#D97706] border-[#FDE3B8]', href: '/main/reports' },
+    { title: 'Báo cáo công nợ phải thu', icon: <WalletOutlined />, iconBox: 'bg-[#EBF5FB] text-[#2E82C4] border-[#D1E8F7]', href: '/main/reports' },
+    { title: 'Báo cáo theo thị trường', icon: <GlobalOutlined />, iconBox: 'bg-[#E8F6ED] text-[#0A8A61] border-[#C8EBD5]', href: '/main/reports' },
+    { title: 'Báo cáo hiệu suất Sales', icon: <BarChartOutlined />, iconBox: 'bg-[#E6F8F6] text-[#0D9488] border-[#CCF0ED]', href: '/main/kpi' },
+  ];
   const notificationsList = notificationsResponse?.data || [];
   const pendingApprovals = React.useMemo(
     () => [...(submittedApprovalsQuery.data?.data || []), ...(reviewingApprovalsQuery.data?.data || [])]
@@ -239,9 +283,7 @@ export default function CeoDashboard() {
   );
   const topSalesList = React.useMemo(
     () => [...salesSummary]
-      .filter((sales) => Number(sales.totalRevenue) > 0)
       .sort((a, b) => Number(b.totalRevenue) - Number(a.totalRevenue))
-      .slice(0, 5)
       .map((sales, index, list) => ({
         ...sales,
         rank: index + 1,
@@ -255,6 +297,20 @@ export default function CeoDashboard() {
     ...monthlyTrend.map((month: CeoMonthlyTrendItem) => Number(month.totalRevenue || 0) / 1_000_000),
     ...monthlyTrend.map((month: CeoMonthlyTrendItem) => Number(month.totalProfit || 0) / 1_000_000),
   );
+
+  const exportSummary = () => {
+    const rows = [
+      ['Chỉ số', allTime ? 'Tất cả thời gian' : `Tháng ${anchorDate.format('MM/YYYY')}`],
+      ['Tổng doanh thu', overview?.totalRevenue || 0],
+      ['Lợi nhuận', overview?.totalProfit || 0],
+      ['Tổng hồ sơ', totalDossiers],
+      ['Hồ sơ chờ duyệt', pendingCount],
+      ...sortedChartBreakdown.map((item) => [item.name, Number(item.amount || 0)]),
+    ];
+    const workbook = utils.book_new();
+    utils.book_append_sheet(workbook, utils.aoa_to_sheet(rows), 'Tổng quan');
+    writeFile(workbook, `bang-dieu-khien-${allTime ? 'tat-ca-thoi-gian' : anchorDate.format('YYYY-MM')}.xlsx`);
+  };
 
   const displayLineData = {
     labels: monthlyTrend.map((month: CeoMonthlyTrendItem) => month.label),
@@ -362,20 +418,15 @@ export default function CeoDashboard() {
     { title: 'Cập nhật cuối', dataIndex: 'updatedAt', width: 160, render: formatDateTime },
   ];
 
-  const currentMonthLabel = React.useMemo(() => {
-    const now = new Date();
-    return `Tháng ${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
-  }, []);
+  const currentMonthLabel = `Tháng ${anchorDate.format('MM/YYYY')}`;
 
-  const revenueHint =
-    Number(overview?.totalRevenue || 0) > 0
-      ? 'Dữ liệu hồ sơ đã khóa sổ'
-      : 'Chưa có hồ sơ khóa sổ tháng này';
+  const revenueHint = Number(overview?.totalRevenue || 0) > 0
+    ? 'Dữ liệu hồ sơ đã khóa sổ'
+    : allTime ? 'Chưa có hồ sơ khóa sổ' : 'Chưa có hồ sơ khóa sổ trong tháng đã chọn';
 
-  const profitHint =
-    Number(overview?.totalProfit || 0) > 0
-      ? 'Theo lợi nhuận gộp hồ sơ'
-      : 'Chưa có hồ sơ khóa sổ tháng này';
+  const profitHint = Number(overview?.totalProfit || 0) > 0
+    ? 'Theo lợi nhuận gộp hồ sơ'
+    : allTime ? 'Chưa có hồ sơ khóa sổ' : 'Chưa có hồ sơ khóa sổ trong tháng đã chọn';
 
   if (isOverviewError) {
     return (
@@ -390,10 +441,58 @@ export default function CeoDashboard() {
 
   return (
     <div className="ceo-dashboard space-y-4">
+      <div className="rounded-xl border border-[#E5E8E6] bg-white p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-1 items-center">
+            <div className="flex min-h-[56px] w-full max-w-[400px] items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 transition-colors hover:border-slate-300">
+              <div className="flex min-w-0 items-center gap-2">
+                <CalendarOutlined className="shrink-0 text-sm text-slate-500" />
+                <div className="min-w-0">
+                  <div className="text-[11px] leading-tight text-slate-600">Kỳ báo cáo</div>
+                  <div className="flex items-center gap-1">
+                    <Select
+                      aria-label="Chế độ kỳ báo cáo"
+                      value={allTime ? 'ALL_TIME' : 'MONTHLY'}
+                      onChange={(value) => setAllTime(value === 'ALL_TIME')}
+                      variant="borderless"
+                      className="!w-[150px] !p-0 !text-sm [&_.ant-select-selection-item]:!font-semibold [&_.ant-select-selection-item]:!text-slate-800"
+                      options={[
+                        { value: 'MONTHLY', label: 'Theo tháng' },
+                        { value: 'ALL_TIME', label: 'Tất cả thời gian' },
+                      ]}
+                    />
+                    {!allTime && (
+                      <DatePicker
+                        picker="month"
+                        value={anchorDate}
+                        onChange={(value) => value && setDateString(value.startOf('month').format('YYYY-MM-DD'))}
+                        format="MM/YYYY"
+                        allowClear={false}
+                        inputReadOnly
+                        variant="borderless"
+                        className="!w-[88px] !p-0 !text-sm !font-semibold [&_.ant-picker-input>input]:!cursor-pointer [&_.ant-picker-input>input]:!font-semibold [&_.ant-picker-input>input]:!text-slate-800"
+                        aria-label="Kỳ báo cáo theo tháng"
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex shrink-0 justify-end gap-2.5">
+            <Button icon={<FilePdfOutlined />} onClick={() => window.print()} className="!h-9 !rounded-lg !border-[#0B7A5B] !px-3.5 !font-semibold !text-[#0B7A5B] hover:!bg-[#E8F6ED]">
+              Xuất PDF
+            </Button>
+            <Button icon={<FileExcelOutlined />} onClick={exportSummary} className="!h-9 !rounded-lg !border-[#0F3D2E] !bg-[#0F3D2E] !px-3.5 !font-semibold !text-white hover:!border-[#0A2E22] hover:!bg-[#0A2E22]">
+              Xuất Excel
+            </Button>
+          </div>
+        </div>
+      </div>
       <Row gutter={[12, 12]}>
         <Col xs={24} sm={12} lg={6}>
           <MetricCard
-            label={`Doanh thu ${currentMonthLabel}`}
+            label={allTime ? 'Tổng doanh thu' : `Doanh thu ${currentMonthLabel}`}
             value={formatCurrency(overview?.totalRevenue)}
             hint={revenueHint}
             icon={<DollarOutlined />}
@@ -403,7 +502,7 @@ export default function CeoDashboard() {
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <MetricCard
-            label={`Lợi nhuận ${currentMonthLabel}`}
+            label={allTime ? 'Tổng lợi nhuận' : `Lợi nhuận ${currentMonthLabel}`}
             value={formatCurrency(overview?.totalProfit)}
             hint={profitHint}
             icon={<LineChartOutlined />}
@@ -435,10 +534,10 @@ export default function CeoDashboard() {
         </Col>
       </Row>
 
-      {/* 6 Cards in 3 Columns - Matching Target Design 100% (5 : 4 : 3 ratio) */}
+      {/* Dashboard charts use the full row in a balanced two-column layout. */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-        {/* CARD 1: Doanh thu theo tháng (col-span-5) */}
-        <div className="xl:col-span-5">
+        {/* Monthly revenue */}
+        <div className="xl:col-span-6">
           <WidgetErrorBoundary title="Doanh thu theo tháng">
             <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div>
@@ -447,7 +546,7 @@ export default function CeoDashboard() {
                   <h2 className="text-[15px] font-bold text-slate-900 m-0">Doanh thu theo tháng</h2>
                   <div className="flex items-center gap-2">
                     <span className="px-2.5 py-1 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-700">
-                      Năm {selectedYear}
+                      {allTime ? 'Tất cả thời gian' : `Năm ${selectedYear}`}
                     </span>
                   </div>
                 </div>
@@ -473,8 +572,8 @@ export default function CeoDashboard() {
           </WidgetErrorBoundary>
         </div>
 
-        {/* CARD 2: Cơ cấu doanh thu theo cách phân loại (col-span-4) */}
-        <div className="xl:col-span-4">
+        {/* Revenue composition */}
+        <div className="xl:col-span-6">
           <WidgetErrorBoundary title="Cơ cấu doanh thu theo cách phân loại">
             <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div>
@@ -518,7 +617,7 @@ export default function CeoDashboard() {
           </WidgetErrorBoundary>
         </div>
 
-        {/* CARD 3: Hồ sơ theo trạng thái (col-span-3) */}
+        {/* CARD 3: Hồ sơ theo trạng thái */}
         <div className="xl:col-span-3">
           <WidgetErrorBoundary title="Hồ sơ theo trạng thái">
             <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
@@ -533,7 +632,6 @@ export default function CeoDashboard() {
                   ))}
                 </div>
               </div>
-
               <div className="flex items-center justify-between border-t border-slate-200 pt-3 mt-1">
                 <span className="text-sm font-bold text-slate-900">Tổng cộng</span>
                 <span className="text-base font-extrabold text-slate-900 tabular-nums">{totalDossiers.toLocaleString('vi-VN')}</span>
@@ -541,7 +639,6 @@ export default function CeoDashboard() {
             </div>
           </WidgetErrorBoundary>
         </div>
-
         {/* CARD 4: Phê duyệt cần xử lý hôm nay (col-span-5) */}
         <div className="xl:col-span-5">
           <WidgetErrorBoundary title="Phê duyệt cần xử lý hôm nay">
@@ -604,16 +701,16 @@ export default function CeoDashboard() {
           </WidgetErrorBoundary>
         </div>
 
-        {/* CARD 5: Top 5 Sales theo doanh thu (col-span-4) */}
+        {/* Sales revenue ranking (col-span-4) */}
         <div className="xl:col-span-4">
-          <WidgetErrorBoundary title="Top 5 Sales theo doanh thu">
+          <WidgetErrorBoundary title="Doanh thu theo Sales">
             <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-[15px] font-bold text-slate-900 m-0">Top 5 Sales theo doanh thu</h2>
                 </div>
 
-                <div className="space-y-3.5">
+                <div className="max-h-[520px] space-y-3.5 overflow-y-auto pr-1">
                   {isLoadingSales ? <Skeleton active paragraph={{ rows: 5 }} /> : topSalesList.length ? topSalesList.map((sales) => (
                     <div
                       key={sales.salesUserId}
@@ -643,7 +740,7 @@ export default function CeoDashboard() {
                 href="/main/reports"
                 className="flex items-center justify-center gap-1.5 pt-3 mt-3 border-t border-slate-100 text-xs font-semibold text-[#0B7A5B] hover:text-[#08664D] transition-colors"
               >
-                <span>Xem bảng xếp hạng đầy đủ</span>
+                <span>Xem báo cáo hiệu suất Sales</span>
                 <ArrowRightOutlined className="text-[10px]" />
               </Link>
             </div>
@@ -695,7 +792,7 @@ export default function CeoDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">
+      <div className="grid grid-cols-1 gap-4">
         <WidgetErrorBoundary title="Hồ sơ toàn hệ thống - Cập nhật gần nhất">
           <Card
             className="ceo-card"
@@ -714,23 +811,110 @@ export default function CeoDashboard() {
             />
           </Card>
         </WidgetErrorBoundary>
+      </div>
 
-        <WidgetErrorBoundary title="Top khách hàng theo doanh thu">
-          <Card className="ceo-card" title="Top khách hàng theo doanh thu">
-            {overview?.vipCustomers?.length ? (
-              <div className="space-y-1">
-                {overview.vipCustomers.map((customer: { customerName: string; spend: number }, index: number) => (
-                  <div key={`${customer.customerName}-${index}`} className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--ceo-divider)] py-3 last:border-0">
-                    <span className={`ceo-rank ceo-rank-${Math.min(index + 1, 3)}`}>{index + 1}</span>
-                    <span className="truncate text-sm font-semibold">{customer.customerName}</span>
-                    <span className="text-sm font-semibold text-[var(--ceo-primary-700)] [font-variant-numeric:tabular-nums]">{formatCompactCurrency(customer.spend)}</span>
-                  </div>
-                ))}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(280px,1fr)_minmax(380px,1.3fr)_minmax(300px,.9fr)]">
+        <WidgetErrorBoundary title="Top khách hàng">
+          <section className="flex h-full flex-col rounded-xl border border-[#E5E8E6] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+            <div className="flex items-center justify-between border-b border-[#E5E8E6] p-4">
+              <h2 className="text-[15px] font-bold text-slate-900">Top khách hàng</h2>
+              <span className="text-xs text-slate-500">Đơn vị: Triệu đ</span>
+            </div>
+            <div className="flex-1">
+              {isLoadingOverview ? <div className="p-4"><Skeleton active paragraph={{ rows: 5 }} /></div> : topCustomers.length ? (
+                <div className="flex flex-col">
+                  {topCustomers.map((customer, index) => (
+                    <div key={`${customer.customerName}-${index}`} className="flex items-center justify-between border-b border-slate-100 px-4 py-3 last:border-0 transition-colors hover:bg-slate-50">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-sm font-bold ${customerLogoColors[index % customerLogoColors.length]}`}>
+                          {customer.customerName.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-slate-800">{customer.customerName}</div>
+                          <div className="mt-0.5 text-[11px] text-slate-500">Hạng {index + 1}</div>
+                        </div>
+                      </div>
+                      <div className="ml-3 shrink-0 text-right text-sm font-bold tabular-nums text-slate-900">
+                        {new Intl.NumberFormat('vi-VN').format(Math.round(Number(customer.spend) / 1_000_000))}Tr
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : <div className="p-6 text-center text-sm text-slate-500">Chưa có dữ liệu</div>}
+            </div>
+          </section>
+        </WidgetErrorBoundary>
+
+        <WidgetErrorBoundary title="Doanh thu Nhà cung cấp">
+          <section className="flex h-full flex-col overflow-hidden rounded-xl border border-[#E5E8E6] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+            <div className="flex items-start justify-between gap-3 border-b border-[#E5E8E6] p-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#C8EBD5] bg-[#E8F6ED] text-[#0A8A61]"><ShopOutlined /></div>
+                  <h2 className="text-[15px] font-bold text-slate-900">Doanh thu Nhà cung cấp</h2>
+                </div>
+                <p className="ml-9 mt-1.5 text-[11px] text-slate-500">Xếp hạng theo chi phí thuần trong kỳ</p>
               </div>
-            ) : (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có doanh số khách hàng trong kỳ" />
-            )}
-          </Card>
+              <span className="whitespace-nowrap text-[11px] text-slate-500">Top {supplierRows.length} NCC</span>
+            </div>
+            <div className="flex-1 p-4">
+              {isLoadingOverview ? <Skeleton active paragraph={{ rows: 6 }} /> : supplierRows.length ? (
+                <div className="space-y-4" role="list" aria-label="Doanh thu theo nhà cung cấp">
+                  {supplierRows.map((supplier, index) => {
+                    const share = supplierTotal > 0 ? (supplier.amount / supplierTotal) * 100 : 0;
+                    const width = highestSupplierAmount > 0 ? (supplier.amount / highestSupplierAmount) * 100 : 0;
+                    const barColor = index === 0 ? '#104E35' : index === 1 ? '#2F7D61' : '#A8CDBB';
+                    return (
+                      <div key={supplier.supplierId} role="listitem" className="group">
+                        <div className="mb-1.5 flex items-center justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-100 bg-slate-50 text-[11px] font-bold text-slate-600">{index + 1}</span>
+                            <div className="min-w-0">
+                              <div className="truncate text-[13px] font-semibold text-slate-800">{supplier.supplierName}</div>
+                              <div className="mt-0.5 truncate text-[10px] text-slate-500">{supplier.supplierCode} · {supplier.dossierCount} hồ sơ</div>
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <div className="text-[13px] font-bold tabular-nums text-slate-900">{new Intl.NumberFormat('vi-VN').format(Math.round(supplier.amount / 1_000_000))} Tr</div>
+                            <div className="text-[10px] tabular-nums text-slate-500">{share.toFixed(1)}%</div>
+                          </div>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label={`${supplier.supplierName}: ${share.toFixed(1)}%`} aria-valuenow={Math.round(width)} aria-valuemin={0} aria-valuemax={100}>
+                          <div className="h-full rounded-full transition-all duration-300 group-hover:brightness-95" style={{ width: `${width}%`, backgroundColor: barColor }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex min-h-[170px] flex-col items-center justify-center text-center">
+                  <ShopOutlined className="mb-2 text-2xl text-slate-400" />
+                  <p className="text-sm text-slate-500">Chưa có dữ liệu nhà cung cấp trong kỳ</p>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/60 px-4 py-3">
+              <span className="text-[11px] text-slate-600">Tổng nhóm đang hiển thị</span>
+              <span className="text-sm font-bold tabular-nums text-[#0A8A61]">{new Intl.NumberFormat('vi-VN').format(Math.round(supplierTotal / 1_000_000))} Tr</span>
+            </div>
+          </section>
+        </WidgetErrorBoundary>
+
+        <WidgetErrorBoundary title="Báo cáo nhanh">
+          <section className="flex h-full flex-col rounded-xl border border-[#E5E8E6] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+            <div className="border-b border-[#E5E8E6] p-4">
+              <h2 className="text-[15px] font-bold text-slate-900">Báo cáo nhanh</h2>
+            </div>
+            <div className="flex flex-1 flex-col gap-2.5 p-4">
+              {quickReports.map((report) => (
+                <Link key={report.title} href={report.href} className="group flex items-center gap-3 rounded-lg border border-slate-100 p-2.5 transition-colors hover:border-[#C8EBD5] hover:bg-[#F3FAF5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B7A5B]">
+                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${report.iconBox}`}>{report.icon}</span>
+                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-700 group-hover:text-[#0A8A61]">{report.title}</span>
+                  <RightOutlined className="shrink-0 text-[10px] text-slate-500 group-hover:text-[#0A8A61]" />
+                </Link>
+              ))}
+            </div>
+          </section>
         </WidgetErrorBoundary>
       </div>
 

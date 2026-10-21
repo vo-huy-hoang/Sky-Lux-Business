@@ -99,10 +99,12 @@ export class DashboardsController {
   getCeoMonthlyTrend(
     @CurrentUser('organizationId') organizationId: string,
     @Query('year') year?: number,
+    @Query('allTime') allTime?: string,
   ) {
     return this.dashboardsService.getCeoMonthlyTrend(
       organizationId,
       year ? Number(year) : new Date().getFullYear(),
+      allTime === 'true',
     );
   }
 

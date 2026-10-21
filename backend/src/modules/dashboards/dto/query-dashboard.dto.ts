@@ -1,4 +1,5 @@
-import { IsOptional, IsEnum, IsDateString } from 'class-validator';
+import { IsOptional, IsEnum, IsDateString, IsBoolean } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { KpiPeriodType } from '../../../common/enums';
 
 export class QueryDashboardDto {
@@ -9,4 +10,9 @@ export class QueryDashboardDto {
   @IsOptional()
   @IsDateString()
   date?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
+  allTime?: boolean;
 }

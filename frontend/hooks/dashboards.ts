@@ -121,10 +121,10 @@ export function useOperatorMonthlyTrend(months = 6, options?: DashboardQueryOpti
 /**
  * Hook lấy xu hướng doanh thu, chi phí, lợi nhuận 12 tháng cho CEO (API-DASHBOARD-006)
  */
-export function useCeoMonthlyTrend(year = new Date().getFullYear(), options?: DashboardQueryOptions) {
+export function useCeoMonthlyTrend(year = new Date().getFullYear(), options?: DashboardQueryOptions, allTime = false) {
   return useQuery<CeoMonthlyTrendItem[]>({
-    queryKey: queryKeys.dashboards.ceoMonthlyTrend(year),
-    queryFn: ({ signal }) => dashboardsService.getCeoMonthlyTrend(year, { signal }),
+    queryKey: queryKeys.dashboards.ceoMonthlyTrend(year, allTime),
+    queryFn: ({ signal }) => dashboardsService.getCeoMonthlyTrend(year, { signal }, allTime),
     ...DEFAULT_DASHBOARD_QUERY_OPTIONS,
     ...options,
   });

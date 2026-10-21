@@ -9,6 +9,7 @@ import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entit
 import { Task } from '../tasks/entities/task.entity';
 import { Supplier } from '../suppliers/entities/supplier.entity';
 import { KpiResult } from '../kpis/entities/kpi-result.entity';
+import { User } from '../users/entities/user.entity';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { KpiResult } from '../kpis/entities/kpi-result.entity';
       Task,
       Supplier,
       KpiResult,
+      User,
     ]),
   ],
   controllers: [DashboardsController],

@@ -62,13 +62,12 @@ export const dashboardsService = {
   /**
    * API-DASHBOARD-006: Xu hướng doanh thu, chi phí, lợi nhuận 12 tháng theo năm cho CEO
    */
-  getCeoMonthlyTrend: (year = new Date().getFullYear(), options?: RequestOptions) => {
+  getCeoMonthlyTrend: (year = new Date().getFullYear(), options?: RequestOptions, allTime = false) => {
     return apiClient.get<any, CeoMonthlyTrendItem[]>('/dashboard/ceo/monthly-trend', {
-      params: { year },
+      params: { year, ...(allTime ? { allTime: true } : {}) },
       signal: options?.signal,
     });
   },
 };
-
 
 

@@ -1,6 +1,7 @@
 export interface QueryDashboardParams {
   periodType?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
   date?: string;
+  allTime?: boolean;
 }
 
 export interface SalesDashboardData {

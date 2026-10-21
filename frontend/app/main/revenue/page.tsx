@@ -5,7 +5,6 @@ import React, { useState, useRef } from 'react';
 import Link from 'next/link';
 import { DatePicker, message } from 'antd';
 import {
-  AppstoreOutlined,
   BarChartOutlined,
   CalendarOutlined,
   DollarOutlined,
@@ -80,7 +79,6 @@ const barTopLabelsPlugin = {
 
 function CeoRevenuePage() {
   const datePickerRef = useRef<any>(null);
-  const [marketType] = useState('Tất cả loại hình');
   const [breakdownMode, setBreakdownMode] = useState<RevenueBreakdownMode>('MARKET_TYPE');
 
   const dateString = useFilterStore((state) => state.dateString);
@@ -236,7 +234,7 @@ function CeoRevenuePage() {
       {/* 1. FILTER TOOLBAR & EXPORT BUTTONS */}
       <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 flex-1 max-w-4xl">
+            <div className="flex flex-1 items-center">
               {/* Filter 1 */}
             <div
               onClick={() => {
@@ -244,7 +242,7 @@ function CeoRevenuePage() {
                 input?.focus?.();
                 input?.click?.();
               }}
-              className="flex items-center justify-between px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:border-slate-300 transition-colors cursor-pointer text-xs"
+              className="flex w-full max-w-[270px] items-center justify-between px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:border-slate-300 transition-colors cursor-pointer text-xs"
             >
               <div className="flex items-center gap-2 min-w-0">
                 <CalendarOutlined className="text-slate-400 text-sm shrink-0" />
@@ -269,18 +267,6 @@ function CeoRevenuePage() {
               </div>
               <DownOutlined className="text-[9px] text-slate-400 shrink-0 ml-1.5" />
             </div>
-            {/* Filter 2 */}
-            <div className="flex items-center justify-between px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:border-slate-300 transition-colors cursor-pointer text-xs">
-              <div className="flex items-center gap-2 min-w-0">
-                <AppstoreOutlined className="text-slate-400 text-sm shrink-0" />
-                <div className="min-w-0">
-                  <div className="text-[10px] text-slate-400 leading-none">Loại hình</div>
-                  <div className="font-semibold text-slate-800 text-xs truncate mt-0.5">{marketType}</div>
-                </div>
-              </div>
-              <DownOutlined className="text-[9px] text-slate-400 shrink-0 ml-1.5" />
-            </div>
-            {/* Filter 3 & 4 Omitted for brevity */}
           </div>
           <div className="flex items-center gap-2.5 shrink-0 justify-end">
             <button type="button" onClick={handleExportPDF} className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[#0B7A5B] bg-white text-[#0B7A5B] text-xs font-semibold hover:bg-[#E8F6ED] transition-colors cursor-pointer"><FilePdfOutlined className="text-sm" /><span>Xuất PDF</span></button>

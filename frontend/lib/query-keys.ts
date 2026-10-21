@@ -48,8 +48,8 @@ export const queryKeys = {
     operatorSalesSummary: (params?: Record<string, any>) =>
       [...queryKeys.dashboards.operator(params), 'sales-summary'] as const,
     operatorMonthlyTrend: () => [...queryKeys.dashboards.operator(), 'monthly-trend'] as const,
-    ceoMonthlyTrend: (year?: number) =>
-      [...queryKeys.dashboards.ceo(), 'monthly-trend', year || 'current'] as const,
+    ceoMonthlyTrend: (year?: number, allTime = false) =>
+      [...queryKeys.dashboards.ceo(), 'monthly-trend', allTime ? 'all-time' : year || 'current'] as const,
   },
 
 

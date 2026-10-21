@@ -8,6 +8,7 @@ import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entit
 import { Task } from '../tasks/entities/task.entity';
 import { Supplier } from '../suppliers/entities/supplier.entity';
 import { KpiResult } from '../kpis/entities/kpi-result.entity';
+import { User } from '../users/entities/user.entity';
 import { KpiPeriodType } from '../../common/enums';
 
 describe('DashboardsService', () => {
@@ -19,6 +20,7 @@ describe('DashboardsService', () => {
   let taskRepository: any;
   let supplierRepository: any;
   let kpiResultRepository: any;
+  let userRepository: any;
 
   beforeEach(async () => {
     dossierRepository = {
@@ -47,6 +49,10 @@ describe('DashboardsService', () => {
     };
 
     kpiResultRepository = {
+      createQueryBuilder: jest.fn(),
+    };
+
+    userRepository = {
       createQueryBuilder: jest.fn(),
     };
 
@@ -80,6 +86,10 @@ describe('DashboardsService', () => {
         {
           provide: getRepositoryToken(KpiResult),
           useValue: kpiResultRepository,
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: userRepository,
         },
       ],
     }).compile();
@@ -239,7 +249,8 @@ describe('DashboardsService', () => {
 
   describe('getOperatorSalesSummary', () => {
     it('should aggregate dossiers, revenue and profit by sales user', async () => {
-      const mockDossierQB = {
+      const mockSalesUsersQB = {
+        innerJoin: jest.fn().mockReturnThis(),
         leftJoin: jest.fn().mockReturnThis(),
         select: jest.fn().mockReturnThis(),
         addSelect: jest.fn().mockReturnThis(),
@@ -259,7 +270,7 @@ describe('DashboardsService', () => {
           },
         ]),
       };
-      dossierRepository.createQueryBuilder.mockReturnValue(mockDossierQB);
+      userRepository.createQueryBuilder.mockReturnValue(mockSalesUsersQB);
 
       const mockRevenueQB = {
         innerJoin: jest.fn().mockReturnThis(),
