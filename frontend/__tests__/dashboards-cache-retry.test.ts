@@ -208,6 +208,7 @@ describe('FE-DASH-01: Dashboard Cache & Retry Optimization', () => {
       expect(dashboardsService.getCeoMonthlyTrend).toHaveBeenCalledWith(
         2026,
         expect.objectContaining({ signal: expect.any(AbortSignal) }),
+        false,
       );
     });
   });
