@@ -6,6 +6,7 @@ import { EstimatesService } from './estimates.service';
 import { Estimate } from './entities/estimate.entity';
 import { EstimateRevenueLine } from './entities/estimate-revenue-line.entity';
 import { EstimateCostLine } from './entities/estimate-cost-line.entity';
+import { Supplier } from '../suppliers/entities/supplier.entity';
 import { DossiersService } from '../dossiers/dossiers.service';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { QueryEstimateDto } from './dto/query-estimate.dto';
@@ -19,6 +20,7 @@ describe('EstimatesService', () => {
   let estimateRepository: jest.Mocked<Repository<Estimate>>;
   let revenueLineRepository: jest.Mocked<Repository<EstimateRevenueLine>>;
   let costLineRepository: jest.Mocked<Repository<EstimateCostLine>>;
+  let supplierRepository: jest.Mocked<Repository<Supplier>>;
   let dossiersService: jest.Mocked<DossiersService>;
   let dataSource: jest.Mocked<DataSource>;
   let mockTransactionalEntityManager: any;
@@ -54,7 +56,12 @@ describe('EstimatesService', () => {
     findOne: jest.fn(),
   };
 
+  const mockSupplierRepository = {
+    count: jest.fn().mockResolvedValue(1),
+  };
+
   beforeEach(async () => {
+    mockSupplierRepository.count.mockResolvedValue(1);
     mockTransactionalEntityManager = {
       getRepository: jest.fn((entity: any) => {
         if (entity === EstimateRevenueLine) return revenueLineRepository;
@@ -114,6 +121,10 @@ describe('EstimatesService', () => {
           },
         },
         {
+          provide: getRepositoryToken(Supplier),
+          useValue: mockSupplierRepository,
+        },
+        {
           provide: DataSource,
           useValue: mockDataSource,
         },
@@ -132,6 +143,7 @@ describe('EstimatesService', () => {
     estimateRepository = module.get(getRepositoryToken(Estimate));
     revenueLineRepository = module.get(getRepositoryToken(EstimateRevenueLine));
     costLineRepository = module.get(getRepositoryToken(EstimateCostLine));
+    supplierRepository = module.get(getRepositoryToken(Supplier));
     dossiersService = module.get(DossiersService);
     dataSource = module.get(DataSource);
   });
@@ -244,6 +256,24 @@ describe('EstimatesService', () => {
 
       expect(result.costLines[0].netAmount).toEqual(500); // 1 * 1 * 500
       expect(result.costLines[0].grossAmount).toEqual(500); // 500 * 1.0
+    });
+
+    it('should throw BadRequestException if costLines contains supplierId from another organization', async () => {
+      dossiersService.findOne.mockResolvedValue({ id: 'dossier-uuid' } as any);
+      mockSupplierRepository.count.mockResolvedValue(0);
+
+      await expect(
+        service.create(mockUserPayload, {
+          dossierId: 'dossier-uuid',
+          costLines: [
+            {
+              description: 'Cost with invalid supplier',
+              supplierId: 'cross-org-supplier-id',
+              unitPrice: 100,
+            },
+          ],
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should calculate from quantity, multiplier, and price even when an imported source amount exists', async () => {
@@ -438,6 +468,26 @@ describe('EstimatesService', () => {
           note: undefined,
         }),
       );
+    });
+
+    it('should throw BadRequestException if updated costLines contains supplierId from another organization', async () => {
+      estimateRepository.findOne.mockResolvedValue({
+        ...mockEstimate,
+        status: EstimateStatus.DRAFT,
+      } as any);
+      mockSupplierRepository.count.mockResolvedValue(0);
+
+      await expect(
+        service.update(mockUserPayload, 'est-uuid', {
+          costLines: [
+            {
+              description: 'Updated cost with invalid supplier',
+              supplierId: 'cross-org-supplier-id',
+              unitPrice: 200,
+            },
+          ],
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

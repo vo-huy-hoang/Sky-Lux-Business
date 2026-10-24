@@ -206,7 +206,7 @@ describe('UsersService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('should throw ConflictException if employeeCode exists', async () => {
+    it('should throw ConflictException if employeeCode exists in organization', async () => {
       mockUserRepository.findOne
         .mockResolvedValueOnce(null) // email ok
         .mockResolvedValueOnce({ id: 'existing-id' }); // code conflict
@@ -218,6 +218,38 @@ describe('UsersService', () => {
           employeeCode: 'EMP001',
         }),
       ).rejects.toThrow(ConflictException);
+
+      expect(mockUserRepository.findOne).toHaveBeenLastCalledWith({
+        where: { employeeCode: 'EMP001', organizationId: 'org-uuid' },
+      });
+    });
+
+    it('should allow same employeeCode in different organizations', async () => {
+      mockUserRepository.findOne
+        .mockResolvedValueOnce(null) // email ok
+        .mockResolvedValueOnce(null); // code check in org-2 -> ok
+
+      const createdUserOrg2 = {
+        id: 'user-org2',
+        fullName: 'Org2 User',
+        email: 'org2@skylux.vn',
+        employeeCode: 'EMP001',
+        organizationId: 'org-2',
+        passwordHash: 'hashed',
+      };
+      mockUserRepository.create.mockReturnValue(createdUserOrg2);
+      mockUserRepository.save.mockResolvedValue(createdUserOrg2);
+
+      const result = await service.create('org-2', {
+        fullName: 'Org2 User',
+        email: 'org2@skylux.vn',
+        employeeCode: 'EMP001',
+      });
+
+      expect(mockUserRepository.findOne).toHaveBeenNthCalledWith(2, {
+        where: { employeeCode: 'EMP001', organizationId: 'org-2' },
+      });
+      expect(result.data.employeeCode).toBe('EMP001');
     });
 
     it('should throw BadRequestException if department does not belong to organization', async () => {
@@ -287,6 +319,32 @@ describe('UsersService', () => {
       await expect(
         service.update('org-uuid', 'invalid-id', { fullName: 'Test' }),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ConflictException if updated employeeCode exists in the same organization', async () => {
+      const orgId = 'org-uuid';
+      const userId = 'user-uuid';
+      const existingUser = {
+        id: userId,
+        organizationId: orgId,
+        fullName: 'User Name',
+        email: 'user@skylux.vn',
+        employeeCode: 'EMP001',
+      };
+
+      mockUserRepository.findOne
+        .mockResolvedValueOnce(existingUser) // find user
+        .mockResolvedValueOnce({ id: 'another-user-id' }); // employeeCode check conflict
+
+      await expect(
+        service.update(orgId, userId, {
+          employeeCode: 'EMP002',
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockUserRepository.findOne).toHaveBeenLastCalledWith({
+        where: { employeeCode: 'EMP002', organizationId: orgId },
+      });
     });
   });
 

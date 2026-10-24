@@ -79,33 +79,28 @@ export class CustomersService {
       );
     }
 
-    // Load the filtered tenant set before pagination so duplicate customer
-    // records can be collapsed into one visible customer row. Pagination is
-    // applied after identity grouping below.
-    queryBuilder.orderBy('customer.createdAt', 'ASC');
+    // Direct database-level pagination to prevent RAM exhaustion (OOM)
+    queryBuilder
+      .orderBy('customer.createdAt', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit);
 
-    const [items] = await queryBuilder.getManyAndCount();
-    const groups = this.groupCustomers(items);
-    const allCustomerIds = groups.flatMap((group) => group.customerIds);
+    const [customers, total] = await queryBuilder.getManyAndCount();
+    const pageCustomerIds = customers.map((c) => c.id);
     const dossierCounts = await this.getDossierCounts(
       organizationId,
-      allCustomerIds,
+      pageCustomerIds,
     );
-    const total = groups.length;
-    const totalPages = Math.ceil(total / limit);
-    const paginatedGroups = groups.slice((page - 1) * limit, page * limit);
+    const totalPages = Math.ceil(total / limit) || (total === 0 ? 0 : 1);
 
     return {
-      data: paginatedGroups.map(({ customer, customerIds }) => {
+      data: customers.map((customer) => {
         customer.assignedSales = toPublicUser(
           customer.assignedSales,
         ) as typeof customer.assignedSales;
         return Object.assign(customer, {
-          customerIds,
-          dossierCount: customerIds.reduce(
-            (sum, customerId) => sum + (dossierCounts.get(customerId) || 0),
-            0,
-          ),
+          customerIds: [customer.id],
+          dossierCount: dossierCounts.get(customer.id) || 0,
         }) as CustomerListItem;
       }),
       meta: {
@@ -198,15 +193,24 @@ export class CustomersService {
   }
 
   private async resolveCustomerGroupIds(customer: Customer): Promise<string[]> {
-    const customers = await this.customerRepository.find({
-      where: { organizationId: customer.organizationId },
-      order: { createdAt: 'ASC' },
+    const conditions: Array<Record<string, any>> = [{ id: customer.id }];
+    if (customer.phone) {
+      conditions.push({
+        phone: customer.phone,
+        organizationId: customer.organizationId,
+      });
+    }
+    if (customer.email) {
+      conditions.push({
+        email: customer.email,
+        organizationId: customer.organizationId,
+      });
+    }
+    const matched = await this.customerRepository.find({
+      where: conditions,
+      select: { id: true },
     });
-    return (
-      this.groupCustomers(customers).find((group) =>
-        group.customerIds.includes(customer.id),
-      )?.customerIds || [customer.id]
-    );
+    return matched.map((c) => c.id);
   }
 
   async findOne(

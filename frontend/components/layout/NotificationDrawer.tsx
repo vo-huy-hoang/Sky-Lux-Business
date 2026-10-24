@@ -212,7 +212,7 @@ export function NotificationDrawer() {
       placement="right"
       onClose={() => setOpen(false)}
       open={open}
-      width={isMobile ? '100%' : 440}
+      size={isMobile ? '100%' : 440}
       className="max-w-full"
       styles={{
         header: { display: 'none' },
