@@ -313,8 +313,8 @@ function OperationalDashboard() {
       <Alert
         type="error"
         showIcon
-        title="Không thể tải dữ liệu dashboard"
-        description="Vui lòng kiểm tra kết nối API rồi tải lại trang."
+        title="Không thể tải Dashboard"
+        description="Vui lòng kiểm tra lại kết nối hoặc tải lại trang."
       />
     );
   }

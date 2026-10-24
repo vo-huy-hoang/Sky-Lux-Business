@@ -5,11 +5,15 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   ParseUUIDPipe,
   Sse,
   UseGuards,
   MessageEvent,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Observable } from 'rxjs';
 import { Public } from '../../common/decorators/public.decorator';
 import { JwtQueryAuthGuard } from '../../common/guards/jwt-query-auth.guard';
@@ -19,6 +23,9 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { CreateConversationDto } from './dto/create-conversation.dto';
@@ -29,7 +36,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { Conversation } from './entities/conversation.entity';
-import { Message } from './entities/message.entity';
+import { Message, ChatAttachmentPayload } from './entities/message.entity';
 import { ConversationMember } from './entities/conversation-member.entity';
 
 @ApiTags('Chat')
@@ -82,14 +89,65 @@ export class ChatController {
   }
 
   @Get('conversations/:id/messages')
-  @ApiOperation({ summary: 'Lấy lịch sử tin nhắn của cuộc hội thoại' })
+  @ApiOperation({
+    summary:
+      'Lấy lịch sử tin nhắn của cuộc hội thoại (Hỗ trợ phân trang limit và con trỏ before)',
+  })
   @ApiParam({ name: 'id', description: 'ID cuộc hội thoại (UUID)' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Số lượng tin nhắn tối đa (mặc định 30, tối đa 100)',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'before',
+    required: false,
+    description: 'ID tin nhắn mốc hoặc thời gian ISO để lấy tin nhắn cũ hơn',
+    type: String,
+  })
   @ApiResponse({ status: 200, description: 'Lấy tin nhắn thành công' })
   findMessages(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', ParseUUIDPipe) id: string,
+    @Query('limit') limit?: string,
+    @Query('before') before?: string,
   ): Promise<Message[]> {
+    const parsedLimit = limit ? parseInt(limit, 10) : undefined;
+    if (parsedLimit !== undefined || before !== undefined) {
+      return this.chatService.findMessages(user, id, parsedLimit, before);
+    }
     return this.chatService.findMessages(user, id);
+  }
+
+  @Post(['chat/upload', 'v1/chat/upload'])
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 15 * 1024 * 1024 }, // 15MB
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Tải lên hình ảnh hoặc tệp đính kèm trong chat (API-CHAT-UPLOAD)',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Tải tệp thành công, trả về metadata và đường dẫn',
+  })
+  uploadAttachment(
+    @CurrentUser() user: CurrentUserPayload,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<ChatAttachmentPayload> {
+    return this.chatService.uploadAttachment(user, file);
   }
 
   @Post('conversations/:id/messages')
@@ -104,8 +162,9 @@ export class ChatController {
     return this.chatService.sendMessage(
       user,
       id,
-      dto.content,
+      dto.content || '',
       dto.clientMessageId,
+      dto.attachments,
     );
   }
 

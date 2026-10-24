@@ -7,6 +7,7 @@ import { ConversationMember } from './entities/conversation-member.entity';
 import { Message } from './entities/message.entity';
 import { User } from '../users/entities/user.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
+import { StorageService } from '../../shared/storage/storage.service';
 import {
   NotFoundException,
   ForbiddenException,
@@ -29,6 +30,18 @@ describe('ChatService', () => {
     employeeCode: 'EMP001',
     roles: [],
     permissions: [],
+  };
+
+  const mockStorageService = {
+    uploadFile: jest.fn().mockImplementation((file, objectKey) =>
+      Promise.resolve({
+        objectKey,
+        fileSize: file.size,
+        publicUrl: `/uploads/${objectKey}`,
+      }),
+    ),
+    getSignedDownloadUrl: jest.fn().mockResolvedValue('/uploads/file.png'),
+    deleteFile: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockConversationRepo = {
@@ -102,6 +115,10 @@ describe('ChatService', () => {
         {
           provide: getRepositoryToken(Dossier),
           useValue: mockDossierRepo,
+        },
+        {
+          provide: StorageService,
+          useValue: mockStorageService,
         },
       ],
     }).compile();
@@ -285,6 +302,167 @@ describe('ChatService', () => {
       expect(res2.id).toBe('msg-idempotent-1');
       // Không được gọi save thêm lần nào nữa!
       expect(mockMessageRepo.save.mock.calls.length).toBe(saveCount);
+    });
+
+    it('should successfully send a message with attachments', async () => {
+      const mockConv = {
+        id: 'conv-1',
+        organizationId: 'org-1',
+        members: [{ userId: 'user-1' }],
+      };
+      mockConversationRepo.findOne.mockResolvedValueOnce(mockConv);
+      mockMessageRepo.findOne.mockResolvedValueOnce({
+        id: 'msg-with-att',
+        content: 'Vé máy bay đính kèm',
+        senderId: 'user-1',
+        attachments: [
+          {
+            url: '/uploads/chat/ticket.jpg',
+            originalName: 'ticket.jpg',
+            fileSize: 102400,
+            mimeType: 'image/jpeg',
+            thumbnailUrl: '/uploads/chat/ticket.jpg',
+          },
+        ],
+      });
+
+      const res = await service.sendMessage(
+        mockUser,
+        'conv-1',
+        'Vé máy bay đính kèm',
+        undefined,
+        [
+          {
+            url: '/uploads/chat/ticket.jpg',
+            originalName: 'ticket.jpg',
+            fileSize: 102400,
+            mimeType: 'image/jpeg',
+            thumbnailUrl: '/uploads/chat/ticket.jpg',
+          },
+        ],
+      );
+      expect(res.id).toBe('msg-with-att');
+      expect(mockMessageRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'Vé máy bay đính kèm',
+          attachments: expect.arrayContaining([
+            expect.objectContaining({ originalName: 'ticket.jpg' }),
+          ]),
+        }),
+      );
+    });
+
+    it('should successfully send a message with ONLY attachments (empty content text)', async () => {
+      const mockConv = {
+        id: 'conv-1',
+        organizationId: 'org-1',
+        members: [{ userId: 'user-1' }],
+      };
+      mockConversationRepo.findOne.mockResolvedValueOnce(mockConv);
+      mockMessageRepo.findOne.mockResolvedValueOnce({
+        id: 'msg-only-att',
+        content: '',
+        senderId: 'user-1',
+        attachments: [
+          {
+            url: '/uploads/chat/doc.pdf',
+            originalName: 'doc.pdf',
+            fileSize: 50000,
+            mimeType: 'application/pdf',
+          },
+        ],
+      });
+
+      const res = await service.sendMessage(
+        mockUser,
+        'conv-1',
+        '',
+        undefined,
+        [
+          {
+            url: '/uploads/chat/doc.pdf',
+            originalName: 'doc.pdf',
+            fileSize: 50000,
+            mimeType: 'application/pdf',
+          },
+        ],
+      );
+      expect(res.id).toBe('msg-only-att');
+    });
+
+    it('should throw BadRequestException if message has neither content nor attachments', async () => {
+      await expect(
+        service.sendMessage(mockUser, 'conv-1', '   ', undefined, []),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('uploadAttachment', () => {
+    it('should successfully upload an image and return attachment payload with thumbnailUrl', async () => {
+      const mockFile = {
+        originalname: 'ticket-vietnam-airlines.jpg',
+        buffer: Buffer.from('fake-image-bytes'),
+        mimetype: 'image/jpeg',
+        size: 204800,
+      } as Express.Multer.File;
+
+      const res = await service.uploadAttachment(mockUser, mockFile);
+
+      expect(res).toBeDefined();
+      expect(res.originalName).toBe('ticket-vietnam-airlines.jpg');
+      expect(res.fileSize).toBe(204800);
+      expect(res.mimeType).toBe('image/jpeg');
+      expect(res.url).toContain('/uploads/chat/org-1/');
+      expect(res.thumbnailUrl).toBe(res.url);
+      expect(mockStorageService.uploadFile).toHaveBeenCalled();
+    });
+
+    it('should successfully upload a PDF document and return attachment payload without thumbnailUrl', async () => {
+      const mockFile = {
+        originalname: 'tour-itinerary.pdf',
+        buffer: Buffer.from('fake-pdf-bytes'),
+        mimetype: 'application/pdf',
+        size: 512000,
+      } as Express.Multer.File;
+
+      const res = await service.uploadAttachment(mockUser, mockFile);
+
+      expect(res).toBeDefined();
+      expect(res.originalName).toBe('tour-itinerary.pdf');
+      expect(res.mimeType).toBe('application/pdf');
+      expect(res.thumbnailUrl).toBeUndefined();
+    });
+
+    it('should throw BadRequestException if file is missing or has no buffer', async () => {
+      await expect(
+        service.uploadAttachment(mockUser, null as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if file exceeds 15MB limit', async () => {
+      const oversizedFile = {
+        originalname: 'large-video.mp4',
+        buffer: Buffer.from('large-bytes'),
+        mimetype: 'video/mp4',
+        size: 16 * 1024 * 1024, // 16MB > 15MB
+      } as Express.Multer.File;
+
+      await expect(
+        service.uploadAttachment(mockUser, oversizedFile),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if file is an executable or blocked extension', async () => {
+      const dangerousFile = {
+        originalname: 'malware.exe',
+        buffer: Buffer.from('dangerous-bytes'),
+        mimetype: 'application/x-msdownload',
+        size: 1024,
+      } as Express.Multer.File;
+
+      await expect(
+        service.uploadAttachment(mockUser, dangerousFile),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

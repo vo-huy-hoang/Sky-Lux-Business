@@ -3,7 +3,7 @@
 import React from 'react';
 import { Button, Empty, Typography } from 'antd';
 import { MessageOutlined, PlusOutlined } from '@ant-design/icons';
-import { Conversation, Message } from '@/types/chat';
+import { Conversation, Message, ChatAttachment } from '@/types/chat';
 import { DossierItem } from '@/types/dossier';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useMessageThread } from '../hooks/useMessageThread';
@@ -36,7 +36,11 @@ export interface MessageThreadAreaProps {
   inputText?: string;
   isSending?: boolean;
   onInputChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onSendMessage?: () => void;
+  onSendMessage?: (
+    overrideText?: string,
+    clientMessageId?: string,
+    attachments?: ChatAttachment[],
+  ) => void;
 }
 
 /**
@@ -82,7 +86,7 @@ export function MessageThreadArea({
   const onDeleteMessage = propOnDeleteMessage || thread.deleteMessage;
   const onRetryMessage = propOnRetryMessage || thread.handleSendMessage;
   const onInputChange = propOnInputChange || thread.handleInputChange;
-  const onSendMessage = propOnSendMessage || (() => thread.handleSendMessage());
+  const onSendMessage = propOnSendMessage || thread.handleSendMessage;
   return (
     <main className="skylux-message-thread flex flex-col flex-1 bg-[#F9FBFA]" aria-label="Nội dung cuộc trò chuyện">
       {activeConversation ? (
@@ -102,6 +106,10 @@ export function MessageThreadArea({
             onDeleteMessage={onDeleteMessage}
             onRetryMessage={onRetryMessage}
             messagesEndRef={messagesEndRef}
+            scrollContainerRef={thread.scrollContainerRef}
+            hasMore={thread.hasMore}
+            isLoadingOlder={thread.isLoadingOlder}
+            onLoadOlder={thread.onLoadOlder}
           />
           <MessageInputBar
             inputText={inputText}

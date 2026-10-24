@@ -1,8 +1,11 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { types } from 'pg';
+import * as path from 'path';
+import * as fs from 'fs';
 import { AppModule } from './app.module';
 
 // Configure pg driver to parse NUMERIC (OID 1700) as float number in Javascript
@@ -10,7 +13,7 @@ types.setTypeParser(1700, (val) => (val === null ? null : parseFloat(val)));
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // Enable graceful shutdown hooks for clean database and worker teardown
   app.enableShutdownHooks();
@@ -19,8 +22,21 @@ async function bootstrap() {
     logger.warn('🛑 SIGTERM received: Draining in-flight requests and closing connections...');
   });
 
+  // Serve static files from uploads directory (Chat attachments, document previews)
+  const uploadsDir = path.join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  app.useStaticAssets(uploadsDir, {
+    prefix: '/uploads/',
+  });
+
   // Security
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
   const corsOrigins = (
     process.env.CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000'
   )

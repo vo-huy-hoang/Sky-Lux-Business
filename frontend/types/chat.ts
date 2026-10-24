@@ -30,12 +30,21 @@ export interface Conversation {
   dossier?: DossierItem;
 }
 
+export interface ChatAttachment {
+  url: string;
+  originalName: string;
+  fileSize: number;
+  mimeType: string;
+  thumbnailUrl?: string;
+}
+
 export interface Message {
   id: string;
   organizationId: string;
   conversationId: string;
   senderId: string;
   content: string;
+  attachments?: ChatAttachment[] | null;
   createdAt: string;
   sender: ChatUser;
   // Resilience & Optimistic UI
@@ -51,8 +60,9 @@ export interface CreateConversationPayload {
 }
 
 export interface SendMessagePayload {
-  content: string;
+  content?: string;
   clientMessageId?: string;
+  attachments?: ChatAttachment[];
 }
 
 
