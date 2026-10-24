@@ -56,10 +56,10 @@ export const useSendMessage = (conversationId: string) => {
           ? crypto.randomUUID()
           : `cm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
 
-      if (typeof variables !== 'string') {
-        variables.clientMessageId = clientMessageId;
+      if (attachments && attachments.length > 0) {
+        return chatService.sendMessage(conversationId, content, clientMessageId, attachments);
       }
-      return chatService.sendMessage(conversationId, content, clientMessageId, attachments);
+      return chatService.sendMessage(conversationId, content, clientMessageId);
     },
     onMutate: async (variables) => {
       const content = typeof variables === 'string' ? variables : variables.content || '';
