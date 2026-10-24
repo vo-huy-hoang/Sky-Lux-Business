@@ -51,8 +51,7 @@ function formatNotificationTime(createdAt?: string): string {
 interface NotificationMeta {
   category: string;
   icon: React.ReactNode;
-  iconBg: string;
-  badgeClass: string;
+  statusClass: string;
 }
 
 function getNotificationMeta(item: AppNotification): NotificationMeta {
@@ -70,9 +69,8 @@ function getNotificationMeta(item: AppNotification): NotificationMeta {
   ) {
     return {
       category: title.includes('hoàn thành') ? 'Hoàn thành' : 'Đã duyệt',
-      icon: <CheckCircleFilled className="text-base text-emerald-600" />,
-      iconBg: 'bg-emerald-50/80 border border-emerald-100',
-      badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200/70',
+      icon: <CheckCircleOutlined className="text-sm" />,
+      statusClass: 'skylux-status-valid',
     };
   }
 
@@ -86,9 +84,8 @@ function getNotificationMeta(item: AppNotification): NotificationMeta {
   ) {
     return {
       category: 'Thẩm định',
-      icon: <FileProtectOutlined className="text-base text-sky-600" />,
-      iconBg: 'bg-sky-50/80 border border-sky-100',
-      badgeClass: 'bg-sky-50 text-sky-700 border-sky-200/70',
+      icon: <FileProtectOutlined className="text-sm" />,
+      statusClass: 'skylux-status-info',
     };
   }
 
@@ -102,9 +99,8 @@ function getNotificationMeta(item: AppNotification): NotificationMeta {
   ) {
     return {
       category: 'Cần chú ý',
-      icon: <ExclamationCircleFilled className="text-base text-amber-500" />,
-      iconBg: 'bg-amber-50/80 border border-amber-100',
-      badgeClass: 'bg-amber-50 text-amber-700 border-amber-200/70',
+      icon: <ExclamationCircleFilled className="text-sm" />,
+      statusClass: 'skylux-status-warning',
     };
   }
 
@@ -119,9 +115,8 @@ function getNotificationMeta(item: AppNotification): NotificationMeta {
   ) {
     return {
       category: 'Từ chối',
-      icon: <CloseCircleFilled className="text-base text-rose-500" />,
-      iconBg: 'bg-rose-50/80 border border-rose-100',
-      badgeClass: 'bg-rose-50 text-rose-700 border-rose-200/70',
+      icon: <CloseCircleFilled className="text-sm" />,
+      statusClass: 'skylux-status-danger',
     };
   }
 
@@ -133,17 +128,15 @@ function getNotificationMeta(item: AppNotification): NotificationMeta {
   ) {
     return {
       category: 'Hồ sơ',
-      icon: <FolderOpenFilled className="text-base text-teal-600" />,
-      iconBg: 'bg-teal-50/80 border border-teal-100',
-      badgeClass: 'bg-teal-50 text-teal-700 border-teal-200/70',
+      icon: <FolderOpenFilled className="text-sm" />,
+      statusClass: 'skylux-status-purple',
     };
   }
 
   return {
     category: 'Hệ thống',
-    icon: <BellFilled className="text-base text-indigo-500" />,
-    iconBg: 'bg-indigo-50/80 border border-indigo-100',
-    badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200/70',
+    icon: <BellOutlined className="text-sm" />,
+    statusClass: 'skylux-status-info',
   };
 }
 
@@ -216,41 +209,74 @@ export function NotificationDrawer() {
       className="max-w-full"
       styles={{
         header: { display: 'none' },
-        body: { padding: 0, background: '#F8FAF9', display: 'flex', flexDirection: 'column' },
+        body: { padding: 0, background: 'var(--color-bg)', display: 'flex', flexDirection: 'column' },
       }}
     >
-      {/* Custom Sleek Header */}
-      <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-md border-b border-slate-100 px-5 pt-4 pb-3 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+      {/* Luxury Corporate Header synchronized with globals.css tokens */}
+      <div
+        className="sticky top-0 z-10 px-5 pt-4 pb-0 shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
+        style={{
+          background: 'var(--color-surface)',
+          borderBottom: '1px solid var(--color-divider)',
+        }}
+      >
         {/* Top Header Row */}
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 flex items-center justify-center text-emerald-700 shadow-xs">
-              <BellOutlined className="text-base" />
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h3
+                className="text-base font-bold tracking-tight m-0"
+                style={{ color: 'var(--color-text)' }}
+              >
+                Thông báo
+              </h3>
+              {unreadCount > 0 && (
+                <span
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                  style={{
+                    background: 'var(--color-primary-soft)',
+                    color: 'var(--color-primary-800)',
+                    border: '1px solid var(--color-primary-soft-2)',
+                  }}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ background: 'var(--color-gold-strong)' }}
+                  />
+                  {unreadCount} mới
+                </span>
+              )}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-[15px] font-bold text-slate-800 tracking-tight m-0">
-                  Thông báo
-                </h3>
-                {unreadCount > 0 && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500 text-white shadow-xs">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                    {unreadCount} mới
-                  </span>
-                )}
-              </div>
-            </div>
+            <p
+              className="text-xs m-0 mt-0.5"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              Tiến trình hồ sơ và cập nhật phê duyệt
+            </p>
           </div>
 
           {/* Top Actions */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 pt-0.5">
             {notifications.length > 0 && (
               <>
                 <Tooltip title="Đánh dấu tất cả đã đọc" placement="bottom">
                   <button
+                    type="button"
                     onClick={() => markAllNotificationsReadMutation.mutate()}
                     disabled={unreadCount === 0 || markAllNotificationsReadMutation.isPending}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-emerald-700 hover:bg-emerald-50/80 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-600 border border-transparent hover:border-emerald-200/50 cursor-pointer disabled:cursor-not-allowed"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer border border-transparent"
+                    style={{
+                      color: 'var(--color-primary-700)',
+                      background: 'transparent',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (unreadCount > 0) {
+                        e.currentTarget.style.background = 'var(--color-primary-soft)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                    }}
                   >
                     <CheckOutlined className="text-xs" />
                     <span className="hidden sm:inline">Đọc tất cả</span>
@@ -269,7 +295,8 @@ export function NotificationDrawer() {
                 >
                   <Tooltip title="Xóa tất cả" placement="bottom">
                     <button
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer border-0 bg-transparent"
+                      type="button"
+                      className="w-7 h-7 rounded-md flex items-center justify-center transition-colors cursor-pointer border-0 bg-transparent hover:bg-rose-50 hover:text-rose-600 text-slate-400"
                       aria-label="Xóa tất cả"
                     >
                       <DeleteOutlined className="text-sm" />
@@ -281,8 +308,9 @@ export function NotificationDrawer() {
 
             {/* Close Button */}
             <button
+              type="button"
               onClick={() => setOpen(false)}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors ml-1 cursor-pointer border-0 bg-transparent"
+              className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors ml-1 cursor-pointer border-0 bg-transparent"
               aria-label="Đóng"
             >
               <CloseOutlined className="text-sm" />
@@ -290,45 +318,70 @@ export function NotificationDrawer() {
           </div>
         </div>
 
-        {/* Filter Segment Tabs */}
-        <div className="flex items-center gap-1 p-1 bg-slate-100/90 rounded-xl">
+        {/* Minimalist Corporate Underline Tabs */}
+        <div className="flex items-center gap-6 mt-3">
           <button
+            type="button"
             onClick={() => setActiveFilter('all')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer border-0 ${
-              activeFilter === 'all'
-                ? 'bg-white text-slate-800 shadow-xs'
-                : 'bg-transparent text-slate-500 hover:text-slate-700'
-            }`}
+            className="relative pb-2.5 text-xs font-semibold transition-all cursor-pointer border-0 bg-transparent flex items-center gap-2"
+            style={{
+              color: activeFilter === 'all' ? 'var(--color-primary-700)' : 'var(--color-text-muted)',
+            }}
           >
             <span>Tất cả</span>
             <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full font-medium ${
-                activeFilter === 'all'
-                  ? 'bg-slate-100 text-slate-700'
-                  : 'bg-slate-200/70 text-slate-500'
-              }`}
+              className="text-[11px] px-1.5 py-0.2 rounded-full font-medium"
+              style={{
+                background: activeFilter === 'all' ? 'var(--color-primary-soft)' : 'var(--color-divider)',
+                color: activeFilter === 'all' ? 'var(--color-primary-800)' : 'var(--color-text-soft)',
+              }}
             >
               {notifications.length}
             </span>
+            {activeFilter === 'all' && (
+              <span
+                className="absolute bottom-0 left-0 right-0 h-[2.5px] rounded-t-full"
+                style={{ background: 'var(--color-primary-700)' }}
+              />
+            )}
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveFilter('unread')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer border-0 ${
-              activeFilter === 'unread'
-                ? 'bg-white text-emerald-800 shadow-xs'
-                : 'bg-transparent text-slate-500 hover:text-slate-700'
-            }`}
+            className="relative pb-2.5 text-xs font-semibold transition-all cursor-pointer border-0 bg-transparent flex items-center gap-2"
+            style={{
+              color: activeFilter === 'unread' ? 'var(--color-primary-700)' : 'var(--color-text-muted)',
+            }}
           >
             <span>Chưa đọc</span>
             {unreadCount > 0 ? (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-semibold bg-emerald-100 text-emerald-800">
+              <span
+                className="text-[11px] px-1.5 py-0.2 rounded-full font-semibold"
+                style={{
+                  background: 'var(--color-gold-soft)',
+                  color: 'var(--color-gold-strong)',
+                  border: '1px solid #d3a11b40',
+                }}
+              >
                 {unreadCount}
               </span>
             ) : (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-medium bg-slate-200/70 text-slate-500">
+              <span
+                className="text-[11px] px-1.5 py-0.2 rounded-full font-medium"
+                style={{
+                  background: 'var(--color-divider)',
+                  color: 'var(--color-text-soft)',
+                }}
+              >
                 0
               </span>
+            )}
+            {activeFilter === 'unread' && (
+              <span
+                className="absolute bottom-0 left-0 right-0 h-[2.5px] rounded-t-full"
+                style={{ background: 'var(--color-primary-700)' }}
+              />
             )}
           </button>
         </div>
@@ -337,26 +390,45 @@ export function NotificationDrawer() {
       {/* Notification Items List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
         {filteredNotifications.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-50 to-teal-50 border border-emerald-100 flex items-center justify-center mb-3.5 text-emerald-600 shadow-xs">
-              <CheckCircleOutlined className="text-2xl" />
+          <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+            <div
+              className="w-12 h-12 rounded-full flex items-center justify-center mb-3.5 text-lg shadow-[0_2px_8px_rgba(0,0,0,0.03)]"
+              style={{
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-divider)',
+              }}
+            >
+              {activeFilter === 'unread' ? (
+                <CheckCircleOutlined style={{ color: 'var(--color-primary-700)' }} />
+              ) : (
+                <BellOutlined style={{ color: 'var(--color-text-soft)' }} />
+              )}
             </div>
-            <h4 className="text-sm font-bold text-slate-800 mb-1">
+            <h4
+              className="text-sm font-bold mb-1"
+              style={{ color: 'var(--color-text)' }}
+            >
               {activeFilter === 'unread'
                 ? 'Không có thông báo chưa đọc'
                 : 'Bạn đã xem hết thông báo'}
             </h4>
-            <p className="text-xs text-slate-400 max-w-[240px] leading-relaxed m-0">
+            <p
+              className="text-xs max-w-[240px] leading-relaxed m-0"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
               {activeFilter === 'unread'
                 ? 'Tuyệt vời! Bạn đã cập nhật mọi thông tin quan trọng trong hệ thống.'
                 : 'Khi có thay đổi về tiến trình hồ sơ hoặc phê duyệt, thông báo sẽ hiển thị ở đây.'}
             </p>
             {activeFilter === 'unread' && notifications.length > 0 && (
               <button
+                type="button"
                 onClick={() => setActiveFilter('all')}
-                className="mt-3.5 text-xs font-medium text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer bg-transparent border-0"
+                className="mt-4 text-xs font-semibold cursor-pointer bg-transparent border-0 flex items-center gap-1 mx-auto hover:underline"
+                style={{ color: 'var(--color-primary-700)' }}
               >
-                Xem tất cả ({notifications.length} thông báo) →
+                <span>Xem tất cả ({notifications.length} thông báo)</span>
+                <ArrowRightOutlined className="text-[10px]" />
               </button>
             )}
           </div>
@@ -369,21 +441,32 @@ export function NotificationDrawer() {
               <div
                 key={item.id}
                 onClick={() => handleCardClick(item)}
-                className={`group relative overflow-hidden rounded-xl p-3.5 transition-all duration-200 cursor-pointer border ${
-                  isUnread
-                    ? 'bg-white border-emerald-200/90 shadow-[0_2px_8px_rgba(0,122,85,0.06)] hover:shadow-md hover:border-emerald-300'
-                    : 'bg-white/80 border-slate-200/70 hover:bg-white hover:border-slate-300 hover:shadow-xs'
-                }`}
+                className="group relative rounded-xl p-3.5 transition-all duration-200 cursor-pointer border"
+                style={{
+                  background: isUnread ? '#ffffff' : 'var(--color-surface)',
+                  borderColor: isUnread ? 'var(--color-primary-soft-2)' : 'var(--color-border)',
+                  boxShadow: isUnread
+                    ? '0 2px 8px rgba(0, 56, 42, 0.05)'
+                    : '0 1px 2px rgba(0, 0, 0, 0.02)',
+                }}
               >
-                {/* Subtle Luxury Left Accent for Unread */}
+                {/* Subtle Luxury Left Accent for Unread: Gold Indicator */}
                 {isUnread && (
-                  <div className="absolute left-0 top-3 bottom-3 w-[3.5px] rounded-r-full bg-emerald-600" />
+                  <div
+                    className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full"
+                    style={{ background: 'var(--color-gold-strong)' }}
+                  />
                 )}
 
                 <div className="flex items-start gap-3 pl-1">
-                  {/* Category / Status Icon */}
+                  {/* Status Icon */}
                   <div
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${meta.iconBg}`}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm mt-0.5 transition-colors"
+                    style={{
+                      background: isUnread ? 'var(--color-primary-soft)' : 'var(--color-bg)',
+                      color: isUnread ? 'var(--color-primary-700)' : 'var(--color-text-muted)',
+                      border: '1px solid var(--color-border)',
+                    }}
                   >
                     {meta.icon}
                   </div>
@@ -392,43 +475,52 @@ export function NotificationDrawer() {
                   <div className="flex-1 min-w-0">
                     {/* Header: Title + Category Tag + Unread Dot */}
                     <div className="flex items-start justify-between gap-2">
-                      <h4
-                        className={`text-[13px] font-semibold leading-snug line-clamp-1 m-0 ${
-                          isUnread
-                            ? 'text-slate-900 group-hover:text-emerald-700 transition-colors'
-                            : 'text-slate-700'
-                        }`}
-                      >
-                        {item.title}
-                      </h4>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span
-                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${meta.badgeClass}`}
-                        >
-                          {meta.category}
-                        </span>
-
+                      <div className="flex items-center gap-1.5 min-w-0">
                         {isUnread && (
-                          <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                          </span>
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ background: 'var(--color-gold-strong)' }}
+                            title="Chưa đọc"
+                          />
                         )}
+                        <h4
+                          className="text-[13px] font-semibold leading-snug line-clamp-1 m-0 transition-colors"
+                          style={{
+                            color: isUnread ? 'var(--color-text)' : 'var(--color-text-muted)',
+                          }}
+                        >
+                          {item.title}
+                        </h4>
                       </div>
+
+                      {/* Tag using system status class from globals.css */}
+                      <span
+                        className={`ant-tag ${meta.statusClass} shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full`}
+                        style={{ margin: 0, height: 'auto', lineHeight: '18px' }}
+                      >
+                        {meta.category}
+                      </span>
                     </div>
 
                     {/* Message Body */}
                     <p
-                      className={`text-xs mt-1 mb-2 leading-relaxed line-clamp-2 ${
-                        isUnread ? 'text-slate-600' : 'text-slate-500'
-                      }`}
+                      className="text-xs mt-1 mb-2 leading-relaxed line-clamp-2"
+                      style={{
+                        color: isUnread ? 'var(--color-text)' : 'var(--color-text-muted)',
+                        opacity: isUnread ? 0.9 : 0.75,
+                      }}
                     >
                       {item.message}
                     </p>
 
                     {/* Footer Row: Timestamp + Actions */}
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-100/80 text-[11px] text-slate-400">
+                    <div
+                      className="flex items-center justify-between pt-1.5 text-[11px]"
+                      style={{
+                        borderTop: '1px solid var(--color-divider)',
+                        color: 'var(--color-text-soft)',
+                      }}
+                    >
                       <div className="flex items-center gap-1">
                         <ClockCircleOutlined className="text-[10px]" />
                         <span>{formatNotificationTime(item.createdAt)}</span>
@@ -437,32 +529,38 @@ export function NotificationDrawer() {
                       {/* Right Action Area */}
                       <div className="flex items-center gap-1.5">
                         {item.actionUrl && (
-                          <span className="inline-flex items-center gap-0.5 text-xs font-medium text-emerald-700 group-hover:text-emerald-800 transition-colors">
+                          <span
+                            className="inline-flex items-center gap-0.5 text-xs font-semibold transition-colors"
+                            style={{ color: 'var(--color-primary-700)' }}
+                          >
                             <span>Chi tiết</span>
                             <ArrowRightOutlined className="text-[10px] transform group-hover:translate-x-0.5 transition-transform" />
                           </span>
                         )}
 
                         {/* Quick Action Icons visible on mobile or desktop hover */}
-                        <div className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center gap-1 ml-2">
+                        <div className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center gap-1 ml-1.5">
                           {isUnread && (
                             <Tooltip title="Đánh dấu đã đọc" placement="top">
                               <button
+                                type="button"
                                 onClick={(e) => handleMarkSingleRead(e, item)}
-                                className="w-8 h-8 md:w-6 md:h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 active:bg-emerald-100 transition-colors cursor-pointer border-0 bg-transparent"
+                                className="w-6 h-6 rounded flex items-center justify-center transition-colors cursor-pointer border-0 bg-transparent hover:bg-[var(--color-primary-soft)]"
+                                style={{ color: 'var(--color-primary-700)' }}
                                 aria-label="Đánh dấu đã đọc"
                               >
-                                <CheckOutlined className="text-xs md:text-[10px]" />
+                                <CheckOutlined className="text-[10px]" />
                               </button>
                             </Tooltip>
                           )}
                           <Tooltip title="Xóa" placement="top">
                             <button
+                              type="button"
                               onClick={(e) => handleDeleteSingle(e, item.id)}
-                              className="w-8 h-8 md:w-6 md:h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:bg-rose-100 transition-colors cursor-pointer border-0 bg-transparent"
+                              className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer border-0 bg-transparent"
                               aria-label="Xóa"
                             >
-                              <DeleteOutlined className="text-xs md:text-[10px]" />
+                              <DeleteOutlined className="text-[10px]" />
                             </button>
                           </Tooltip>
                         </div>

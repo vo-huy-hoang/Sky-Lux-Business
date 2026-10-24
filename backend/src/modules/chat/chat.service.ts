@@ -10,9 +10,11 @@ import { Subject, Observable } from 'rxjs';
 import { filter, map, mergeMap } from 'rxjs/operators';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, Not, MoreThan } from 'typeorm';
+import * as path from 'path';
+import * as crypto from 'crypto';
 import { Conversation } from './entities/conversation.entity';
 import { ConversationMember } from './entities/conversation-member.entity';
-import { Message } from './entities/message.entity';
+import { Message, ChatAttachmentPayload } from './entities/message.entity';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
@@ -22,12 +24,20 @@ import { User } from '../users/entities/user.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { toPublicUser } from '../../common/utils/public-user';
 import { RedisService } from '../../common/redis/redis.service';
+import { StorageService } from '../../shared/storage/storage.service';
+import { sanitizeFileName } from '../../common/utils/filename.util';
+import { ChatPubSubService, ChatEventType } from './chat-pubsub.service';
 
 @Injectable()
 export class ChatService {
   private readonly memoryIdempotency = new Map<
     string,
     { message: Message; timestamp: number }
+  >();
+
+  private readonly membershipCache = new Map<
+    string,
+    { memberIds: Set<string>; expiresAt: number }
   >();
 
   private readonly chatEvent$ = new Subject<{
@@ -59,7 +69,24 @@ export class ChatService {
     private readonly dossierRepository: Repository<Dossier>,
     @Optional()
     private readonly redisService?: RedisService,
+    @Optional()
+    private readonly storageService?: StorageService,
+    @Optional()
+    private readonly chatPubSubService?: ChatPubSubService,
   ) {}
+
+  private emitChatEvent(event: {
+    type: ChatEventType;
+    organizationId: string;
+    conversationId: string;
+    data: any;
+  }): void {
+    if (this.chatPubSubService) {
+      this.chatPubSubService.publish(event).catch(() => {});
+    } else {
+      this.chatEvent$.next(event);
+    }
+  }
 
   /**
    * Lấy danh sách cuộc hội thoại của user
@@ -160,6 +187,12 @@ export class ChatService {
 
     await this.memberRepository.save(members);
 
+    // Nạp sẵn danh sách thành viên vào bộ đệm O(1)
+    this.membershipCache.set(`${user.organizationId}:${savedConversation.id}`, {
+      memberIds: new Set(participantIds),
+      expiresAt: Date.now() + 600000,
+    });
+
     const result = await this.findConversation(user, savedConversation.id);
     return result;
   }
@@ -194,22 +227,168 @@ export class ChatService {
   }
 
   /**
-   * Lấy danh sách tin nhắn của một cuộc hội thoại
+   * Lấy danh sách tin nhắn của một cuộc hội thoại (Hỗ trợ phân trang limit & before cursor)
    */
   async findMessages(
     user: CurrentUserPayload,
     conversationId: string,
+    limit?: number,
+    before?: string,
   ): Promise<Message[]> {
-    // Xác thực quyền truy cập hội thoại trước
-    await this.findConversation(user, conversationId);
+    // 1. Xác thực quyền truy cập hội thoại trước (sử dụng O(1) membership cache)
+    const isAllowed = await this.isMember(
+      user.id,
+      conversationId,
+      user.organizationId,
+    );
+    if (!isAllowed) {
+      await this.findConversation(user, conversationId);
+    }
 
+    const safeLimit = Math.min(Math.max(Number(limit || 30), 1), 100);
+
+    // Nếu TypeORM repository hỗ trợ createQueryBuilder
+    if (typeof this.messageRepository.createQueryBuilder === 'function') {
+      const qb = this.messageRepository
+        .createQueryBuilder('message')
+        .leftJoinAndSelect('message.sender', 'sender')
+        .where('message.conversationId = :conversationId', { conversationId })
+        .andWhere('message.organizationId = :organizationId', {
+          organizationId: user.organizationId,
+        });
+
+      if (before) {
+        const isUUID =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            before,
+          );
+        if (isUUID) {
+          const refMessage = await this.messageRepository.findOne({
+            where: {
+              id: before,
+              conversationId,
+              organizationId: user.organizationId,
+            },
+            select: { id: true, createdAt: true },
+          });
+          if (refMessage) {
+            qb.andWhere('message.createdAt < :beforeDate', {
+              beforeDate: refMessage.createdAt,
+            });
+          }
+        } else {
+          const parsedDate = new Date(before);
+          if (!isNaN(parsedDate.getTime())) {
+            qb.andWhere('message.createdAt < :beforeDate', {
+              beforeDate: parsedDate,
+            });
+          }
+        }
+      }
+
+      const messages = await qb
+        .orderBy('message.createdAt', 'DESC')
+        .take(safeLimit)
+        .getMany();
+
+      messages.reverse();
+      return (messages || []).map((message) => this.sanitizeMessage(message));
+    }
+
+    // Fallback cho môi trường test mock find() trực tiếp
     const messages = await this.messageRepository.find({
       where: { conversationId, organizationId: user.organizationId },
       relations: { sender: true },
       order: { createdAt: 'ASC' },
+      take: safeLimit,
     });
 
-    return messages.map((message) => this.sanitizeMessage(message));
+    return (messages || []).map((message) => this.sanitizeMessage(message));
+  }
+
+  /**
+   * Tải lên tệp đính kèm / hình ảnh cho tin nhắn chat
+   */
+  async uploadAttachment(
+    user: CurrentUserPayload,
+    file: Express.Multer.File,
+  ): Promise<ChatAttachmentPayload> {
+    if (!file || !file.buffer) {
+      throw new BadRequestException('Vui lòng chọn tệp đính kèm');
+    }
+
+    const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
+    if (file.size > MAX_FILE_SIZE) {
+      throw new BadRequestException(
+        'Dung lượng tệp đính kèm không được vượt quá 15MB',
+      );
+    }
+
+    const BLOCKED_EXTENSIONS = new Set([
+      '.exe',
+      '.bat',
+      '.cmd',
+      '.sh',
+      '.ps1',
+      '.msi',
+      '.vbs',
+      '.js',
+      '.scr',
+      '.jar',
+      '.com',
+      '.pif',
+      '.dll',
+      '.app',
+      '.dmg',
+      '.bin',
+      '.iso',
+      '.apk',
+      '.htm',
+      '.html',
+      '.php',
+      '.asp',
+      '.aspx',
+      '.cgi',
+    ]);
+
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (BLOCKED_EXTENSIONS.has(ext)) {
+      throw new BadRequestException(
+        'Định dạng tệp này không được phép tải lên vì lý do bảo mật',
+      );
+    }
+
+    if (!this.storageService) {
+      throw new BadRequestException('Dịch vụ lưu trữ chưa sẵn sàng');
+    }
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const safeName = sanitizeFileName(file.originalname) || `file${ext}`;
+    const uniqueFileName = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${safeName}`;
+    const objectKey = `chat/${user.organizationId}/${year}/${month}/${uniqueFileName}`;
+
+    const result = await this.storageService.uploadFile(
+      {
+        buffer: file.buffer,
+        originalname: safeName,
+        mimetype: file.mimetype,
+        size: file.size,
+      },
+      objectKey,
+    );
+
+    const fileUrl = result.publicUrl || `/uploads/${objectKey}`;
+    const isImage = file.mimetype.startsWith('image/');
+
+    return {
+      url: fileUrl,
+      originalName: safeName,
+      fileSize: file.size,
+      mimeType: file.mimetype,
+      thumbnailUrl: isImage ? fileUrl : undefined,
+    };
   }
 
   /**
@@ -220,7 +399,17 @@ export class ChatService {
     conversationId: string,
     content: string,
     clientMessageId?: string,
+    attachments?: ChatAttachmentPayload[],
   ): Promise<Message> {
+    const trimmedContent = (content || '').trim();
+    const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+
+    if (!trimmedContent && !hasAttachments) {
+      throw new BadRequestException(
+        'Tin nhắn phải có nội dung văn bản hoặc tệp đính kèm',
+      );
+    }
+
     // 1. Kiểm tra Idempotency Key chống gửi trùng tin nhắn
     if (clientMessageId) {
       const cacheKey = `idempotency:chat:${user.organizationId}:${clientMessageId}`;
@@ -247,7 +436,8 @@ export class ChatService {
       organizationId: user.organizationId,
       conversationId,
       senderId: user.id,
-      content,
+      content: content || '',
+      attachments: hasAttachments ? attachments : null,
     });
 
     const savedMessage = await this.messageRepository.save(message);
@@ -280,8 +470,8 @@ export class ChatService {
       }
     }
 
-    // Đẩy sự kiện tin nhắn mới vào luồng SSE
-    this.chatEvent$.next({
+    // Đẩy sự kiện tin nhắn mới vào luồng SSE (Đa máy chủ qua Redis Pub/Sub)
+    this.emitChatEvent({
       type: 'message.created',
       organizationId: fullMessage.organizationId,
       conversationId: fullMessage.conversationId,
@@ -321,8 +511,8 @@ export class ChatService {
 
     await this.messageRepository.delete(id);
 
-    // Đẩy sự kiện xóa tin nhắn vào luồng SSE
-    this.chatEvent$.next({
+    // Đẩy sự kiện xóa tin nhắn vào luồng SSE (Đa máy chủ qua Redis Pub/Sub)
+    this.emitChatEvent({
       type: 'message.deleted',
       organizationId: message.organizationId,
       conversationId: message.conversationId,
@@ -333,7 +523,11 @@ export class ChatService {
    * Đăng ký luồng tin nhắn thời gian thực cho một User cụ thể
    */
   getMessagesStream(user: CurrentUserPayload): Observable<MessageEvent> {
-    return this.chatEvent$.asObservable().pipe(
+    const source$ = this.chatPubSubService
+      ? this.chatPubSubService.getEventStream()
+      : this.chatEvent$.asObservable();
+
+    return source$.pipe(
       filter((evt) => evt.organizationId === user.organizationId),
       mergeMap(async (evt) => {
         // Cho phép nhận unread_count nếu đúng là cho user này
@@ -394,9 +588,9 @@ export class ChatService {
     member.lastReadAt = new Date();
     await this.memberRepository.save(member);
 
-    // Phát sự kiện SSE
+    // Phát sự kiện SSE (Đa máy chủ qua Redis Pub/Sub)
     if (lastReadMessageId) {
-      this.chatEvent$.next({
+      this.emitChatEvent({
         type: 'message.read',
         organizationId: user.organizationId,
         conversationId,
@@ -511,9 +705,9 @@ export class ChatService {
       }
     }
 
-    // Gửi sự kiện SSE cho mỗi thành viên mới gia nhập
+    // Gửi sự kiện SSE cho mỗi thành viên mới gia nhập (Đa máy chủ qua Redis Pub/Sub)
     for (const member of addedMembers) {
-      this.chatEvent$.next({
+      this.emitChatEvent({
         type: 'member.joined',
         organizationId: user.organizationId,
         conversationId,
@@ -523,6 +717,9 @@ export class ChatService {
         },
       });
     }
+
+    // Làm mới bộ đệm thành viên phòng chat
+    await this.invalidateMembershipCache(conversationId, user.organizationId);
 
     return { success: true, addedCount: addedMembers.length };
   }
@@ -583,8 +780,11 @@ export class ChatService {
 
     await this.memberRepository.remove(targetMember);
 
-    // Phát sự kiện SSE báo thành viên đã rời đi
-    this.chatEvent$.next({
+    // Làm mới bộ đệm thành viên phòng chat
+    await this.invalidateMembershipCache(conversationId, user.organizationId);
+
+    // Phát sự kiện SSE báo thành viên đã rời đi (Đa máy chủ qua Redis Pub/Sub)
+    this.emitChatEvent({
       type: 'member.left',
       organizationId: user.organizationId,
       conversationId,
@@ -598,17 +798,129 @@ export class ChatService {
   }
 
   /**
-   * Helper kiểm tra xem User có phải thành viên cuộc hội thoại không
+   * Lấy danh sách ID thành viên phòng chat từ bộ đệm O(1) hoặc nạp từ database
+   */
+  async getConversationMemberIds(
+    conversationId: string,
+    organizationId: string,
+  ): Promise<Set<string>> {
+    const now = Date.now();
+    const cacheKey = `${organizationId}:${conversationId}`;
+
+    // 1. Kiểm tra In-memory Set Cache (O(1))
+    const memoryHit = this.membershipCache.get(cacheKey);
+    if (memoryHit && now < memoryHit.expiresAt) {
+      return memoryHit.memberIds;
+    }
+
+    // 2. Kiểm tra Redis Cache nếu khả dụng
+    if (this.redisService) {
+      const redisKey = `chat:members:${cacheKey}`;
+      const cachedArray = await this.redisService.get<string[]>(redisKey);
+      if (Array.isArray(cachedArray)) {
+        const memberIds = new Set(cachedArray);
+        this.membershipCache.set(cacheKey, {
+          memberIds,
+          expiresAt: now + 300000, // 5 phút
+        });
+        return memberIds;
+      }
+    }
+
+    // 3. Cache miss: Truy vấn PostgreSQL và nạp vào bộ đệm
+    const memberIds = new Set<string>();
+    if (typeof this.memberRepository.find === 'function') {
+      const members = await this.memberRepository.find({
+        where: { conversationId, organizationId },
+        select: { userId: true },
+      });
+      if (Array.isArray(members)) {
+        for (const m of members) {
+          if (m?.userId) memberIds.add(m.userId);
+        }
+      }
+    }
+
+    // Nạp vào Memory Set Cache (10 phút)
+    if (memberIds.size > 0) {
+      this.membershipCache.set(cacheKey, {
+        memberIds,
+        expiresAt: now + 600000,
+      });
+
+      // Nạp vào Redis (600s)
+      if (this.redisService) {
+        const redisKey = `chat:members:${cacheKey}`;
+        await this.redisService.set(redisKey, Array.from(memberIds), 600);
+      }
+    }
+
+    return memberIds;
+  }
+
+  /**
+   * Helper kiểm tra xem User có phải thành viên cuộc hội thoại không (O(1) Memory Cache)
    */
   async isMember(
     userId: string,
     conversationId: string,
     organizationId: string,
   ): Promise<boolean> {
+    const cacheKey = `${organizationId}:${conversationId}`;
+
+    // 1. Kiểm tra In-memory Set Cache (O(1) - 0 Database Query)
+    const memoryHit = this.membershipCache.get(cacheKey);
+    if (memoryHit && Date.now() < memoryHit.expiresAt) {
+      if (memoryHit.memberIds.has(userId)) return true;
+    }
+
+    // 2. Kiểm tra Redis Cache
+    if (this.redisService) {
+      const redisKey = `chat:members:${cacheKey}`;
+      const cachedArray = await this.redisService.get<string[]>(redisKey);
+      if (Array.isArray(cachedArray)) {
+        const memberIds = new Set(cachedArray);
+        this.membershipCache.set(cacheKey, {
+          memberIds,
+          expiresAt: Date.now() + 300000,
+        });
+        if (memberIds.has(userId)) return true;
+      }
+    }
+
+    // 3. Cache miss: Kiểm tra qua findOne và tự động lưu vào bộ đệm
     const member = await this.memberRepository.findOne({
       where: { userId, conversationId, organizationId },
     });
-    return !!member;
+
+    if (member) {
+      let cached = this.membershipCache.get(cacheKey);
+      if (!cached || Date.now() >= cached.expiresAt) {
+        cached = {
+          memberIds: new Set<string>(),
+          expiresAt: Date.now() + 600000,
+        };
+        this.membershipCache.set(cacheKey, cached);
+      }
+      cached.memberIds.add(userId);
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Xóa/Làm mới bộ đệm thành viên phòng chat khi có biến động
+   */
+  async invalidateMembershipCache(
+    conversationId: string,
+    organizationId: string,
+  ): Promise<void> {
+    const cacheKey = `${organizationId}:${conversationId}`;
+    this.membershipCache.delete(cacheKey);
+    if (this.redisService) {
+      await this.redisService.del(`chat:members:${cacheKey}`);
+    }
   }
 
   private async ensureUsersInOrganization(
@@ -653,8 +965,8 @@ export class ChatService {
     // 1. Xác thực quyền truy cập hội thoại trước
     await this.findConversation(user, conversationId);
 
-    // 2. Phát sự kiện vào luồng SSE
-    this.chatEvent$.next({
+    // 2. Phát sự kiện vào luồng SSE (Đa máy chủ qua Redis Pub/Sub)
+    this.emitChatEvent({
       type: status === 'start' ? 'typing.start' : 'typing.stop',
       organizationId: user.organizationId,
       conversationId,
@@ -712,7 +1024,7 @@ export class ChatService {
   ): Promise<void> {
     const unreadCount = await this.getUnreadCount(userId, organizationId);
 
-    this.chatEvent$.next({
+    this.emitChatEvent({
       type: 'unread_count',
       organizationId,
       conversationId: 'global',

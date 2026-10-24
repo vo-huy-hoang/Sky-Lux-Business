@@ -9,6 +9,7 @@ import {
   Message,
   AddParticipantsPayload,
   MarkReadPayload,
+  ChatAttachment,
 } from '@/types/chat';
 
 /**
@@ -26,8 +27,9 @@ export const useCreateConversation = () => {
 };
 
 export interface SendMessageParams {
-  content: string;
+  content?: string;
   clientMessageId?: string;
+  attachments?: ChatAttachment[];
 }
 
 /**
@@ -46,7 +48,8 @@ export const useSendMessage = (conversationId: string) => {
     { previousMessages?: Message[]; tempId: string; clientMessageId: string }
   >({
     mutationFn: (variables) => {
-      const content = typeof variables === 'string' ? variables : variables.content;
+      const content = typeof variables === 'string' ? variables : variables.content || '';
+      const attachments = typeof variables !== 'string' ? variables.attachments : undefined;
       const clientMessageId =
         (typeof variables !== 'string' && variables.clientMessageId) ||
         (typeof crypto !== 'undefined' && crypto.randomUUID
@@ -56,10 +59,11 @@ export const useSendMessage = (conversationId: string) => {
       if (typeof variables !== 'string') {
         variables.clientMessageId = clientMessageId;
       }
-      return chatService.sendMessage(conversationId, content, clientMessageId);
+      return chatService.sendMessage(conversationId, content, clientMessageId, attachments);
     },
     onMutate: async (variables) => {
-      const content = typeof variables === 'string' ? variables : variables.content;
+      const content = typeof variables === 'string' ? variables : variables.content || '';
+      const attachments = typeof variables !== 'string' ? variables.attachments : undefined;
       const clientMessageId =
         (typeof variables !== 'string' && variables.clientMessageId) ||
         (typeof crypto !== 'undefined' && crypto.randomUUID
@@ -88,6 +92,7 @@ export const useSendMessage = (conversationId: string) => {
         conversationId,
         senderId: currentUser?.id || '',
         content,
+        attachments: attachments || null,
         createdAt: new Date().toISOString(),
         sender: {
           id: currentUser?.id || '',
@@ -107,7 +112,8 @@ export const useSendMessage = (conversationId: string) => {
       return { previousMessages, tempId, clientMessageId };
     },
     onError: (_err, variables, context) => {
-      const content = typeof variables === 'string' ? variables : variables.content;
+      const content =
+        (typeof variables === 'string' ? variables : variables.content) || '';
       if (context?.clientMessageId) {
         // Lưu vào hàng đợi tin lỗi trong Zustand
         addFailedMessage({

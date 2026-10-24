@@ -186,7 +186,8 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
               className="flex items-center justify-center min-w-[44px] min-h-[44px]"
             />
           </Badge>
-          {isCeoAdmin && (
+          {/* Tạm thời ẩn nút Tin nhắn trên Header theo yêu cầu */}
+          {/* {isCeoAdmin && (
             <Button
               type="text"
               shape="circle"
@@ -195,7 +196,7 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
               onClick={() => router.push('/main/messages')}
               className="flex items-center justify-center min-w-[44px] min-h-[44px]"
             />
-          )}
+          )} */}
 
           <Dropdown
             menu={{ items: userDropdownItems }}

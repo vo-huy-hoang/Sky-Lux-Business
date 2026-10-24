@@ -1,18 +1,75 @@
 'use client';
 
 import React from 'react';
-import { Avatar, Button, Skeleton, Tooltip, Typography } from 'antd';
+import { Avatar, Button, Image, Skeleton, Tooltip, Typography } from 'antd';
 import {
   DeleteOutlined,
   LoadingOutlined,
   MessageOutlined,
   ReloadOutlined,
+  DownloadOutlined,
+  FilePdfOutlined,
+  FileWordOutlined,
+  FileExcelOutlined,
+  FileZipOutlined,
+  FileTextOutlined,
+  FileOutlined,
 } from '@ant-design/icons';
-import { Message } from '@/types/chat';
+import { Message, ChatAttachment } from '@/types/chat';
 import { useTypingUsers } from '@/hooks/chat';
-import { formatMessageTime, getInitials } from '../types';
+import {
+  formatMessageTime,
+  getInitials,
+  formatFileSize,
+  getAttachmentUrl,
+  isImageMime,
+} from '../types';
+
+const SafeDownloadOutlined = DownloadOutlined || (() => <span data-testid="download-icon" />);
+const SafeFilePdfOutlined = FilePdfOutlined || (() => <span data-testid="pdf-icon" />);
+const SafeFileWordOutlined = FileWordOutlined || (() => <span data-testid="word-icon" />);
+const SafeFileExcelOutlined = FileExcelOutlined || (() => <span data-testid="excel-icon" />);
+const SafeFileZipOutlined = FileZipOutlined || (() => <span data-testid="zip-icon" />);
+const SafeFileTextOutlined = FileTextOutlined || (() => <span data-testid="text-icon" />);
+const SafeFileOutlined = FileOutlined || (() => <span data-testid="file-icon" />);
 
 const { Text } = Typography;
+
+function getDocumentIcon(mimeType: string, fileName: string, isMe: boolean) {
+  const lower = (fileName || '').toLowerCase();
+  const mime = (mimeType || '').toLowerCase();
+  if (mime.includes('pdf') || lower.endsWith('.pdf')) {
+    return <SafeFilePdfOutlined className={isMe ? 'text-rose-200 text-xl' : 'text-rose-500 text-xl'} />;
+  }
+  if (
+    mime.includes('word') ||
+    mime.includes('officedocument.word') ||
+    lower.endsWith('.doc') ||
+    lower.endsWith('.docx')
+  ) {
+    return <SafeFileWordOutlined className={isMe ? 'text-blue-200 text-xl' : 'text-blue-500 text-xl'} />;
+  }
+  if (
+    mime.includes('excel') ||
+    mime.includes('spreadsheet') ||
+    lower.endsWith('.xls') ||
+    lower.endsWith('.xlsx')
+  ) {
+    return <SafeFileExcelOutlined className={isMe ? 'text-emerald-200 text-xl' : 'text-emerald-500 text-xl'} />;
+  }
+  if (
+    mime.includes('zip') ||
+    mime.includes('compressed') ||
+    lower.endsWith('.zip') ||
+    lower.endsWith('.rar')
+  ) {
+    return <SafeFileZipOutlined className={isMe ? 'text-amber-200 text-xl' : 'text-amber-500 text-xl'} />;
+  }
+  if (mime.includes('text') || lower.endsWith('.txt')) {
+    return <SafeFileTextOutlined className={isMe ? 'text-white/80 text-xl' : 'text-slate-500 text-xl'} />;
+  }
+  return <SafeFileOutlined className={isMe ? 'text-white/80 text-xl' : 'text-slate-400 text-xl'} />;
+}
 
 export interface MessageBubbleListProps {
   messages: Message[];
@@ -23,6 +80,10 @@ export interface MessageBubbleListProps {
   onDeleteMessage: (msgId: string) => void;
   onRetryMessage: (content: string, clientMessageId?: string) => void;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
+  hasMore?: boolean;
+  isLoadingOlder?: boolean;
+  onLoadOlder?: () => void;
 }
 
 export function MessageBubbleList({
@@ -34,6 +95,10 @@ export function MessageBubbleList({
   onDeleteMessage,
   onRetryMessage,
   messagesEndRef,
+  scrollContainerRef,
+  hasMore,
+  isLoadingOlder,
+  onLoadOlder,
 }: MessageBubbleListProps) {
   const realtimeTypingUsers = useTypingUsers(conversationId);
   const rawTypingUsers = propTypingUsers !== undefined ? propTypingUsers : realtimeTypingUsers;
@@ -47,8 +112,41 @@ export function MessageBubbleList({
     }
   }, [effectiveTypingUsers.length, messagesEndRef]);
 
+  // Tự động tải tin nhắn cũ khi người dùng cuộn lên đỉnh (Infinite scrolling)
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (
+      hasMore &&
+      !isLoadingOlder &&
+      e.currentTarget.scrollTop < 40 &&
+      typeof onLoadOlder === 'function'
+    ) {
+      onLoadOlder();
+    }
+  };
+
   return (
-    <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+    <div
+      ref={scrollContainerRef}
+      onScroll={handleScroll}
+      className="flex-1 overflow-y-auto px-6 py-4 space-y-3"
+      data-testid="message-bubble-list-container"
+    >
+      {/* Tải thêm tin nhắn cũ (TICKET-CHAT-04) */}
+      {hasMore && (
+        <div className="flex justify-center py-2">
+          <Button
+            size="small"
+            type="text"
+            loading={isLoadingOlder}
+            onClick={onLoadOlder}
+            className="text-xs text-slate-500 hover:text-[#007A55] bg-slate-100 hover:bg-slate-200 rounded-full px-4"
+            aria-label="Tải thêm tin nhắn cũ"
+          >
+            {isLoadingOlder ? 'Đang tải tin nhắn cũ...' : 'Tải thêm tin nhắn cũ'}
+          </Button>
+        </div>
+      )}
+
       {isLoadingMessages ? (
         <div className="space-y-4 py-8">
           <Skeleton active avatar paragraph={{ rows: 1 }} />
@@ -57,6 +155,10 @@ export function MessageBubbleList({
       ) : messages.length > 0 ? (
         messages.map((msg: Message) => {
           const isMe = msg.senderId === currentUserId;
+          const attachments: ChatAttachment[] = msg.attachments || [];
+          const imageAttachments = attachments.filter((att) => isImageMime(att.mimeType));
+          const docAttachments = attachments.filter((att) => !isImageMime(att.mimeType));
+          const hasText = Boolean(msg.content && msg.content.trim());
 
           return (
             <div
@@ -94,17 +196,111 @@ export function MessageBubbleList({
                   ) : null}
 
                   <div
-                    className={`rounded-2xl px-4 py-2.5 shadow-sm text-sm leading-relaxed break-words transition-all ${
+                    className={`rounded-2xl shadow-sm text-sm leading-relaxed break-words transition-all overflow-hidden ${
                       msg.status === 'failed'
-                        ? 'bg-rose-50 border border-rose-300 text-rose-800 rounded-br-none'
+                        ? 'bg-rose-50 border border-rose-300 text-rose-800 rounded-br-none p-3'
                         : isMe
                         ? msg.status === 'sending'
-                          ? 'bg-[#007A55]/75 text-white/95 rounded-br-none'
-                          : 'bg-[#007A55] text-white rounded-br-none'
-                        : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
+                          ? 'bg-[#007A55]/75 text-white/95 rounded-br-none p-3'
+                          : 'bg-[#007A55] text-white rounded-br-none p-3'
+                        : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none p-3'
                     }`}
                   >
-                    <p className="whitespace-pre-wrap m-0">{msg.content}</p>
+                    {/* Danh sách hình ảnh */}
+                    {imageAttachments.length > 0 && (
+                      <div className="mb-2">
+                        <Image.PreviewGroup>
+                          <div
+                            className={`grid gap-1.5 ${
+                              imageAttachments.length === 1
+                                ? 'grid-cols-1 max-w-[260px]'
+                                : 'grid-cols-2 max-w-[320px]'
+                            }`}
+                          >
+                            {imageAttachments.map((img, idx) => (
+                              <div
+                                key={idx}
+                                className="relative overflow-hidden rounded-xl bg-black/5 aspect-[4/3] flex items-center justify-center border border-black/10"
+                              >
+                                <Image
+                                  src={getAttachmentUrl(img.url)}
+                                  alt={img.originalName}
+                                  className="h-full w-full object-cover rounded-xl"
+                                  preview={{
+                                    src: getAttachmentUrl(img.url),
+                                  }}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </Image.PreviewGroup>
+                      </div>
+                    )}
+
+                    {/* Danh sách tài liệu đính kèm (PDF, Word, Excel, ZIP) */}
+                    {docAttachments.length > 0 && (
+                      <div className="space-y-1.5 mb-2">
+                        {docAttachments.map((doc, idx) => (
+                          <div
+                            key={idx}
+                            className={`flex items-center justify-between gap-3 p-2.5 rounded-xl border text-xs transition-colors ${
+                              isMe
+                                ? 'bg-white/10 hover:bg-white/15 border-white/20 text-white'
+                                : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              {getDocumentIcon(doc.mimeType, doc.originalName, isMe)}
+                              <div className="min-w-0 flex-1">
+                                <p
+                                  className={`m-0 font-medium truncate ${
+                                    isMe ? 'text-white' : 'text-slate-700'
+                                  }`}
+                                  title={doc.originalName}
+                                >
+                                  {doc.originalName}
+                                </p>
+                                <p
+                                  className={`m-0 text-[10px] ${
+                                    isMe ? 'text-white/70' : 'text-slate-400'
+                                  }`}
+                                >
+                                  {formatFileSize(doc.fileSize)}
+                                </p>
+                              </div>
+                            </div>
+
+                            <a
+                              href={getAttachmentUrl(doc.url)}
+                              download={doc.originalName}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${
+                                isMe
+                                  ? 'text-white hover:bg-white/20'
+                                  : 'text-slate-600 hover:text-[#007A55] hover:bg-slate-200'
+                              }`}
+                              title={`Tải xuống ${doc.originalName}`}
+                            >
+                              <SafeDownloadOutlined className="text-sm" />
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Nội dung văn bản */}
+                    {hasText && (
+                      <p
+                        className={`whitespace-pre-wrap m-0 ${
+                          (imageAttachments.length > 0 || docAttachments.length > 0) &&
+                          'pt-2 border-t ' +
+                            (isMe ? 'border-white/20' : 'border-slate-100')
+                        }`}
+                      >
+                        {msg.content}
+                      </p>
+                    )}
                   </div>
                 </div>
 

@@ -103,4 +103,44 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       // ignore
     }
   }
+
+  isReady(): boolean {
+    return this.isConnected && !!this.client;
+  }
+
+  getClient(): Redis | null {
+    return this.isConnected ? this.client : null;
+  }
+
+  createSubscriberClient(): Redis | null {
+    try {
+      const host = this.configService.get<string>('redis.host', 'localhost');
+      const port = this.configService.get<number>('redis.port', 6379);
+
+      return new Redis({
+        host,
+        port,
+        maxRetriesPerRequest: null,
+        lazyConnect: true,
+        enableOfflineQueue: false,
+        retryStrategy: (times) => {
+          if (times > 5) return null;
+          return Math.min(times * 100, 1000);
+        },
+      });
+    } catch (err: any) {
+      this.logger.warn(`Failed to create Redis subscriber client: ${err.message}`);
+      return null;
+    }
+  }
+
+  async publish(channel: string, message: string): Promise<number | null> {
+    if (!this.client || !this.isConnected) return null;
+    try {
+      return await this.client.publish(channel, message);
+    } catch (err: any) {
+      this.logger.warn(`Redis publish failed on ${channel}: ${err.message}`);
+      return null;
+    }
+  }
 }

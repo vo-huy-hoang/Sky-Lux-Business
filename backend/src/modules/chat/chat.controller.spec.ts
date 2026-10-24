@@ -27,6 +27,13 @@ describe('ChatController', () => {
     findConversation: jest.fn().mockResolvedValue({ id: 'conv-1' }),
     findMessages: jest.fn().mockResolvedValue([]),
     sendMessage: jest.fn().mockResolvedValue({ id: 'msg-1' }),
+    uploadAttachment: jest.fn().mockResolvedValue({
+      url: '/uploads/chat/file.jpg',
+      originalName: 'file.jpg',
+      fileSize: 1024,
+      mimeType: 'image/jpeg',
+      thumbnailUrl: '/uploads/chat/file.jpg',
+    }),
     deleteMessage: jest.fn().mockResolvedValue(undefined),
     findDossierConversation: jest.fn().mockResolvedValue(null),
     getMessagesStream: jest.fn().mockReturnValue({ pipe: jest.fn() }),
@@ -97,13 +104,23 @@ describe('ChatController', () => {
         'conv-1',
         'hello',
         undefined,
+        undefined,
       );
     });
 
-    it('should pass clientMessageId for idempotency', async () => {
+    it('should pass clientMessageId and attachments', async () => {
+      const attachments = [
+        {
+          url: '/uploads/chat/file.jpg',
+          originalName: 'file.jpg',
+          fileSize: 1024,
+          mimeType: 'image/jpeg',
+        },
+      ];
       const dto: SendMessageDto = {
         content: 'hello',
         clientMessageId: 'cm-123',
+        attachments,
       };
       const res = await controller.sendMessage(mockUser, 'conv-1', dto);
       expect(res).toEqual({ id: 'msg-1' });
@@ -112,7 +129,29 @@ describe('ChatController', () => {
         'conv-1',
         'hello',
         'cm-123',
+        attachments,
       );
+    });
+  });
+
+  describe('uploadAttachment', () => {
+    it('should call chatService.uploadAttachment', async () => {
+      const mockFile = {
+        originalname: 'file.jpg',
+        buffer: Buffer.from('data'),
+        mimetype: 'image/jpeg',
+        size: 1024,
+      } as Express.Multer.File;
+
+      const res = await controller.uploadAttachment(mockUser, mockFile);
+      expect(res).toEqual({
+        url: '/uploads/chat/file.jpg',
+        originalName: 'file.jpg',
+        fileSize: 1024,
+        mimeType: 'image/jpeg',
+        thumbnailUrl: '/uploads/chat/file.jpg',
+      });
+      expect(service.uploadAttachment).toHaveBeenCalledWith(mockUser, mockFile);
     });
   });
 

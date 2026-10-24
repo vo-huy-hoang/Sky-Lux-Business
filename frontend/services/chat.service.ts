@@ -6,9 +6,19 @@ import {
   ConversationMember,
   AddParticipantsPayload,
   MarkReadPayload,
+  ChatAttachment,
 } from '@/types/chat';
 
 export const chatService = {
+  /**
+   * Tải lên tệp đính kèm / hình ảnh cho tin nhắn chat
+   */
+  uploadAttachment: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.post<any, ChatAttachment>('/chat/upload', formData);
+  },
+
   /**
    * API-CHAT-001: Lấy danh sách các cuộc hội thoại
    */
@@ -35,21 +45,52 @@ export const chatService = {
   },
 
   /**
-   * Lấy lịch sử tin nhắn của cuộc hội thoại
+   * Lấy lịch sử tin nhắn của cuộc hội thoại (Hỗ trợ phân trang limit 30 & con trỏ before)
    */
-  getConversationMessages: (id: string, options?: RequestOptions) => {
-    return apiClient.get<any, Message[]>(`/conversations/${id}/messages`, {
-      signal: options?.signal,
-    });
+  getConversationMessages: (
+    id: string,
+    paramsOrOptions?: { limit?: number; before?: string } | RequestOptions,
+    options?: RequestOptions,
+  ) => {
+    let params: { limit?: number; before?: string } | undefined;
+    let reqOptions: RequestOptions | undefined = options;
+
+    if (
+      paramsOrOptions &&
+      ('limit' in paramsOrOptions || 'before' in paramsOrOptions)
+    ) {
+      params = paramsOrOptions as { limit?: number; before?: string };
+    } else if (paramsOrOptions && 'signal' in paramsOrOptions) {
+      reqOptions = paramsOrOptions as RequestOptions;
+    }
+
+    const queryParts: string[] = [];
+    if (params?.limit) queryParts.push(`limit=${params.limit}`);
+    if (params?.before)
+      queryParts.push(`before=${encodeURIComponent(params.before)}`);
+    const queryStr = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+
+    return apiClient.get<any, Message[]>(
+      `/conversations/${id}/messages${queryStr}`,
+      {
+        signal: reqOptions?.signal,
+      },
+    );
   },
 
   /**
-   * Gửi tin nhắn vào cuộc hội thoại (Hỗ trợ clientMessageId chống gửi trùng)
+   * Gửi tin nhắn vào cuộc hội thoại (Hỗ trợ clientMessageId chống gửi trùng & đính kèm tệp)
    */
-  sendMessage: (id: string, content: string, clientMessageId?: string) => {
+  sendMessage: (
+    id: string,
+    content: string,
+    clientMessageId?: string,
+    attachments?: ChatAttachment[],
+  ) => {
     return apiClient.post<any, Message>(`/conversations/${id}/messages`, {
       content,
       clientMessageId,
+      attachments,
     });
   },
 

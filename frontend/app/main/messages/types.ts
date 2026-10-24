@@ -41,3 +41,34 @@ export const statusConfig: Record<string, { label: string; color: string }> = {
   CANCELLED: { label: 'Đã hủy', color: 'error' },
   NEED_CHANGES: { label: 'Cần bổ sung', color: 'processing' },
 };
+
+export function formatFileSize(bytes?: number): string {
+  if (!bytes || bytes <= 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
+
+export function getAttachmentUrl(url?: string): string {
+  if (!url) return '';
+  if (
+    url.startsWith('http://') ||
+    url.startsWith('https://') ||
+    url.startsWith('blob:') ||
+    url.startsWith('data:')
+  ) {
+    return url;
+  }
+  const backendOrigin =
+    process.env.NEXT_PUBLIC_API_URL
+      ? new URL(process.env.NEXT_PUBLIC_API_URL).origin
+      : typeof window !== 'undefined' && window.location.hostname === 'localhost'
+      ? 'http://localhost:3001'
+      : '';
+  return `${backendOrigin}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
+export function isImageMime(mimeType?: string): boolean {
+  return Boolean(mimeType && mimeType.toLowerCase().startsWith('image/'));
+}

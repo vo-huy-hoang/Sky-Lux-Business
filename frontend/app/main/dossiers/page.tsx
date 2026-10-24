@@ -106,15 +106,18 @@ function DossiersContent() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 350);
   const [status, setStatus] = useState<string | undefined>(statusParam);
-  const [priority, setPriority] = useState<string | undefined>(priorityParam);
-
-  useEffect(() => {
+  const [prevStatusParam, setPrevStatusParam] = useState(statusParam);
+  if (statusParam !== prevStatusParam) {
+    setPrevStatusParam(statusParam);
     setStatus(statusParam);
-  }, [statusParam]);
+  }
 
-  useEffect(() => {
+  const [priority, setPriority] = useState<string | undefined>(priorityParam);
+  const [prevPriorityParam, setPrevPriorityParam] = useState(priorityParam);
+  if (priorityParam !== prevPriorityParam) {
+    setPrevPriorityParam(priorityParam);
     setPriority(priorityParam);
-  }, [priorityParam]);
+  }
 
   const { data, isLoading, refetch } = useDossiersList({
     page,
@@ -148,7 +151,7 @@ function DossiersContent() {
       render: (code: string, record: DossierItem) => (
         <Link href={`/main/dossiers/${record.id}`}>
           <Space className="cursor-pointer whitespace-nowrap">
-            <FileExcelOutlined className="text-[var(--color-primary-700)]" />
+            <FileExcelOutlined className="text-(--color-primary-700)" />
             <span className="font-bold text-slate-900 hover:text-emerald-700 transition-colors">
               {code}
             </span>

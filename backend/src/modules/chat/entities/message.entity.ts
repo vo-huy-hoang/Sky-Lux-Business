@@ -10,6 +10,14 @@ import { Organization } from '../../organizations/entities/organization.entity';
 import { Conversation } from './conversation.entity';
 import { User } from '../../users/entities/user.entity';
 
+export interface ChatAttachmentPayload {
+  url: string;
+  originalName: string;
+  fileSize: number;
+  mimeType: string;
+  thumbnailUrl?: string;
+}
+
 @Entity('messages')
 export class Message {
   @PrimaryGeneratedColumn('uuid')
@@ -26,6 +34,9 @@ export class Message {
 
   @Column({ type: 'text' })
   content: string;
+
+  @Column({ type: 'jsonb', nullable: true })
+  attachments?: ChatAttachmentPayload[] | null;
 
   @CreateDateColumn({
     name: 'created_at',
