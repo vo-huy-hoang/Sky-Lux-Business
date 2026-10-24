@@ -9,6 +9,7 @@ import { Repository } from 'typeorm';
 import { DossiersService } from './dossiers.service';
 import { Dossier } from './entities/dossier.entity';
 import { Comment } from './entities/comment.entity';
+import { Customer } from '../customers/entities/customer.entity';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { QueryDossierDto } from './dto/query-dossier.dto';
 import { CreateDossierDto } from './dto/create-dossier.dto';
@@ -22,6 +23,7 @@ describe('DossiersService', () => {
   let service: DossiersService;
   let repository: jest.Mocked<Repository<Dossier>>;
   let commentRepository: jest.Mocked<Repository<Comment>>;
+  let customerRepository: jest.Mocked<Repository<Customer>>;
 
   const mockUserPayload = {
     id: 'user-uuid',
@@ -65,7 +67,16 @@ describe('DossiersService', () => {
     save: jest.fn(),
   };
 
+  const mockCustomerRepository = {
+    findOne: jest.fn(),
+  };
+
   beforeEach(async () => {
+    mockCustomerRepository.findOne.mockResolvedValue({
+      id: 'cust-uuid',
+      organizationId: 'org-uuid',
+    });
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DossiersService,
@@ -78,6 +89,10 @@ describe('DossiersService', () => {
           useValue: mockCommentRepository,
         },
         {
+          provide: getRepositoryToken(Customer),
+          useValue: mockCustomerRepository,
+        },
+        {
           provide: AuditLogsService,
           useValue: { record: jest.fn().mockResolvedValue(undefined) },
         },
@@ -87,6 +102,7 @@ describe('DossiersService', () => {
     service = module.get<DossiersService>(DossiersService);
     repository = module.get(getRepositoryToken(Dossier));
     commentRepository = module.get(getRepositoryToken(Comment));
+    customerRepository = module.get(getRepositoryToken(Customer));
   });
 
   afterEach(() => {
@@ -252,6 +268,24 @@ describe('DossiersService', () => {
         ConflictException,
       );
     });
+
+    it('should throw BadRequestException if customerId does not belong to organization on create', async () => {
+      const createDto: CreateDossierDto = {
+        code: 'HS002',
+        name: 'Another Tour',
+        customerId: 'cross-org-customer-id',
+      };
+
+      repository.findOne.mockResolvedValue(null);
+      mockCustomerRepository.findOne.mockResolvedValue(null); // not found in org
+
+      await expect(service.create(mockUserPayload, createDto)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockCustomerRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 'cross-org-customer-id', organizationId: 'org-uuid' },
+      });
+    });
   });
 
   describe('update', () => {
@@ -265,6 +299,22 @@ describe('DossiersService', () => {
       await expect(
         service.update(mockUserPayload, 'dossier-uuid', updateDto),
       ).rejects.toThrow(ConflictException);
+    });
+
+    it('should throw BadRequestException if updated customerId does not belong to organization', async () => {
+      repository.findOne.mockResolvedValue(mockDossier);
+      mockCustomerRepository.findOne.mockResolvedValue(null);
+
+      const updateDto: UpdateDossierDto = {
+        customerId: 'cross-org-customer-id',
+      };
+
+      await expect(
+        service.update(mockUserPayload, 'dossier-uuid', updateDto),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockCustomerRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 'cross-org-customer-id', organizationId: 'org-uuid' },
+      });
     });
 
     it('should throw BadRequestException if transitioning status illegally', async () => {

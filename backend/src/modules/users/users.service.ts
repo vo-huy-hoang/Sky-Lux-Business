@@ -191,11 +191,11 @@ export class UsersService {
     let finalEmployeeCode = employeeCode?.trim();
     if (finalEmployeeCode) {
       const existingCode = await this.userRepository.findOne({
-        where: { employeeCode: finalEmployeeCode },
+        where: { employeeCode: finalEmployeeCode, organizationId },
       });
       if (existingCode) {
         throw new ConflictException(
-          `Mã nhân viên "${finalEmployeeCode}" đã tồn tại`,
+          `Mã nhân viên "${finalEmployeeCode}" đã tồn tại trong tổ chức`,
         );
       }
     } else {
@@ -311,11 +311,11 @@ export class UsersService {
       const trimmedCode = employeeCode.trim();
       if (trimmedCode !== user.employeeCode) {
         const existingCode = await this.userRepository.findOne({
-          where: { employeeCode: trimmedCode },
+          where: { employeeCode: trimmedCode, organizationId },
         });
         if (existingCode) {
           throw new ConflictException(
-            `Mã nhân viên "${trimmedCode}" đã tồn tại`,
+            `Mã nhân viên "${trimmedCode}" đã tồn tại trong tổ chức`,
           );
         }
         user.employeeCode = trimmedCode;

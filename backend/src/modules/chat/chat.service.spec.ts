@@ -6,7 +6,12 @@ import { Conversation } from './entities/conversation.entity';
 import { ConversationMember } from './entities/conversation-member.entity';
 import { Message } from './entities/message.entity';
 import { User } from '../users/entities/user.entity';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Dossier } from '../dossiers/entities/dossier.entity';
+import {
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
 describe('ChatService', () => {
@@ -14,6 +19,7 @@ describe('ChatService', () => {
   let conversationRepo: Repository<Conversation>;
   let memberRepo: Repository<ConversationMember>;
   let messageRepo: Repository<Message>;
+  let dossierRepo: Repository<Dossier>;
 
   const mockUser: CurrentUserPayload = {
     id: 'user-1',
@@ -69,6 +75,10 @@ describe('ChatService', () => {
     find: jest.fn().mockResolvedValue([{ id: 'user-2' }]),
   };
 
+  const mockDossierRepo = {
+    findOne: jest.fn().mockResolvedValue({ id: 'dossier-1', organizationId: 'org-1' }),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -89,6 +99,10 @@ describe('ChatService', () => {
           provide: getRepositoryToken(User),
           useValue: mockUserRepo,
         },
+        {
+          provide: getRepositoryToken(Dossier),
+          useValue: mockDossierRepo,
+        },
       ],
     }).compile();
 
@@ -100,6 +114,7 @@ describe('ChatService', () => {
       getRepositoryToken(ConversationMember),
     );
     messageRepo = module.get<Repository<Message>>(getRepositoryToken(Message));
+    dossierRepo = module.get<Repository<Dossier>>(getRepositoryToken(Dossier));
   });
 
   it('should be defined', () => {
@@ -140,6 +155,26 @@ describe('ChatService', () => {
           isGroup: true,
         }),
       );
+    });
+
+    it('should throw BadRequestException if dossierId does not belong to user organization', async () => {
+      mockUserRepo.find.mockResolvedValueOnce([
+        { id: 'user-1' },
+        { id: 'user-2' },
+      ]);
+      mockDossierRepo.findOne.mockResolvedValueOnce(null);
+
+      await expect(
+        service.createConversation(mockUser, {
+          name: 'Dossier Chat',
+          userIds: ['user-2'],
+          dossierId: 'cross-org-dossier-id',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(mockDossierRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 'cross-org-dossier-id', organizationId: 'org-1' },
+      });
     });
   });
 

@@ -11,6 +11,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Dossier } from './entities/dossier.entity';
 import { Comment } from './entities/comment.entity';
+import { Customer } from '../customers/entities/customer.entity';
 import { QueryDossierDto } from './dto/query-dossier.dto';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
@@ -35,6 +36,8 @@ export class DossiersService {
     private readonly dossierRepository: Repository<Dossier>,
     @InjectRepository(Comment)
     private readonly commentRepository: Repository<Comment>,
+    @InjectRepository(Customer)
+    private readonly customerRepository: Repository<Customer>,
     private readonly auditLogsService: AuditLogsService,
     @Optional()
     private readonly notificationsService?: NotificationsService,
@@ -232,6 +235,17 @@ export class DossiersService {
       );
     }
 
+    if (createDossierDto.customerId) {
+      const customer = await this.customerRepository.findOne({
+        where: { id: createDossierDto.customerId, organizationId },
+      });
+      if (!customer) {
+        throw new BadRequestException(
+          'Khách hàng không tồn tại hoặc không thuộc tổ chức của bạn',
+        );
+      }
+    }
+
     const dossier = this.dossierRepository.create({
       ...createDossierDto,
       organizationId,
@@ -285,6 +299,17 @@ export class DossiersService {
     if (status && status !== dossier.status) {
       this.validateStatusTransition(dossier.status, status);
       dossier.status = status;
+    }
+
+    if (updateData.customerId) {
+      const customer = await this.customerRepository.findOne({
+        where: { id: updateData.customerId, organizationId },
+      });
+      if (!customer) {
+        throw new BadRequestException(
+          'Khách hàng không tồn tại hoặc không thuộc tổ chức của bạn',
+        );
+      }
     }
 
     Object.assign(dossier, updateData);

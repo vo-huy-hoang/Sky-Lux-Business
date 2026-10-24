@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
   MessageEvent,
   Optional,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import { CurrentUserPayload } from '../../common/decorators/current-user.decorat
 import { AddParticipantsDto } from './dto/add-participants.dto';
 import { MarkReadDto } from './dto/mark-read.dto';
 import { User } from '../users/entities/user.entity';
+import { Dossier } from '../dossiers/entities/dossier.entity';
 import { toPublicUser } from '../../common/utils/public-user';
 import { RedisService } from '../../common/redis/redis.service';
 
@@ -53,6 +55,8 @@ export class ChatService {
     private readonly messageRepository: Repository<Message>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Dossier)
+    private readonly dossierRepository: Repository<Dossier>,
     @Optional()
     private readonly redisService?: RedisService,
   ) {}
@@ -122,6 +126,17 @@ export class ChatService {
   ): Promise<Conversation> {
     const participantIds = [...new Set([...dto.userIds, user.id])];
     await this.ensureUsersInOrganization(participantIds, user.organizationId);
+
+    if (dto.dossierId) {
+      const dossier = await this.dossierRepository.findOne({
+        where: { id: dto.dossierId, organizationId: user.organizationId },
+      });
+      if (!dossier) {
+        throw new BadRequestException(
+          'Hồ sơ tour không tồn tại hoặc không thuộc tổ chức của bạn',
+        );
+      }
+    }
 
     const conversation = this.conversationRepository.create({
       organizationId: user.organizationId,

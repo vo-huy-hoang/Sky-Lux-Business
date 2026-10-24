@@ -7,6 +7,7 @@ import { EstimatesService } from './estimates.service';
 import { Estimate } from './entities/estimate.entity';
 import { EstimateRevenueLine } from './entities/estimate-revenue-line.entity';
 import { EstimateCostLine } from './entities/estimate-cost-line.entity';
+import { Supplier } from '../suppliers/entities/supplier.entity';
 import { DossiersService } from '../dossiers/dossiers.service';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { CreateEstimateDto } from './dto/create-estimate.dto';
@@ -78,6 +79,12 @@ describe('Estimates Module (Integration)', () => {
           useValue: {
             create: jest.fn((dto) => dto),
             delete: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(Supplier),
+          useValue: {
+            count: jest.fn().mockResolvedValue(1),
           },
         },
         {

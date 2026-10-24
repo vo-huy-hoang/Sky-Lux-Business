@@ -4,10 +4,11 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, Repository, In } from 'typeorm';
 import { Estimate } from './entities/estimate.entity';
 import { EstimateRevenueLine } from './entities/estimate-revenue-line.entity';
 import { EstimateCostLine } from './entities/estimate-cost-line.entity';
+import { Supplier } from '../suppliers/entities/supplier.entity';
 import { QueryEstimateDto } from './dto/query-estimate.dto';
 import { CreateEstimateDto } from './dto/create-estimate.dto';
 import { UpdateEstimateDto } from './dto/update-estimate.dto';
@@ -63,10 +64,35 @@ export class EstimatesService {
     private readonly revenueLineRepository: Repository<EstimateRevenueLine>,
     @InjectRepository(EstimateCostLine)
     private readonly costLineRepository: Repository<EstimateCostLine>,
+    @InjectRepository(Supplier)
+    private readonly supplierRepository: Repository<Supplier>,
     private readonly dossiersService: DossiersService,
     private readonly auditLogsService: AuditLogsService,
     private readonly dataSource: DataSource,
   ) {}
+
+  private async validateSuppliersOwnership(
+    costLines: Array<{ supplierId?: string | null }>,
+    organizationId: string,
+  ): Promise<void> {
+    const supplierIds = Array.from(
+      new Set(
+        costLines
+          .map((l) => l.supplierId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+    if (supplierIds.length > 0) {
+      const count = await this.supplierRepository.count({
+        where: { id: In(supplierIds), organizationId },
+      });
+      if (count !== supplierIds.length) {
+        throw new BadRequestException(
+          'Một hoặc nhiều nhà cung cấp không hợp lệ hoặc không thuộc tổ chức của bạn',
+        );
+      }
+    }
+  }
 
   async findAll(
     user: CurrentUserPayload,
@@ -203,6 +229,11 @@ export class EstimatesService {
     // Verify dossier exists and is authorized
     await this.dossiersService.findOne(user, dossierId);
 
+    // Verify suppliers belong to organization
+    if (costLines.length > 0) {
+      await this.validateSuppliersOwnership(costLines, organizationId);
+    }
+
     // Calculate version number
     const count = await this.estimateRepository.count({
       where: { dossierId, organizationId },
@@ -275,6 +306,10 @@ export class EstimatesService {
 
     const { status, note, currency, revenueLines, costLines } =
       updateEstimateDto;
+
+    if (costLines && costLines.length > 0) {
+      await this.validateSuppliersOwnership(costLines, organizationId);
+    }
 
     const requestedStatus = status ?? estimate.status;
     const wasApproved = estimate.status === EstimateStatus.APPROVED;

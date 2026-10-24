@@ -97,13 +97,23 @@ describe('CustomersService', () => {
   });
 
   describe('findAll', () => {
-    it('should return a paginated list of customers', async () => {
-      const mockCustomers = [mockCustomer];
-      mockQueryBuilder.getManyAndCount.mockResolvedValue([mockCustomers, 1]);
+    it('should return a paginated list of customers using database skip and take', async () => {
+      const mockCustomers = [
+        {
+          ...mockCustomer,
+          id: 'cust-1',
+          code: 'KH001',
+          displayName: 'Customer 1',
+        },
+      ];
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([mockCustomers, 35]);
+      mockQueryBuilder.getRawMany.mockResolvedValue([
+        { customerId: 'cust-1', count: '5' },
+      ]);
 
       const queryDto: QueryCustomerDto = {
-        page: 1,
-        limit: 20,
+        page: 2,
+        limit: 10,
         search: 'Customer',
         customerType: CustomerType.INDIVIDUAL,
         status: 'ACTIVE',
@@ -114,47 +124,61 @@ describe('CustomersService', () => {
       expect(mockCustomerRepository.createQueryBuilder).toHaveBeenCalledWith(
         'customer',
       );
-      expect(result).toEqual({
-        data: mockCustomers,
-        meta: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+      expect(mockQueryBuilder.skip).toHaveBeenCalledWith(10);
+      expect(mockQueryBuilder.take).toHaveBeenCalledWith(10);
+      expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith(
+        'customer.createdAt',
+        'ASC',
+      );
+      expect(result.meta).toEqual({
+        page: 2,
+        pageSize: 10,
+        total: 35,
+        totalPages: 4,
       });
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]).toEqual(
+        expect.objectContaining({
+          id: 'cust-1',
+          customerIds: ['cust-1'],
+          dossierCount: 5,
+        }),
+      );
     });
 
-    it('groups customers by normalized phone/email and sums dossier counts', async () => {
-      const first = {
-        ...mockCustomer,
-        id: 'customer-first',
-        phone: '097 423 1563',
-        email: 'Customer@Example.com',
-        createdAt: new Date('2026-01-01'),
-      } as unknown as Customer;
-      const duplicate = {
-        ...mockCustomer,
-        id: 'customer-duplicate',
-        phone: '0974231563',
-        email: 'customer@example.com',
-        createdAt: new Date('2026-02-01'),
-      } as unknown as Customer;
-      mockQueryBuilder.getManyAndCount.mockResolvedValue([[first, duplicate], 2]);
+    it('should apply filters and query dossier counts only for returned page customers', async () => {
+      const pageCustomers = [
+        { ...mockCustomer, id: 'cust-p1' },
+        { ...mockCustomer, id: 'cust-p2' },
+      ];
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([pageCustomers, 2]);
       mockQueryBuilder.getRawMany.mockResolvedValue([
-        { customerId: first.id, count: '1' },
-        { customerId: duplicate.id, count: '2' },
+        { customerId: 'cust-p1', count: '3' },
       ]);
 
       const result = await service.findAll('org-uuid', {
         page: 1,
         limit: 20,
+        search: 'VIP',
+        customerType: CustomerType.COMPANY,
+        status: 'ACTIVE',
       });
 
-      expect(result.meta.total).toBe(1);
-      expect(result.data).toHaveLength(1);
-      expect(result.data[0]).toEqual(
-        expect.objectContaining({
-          id: first.id,
-          customerIds: [first.id, duplicate.id],
-          dossierCount: 3,
-        }),
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        'customer.customerType = :customerType',
+        { customerType: CustomerType.COMPANY },
       );
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        'customer.status = :status',
+        { status: 'ACTIVE' },
+      );
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('customer.code ILIKE :search'),
+        { search: '%VIP%' },
+      );
+      expect(result.meta.total).toBe(2);
+      expect(result.data[0].dossierCount).toBe(3);
+      expect(result.data[1].dossierCount).toBe(0);
     });
   });
 
