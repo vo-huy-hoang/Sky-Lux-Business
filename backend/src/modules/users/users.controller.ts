@@ -11,6 +11,7 @@ import {
   Delete,
   Query,
   ParseUUIDPipe,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -26,6 +27,8 @@ import { QueryUserDto } from './dto/query-user.dto';
 import { AssignRolesDto } from './dto/assign-roles.dto';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { CreateCeoUserDto } from './dto/create-ceo-user.dto';
 
 @ApiTags('Users')
 @ApiBearerAuth('JWT-auth')
@@ -72,6 +75,7 @@ export class UsersController {
 
   @Post()
   @RequirePermissions('user.manage')
+  @Roles('CEO_ADMIN')
   @ApiOperation({ summary: 'Tạo người dùng mới (API-USERS-003)' })
   @ApiResponse({ status: 201, description: 'Tạo người dùng thành công' })
   @ApiResponse({
@@ -86,10 +90,42 @@ export class UsersController {
     @CurrentUser('organizationId') organizationId: string,
     @Body() createUserDto: CreateUserDto,
     @CurrentUser('id') actorUserId?: string,
+    @CurrentUser('roles') actorRoles: string[] = [],
   ) {
-    return actorUserId
-      ? this.usersService.create(organizationId, createUserDto, actorUserId)
-      : this.usersService.create(organizationId, createUserDto);
+    if (
+      !actorRoles.includes('CEO_ADMIN') ||
+      actorRoles.includes('SUPER_ADMIN')
+    ) {
+      throw new ForbiddenException(
+        'Chỉ CEO_ADMIN được tạo tài khoản OPERATOR hoặc SALES tại tổ chức của mình',
+      );
+    }
+    return this.usersService.create(
+      organizationId,
+      createUserDto,
+      actorUserId,
+      actorRoles,
+    );
+  }
+
+  @Post('ceo')
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({ summary: 'SUPER_ADMIN tạo CEO_ADMIN cho tổ chức đã có' })
+  @ApiResponse({
+    status: 201,
+    description: 'Tạo tài khoản CEO_ADMIN thành công',
+  })
+  createCeo(
+    @Body() dto: CreateCeoUserDto,
+    @CurrentUser('id') actorUserId: string,
+    @CurrentUser('roles') actorRoles: string[] = [],
+  ) {
+    if (!actorRoles.includes('SUPER_ADMIN')) {
+      throw new ForbiddenException(
+        'Chỉ SUPER_ADMIN được tạo tài khoản CEO_ADMIN',
+      );
+    }
+    return this.usersService.createCeo(dto, actorUserId, actorRoles);
   }
 
   @Patch(':id')
@@ -116,9 +152,16 @@ export class UsersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserDto: UpdateUserDto,
     @CurrentUser('id') actorUserId?: string,
+    @CurrentUser('roles') actorRoles?: string[],
   ) {
     return actorUserId
-      ? this.usersService.update(organizationId, id, updateUserDto, actorUserId)
+      ? this.usersService.update(
+          organizationId,
+          id,
+          updateUserDto,
+          actorUserId,
+          actorRoles,
+        )
       : this.usersService.update(organizationId, id, updateUserDto);
   }
 
@@ -197,6 +240,7 @@ export class UsersController {
     @Body() assignRolesDto: AssignRolesDto,
     @CurrentUser('organizationId') organizationId: string,
     @CurrentUser('id') actorUserId?: string,
+    @CurrentUser('roles') actorRoles?: string[],
   ) {
     return actorUserId
       ? this.usersService.assignRoles(
@@ -204,7 +248,14 @@ export class UsersController {
           assignRolesDto,
           organizationId,
           actorUserId,
+          actorRoles,
         )
-      : this.usersService.assignRoles(id, assignRolesDto, organizationId);
+      : this.usersService.assignRoles(
+          id,
+          assignRolesDto,
+          organizationId,
+          undefined,
+          actorRoles,
+        );
   }
 }

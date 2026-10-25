@@ -12,6 +12,7 @@ import { Repository } from 'typeorm';
 import { Dossier } from './entities/dossier.entity';
 import { Comment } from './entities/comment.entity';
 import { Customer } from '../customers/entities/customer.entity';
+import { User } from '../users/entities/user.entity';
 import { QueryDossierDto } from './dto/query-dossier.dto';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
@@ -38,6 +39,8 @@ export class DossiersService {
     private readonly commentRepository: Repository<Comment>,
     @InjectRepository(Customer)
     private readonly customerRepository: Repository<Customer>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     private readonly auditLogsService: AuditLogsService,
     @Optional()
     private readonly notificationsService?: NotificationsService,
@@ -52,10 +55,22 @@ export class DossiersService {
 
     const queryBuilder = this.dossierRepository
       .createQueryBuilder('dossier')
-      .leftJoinAndSelect('dossier.customer', 'customer')
+      .leftJoinAndSelect(
+        'dossier.customer',
+        'customer',
+        'customer.organizationId = dossier.organizationId',
+      )
       .leftJoinAndSelect('dossier.businessLine', 'businessLine')
-      .leftJoinAndSelect('dossier.salesUser', 'salesUser')
-      .leftJoinAndSelect('dossier.operatorUser', 'operatorUser')
+      .leftJoinAndSelect(
+        'dossier.salesUser',
+        'salesUser',
+        'salesUser.organizationId = dossier.organizationId',
+      )
+      .leftJoinAndSelect(
+        'dossier.operatorUser',
+        'operatorUser',
+        'operatorUser.organizationId = dossier.organizationId',
+      )
       .where('dossier.organizationId = :organizationId', { organizationId });
 
     // Enforce own record permission limit if not admin and lacks view all
@@ -163,6 +178,16 @@ export class DossiersService {
       throw new NotFoundException(`Không tìm thấy hồ sơ với ID "${id}"`);
     }
 
+    if (dossier.customer?.organizationId !== organizationId) {
+      dossier.customer = undefined;
+    }
+    if (dossier.salesUser?.organizationId !== organizationId) {
+      dossier.salesUser = undefined;
+    }
+    if (dossier.operatorUser?.organizationId !== organizationId) {
+      dossier.operatorUser = undefined;
+    }
+
     const hasViewAll =
       user.permissions.includes('dossier.view.all') ||
       user.permissions.includes('*') ||
@@ -246,6 +271,12 @@ export class DossiersService {
       }
     }
 
+    await this.assertAssignedUsersInOrganization(
+      organizationId,
+      createDossierDto.salesUserId || user.id,
+      createDossierDto.operatorUserId,
+    );
+
     const dossier = this.dossierRepository.create({
       ...createDossierDto,
       organizationId,
@@ -312,6 +343,12 @@ export class DossiersService {
       }
     }
 
+    await this.assertAssignedUsersInOrganization(
+      organizationId,
+      updateData.salesUserId,
+      updateData.operatorUserId,
+    );
+
     Object.assign(dossier, updateData);
     if (
       !dossier.revenueRecognitionDate &&
@@ -363,6 +400,29 @@ export class DossiersService {
       });
     }
     return updatedDossier;
+  }
+
+  private async assertAssignedUsersInOrganization(
+    organizationId: string,
+    salesUserId?: string | null,
+    operatorUserId?: string | null,
+  ): Promise<void> {
+    const userIds = [salesUserId, operatorUserId].filter(
+      (id): id is string => typeof id === 'string' && id.length > 0,
+    );
+    const uniqueUserIds = [...new Set(userIds)];
+    if (uniqueUserIds.length === 0) return;
+
+    const users = await this.userRepository.find({
+      where: uniqueUserIds.map((id) => ({ id, organizationId })),
+      select: { id: true },
+    });
+    const foundIds = new Set(users.map((candidate) => candidate.id));
+    if (uniqueUserIds.some((id) => !foundIds.has(id))) {
+      throw new BadRequestException(
+        'Người phụ trách không tồn tại hoặc không thuộc tổ chức của bạn',
+      );
+    }
   }
 
   async remove(user: CurrentUserPayload, id: string): Promise<void> {

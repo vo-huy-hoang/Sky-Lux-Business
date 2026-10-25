@@ -1,9 +1,8 @@
-import { Column, Index } from 'typeorm';
+import { Column } from 'typeorm';
 import { BaseEntity } from './base.entity';
 
 export abstract class BaseCatalogEntity extends BaseEntity {
-  @Index({ unique: true })
-  @Column({ type: 'varchar', length: 50, unique: true })
+  @Column({ type: 'varchar', length: 50 })
   code: string;
 
   @Column({ type: 'varchar', length: 255 })

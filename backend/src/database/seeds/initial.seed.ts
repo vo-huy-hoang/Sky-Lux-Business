@@ -552,7 +552,7 @@ export async function runInitialSeed(dataSource: DataSource) {
   ];
   for (const st of supplierTypes) {
     const exists = await stRepo.findOne({ where: { code: st.code } });
-    if (!exists) await stRepo.save(stRepo.create(st));
+    if (!exists) await stRepo.save(stRepo.create({ ...st, isSystem: true }));
   }
 
   // 8. Sample Suppliers Seed

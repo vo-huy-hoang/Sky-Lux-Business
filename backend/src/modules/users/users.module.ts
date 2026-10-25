@@ -7,10 +7,17 @@ import { RefreshToken } from '../auth/entities/refresh-token.entity';
 import { Role } from '../roles/entities/role.entity';
 import { Department } from '../departments/entities/department.entity';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { Organization } from '../organizations/entities/organization.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, RefreshToken, Role, Department]),
+    TypeOrmModule.forFeature([
+      User,
+      RefreshToken,
+      Role,
+      Department,
+      Organization,
+    ]),
     AuditLogsModule,
   ],
   controllers: [UsersController],

@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
@@ -16,6 +17,8 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { QueryUserDto } from './dto/query-user.dto';
 import { AssignRolesDto } from './dto/assign-roles.dto';
+import { Organization } from '../organizations/entities/organization.entity';
+import { CreateCeoUserDto } from './dto/create-ceo-user.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
   AuditAction,
@@ -33,6 +36,8 @@ export class UsersService {
     private readonly roleRepository: Repository<Role>,
     @InjectRepository(Department)
     private readonly departmentRepository: Repository<Department>,
+    @InjectRepository(Organization)
+    private readonly organizationRepository: Repository<Organization>,
     private readonly auditLogsService: AuditLogsService,
   ) {}
 
@@ -162,6 +167,8 @@ export class UsersService {
     organizationId: string,
     createUserDto: CreateUserDto,
     actorUserId?: string,
+    actorRoles?: string[],
+    allowCeoProvisioning = false,
   ) {
     const {
       email,
@@ -231,6 +238,32 @@ export class UsersService {
       }
     }
 
+    if (actorRoles) {
+      const roleCodes = roles.map((role) => role.code);
+      if (actorRoles.includes('SUPER_ADMIN')) {
+        if (
+          !allowCeoProvisioning ||
+          roleCodes.length !== 1 ||
+          roleCodes[0] !== 'CEO_ADMIN'
+        ) {
+          throw new ForbiddenException(
+            'SUPER_ADMIN chỉ được tạo tài khoản CEO_ADMIN qua API tạo CEO',
+          );
+        }
+      } else if (actorRoles.includes('CEO_ADMIN')) {
+        if (
+          roleCodes.length !== 1 ||
+          roleCodes.some((code) => !['OPERATOR', 'SALES'].includes(code))
+        ) {
+          throw new ForbiddenException(
+            'CEO_ADMIN chỉ được tạo tài khoản OPERATOR hoặc SALES',
+          );
+        }
+      } else {
+        throw new ForbiddenException('Bạn không được phép tạo tài khoản');
+      }
+    }
+
     // 5. Băm mật khẩu (mặc định SkyLux@123 nếu không truyền)
     const rawPassword = password || 'SkyLux@123';
     const passwordHash = await bcrypt.hash(rawPassword, 10);
@@ -265,6 +298,42 @@ export class UsersService {
     return { data: this.sanitizeUser(savedUser) };
   }
 
+  async createCeo(
+    dto: CreateCeoUserDto,
+    actorUserId: string,
+    actorRoles: string[],
+  ) {
+    if (!actorRoles.includes('SUPER_ADMIN')) {
+      throw new ForbiddenException(
+        'Chỉ SUPER_ADMIN được tạo tài khoản CEO_ADMIN',
+      );
+    }
+    const organization = await this.organizationRepository.findOne({
+      where: { id: dto.organizationId },
+    });
+    if (!organization) {
+      throw new NotFoundException(
+        `Không tìm thấy tổ chức với ID "${dto.organizationId}"`,
+      );
+    }
+    const ceoRole = await this.roleRepository.findOne({
+      where: { organizationId: organization.id, code: 'CEO_ADMIN' },
+    });
+    if (!ceoRole) {
+      throw new BadRequestException(
+        'Tổ chức chưa được khởi tạo vai trò CEO_ADMIN',
+      );
+    }
+    const { organizationId: _organizationId, ...userFields } = dto;
+    return this.create(
+      organization.id,
+      { ...userFields, roleIds: [ceoRole.id] },
+      actorUserId,
+      actorRoles,
+      true,
+    );
+  }
+
   /**
    * API-USERS-004: Cập nhật thông tin người dùng
    */
@@ -273,10 +342,12 @@ export class UsersService {
     id: string,
     updateUserDto: UpdateUserDto,
     actorUserId?: string,
+    actorRoles?: string[],
   ) {
     const user = await this.findUserOrFail(organizationId, id, true);
     const beforeData = this.auditSnapshot(user);
     const previousRoleIds = (user.roles ?? []).map((role) => role.id).sort();
+    const previousStatus = user.status;
 
     const {
       email,
@@ -353,8 +424,10 @@ export class UsersService {
             'Một hoặc nhiều vai trò được chọn không hợp lệ hoặc không thuộc tổ chức của bạn',
           );
         }
+        this.assertAssignableRoles(actorRoles, roles);
         user.roles = roles;
       } else {
+        this.assertAssignableRoles(actorRoles, []);
         user.roles = [];
       }
     }
@@ -370,6 +443,15 @@ export class UsersService {
     if (avatarUrl !== undefined) user.avatarUrl = avatarUrl;
     if (status !== undefined) user.status = status;
 
+    const nextRoleIds = (user.roles ?? []).map((role) => role.id).sort();
+    if (
+      previousStatus !== user.status ||
+      JSON.stringify(previousRoleIds) !== JSON.stringify(nextRoleIds) ||
+      Boolean(password)
+    ) {
+      user.authVersion = (user.authVersion ?? 0) + 1;
+    }
+
     const updatedUser = await this.userRepository.save(user);
 
     if (actorUserId) {
@@ -382,10 +464,8 @@ export class UsersService {
         beforeData,
         afterData: this.auditSnapshot(updatedUser),
       });
-      const nextRoleIds = (updatedUser.roles ?? [])
-        .map((role) => role.id)
-        .sort();
-      if (JSON.stringify(previousRoleIds) !== JSON.stringify(nextRoleIds)) {
+      const savedRoleIds = (updatedUser.roles ?? []).map((role) => role.id).sort();
+      if (JSON.stringify(previousRoleIds) !== JSON.stringify(savedRoleIds)) {
         await this.auditLogsService.record({
           organizationId,
           actorUserId,
@@ -410,6 +490,7 @@ export class UsersService {
     const user = await this.findUserOrFail(organizationId, id, true);
 
     user.status = UserStatus.LOCKED;
+    user.authVersion = (user.authVersion ?? 0) + 1;
     const savedUser = await this.userRepository.save(user);
 
     // Thu hồi toàn bộ refresh token để hủy mọi phiên làm việc ngay lập tức
@@ -443,6 +524,7 @@ export class UsersService {
     const user = await this.findUserOrFail(organizationId, id, true);
 
     user.status = UserStatus.ACTIVE;
+    user.authVersion = (user.authVersion ?? 0) + 1;
     const savedUser = await this.userRepository.save(user);
 
     if (actorUserId) {
@@ -476,6 +558,8 @@ export class UsersService {
       { isRevoked: true },
     );
 
+    user.authVersion = (user.authVersion ?? 0) + 1;
+    await this.userRepository.save(user);
     await this.userRepository.softRemove(user);
 
     if (actorUserId) {
@@ -503,6 +587,7 @@ export class UsersService {
     assignRolesDto: AssignRolesDto,
     organizationId: string,
     actorUserId?: string,
+    actorRoles?: string[],
   ): Promise<{ message: string }> {
     const user = await this.findUserOrFail(organizationId, id, true);
 
@@ -519,8 +604,14 @@ export class UsersService {
       );
     }
 
+    this.assertAssignableRoles(actorRoles, roles);
+
     const previousRoleIds = (user.roles ?? []).map((role) => role.id).sort();
+    const nextRoleIds = roles.map((role) => role.id).sort();
     user.roles = roles;
+    if (JSON.stringify(previousRoleIds) !== JSON.stringify(nextRoleIds)) {
+      user.authVersion = (user.authVersion ?? 0) + 1;
+    }
     await this.userRepository.save(user);
 
     if (actorUserId) {
@@ -531,11 +622,29 @@ export class UsersService {
         entityType: AuditEntityType.USER,
         entityId: id,
         beforeData: { roleIds: previousRoleIds },
-        afterData: { roleIds: roles.map((role) => role.id).sort() },
+        afterData: { roleIds: nextRoleIds },
       });
     }
 
     return { message: 'Gán vai trò cho nhân viên thành công' };
+  }
+
+  private assertAssignableRoles(
+    actorRoles: string[] | undefined,
+    roles: Role[],
+  ) {
+    if (!actorRoles) return;
+    if (actorRoles.includes('SUPER_ADMIN')) return;
+    if (!actorRoles.includes('CEO_ADMIN')) {
+      throw new ForbiddenException(
+        'Bạn không được phép thay đổi vai trò người dùng',
+      );
+    }
+    if (roles.some((role) => !['OPERATOR', 'SALES'].includes(role.code))) {
+      throw new ForbiddenException(
+        'CEO_ADMIN chỉ được gán vai trò OPERATOR hoặc SALES',
+      );
+    }
   }
 
   private auditSnapshot(user: User): Record<string, unknown> {

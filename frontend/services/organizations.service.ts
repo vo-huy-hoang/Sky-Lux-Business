@@ -6,6 +6,16 @@ import {
 } from '@/types/organization';
 
 export const organizationsService = {
+  listOrganizations: (options?: RequestOptions) => {
+    return apiClient.get<any, OrganizationItem[]>('/organization/all', {
+      signal: options?.signal,
+    });
+  },
+
+  createOrganization: (data: CreateOrganizationInput) => {
+    return apiClient.post<any, OrganizationItem>('/organization', data);
+  },
+
   /**
    * API-ORG-001: Lấy thông tin chi tiết tổ chức/doanh nghiệp
    */
@@ -35,8 +45,19 @@ export const organizationsService = {
    * API-ORG-004: Cập nhật cấu hình tổ chức theo key
    */
   updateSetting: (key: string, value: any) => {
-    return apiClient.put<any, OrganizationSettingItem>(`/organization/settings/${key}`, {
-      value,
-    });
+    return apiClient.put<any, OrganizationSettingItem>(
+      `/organization/settings/${key}`,
+      {
+        value,
+      },
+    );
   },
 };
+
+export interface CreateOrganizationInput {
+  name: string;
+  code: string;
+  slug: string;
+  timezone?: string;
+  currency?: string;
+}

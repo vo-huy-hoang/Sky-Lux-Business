@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { ILike, IsNull, Repository } from 'typeorm';
 import { Supplier } from './entities/supplier.entity';
 import { SupplierType } from './entities/supplier-type.entity';
 import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
@@ -32,11 +32,18 @@ export class SuppliersService {
    * Resolve the text entered in the supplier form to the existing catalog
    * record, creating a catalog entry when this is a new supplier type.
    */
-  private async findOrCreateSupplierType(name: string): Promise<SupplierType> {
+  private async findOrCreateSupplierType(
+    name: string,
+    organizationId: string,
+  ): Promise<SupplierType> {
     const trimmedName = name.trim();
-    const existingType = await this.supplierTypeRepository.findOne({
-      where: { name: ILike(trimmedName) },
-    });
+    const existingType =
+      (await this.supplierTypeRepository.findOne({
+        where: { name: ILike(trimmedName), organizationId },
+      })) ??
+      (await this.supplierTypeRepository.findOne({
+        where: { name: ILike(trimmedName), organizationId: IsNull(), isSystem: true },
+      }));
     if (existingType) return existingType;
 
     const baseCode =
@@ -52,7 +59,10 @@ export class SuppliersService {
     let suffix = 1;
     while (
       await this.supplierTypeRepository.findOne({
-        where: { code },
+        where: [
+          { code, organizationId },
+          { code, organizationId: IsNull(), isSystem: true },
+        ],
       })
     ) {
       code = `${baseCode.slice(0, 40 - String(suffix).length - 1)}-${suffix}`;
@@ -64,6 +74,7 @@ export class SuppliersService {
       name: trimmedName,
       status: 'ACTIVE',
       sortOrder: 0,
+      organizationId,
     });
     return this.supplierTypeRepository.save(supplierType);
   }
@@ -159,14 +170,21 @@ export class SuppliersService {
     let resolvedSupplierTypeId = supplierTypeId;
     if (supplierTypeName?.trim()) {
       const supplierType =
-        await this.findOrCreateSupplierType(supplierTypeName);
+        await this.findOrCreateSupplierType(supplierTypeName, organizationId);
       resolvedSupplierTypeId = supplierType.id;
     }
 
     // Validate a legacy supplierTypeId if provided directly by an API client.
     if (resolvedSupplierTypeId && !supplierTypeName?.trim()) {
       const existingType = await this.supplierTypeRepository.findOne({
-        where: { id: resolvedSupplierTypeId },
+        where: [
+          { id: resolvedSupplierTypeId, organizationId },
+          {
+            id: resolvedSupplierTypeId,
+            organizationId: IsNull(),
+            isSystem: true,
+          },
+        ],
       });
       if (!existingType) {
         throw new NotFoundException(
@@ -219,14 +237,21 @@ export class SuppliersService {
     if (hasSupplierTypeName) {
       if (supplierTypeName?.trim()) {
         const supplierType =
-          await this.findOrCreateSupplierType(supplierTypeName);
+          await this.findOrCreateSupplierType(supplierTypeName, organizationId);
         supplier.supplierTypeId = supplierType.id;
       } else {
         supplier.supplierTypeId = null;
       }
     } else if (supplierTypeId && supplierTypeId !== supplier.supplierTypeId) {
       const existingType = await this.supplierTypeRepository.findOne({
-        where: { id: supplierTypeId },
+        where: [
+          { id: supplierTypeId, organizationId },
+          {
+            id: supplierTypeId,
+            organizationId: IsNull(),
+            isSystem: true,
+          },
+        ],
       });
       if (!existingType) {
         throw new NotFoundException(

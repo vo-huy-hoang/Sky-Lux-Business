@@ -136,7 +136,7 @@ export class Dossier extends BaseEntity {
 
   @ManyToOne(() => Customer, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'customer_id' })
-  customer: Customer;
+  customer?: Customer;
 
   @ManyToOne(() => BusinessLine, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'business_line_id' })

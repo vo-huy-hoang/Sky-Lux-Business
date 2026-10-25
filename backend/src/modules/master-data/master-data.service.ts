@@ -8,6 +8,7 @@ import { PassengerType } from './entities/passenger-type.entity';
 import { Unit } from './entities/unit.entity';
 import { SupplierType } from '../suppliers/entities/supplier-type.entity';
 import { MasterDataQueryDto } from './dto/master-data-query.dto';
+import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import {
   PaginatedMasterDataResponseDto,
   MasterDataItemResponseDto,
@@ -47,12 +48,28 @@ export class MasterDataService {
     alias: string,
     query: MasterDataQueryDto,
     hasSortOrder = true,
+    organizationId?: string,
+    includeSystemRows = false,
   ): Promise<PaginatedMasterDataResponseDto> {
     const page = query.page && query.page > 0 ? query.page : 1;
     const pageSize =
       query.pageSize && query.pageSize > 0 ? Math.min(query.pageSize, 100) : 20;
 
     const qb = repository.createQueryBuilder(alias);
+
+    if (organizationId) {
+      if (includeSystemRows) {
+        qb.andWhere(
+          `(${alias}.organizationId = :organizationId OR (${alias}.organizationId IS NULL AND ${alias}.isSystem = true))`,
+          { organizationId },
+        );
+      } else {
+        qb.andWhere(
+          `(${alias}.organizationId = :organizationId OR ${alias}.organizationId IS NULL)`,
+          { organizationId },
+        );
+      }
+    }
 
     if (query.status) {
       qb.andWhere(`${alias}.status = :status`, { status: query.status });
@@ -146,11 +163,14 @@ export class MasterDataService {
 
   async getSupplierTypes(
     query: MasterDataQueryDto,
+    user: CurrentUserPayload,
   ): Promise<PaginatedMasterDataResponseDto> {
     return this.findPaginatedMasterData(
       this.supplierTypeRepository,
       'supplierType',
       query,
+      true,
+      user.organizationId,
       true,
     );
   }

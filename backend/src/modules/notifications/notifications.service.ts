@@ -14,6 +14,7 @@ import { QueryNotificationDto } from './dto/query-notification.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
 import { RedisService } from '../../common/redis/redis.service';
+import { User } from '../users/entities/user.entity';
 
 export interface SendNotificationPayload {
   organizationId: string;
@@ -60,6 +61,8 @@ export class NotificationsService {
   constructor(
     @InjectRepository(Notification)
     private readonly notificationRepository: Repository<Notification>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     @Optional()
     private readonly redisService?: RedisService,
   ) {}
@@ -68,6 +71,16 @@ export class NotificationsService {
    * Gửi thông báo tới một người dùng trong tổ chức (Phương thức nghiệp vụ cốt lõi)
    */
   async notify(payload: SendNotificationPayload): Promise<Notification> {
+    const recipient = await this.userRepository.findOne({
+      where: { id: payload.userId, organizationId: payload.organizationId },
+      select: { id: true },
+    });
+    if (!recipient) {
+      throw new NotFoundException(
+        'Không tìm thấy người nhận thông báo trong tổ chức',
+      );
+    }
+
     const notification = this.notificationRepository.create({
       organizationId: payload.organizationId,
       userId: payload.userId,

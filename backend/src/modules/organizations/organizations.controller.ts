@@ -7,6 +7,8 @@ import {
   Param,
   HttpCode,
   HttpStatus,
+  Post,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -20,6 +22,8 @@ import { RequirePermissions } from '../../common/decorators/require-permissions.
 
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { UpdateSettingDto } from '../settings/dto/update-setting.dto';
+import { CreateOrganizationDto } from './dto/create-organization.dto';
+import { Roles } from '../../common/decorators/roles.decorator';
 
 @ApiTags('Organization')
 @ApiBearerAuth('JWT-auth')
@@ -27,6 +31,26 @@ import { UpdateSettingDto } from '../settings/dto/update-setting.dto';
 @RequirePermissions('organization.manage')
 export class OrganizationsController {
   constructor(private readonly organizationsService: OrganizationsService) {}
+
+  @Get('all')
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({ summary: 'Lấy danh sách tổ chức để SUPER_ADMIN chọn' })
+  findAll(@CurrentUser('roles') roles: string[]) {
+    this.assertSuperAdmin(roles);
+    return this.organizationsService.findAll();
+  }
+
+  @Post()
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({ summary: 'Tạo tổ chức mới (chỉ SUPER_ADMIN)' })
+  @ApiResponse({ status: 201, description: 'Tạo tổ chức thành công' })
+  create(
+    @Body() dto: CreateOrganizationDto,
+    @CurrentUser('roles') roles: string[],
+  ) {
+    this.assertSuperAdmin(roles);
+    return this.organizationsService.create(dto);
+  }
 
   @Get()
   @ApiOperation({ summary: 'Lấy thông tin chi tiết tổ chức (API-ORG-001)' })
@@ -66,5 +90,15 @@ export class OrganizationsController {
       key,
       updateSettingDto.value,
     );
+  }
+
+  private assertSuperAdmin(roles: string[] = []) {
+    // RolesGuard treats both admin roles as global bypass roles, so enforce
+    // this endpoint's narrower authorization explicitly as well.
+    if (!roles.includes('SUPER_ADMIN')) {
+      throw new ForbiddenException(
+        'Chỉ SUPER_ADMIN được phép thực hiện thao tác này',
+      );
+    }
   }
 }

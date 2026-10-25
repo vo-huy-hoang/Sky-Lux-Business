@@ -2,12 +2,14 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Customer } from './entities/customer.entity';
 import { CustomerContact } from './entities/customer-contact.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
+import { User } from '../users/entities/user.entity';
 import { QueryCustomerDto } from './dto/query-customer.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
@@ -51,6 +53,8 @@ export class CustomersService {
     private readonly contactRepository: Repository<CustomerContact>,
     @InjectRepository(Dossier)
     private readonly dossierRepository: Repository<Dossier>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     private readonly auditLogsService: AuditLogsService,
   ) {}
 
@@ -97,6 +101,9 @@ export class CustomersService {
 
     return {
       data: customers.map((customer) => {
+        if (customer.assignedSales?.organizationId !== organizationId) {
+          customer.assignedSales = undefined;
+        }
         customer.assignedSales = toPublicUser(
           customer.assignedSales,
         ) as typeof customer.assignedSales;
@@ -231,6 +238,10 @@ export class CustomersService {
       );
     }
 
+    if (customer.assignedSales?.organizationId !== organizationId) {
+      customer.assignedSales = undefined;
+    }
+
     customer.assignedSales = toPublicUser(
       customer.assignedSales,
     ) as typeof customer.assignedSales;
@@ -255,6 +266,11 @@ export class CustomersService {
     actorUserId?: string,
   ): Promise<Customer> {
     const { code, contacts, ...customerData } = createCustomerDto;
+
+    await this.assertAssignedSalesInOrganization(
+      organizationId,
+      customerData.assignedSalesId,
+    );
 
     // Check if customer code already exists within the organization
     const existingCustomer = await this.customerRepository.findOne({
@@ -309,6 +325,11 @@ export class CustomersService {
     const previousAssignee = customer.assignedSalesId;
 
     const { code, contacts, ...customerData } = updateCustomerDto;
+
+    await this.assertAssignedSalesInOrganization(
+      organizationId,
+      customerData.assignedSalesId,
+    );
 
     // Check if code is updated and is unique
     if (code && code !== customer.code) {
@@ -394,6 +415,23 @@ export class CustomersService {
       }
     }
     return updatedCustomer;
+  }
+
+  private async assertAssignedSalesInOrganization(
+    organizationId: string,
+    assignedSalesId?: string | null,
+  ): Promise<void> {
+    if (!assignedSalesId) return;
+
+    const user = await this.userRepository.findOne({
+      where: { id: assignedSalesId, organizationId },
+      select: { id: true },
+    });
+    if (!user) {
+      throw new BadRequestException(
+        'Nhân viên kinh doanh không tồn tại hoặc không thuộc tổ chức của bạn',
+      );
+    }
   }
 
   async remove(
@@ -596,8 +634,16 @@ export class CustomersService {
 
     const queryBuilder = this.dossierRepository
       .createQueryBuilder('dossier')
-      .leftJoinAndSelect('dossier.salesUser', 'salesUser')
-      .leftJoinAndSelect('dossier.operatorUser', 'operatorUser')
+      .leftJoinAndSelect(
+        'dossier.salesUser',
+        'salesUser',
+        'salesUser.organizationId = dossier.organizationId',
+      )
+      .leftJoinAndSelect(
+        'dossier.operatorUser',
+        'operatorUser',
+        'operatorUser.organizationId = dossier.organizationId',
+      )
       .leftJoinAndSelect('dossier.businessLine', 'businessLine')
       .leftJoinAndSelect('dossier.marketType', 'marketType')
       .leftJoinAndSelect('dossier.estimates', 'estimates')

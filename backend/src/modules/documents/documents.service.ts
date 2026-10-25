@@ -11,6 +11,7 @@ import { Document } from './entities/document.entity';
 import { DocumentType } from './entities/document-type.entity';
 import { DocumentVersion } from './entities/document-version.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
+import { Estimate } from '../estimates/entities/estimate.entity';
 import { StorageService } from '../../shared/storage/storage.service';
 import { RedisService } from '../../common/redis/redis.service';
 import { sanitizeFileName } from '../../common/utils/filename.util';
@@ -41,6 +42,8 @@ export class DocumentsService {
     private readonly documentVersionRepository: Repository<DocumentVersion>,
     @InjectRepository(Dossier)
     private readonly dossierRepository: Repository<Dossier>,
+    @InjectRepository(Estimate)
+    private readonly estimateRepository: Repository<Estimate>,
     private readonly storageService: StorageService,
     private readonly redisService: RedisService,
     private readonly dataSource: DataSource,
@@ -115,6 +118,18 @@ export class DocumentsService {
     }
 
     await this.checkDossierAccess(user, dossierId, true);
+
+    if (dto.estimateId) {
+      const estimate = await this.estimateRepository.findOne({
+        where: { id: dto.estimateId, organizationId: user.organizationId },
+        select: { id: true },
+      });
+      if (!estimate) {
+        throw new NotFoundException(
+          `Không tìm thấy dự toán với ID "${dto.estimateId}" trong tổ chức`,
+        );
+      }
+    }
 
     if (dto.documentTypeId) {
       const typeExists = await this.documentTypeRepository.findOne({

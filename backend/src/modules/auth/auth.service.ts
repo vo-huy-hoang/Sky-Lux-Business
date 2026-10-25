@@ -84,6 +84,7 @@ export class AuthService {
 
     const payload = {
       id: user.id,
+      authVersion: user.authVersion ?? 0,
       organizationId: user.organizationId,
       departmentId: user.departmentId,
       employeeCode: user.employeeCode,
@@ -381,6 +382,7 @@ export class AuthService {
     // for this short-lived token's expiration.
     const streamPayload = {
       id: user.id,
+      authVersion: user.authVersion,
       organizationId: user.organizationId,
       departmentId: user.departmentId,
       employeeCode: user.employeeCode,
@@ -412,6 +414,7 @@ export class AuthService {
     }
 
     user.passwordHash = await bcrypt.hash(newPassword, 10);
+    user.authVersion = (user.authVersion ?? 0) + 1;
     await this.userRepository.save(user);
 
     // A password change invalidates every other active session, including the

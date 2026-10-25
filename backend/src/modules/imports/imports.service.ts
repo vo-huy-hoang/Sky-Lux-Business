@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, IsNull } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { randomInt } from 'crypto';
@@ -480,12 +480,23 @@ export class ImportsService {
                 transactionalEntityManager.find(Supplier, {
                   where: { organizationId },
                 }),
-                transactionalEntityManager.find(SupplierType),
+                transactionalEntityManager.find(SupplierType, {
+                  where: [
+                    { organizationId },
+                    { organizationId: IsNull(), isSystem: true },
+                  ],
+                }),
               ]);
             existingSuppliers.forEach((supplier) => {
               supplierByName.set(normalizeCatalogName(supplier.name), supplier);
             });
-            existingSupplierTypes.forEach((supplierType) => {
+            existingSupplierTypes
+              .sort(
+                (a, b) =>
+                  Number(Boolean(a.organizationId)) -
+                  Number(Boolean(b.organizationId)),
+              )
+              .forEach((supplierType) => {
               supplierTypeByName.set(
                 normalizeCatalogName(supplierType.name),
                 supplierType,
@@ -498,13 +509,28 @@ export class ImportsService {
           for (const [sortOrder, categoryName] of categoryNames.entries()) {
             const categoryKey = normalizeCatalogName(categoryName);
             if (!supplierTypeByName.has(categoryKey)) {
+              const baseCode = catalogCode(categoryName, 'IMPORT-TYPE');
+              let code = baseCode;
+              let suffix = 1;
+              while (
+                await transactionalEntityManager.findOne(SupplierType, {
+                  where: { organizationId, code },
+                })
+              ) {
+                code = catalogCode(
+                  categoryName,
+                  'IMPORT-TYPE',
+                  String(suffix++),
+                );
+              }
               const supplierType = await transactionalEntityManager.save(
                 SupplierType,
                 transactionalEntityManager.create(SupplierType, {
-                  code: catalogCode(categoryName, 'IMPORT-TYPE'),
+                  code,
                   name: categoryName,
                   status: 'ACTIVE',
                   sortOrder,
+                  organizationId,
                 }),
               );
               supplierTypeByName.set(categoryKey, supplierType);

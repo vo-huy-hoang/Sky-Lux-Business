@@ -215,6 +215,12 @@ export class RolesService {
         );
         await transactionalEntityManager.save(RolePermission, rolePermissions);
       }
+
+      await transactionalEntityManager.query(
+        `UPDATE "users" SET "auth_version" = "auth_version" + 1
+         WHERE "id" IN (SELECT "user_id" FROM "user_roles" WHERE "role_id" = $1)`,
+        [role.id],
+      );
     });
 
     await this.auditLogsService.record({

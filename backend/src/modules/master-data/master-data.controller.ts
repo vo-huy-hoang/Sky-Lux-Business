@@ -9,6 +9,8 @@ import { MasterDataService } from './master-data.service';
 import { MasterDataQueryDto } from './dto/master-data-query.dto';
 import { PaginatedMasterDataResponseDto } from './dto/master-data-response.dto';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Master Data')
 @ApiBearerAuth('JWT-auth')
@@ -93,8 +95,9 @@ export class MasterDataController {
   })
   getSupplierTypes(
     @Query() query: MasterDataQueryDto,
+    @CurrentUser() user: CurrentUserPayload,
   ): Promise<PaginatedMasterDataResponseDto> {
-    return this.masterDataService.getSupplierTypes(query);
+    return this.masterDataService.getSupplierTypes(query, user);
   }
 
   @Get('units')

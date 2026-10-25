@@ -6,6 +6,7 @@ import { Document } from './entities/document.entity';
 import { DocumentType } from './entities/document-type.entity';
 import { DocumentVersion } from './entities/document-version.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
+import { Estimate } from '../estimates/entities/estimate.entity';
 import { StorageModule } from '../../shared/storage/storage.module';
 import { RedisModule } from '../../common/redis/redis.module';
 
@@ -16,6 +17,7 @@ import { RedisModule } from '../../common/redis/redis.module';
       DocumentType,
       DocumentVersion,
       Dossier,
+      Estimate,
     ]),
     StorageModule,
     RedisModule,

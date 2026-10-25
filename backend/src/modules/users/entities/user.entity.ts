@@ -60,6 +60,9 @@ export class User extends BaseEntity {
   })
   status: UserStatus;
 
+  @Column({ name: 'auth_version', type: 'integer', default: 0 })
+  authVersion: number;
+
   @Column({ name: 'last_login_at', type: 'timestamptz', nullable: true })
   lastLoginAt?: Date;
 

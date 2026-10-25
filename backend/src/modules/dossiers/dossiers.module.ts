@@ -7,6 +7,7 @@ import { DossierPassenger } from './entities/dossier-passenger.entity';
 import { Payment } from './entities/payment.entity';
 import { Comment } from './entities/comment.entity';
 import { Customer } from '../customers/entities/customer.entity';
+import { User } from '../users/entities/user.entity';
 import { ApprovalsModule } from '../approvals/approvals.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -20,6 +21,7 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
       Payment,
       Comment,
       Customer,
+      User,
     ]),
     ApprovalsModule,
     DocumentsModule,

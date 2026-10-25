@@ -8,6 +8,9 @@ import {
 } from '@/types/user';
 
 export const usersService = {
+  createCeo: (data: CreateCeoUserInput) => {
+    return apiClient.post<any, UserItem>('/users/ceo', data);
+  },
   /**
    * API-USERS-001: Lấy danh sách người dùng phân trang và lọc
    */
@@ -45,27 +48,43 @@ export const usersService = {
    * API-USERS-005: Khóa tài khoản người dùng và thu hồi mọi phiên đăng nhập
    */
   lockUser: (id: string) => {
-    return apiClient.post<any, { message: string; data?: UserItem }>(`/users/${id}/lock`);
+    return apiClient.post<any, { message: string; data?: UserItem }>(
+      `/users/${id}/lock`,
+    );
   },
 
   /**
    * API-USERS-006: Mở khóa tài khoản người dùng
    */
   unlockUser: (id: string) => {
-    return apiClient.post<any, { message: string; data?: UserItem }>(`/users/${id}/unlock`);
+    return apiClient.post<any, { message: string; data?: UserItem }>(
+      `/users/${id}/unlock`,
+    );
   },
 
   /**
    * API-USERS-007: Xóa người dùng (Soft delete)
    */
   deleteUser: (id: string) => {
-    return apiClient.delete<any, { message: string; data?: { deleted: boolean } }>(`/users/${id}`);
+    return apiClient.delete<
+      any,
+      { message: string; data?: { deleted: boolean } }
+    >(`/users/${id}`);
   },
 
   /**
    * API-RBAC-006: Gán vai trò cho nhân viên
    */
   assignRoles: (userId: string, roleIds: string[]) => {
-    return apiClient.put<any, { message: string }>(`/users/${userId}/roles`, { roleIds });
+    return apiClient.put<any, { message: string }>(`/users/${userId}/roles`, {
+      roleIds,
+    });
   },
 };
+
+export interface CreateCeoUserInput extends Omit<
+  CreateUserInput,
+  'roleIds' | 'departmentId'
+> {
+  organizationId: string;
+}

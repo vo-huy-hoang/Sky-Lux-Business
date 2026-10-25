@@ -6,6 +6,7 @@ import { Customer } from './entities/customer.entity';
 import { CustomerContact } from './entities/customer-contact.entity';
 import { CustomerActivity } from './entities/customer-activity.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
+import { User } from '../users/entities/user.entity';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { CustomerActivitiesService } from './customer-activities.service';
 
@@ -16,6 +17,7 @@ import { CustomerActivitiesService } from './customer-activities.service';
       CustomerContact,
       CustomerActivity,
       Dossier,
+      User,
     ]),
     AuditLogsModule,
   ],
