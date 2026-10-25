@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateDossierChangeRequests1787939000011
-  implements MigrationInterface
-{
+export class CreateDossierChangeRequests1787939000011 implements MigrationInterface {
   name = 'CreateDossierChangeRequests1787939000011';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

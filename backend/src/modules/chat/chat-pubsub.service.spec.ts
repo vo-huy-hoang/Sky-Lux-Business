@@ -366,12 +366,10 @@ describe('TICKET-CHAT-03: ChatPubSubService (Multi-server Redis Pub/Sub)', () =>
       const orgBEvents: ChatEvent[] = [];
 
       // Node B only listens to Org 1
-      const subA = nodeB
-        .getEventStream()
-        .subscribe((e) => {
-          if (e.organizationId === 'org-company-1') orgAEvents.push(e);
-          if (e.organizationId === 'org-company-2') orgBEvents.push(e);
-        });
+      const subA = nodeB.getEventStream().subscribe((e) => {
+        if (e.organizationId === 'org-company-1') orgAEvents.push(e);
+        if (e.organizationId === 'org-company-2') orgBEvents.push(e);
+      });
 
       // Node A publishes to Org 1
       await nodeA.publish({

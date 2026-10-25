@@ -4,9 +4,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * Import workbooks may contain repeated dossier codes. The import flow is
  * intentionally permissive, so the database must not reject those rows.
  */
-export class AllowDuplicateDossierCodes1787939000020
-  implements MigrationInterface
-{
+export class AllowDuplicateDossierCodes1787939000020 implements MigrationInterface {
   name = 'AllowDuplicateDossierCodes1787939000020';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

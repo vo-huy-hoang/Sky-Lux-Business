@@ -105,11 +105,7 @@ export class CustomerIdentityIndex {
    * Kiểm tra xung đột định danh khách hàng trong O(1) thay vì O(M).
    * Giữ nguyên 100% logic cảnh báo và nội dung thông báo gốc.
    */
-  checkConflict(
-    phone: string,
-    email: string,
-    name: string,
-  ): string | null {
+  checkConflict(phone: string, email: string, name: string): string | null {
     const normPhone = normalizeCustomerPhone(phone);
     const normEmail = normalizeCustomerEmail(email);
     if (!normPhone && !normEmail) return null;

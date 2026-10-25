@@ -213,10 +213,14 @@ export class PaymentsService {
       );
     }
 
-    const nextAmount = dto.amount !== undefined ? dto.amount : Number(payment.amount);
+    const nextAmount =
+      dto.amount !== undefined ? dto.amount : Number(payment.amount);
     const nextDirection = dto.paymentDirection || payment.paymentDirection;
     if (nextDirection === PaymentDirection.CUSTOMER_RECEIPT) {
-      const financeSummary = await this.getFinanceSummary(user, payment.dossierId);
+      const financeSummary = await this.getFinanceSummary(
+        user,
+        payment.dossierId,
+      );
       const paidWithoutCurrent = Math.max(
         Number(financeSummary.data.totalPaid || 0) -
           (payment.paymentDirection === PaymentDirection.CUSTOMER_RECEIPT &&
@@ -282,46 +286,51 @@ export class PaymentsService {
       throw new NotFoundException(`Không tìm thấy hồ sơ với ID "${dossierId}"`);
     }
 
-    const { totalPaid } = (await this.paymentRepository
-      .createQueryBuilder('payment')
-      .select('SUM(payment.amount)', 'totalPaid')
-      .where('payment.dossier_id = :dossierId', { dossierId })
-      .andWhere('payment.organization_id = :organizationId', { organizationId })
-      .andWhere('payment.payment_direction = :direction', {
-        direction: PaymentDirection.CUSTOMER_RECEIPT,
-      })
-      .andWhere('payment.status != :cancelledStatus', {
-        cancelledStatus: PaymentStatus.CANCELLED,
-      })
-      .getRawOne()) || {};
+    const { totalPaid } =
+      (await this.paymentRepository
+        .createQueryBuilder('payment')
+        .select('SUM(payment.amount)', 'totalPaid')
+        .where('payment.dossier_id = :dossierId', { dossierId })
+        .andWhere('payment.organization_id = :organizationId', {
+          organizationId,
+        })
+        .andWhere('payment.payment_direction = :direction', {
+          direction: PaymentDirection.CUSTOMER_RECEIPT,
+        })
+        .andWhere('payment.status != :cancelledStatus', {
+          cancelledStatus: PaymentStatus.CANCELLED,
+        })
+        .getRawOne()) || {};
 
-    const { totalCost } = (await this.costLineRepository
-      .createQueryBuilder('estimate')
-      .innerJoin('estimate.estimate', 'estimateHeader')
-      .select('COALESCE(SUM(estimate.netAmount), 0)', 'totalCost')
-      .where('estimate.organizationId = :organizationId', { organizationId })
-      .andWhere('estimateHeader.dossierId = :dossierId', { dossierId })
-      .andWhere('estimateHeader.organizationId = :organizationId', {
-        organizationId,
-      })
-      .andWhere('estimateHeader.status = :estimateStatus', {
-        estimateStatus: EstimateStatus.APPROVED,
-      })
-      .getRawOne()) || {};
+    const { totalCost } =
+      (await this.costLineRepository
+        .createQueryBuilder('estimate')
+        .innerJoin('estimate.estimate', 'estimateHeader')
+        .select('COALESCE(SUM(estimate.netAmount), 0)', 'totalCost')
+        .where('estimate.organizationId = :organizationId', { organizationId })
+        .andWhere('estimateHeader.dossierId = :dossierId', { dossierId })
+        .andWhere('estimateHeader.organizationId = :organizationId', {
+          organizationId,
+        })
+        .andWhere('estimateHeader.status = :estimateStatus', {
+          estimateStatus: EstimateStatus.APPROVED,
+        })
+        .getRawOne()) || {};
 
-    const { totalReceivable } = (await this.revenueLineRepository
-      .createQueryBuilder('estimate')
-      .innerJoin('estimate.estimate', 'estimateHeader')
-      .select('COALESCE(SUM(estimate.netAmount), 0)', 'totalReceivable')
-      .where('estimate.organizationId = :organizationId', { organizationId })
-      .andWhere('estimateHeader.dossierId = :dossierId', { dossierId })
-      .andWhere('estimateHeader.organizationId = :organizationId', {
-        organizationId,
-      })
-      .andWhere('estimateHeader.status = :estimateStatus', {
-        estimateStatus: EstimateStatus.APPROVED,
-      })
-      .getRawOne()) || {};
+    const { totalReceivable } =
+      (await this.revenueLineRepository
+        .createQueryBuilder('estimate')
+        .innerJoin('estimate.estimate', 'estimateHeader')
+        .select('COALESCE(SUM(estimate.netAmount), 0)', 'totalReceivable')
+        .where('estimate.organizationId = :organizationId', { organizationId })
+        .andWhere('estimateHeader.dossierId = :dossierId', { dossierId })
+        .andWhere('estimateHeader.organizationId = :organizationId', {
+          organizationId,
+        })
+        .andWhere('estimateHeader.status = :estimateStatus', {
+          estimateStatus: EstimateStatus.APPROVED,
+        })
+        .getRawOne()) || {};
 
     const parsedTotalPaid = Number(
       (totalPaid as string | number | null | undefined) ?? 0,

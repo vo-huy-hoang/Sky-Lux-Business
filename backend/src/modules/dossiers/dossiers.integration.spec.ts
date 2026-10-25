@@ -86,7 +86,9 @@ describe('Dossiers Module (Integration)', () => {
         },
         {
           provide: getRepositoryToken(Customer),
-          useValue: { findOne: jest.fn().mockResolvedValue({ id: 'cust-uuid' }) },
+          useValue: {
+            findOne: jest.fn().mockResolvedValue({ id: 'cust-uuid' }),
+          },
         },
         {
           provide: DossierWorkflowService,

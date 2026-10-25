@@ -18,7 +18,9 @@ describe('filename.util', () => {
   });
 
   it('preserves already valid UTF-8 filenames', () => {
-    expect(sanitizeFileName('Dự toán tour 2026.xlsx')).toBe('Dự toán tour 2026.xlsx');
+    expect(sanitizeFileName('Dự toán tour 2026.xlsx')).toBe(
+      'Dự toán tour 2026.xlsx',
+    );
   });
 
   it('handles empty input gracefully', () => {

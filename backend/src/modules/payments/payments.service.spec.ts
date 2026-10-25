@@ -195,7 +195,9 @@ describe('PaymentsService', () => {
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         innerJoin: jest.fn().mockReturnThis(),
-        getRawOne: jest.fn().mockResolvedValue({ totalReceivable: '201760006' }),
+        getRawOne: jest
+          .fn()
+          .mockResolvedValue({ totalReceivable: '201760006' }),
       });
 
     await expect(

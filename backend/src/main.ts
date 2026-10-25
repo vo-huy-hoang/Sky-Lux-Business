@@ -19,7 +19,9 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   process.on('SIGTERM', () => {
-    logger.warn('🛑 SIGTERM received: Draining in-flight requests and closing connections...');
+    logger.warn(
+      '🛑 SIGTERM received: Draining in-flight requests and closing connections...',
+    );
   });
 
   // Serve static files from uploads directory (Chat attachments, document previews)

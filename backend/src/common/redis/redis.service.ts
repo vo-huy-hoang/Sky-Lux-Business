@@ -104,6 +104,83 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Set key with NX (only if it does not exist) and TTL expiration in seconds.
+   * Returns true if lock was acquired, false otherwise.
+   */
+  async setNx(key: string, value = '1', ttlSeconds = 5): Promise<boolean> {
+    if (!this.client || !this.isConnected) return false;
+    try {
+      const res = await this.client.set(key, value, 'EX', ttlSeconds, 'NX');
+      return res === 'OK';
+    } catch (err: any) {
+      this.logger.warn(`setNx error on key ${key}: ${err?.message || err}`);
+      return false;
+    }
+  }
+
+  /**
+   * Single-flight atomic caching with distributed mutex locking.
+   * Protects backend databases from Cache Stampede (Thundering Herd) when keys expire or are purged.
+   *
+   * @param key Redis cache key
+   * @param computeFn Async function executing the heavy query/computation on cache miss
+   * @param ttlSeconds Cache Time-To-Live in seconds (default 60s)
+   * @param lockTtlSeconds Distributed mutex lock auto-release safety timeout in seconds (default 5s)
+   */
+  async getOrCompute<T = any>(
+    key: string,
+    computeFn: () => Promise<T>,
+    ttlSeconds = 60,
+    lockTtlSeconds = 5,
+  ): Promise<T> {
+    if (!this.client || !this.isConnected) {
+      return computeFn();
+    }
+
+    try {
+      const cached = await this.get<T>(key);
+      if (cached !== null && cached !== undefined) {
+        return cached;
+      }
+
+      const lockKey = `lock:${key}`;
+      const lockAcquired = await this.setNx(lockKey, '1', lockTtlSeconds);
+
+      if (lockAcquired) {
+        try {
+          const doubleCheck = await this.get<T>(key);
+          if (doubleCheck !== null && doubleCheck !== undefined) {
+            return doubleCheck;
+          }
+
+          const result = await computeFn();
+          await this.set(key, result, ttlSeconds);
+          return result;
+        } finally {
+          await this.del(lockKey);
+        }
+      }
+
+      // Lock not acquired: wait in short poll loop for the holder to compute and cache
+      for (let attempt = 0; attempt < 10; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        const retryCached = await this.get<T>(key);
+        if (retryCached !== null && retryCached !== undefined) {
+          return retryCached;
+        }
+      }
+
+      // Safety fallback if lock holder timed out or delayed
+      return computeFn();
+    } catch (err: any) {
+      this.logger.warn(
+        `getOrCompute fallback for key ${key}: ${err?.message || err}`,
+      );
+      return computeFn();
+    }
+  }
+
   isReady(): boolean {
     return this.isConnected && !!this.client;
   }
@@ -129,7 +206,9 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         },
       });
     } catch (err: any) {
-      this.logger.warn(`Failed to create Redis subscriber client: ${err.message}`);
+      this.logger.warn(
+        `Failed to create Redis subscriber client: ${err.message}`,
+      );
       return null;
     }
   }

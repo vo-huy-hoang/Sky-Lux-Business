@@ -71,11 +71,15 @@ describe('DossierWorkflowService', () => {
     const auditLogsService = {
       record: jest.fn().mockResolvedValue(undefined),
     };
+    const redisService = {
+      delByPattern: jest.fn().mockResolvedValue(undefined),
+    };
     return {
       service: new DossierWorkflowService(
         dataSource,
         auditLogsService as any,
         notificationsService as any,
+        redisService as any,
       ),
       dossierRepository,
       estimateRepository,
@@ -83,6 +87,7 @@ describe('DossierWorkflowService', () => {
       historyRepository,
       notificationsService,
       auditLogsService,
+      redisService,
     };
   }
 
@@ -149,5 +154,21 @@ describe('DossierWorkflowService', () => {
     await expect(
       context.service.approve(operator, dossier.id, {}),
     ).rejects.toThrow(ConflictException);
+  });
+
+  it('purges tenant dashboard cache via delByPattern on workflow transition', async () => {
+    const context = createService();
+    context.dossierRepository.findOne.mockResolvedValue({ ...dossier });
+    context.dossierRepository.save.mockImplementation((value) => value);
+    context.estimateRepository.findOne.mockResolvedValue({ ...estimate });
+    context.estimateRepository.save.mockImplementation((value) => value);
+
+    await context.service.submit(user, dossier.id, {
+      customerId: 'customer-id',
+    });
+
+    expect(context.redisService.delByPattern).toHaveBeenCalledWith(
+      `dashboard:*${user.organizationId}*`,
+    );
   });
 });

@@ -151,9 +151,10 @@ describe('ReportsService', () => {
       expect(qbMock.groupBy).toHaveBeenCalled();
       expect(qbMock.orderBy).toHaveBeenCalled();
 
-      const countDistinct = await (
-        service as any
-      ).countDistinct(qbMock, 'customer.id');
+      const countDistinct = await (service as any).countDistinct(
+        qbMock,
+        'customer.id',
+      );
       expect(countDistinct).toBe(42);
     });
 

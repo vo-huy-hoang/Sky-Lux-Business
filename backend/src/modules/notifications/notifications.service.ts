@@ -331,7 +331,8 @@ export class NotificationsService {
   getNotificationsStream(user: CurrentUserPayload): Observable<MessageEvent> {
     const userEvents$ = this.notificationEvent$.pipe(
       filter(
-        (evt) => evt.organizationId === user.organizationId && evt.userId === user.id,
+        (evt) =>
+          evt.organizationId === user.organizationId && evt.userId === user.id,
       ),
     );
     const organizationEvents$ = this.organizationEvent$.pipe(

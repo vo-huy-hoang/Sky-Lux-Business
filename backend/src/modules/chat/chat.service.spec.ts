@@ -89,7 +89,9 @@ describe('ChatService', () => {
   };
 
   const mockDossierRepo = {
-    findOne: jest.fn().mockResolvedValue({ id: 'dossier-1', organizationId: 'org-1' }),
+    findOne: jest
+      .fn()
+      .mockResolvedValue({ id: 'dossier-1', organizationId: 'org-1' }),
   };
 
   beforeEach(async () => {
@@ -373,20 +375,14 @@ describe('ChatService', () => {
         ],
       });
 
-      const res = await service.sendMessage(
-        mockUser,
-        'conv-1',
-        '',
-        undefined,
-        [
-          {
-            url: '/uploads/chat/doc.pdf',
-            originalName: 'doc.pdf',
-            fileSize: 50000,
-            mimeType: 'application/pdf',
-          },
-        ],
-      );
+      const res = await service.sendMessage(mockUser, 'conv-1', '', undefined, [
+        {
+          url: '/uploads/chat/doc.pdf',
+          originalName: 'doc.pdf',
+          fileSize: 50000,
+          mimeType: 'application/pdf',
+        },
+      ]);
       expect(res.id).toBe('msg-only-att');
     });
 

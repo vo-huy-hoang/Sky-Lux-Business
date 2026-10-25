@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class BackfillDossierChangeRequests1787939000012
-  implements MigrationInterface
-{
+export class BackfillDossierChangeRequests1787939000012 implements MigrationInterface {
   name = 'BackfillDossierChangeRequests1787939000012';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

@@ -19,7 +19,12 @@ export class EstimateCostLine extends BaseEntity {
   @Column({ name: 'service_category_id', type: 'uuid', nullable: true })
   serviceCategoryId?: string;
 
-  @Column({ name: 'category_title', type: 'varchar', length: 100, nullable: true })
+  @Column({
+    name: 'category_title',
+    type: 'varchar',
+    length: 100,
+    nullable: true,
+  })
   categoryTitle?: string;
 
   @Column({ name: 'supplier_id', type: 'uuid', nullable: true })
