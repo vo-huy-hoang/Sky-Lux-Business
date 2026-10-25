@@ -16,12 +16,16 @@ describe('CustomerIdentityIndex', () => {
     });
 
     it('normalizes emails by trimming and converting to lowercase', () => {
-      expect(normalizeCustomerEmail('  User@SkyLux.VN  ')).toBe('user@skylux.vn');
+      expect(normalizeCustomerEmail('  User@SkyLux.VN  ')).toBe(
+        'user@skylux.vn',
+      );
       expect(normalizeCustomerEmail(null)).toBe('');
     });
 
     it('normalizes names by removing accents, handling đ/Đ, and collapsing spaces', () => {
-      expect(normalizeCustomerName('  Đoàn   Văn   Đức  ')).toBe('doan van duc');
+      expect(normalizeCustomerName('  Đoàn   Văn   Đức  ')).toBe(
+        'doan van duc',
+      );
       expect(normalizeCustomerName('Nguyễn Thị Mai')).toBe('nguyen thi mai');
       expect(normalizeCustomerName(null)).toBe('');
     });
@@ -62,7 +66,9 @@ describe('CustomerIdentityIndex', () => {
       const index = new CustomerIdentityIndex(candidates);
 
       expect(index.hasExactIdentity('0901234567', 'a@example.com')).toBe(true);
-      expect(index.hasExactIdentity('090-123-4567', ' A@example.com ')).toBe(true);
+      expect(index.hasExactIdentity('090-123-4567', ' A@example.com ')).toBe(
+        true,
+      );
 
       // Mismatch
       expect(index.hasExactIdentity('0901234567', 'b@example.com')).toBe(false);
@@ -82,7 +88,9 @@ describe('CustomerIdentityIndex', () => {
       });
 
       expect(index.hasExactIdentity('0933333333', 'c@example.com')).toBe(true);
-      expect(index.getPhoneMatches('0933333333')[0].displayName).toBe('Lê Văn C');
+      expect(index.getPhoneMatches('0933333333')[0].displayName).toBe(
+        'Lê Văn C',
+      );
     });
   });
 
@@ -110,11 +118,19 @@ describe('CustomerIdentityIndex', () => {
     it('returns null when exact phone, email, and name match', () => {
       const index = new CustomerIdentityIndex(existing);
       expect(
-        index.checkConflict('0901111111', 'contact@skylux.vn', 'Công Ty Sky Lux'),
+        index.checkConflict(
+          '0901111111',
+          'contact@skylux.vn',
+          'Công Ty Sky Lux',
+        ),
       ).toBeNull();
       // Accent-insensitive and case-insensitive name match
       expect(
-        index.checkConflict('0901111111', 'contact@skylux.vn', 'CONG TY SKY LUX'),
+        index.checkConflict(
+          '0901111111',
+          'contact@skylux.vn',
+          'CONG TY SKY LUX',
+        ),
       ).toBeNull();
     });
 
@@ -125,7 +141,9 @@ describe('CustomerIdentityIndex', () => {
         'contact@skylux.vn',
         'Công Ty Khác Hoàn Toàn',
       );
-      expect(conflict).toContain('Cảnh báo xung đột khách hàng: số điện thoại và email khớp khách hàng "Công Ty Sky Lux" nhưng tên trong file là "Công Ty Khác Hoàn Toàn"');
+      expect(conflict).toContain(
+        'Cảnh báo xung đột khách hàng: số điện thoại và email khớp khách hàng "Công Ty Sky Lux" nhưng tên trong file là "Công Ty Khác Hoàn Toàn"',
+      );
     });
 
     it('warns when phone belongs to customer A and email belongs to customer B', () => {
@@ -135,7 +153,9 @@ describe('CustomerIdentityIndex', () => {
         'tour@dulich.vn', // email of beta
         'Tên Bất Kỳ',
       );
-      expect(conflict).toContain('số điện thoại và email đang thuộc các khách hàng khác nhau');
+      expect(conflict).toContain(
+        'số điện thoại và email đang thuộc các khách hàng khác nhau',
+      );
       expect(conflict).toContain('"Công Ty Sky Lux"');
       expect(conflict).toContain('"Dịch Vụ Du Lịch Việt"');
     });
@@ -147,7 +167,9 @@ describe('CustomerIdentityIndex', () => {
         'new-unmatched@email.com',
         'Công Ty Sky Lux',
       );
-      expect(conflict).toContain('số điện thoại đã thuộc khách hàng "Công Ty Sky Lux"');
+      expect(conflict).toContain(
+        'số điện thoại đã thuộc khách hàng "Công Ty Sky Lux"',
+      );
     });
 
     it('warns when email matches existing customer but phone is new/unmatched', () => {

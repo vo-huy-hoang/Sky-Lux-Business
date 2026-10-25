@@ -31,6 +31,7 @@ import {
   AuditAction,
   AuditEntityType,
 } from '../audit-logs/audit-event.constants';
+import { RedisService } from '../../common/redis/redis.service';
 
 type WorkflowAction =
   | 'SUBMIT'
@@ -53,6 +54,8 @@ export class DossierWorkflowService {
     private readonly auditLogsService: AuditLogsService,
     @Optional()
     private readonly notificationsService?: NotificationsService,
+    @Optional()
+    private readonly redisService?: RedisService,
   ) {}
 
   submit(user: CurrentUserPayload, dossierId: string, dto: WorkflowActionDto) {
@@ -287,7 +290,12 @@ export class DossierWorkflowService {
 
       const changeRequest =
         action === 'REQUEST_CHANGES'
-          ? await this.createChangeRequest(manager, savedDossier, user, dto.note)
+          ? await this.createChangeRequest(
+              manager,
+              savedDossier,
+              user,
+              dto.note,
+            )
           : undefined;
 
       await this.updateApproval(
@@ -352,6 +360,18 @@ export class DossierWorkflowService {
       },
       afterData: { status: result.savedDossier.status, workflowAction: action },
     });
+
+    if (this.redisService) {
+      try {
+        await this.redisService.delByPattern(
+          `dashboard:*${user.organizationId}*`,
+        );
+      } catch (cacheErr: any) {
+        this.logger.warn(
+          `Lỗi xóa cache dashboard khi cập nhật workflow hồ sơ ${dossierId}: ${cacheErr?.message}`,
+        );
+      }
+    }
 
     return { data: result.data, meta: result.meta };
   }
@@ -731,10 +751,12 @@ export class DossierWorkflowService {
     // 3. REQUEST_CHANGES: notify the assigned Sales and Operator users.
     if (action === 'REQUEST_CHANGES') {
       const recipients = [
-        ...new Set([dossier.salesUserId, dossier.operatorUserId].filter(
-          (recipientId): recipientId is string =>
-            Boolean(recipientId && recipientId !== actor.id),
-        )),
+        ...new Set(
+          [dossier.salesUserId, dossier.operatorUserId].filter(
+            (recipientId): recipientId is string =>
+              Boolean(recipientId && recipientId !== actor.id),
+          ),
+        ),
       ];
       const requesterLabel = this.isAdmin(actor)
         ? 'Ban điều hành'

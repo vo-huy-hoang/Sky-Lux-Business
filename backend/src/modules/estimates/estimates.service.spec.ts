@@ -474,7 +474,7 @@ describe('EstimatesService', () => {
       estimateRepository.findOne.mockResolvedValue({
         ...mockEstimate,
         status: EstimateStatus.DRAFT,
-      } as any);
+      });
       mockSupplierRepository.count.mockResolvedValue(0);
 
       await expect(

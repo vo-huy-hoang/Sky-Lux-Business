@@ -350,4 +350,51 @@ describe('DashboardsService', () => {
       expect(result[0]).toHaveProperty('totalRevenue');
     });
   });
+
+  describe('caching integration with getOrCompute', () => {
+    it('should delegate caching to redisService.getOrCompute when redisService is provided', async () => {
+      const mockRedisService = {
+        getOrCompute: jest
+          .fn()
+          .mockImplementation((key, computeFn, ttl) => computeFn()),
+      };
+      (service as any).redisService = mockRedisService;
+
+      const mockEstimateQB = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+      estimateRepository.createQueryBuilder.mockReturnValue(mockEstimateQB);
+
+      const mockDossierQB = {
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+      };
+      dossierRepository.createQueryBuilder.mockReturnValue(mockDossierQB);
+
+      const mockTaskQB = {
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+      };
+      taskRepository.createQueryBuilder.mockReturnValue(mockTaskQB);
+
+      await service.getSalesDashboard('org-1', 'user-1', {});
+
+      expect(mockRedisService.getOrCompute).toHaveBeenCalledWith(
+        expect.stringContaining('dashboard:sales:org-1:user-1:'),
+        expect.any(Function),
+        60,
+      );
+    });
+  });
 });

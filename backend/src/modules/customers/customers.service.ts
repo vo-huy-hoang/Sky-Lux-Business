@@ -37,7 +37,9 @@ function normalizePhone(value?: string | null): string {
 }
 
 function normalizeEmail(value?: string | null): string {
-  return String(value ?? '').trim().toLowerCase();
+  return String(value ?? '')
+    .trim()
+    .toLowerCase();
 }
 
 @Injectable()
@@ -101,7 +103,7 @@ export class CustomersService {
         return Object.assign(customer, {
           customerIds: [customer.id],
           dossierCount: dossierCounts.get(customer.id) || 0,
-        }) as CustomerListItem;
+        });
       }),
       meta: {
         page,

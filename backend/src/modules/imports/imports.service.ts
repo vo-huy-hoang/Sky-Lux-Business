@@ -82,7 +82,9 @@ function normalizeCustomerPhone(value?: string | null): string {
 }
 
 function normalizeCustomerEmail(value?: string | null): string {
-  return String(value ?? '').trim().toLowerCase();
+  return String(value ?? '')
+    .trim()
+    .toLowerCase();
 }
 
 function generateImportedDossierCode(name?: unknown): string {

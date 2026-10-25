@@ -95,7 +95,10 @@ export class AuthController {
   @Patch('me')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cập nhật hồ sơ cá nhân của tài khoản hiện tại' })
-  @ApiResponse({ status: 200, description: 'Cập nhật hồ sơ cá nhân thành công' })
+  @ApiResponse({
+    status: 200,
+    description: 'Cập nhật hồ sơ cá nhân thành công',
+  })
   updateMe(
     @CurrentUser('id') userId: string,
     @Body() updateProfileDto: UpdateProfileDto,
@@ -106,7 +109,10 @@ export class AuthController {
   @Patch('me/settings')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cập nhật cài đặt cá nhân của tài khoản hiện tại' })
-  @ApiResponse({ status: 200, description: 'Cập nhật cài đặt cá nhân thành công' })
+  @ApiResponse({
+    status: 200,
+    description: 'Cập nhật cài đặt cá nhân thành công',
+  })
   updateMySettings(
     @CurrentUser('id') userId: string,
     @Body() updateUserSettingsDto: UpdateUserSettingsDto,

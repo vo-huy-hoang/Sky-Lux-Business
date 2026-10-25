@@ -646,11 +646,10 @@ export class ReportsService {
       const startTimestamp = `${query.periodStart} 00:00:00`;
       const endTimestamp = `${query.periodEnd} 23:59:59.999`;
 
-      qb.andWhere('dossier.lockedAt IS NOT NULL')
-        .andWhere(
-          'dossier.lockedAt >= :periodStart AND dossier.lockedAt <= :periodEnd',
-          { periodStart: startTimestamp, periodEnd: endTimestamp },
-        );
+      qb.andWhere('dossier.lockedAt IS NOT NULL').andWhere(
+        'dossier.lockedAt >= :periodStart AND dossier.lockedAt <= :periodEnd',
+        { periodStart: startTimestamp, periodEnd: endTimestamp },
+      );
     }
   }
 

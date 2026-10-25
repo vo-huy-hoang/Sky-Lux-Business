@@ -365,7 +365,7 @@ export class AuthService {
     ] as const;
     for (const key of preferenceKeys) {
       if (updateUserSettingsDto[key] !== undefined) {
-        notificationPreferences[key] = updateUserSettingsDto[key] as boolean;
+        notificationPreferences[key] = updateUserSettingsDto[key];
       }
     }
     user.notificationPreferences = notificationPreferences;
