@@ -27,11 +27,11 @@ flowchart TD
 
     BE --> PG[(postgres :5432)]
     BE --> RD[(redis :6379)]
-    BE --> R2[Object Storage]
+    BE --> CL[Cloudinary<br/>uploads and media]
 
     RD --> W[worker / BullMQ]
     W --> PG
-    W --> R2
+    HOST[Host cron] --> BK[Local database backups<br/>/opt/skylux/backups]
 ```
 
 Production chỉ expose:
@@ -86,7 +86,7 @@ Mục tiêu local theo tài liệu nguồn:
 ```yaml
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:16-alpine
     container_name: skylux-postgres
     restart: unless-stopped
     environment:
@@ -94,7 +94,7 @@ services:
       POSTGRES_USER: skylux
       POSTGRES_PASSWORD: skylux_local_password
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -108,7 +108,7 @@ services:
     container_name: skylux-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -128,11 +128,14 @@ Chạy:
 docker compose up -d postgres redis
 ```
 
+Compose development chỉ dành cho máy local. Các cổng host bind vào loopback; trên VPS chỉ dùng `docker-compose.prod.yml`, nơi PostgreSQL và Redis không publish port.
+
 Backend:
 
 ```bash
 cd backend
 npm ci
+# backend/.env.example uses DB_HOST=localhost and DB_PORT=5433 for host development.
 npm run migration:run
 npm run start:dev
 ```
@@ -301,11 +304,19 @@ REDIS_HOST=redis
 REDIS_PORT=6379
 JWT_SECRET=<long-random-secret>
 
-R2_ENDPOINT=...
-R2_ACCESS_KEY_ID=...
-R2_SECRET_ACCESS_KEY=...
-R2_BUCKET=skylux-files
+# Cloudinary for application uploads
+CLOUDINARY_CLOUD_NAME=...
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
+CLOUDINARY_UPLOAD_PRESET=...
+CLOUDINARY_FOLDER=optrip
+
+# Chỉ giữ backup local trên VPS cho đến khi cấu hình đích off-site riêng
+OFFSITE_BACKUP_REQUIRED=false
+APP_DOMAIN=<production-domain>
 ```
+
+Cloudinary chỉ lưu ảnh, tài liệu và tệp chat dưới folder `CLOUDINARY_FOLDER` (mặc định là `optrip`); nếu thiếu cả ba biến `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, backend dùng volume local `skylux_uploads`. `CLOUDINARY_UPLOAD_PRESET` là tùy chọn. Database backup hiện được nén, kiểm tra và giữ local trong `/opt/skylux/backups`; `OFFSITE_BACKUP_REQUIRED=false` cho phép chạy local-only trong lúc chưa chọn nơi lưu off-site. Nếu đặt biến này thành `true`, deploy sẽ dừng khi chưa có đích off-site riêng. `APP_DOMAIN` phải là domain production hiện hành.
 
 Giới hạn quyền file: `chmod 600 /opt/skylux/.env`. Nếu thay owner GitHub, dùng đúng owner viết thường mà workflow dùng cho image GHCR.
 
@@ -365,18 +376,11 @@ Từ máy bên ngoài, truy cập domain HTTPS và thử dashboard/API. DNS A c�
 
 ---
 
-# 10. Cloudflare
+# 10. DNS và TLS
 
-DNS:
+Đặt DNS của domain production hiện hành trỏ tới IP public của VPS. Nếu dùng Cloudflare, chỉ bật proxy sau khi origin HTTPS và aaPanel đã được kiểm tra.
 
-```text
-A
-app
-→ 103.179.174.159
-Proxy ON
-```
-
-SSL:
+Nếu dùng Cloudflare:
 
 ```text
 Full (strict)
@@ -639,38 +643,7 @@ Production rollback phải dùng immutable SHA tag, không chỉ dựa vào `lat
 
 Nguồn deployment khuyến nghị production deploy thủ công qua GitHub Environment/approval.
 
-```yaml
-name: Deploy Production
-
-on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Git SHA/image tag to deploy"
-        required: true
-
-jobs:
-  deploy:
-    environment: production
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            cd /opt/skylux
-            export APP_VERSION=${{ inputs.version }}
-
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml run --rm backend npm run migration:run
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
-
-            docker image prune -f
-```
+Workflow hiện tại chỉ chạy khi được dispatch thủ công. Chọn `main` để chạy job deploy; cấu hình required reviewers trong GitHub Settings → Environments → `production` để buộc phê duyệt trước khi truy cập VPS. Job gọi `infra/scripts/deploy.sh`, dùng SHA của workflow run và giữ nguyên database khi rollback ứng dụng.
 
 ---
 
@@ -761,45 +734,16 @@ Migration destructive phải test staging trước.
 
 # 18. Backup PostgreSQL
 
-`infra/scripts/backup-db.sh`:
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-DATE=$(date +%Y-%m-%d_%H-%M-%S)
-BACKUP_DIR=/opt/skylux/backups
-
-mkdir -p "$BACKUP_DIR"
-
-cd /opt/skylux
-
-docker compose -f docker-compose.prod.yml exec -T postgres \
-  pg_dump -U "$DB_USER" -d "$DB_NAME" -Fc \
-  > "$BACKUP_DIR/skylux-$DATE.dump"
-
-gzip "$BACKUP_DIR/skylux-$DATE.dump"
-
-# Upload .gz sang R2/B2/S3 off-VPS.
-```
-
-Không chỉ giữ backup trên cùng VPS.
+`infra/scripts/backup-db.sh` tạo bản dump SQL dạng gzip, kiểm tra gzip và giữ bản local trong `/opt/skylux/backups`. Cloudinary chỉ dành cho media của ứng dụng và không được dùng để upload database dump. Backup local được giữ tối đa 7 ngày. Hãy cấu hình đích off-site riêng và diễn tập restore trước khi lưu dữ liệu production quan trọng.
 
 ---
 
 # 19. Restore
 
-`infra/scripts/restore-db.sh`:
+`infra/scripts/restore-db.sh` nhận file `.sql.gz` do backup script tạo và nạp bằng `psql`. Script không xóa schema cũ trước khi nạp; hãy dùng database trống đã chuẩn bị và diễn tập restore trước. Với database đang có dữ liệu, cần có runbook riêng để tránh xung đột bảng hoặc ghi đè ngoài dự kiến.
 
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-BACKUP_FILE="$1"
-
-gunzip -c "$BACKUP_FILE" | \
-docker compose -f docker-compose.prod.yml exec -T postgres \
-  pg_restore -U "$DB_USER" -d "$DB_NAME" --clean --if-exists
+bash /opt/skylux/infra/scripts/restore-db.sh /opt/skylux/backups/skylux_backup_<timestamp>.sql.gz
 ```
 
 Backup chỉ được coi là an toàn khi đã test restore.
@@ -838,33 +782,28 @@ Error tracking        → Sentry hoặc tương đương
 # 21. Security checklist
 
 - không commit `.env`;
-- không commit R2 keys;
+- không commit Cloudinary keys;
 - không commit JWT secret;
 - không expose PostgreSQL/Redis;
-- Cloudflare SSL Full (strict);
+- nếu dùng Cloudflare, SSL Full (strict);
 - SSH bằng key;
 - giới hạn SSH IP nếu khả thi;
 - container non-root khi có thể;
 - patch Ubuntu/Docker định kỳ;
 - enforce RBAC/tenant ở backend;
-- backup off-VPS.
+- trước khi lưu dữ liệu production quan trọng, backup off-VPS riêng và restore phải được xác minh.
 
 ---
 
 # 22. Rollback
 
-Application:
+Application-only rollback:
 
 ```bash
-cd /opt/skylux
-
-export APP_VERSION=<previous-good-sha>
-
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
+bash /opt/skylux/infra/scripts/rollback.sh <previous-good-sha>
 ```
 
-Database rollback **không đồng nghĩa** app rollback.
+Lệnh này chỉ đổi image frontend/backend; không khôi phục schema hay dữ liệu. Deploy không tự rollback image khi health check lỗi vì migration có thể không tương thích ngược. Kiểm tra backup và tính tương thích schema trước khi gọi lệnh rollback.
 
 Không tự động `migration:revert` cho mọi lỗi. Với migration destructive, có thể cần:
 
@@ -894,16 +833,19 @@ free -h
 [ ] frontend build production OK
 [ ] backend build/test OK
 [ ] TypeORM synchronize=false
-[ ] migration chạy staging OK
+[ ] migration đã thử trên môi trường kiểm thử trước production
 [ ] PostgreSQL không public
 [ ] Redis không public
 [ ] aaPanel proxy / và /api đúng tới loopback ports
-[ ] Cloudflare Full (strict)
+[ ] kiểm thử /uploads và SSE/stream qua aaPanel
+[ ] TLS trên domain production hiện hành đạt; nếu dùng Cloudflare thì Full (strict)
+[ ] đã kiểm tra 2FA aaPanel và cấu hình bảo mật VPS
 [ ] VPS firewall đúng
 [ ] .env production không nằm trong Git
-[ ] daily DB backup off-VPS
+[ ] backup off-VPS riêng đã cấu hình và restore đã test trước khi go-live
 [ ] restore đã test
 [ ] /api/health OK
+[ ] đã đo RAM/CPU/disk khi chạy toàn bộ service trên cấu hình VPS thực tế
 [ ] CI PR hoạt động
 [ ] Docker image có SHA tag
 [ ] có previous-good-sha để rollback

@@ -29,6 +29,16 @@ import {
 } from '../../common/enums';
 
 export async function runInitialSeed(dataSource: DataSource) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('The demo initial seed is disabled in production.');
+  }
+  const seedDefaultPassword = process.env.SEED_DEFAULT_PASSWORD;
+  if (!seedDefaultPassword) {
+    throw new Error(
+      'SEED_DEFAULT_PASSWORD must be set explicitly before creating demo users.',
+    );
+  }
+
   console.log('🌱 Starting Initial Database Seed...');
 
   const orgRepo = dataSource.getRepository(Organization);
@@ -383,7 +393,7 @@ export async function runInitialSeed(dataSource: DataSource) {
       fullName: 'Super Administrator',
       email: 'admin@skylux.vn',
       phone: '0901234567',
-      password: 'Admin@123456',
+      password: seedDefaultPassword,
       departmentCode: 'BOD',
       roleCodes: ['SUPER_ADMIN', 'CEO_ADMIN'],
     },
@@ -392,7 +402,7 @@ export async function runInitialSeed(dataSource: DataSource) {
       fullName: 'Nguyễn Thu Hà',
       email: 'sales@skylux.vn',
       phone: '0901234568',
-      password: 'Sales@123456',
+      password: seedDefaultPassword,
       departmentCode: 'SALES',
       roleCodes: ['SALES'],
     },
@@ -401,7 +411,7 @@ export async function runInitialSeed(dataSource: DataSource) {
       fullName: 'Nguyễn Văn Minh',
       email: 'ceo@skylux.vn',
       phone: '0901234571',
-      password: 'CeoAdmin@123456',
+      password: seedDefaultPassword,
       departmentCode: 'BOD',
       roleCodes: ['CEO_ADMIN'],
     },
@@ -410,7 +420,7 @@ export async function runInitialSeed(dataSource: DataSource) {
       fullName: 'Phạm Minh Quân',
       email: 'operator@skylux.vn',
       phone: '0901234569',
-      password: 'Operator@123456',
+      password: seedDefaultPassword,
       departmentCode: 'OPS',
       roleCodes: ['OPERATOR'],
     },
@@ -419,7 +429,7 @@ export async function runInitialSeed(dataSource: DataSource) {
       fullName: 'Trần Minh Ngọc',
       email: 'accountant@skylux.vn',
       phone: '0901234570',
-      password: 'Accountant@123456',
+      password: seedDefaultPassword,
       departmentCode: 'ACC',
       roleCodes: ['ACCOUNTANT'],
     },
@@ -428,7 +438,7 @@ export async function runInitialSeed(dataSource: DataSource) {
       fullName: 'Lê Hoàng Nam',
       email: 'sales2@skylux.vn',
       phone: '0901234572',
-      password: 'Sales@123456',
+      password: seedDefaultPassword,
       departmentCode: 'SALES',
       roleCodes: ['SALES'],
     },
@@ -437,7 +447,7 @@ export async function runInitialSeed(dataSource: DataSource) {
       fullName: 'Trần Thùy Linh',
       email: 'sales3@skylux.vn',
       phone: '0901234573',
-      password: 'Sales@123456',
+      password: seedDefaultPassword,
       departmentCode: 'SALES',
       roleCodes: ['SALES'],
     },
@@ -466,7 +476,7 @@ export async function runInitialSeed(dataSource: DataSource) {
       );
 
       console.log(
-        `  ✅ Created ${userData.roleCodes.join('/')} user: ${userData.email} (Password: ${userData.password})`,
+        `  ✅ Created ${userData.roleCodes.join('/')} user: ${userData.email}`,
       );
     }
   }

@@ -65,6 +65,7 @@ if [ "$TARGET_VERSION" = "$CURRENT_VERSION" ]; then
 fi
 
 echo "Initiating rollback to version: $TARGET_VERSION..."
+echo "This changes application images only; database schema and data are not reverted."
 
 # Cập nhật .env với phiên bản mục tiêu
 sed -i '/^APP_VERSION=/d' .env

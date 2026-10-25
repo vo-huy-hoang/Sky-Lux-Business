@@ -419,7 +419,7 @@ Phase 2:
 ```mermaid
 flowchart LR
     D[Dossier] --> M[Document metadata]
-    M --> R2[Object Storage]
+    M --> CL[Cloudinary Object Storage]
     M --> V[Document Versions]
 ```
 

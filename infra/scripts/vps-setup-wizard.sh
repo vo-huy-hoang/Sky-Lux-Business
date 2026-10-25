@@ -141,16 +141,20 @@ REDIS_PORT=6379
 # Authentication JWT
 JWT_SECRET=$RANDOM_JWT_SECRET
 
-# Cloudflare R2 / S3 Storage (để trống nếu chưa cấu hình)
-R2_ENDPOINT=
-R2_ACCESS_KEY_ID=
-R2_SECRET_ACCESS_KEY=
-R2_BUCKET=skylux-files
-R2_PUBLIC_DOMAIN=https://files.skylux.vn
+# Cloudinary app uploads (để trống nếu chưa cấu hình)
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+CLOUDINARY_UPLOAD_PRESET=
+CLOUDINARY_FOLDER=optrip
+
+# Keep database backups local on the VPS until a private off-site target is selected.
+OFFSITE_BACKUP_REQUIRED=false
+APP_DOMAIN=
 EOF
     chmod 600 "$ENV_FILE"
     step_success "Đã tạo file $ENV_FILE với mật khẩu DB và JWT Secret sinh ngẫu nhiên cực mạnh."
-    step_warn "Hãy điền thông tin R2 nếu dùng lưu trữ file hoặc muốn backup off-site."
+    step_warn "Cloudinary chỉ dùng lưu tệp ứng dụng. Backup database hiện được giữ local trong /opt/skylux/backups; hãy cấu hình một nơi backup off-site riêng sau."
 fi
 
 # ------------------------------------------------------------------------------
@@ -159,11 +163,19 @@ fi
 stage_header "Kiểm tra HTTPS trên aaPanel"
 step_info "aaPanel Nginx xử lý HTTPS; chứng chỉ không cần mount vào Docker."
 step_info "Hãy xác nhận domain đã bật HTTPS trong aaPanel trước khi tiếp tục."
-APP_DOMAIN="${APP_DOMAIN:-app.skylux.vn}"
-if command -v curl >/dev/null 2>&1 && curl --silent --show-error --fail --head "https://$APP_DOMAIN" >/dev/null; then
+APP_DOMAIN="${APP_DOMAIN:-$(grep -E '^APP_DOMAIN=' "$ENV_FILE" | tail -n 1 | cut -d '=' -f2- || true)}"
+if [ -z "$APP_DOMAIN" ]; then
+    echo -en "${CYAN}Nhập domain production đã trỏ về VPS (để trống để kiểm tra sau): ${NC}"
+    read -r APP_DOMAIN
+    if [ -n "$APP_DOMAIN" ]; then
+        printf '\nAPP_DOMAIN=%s\n' "$APP_DOMAIN" >> "$ENV_FILE"
+        chmod 600 "$ENV_FILE"
+    fi
+fi
+if [ -n "$APP_DOMAIN" ] && command -v curl >/dev/null 2>&1 && curl --silent --show-error --fail --head "https://$APP_DOMAIN" >/dev/null; then
     step_success "HTTPS của https://$APP_DOMAIN phản hồi thành công."
 else
-    step_warn "Chưa xác nhận được HTTPS tại https://$APP_DOMAIN. Kiểm tra lại domain và chứng chỉ trong aaPanel."
+    step_warn "Chưa xác nhận được HTTPS. Kiểm tra domain thực tế và chứng chỉ trong aaPanel trước go-live."
 fi
 
 # ------------------------------------------------------------------------------
@@ -211,33 +223,17 @@ cd "$PROJECT_DIR"
 
 if [ -f "docker-compose.prod.yml" ]; then
     if confirm "Bạn có muốn khởi chạy hệ thống ngay bây giờ?"; then
-        step_info "Đang kéo image mới nhất..."
-        docker compose -f docker-compose.prod.yml pull
-
-        step_info "Đang khởi động PostgreSQL và Redis..."
-        docker compose -f docker-compose.prod.yml up -d postgres redis
-
-        step_info "Đang tạo backup trước migration..."
-        BACKUP_PREFIX="skylux_pre_migration" bash infra/scripts/backup-db.sh
-
-        step_info "Đang chạy Migration database..."
-        docker compose -f docker-compose.prod.yml run --rm backend npm run migration:run:prod
-
-        step_info "Đang khởi chạy backend và frontend..."
-        docker compose -f docker-compose.prod.yml up -d --remove-orphans
+        step_info "Đang chạy quy trình deploy bootstrap/redeploy an toàn..."
+        bash infra/scripts/deploy.sh
 
         step_info "Đang kiểm tra trạng thái các container..."
         docker compose -f docker-compose.prod.yml ps
-
-        step_info "Đang kiểm tra healthcheck của backend và frontend..."
-        docker compose -f docker-compose.prod.yml exec -T backend wget -qO- http://localhost:3001/api/health >/dev/null
-        docker compose -f docker-compose.prod.yml exec -T frontend wget -qO- http://localhost:3000/ >/dev/null
 
         step_success "Ứng dụng đã khởi chạy. aaPanel Nginx chuyển tiếp tới 127.0.0.1:3002 và 127.0.0.1:3001."
     fi
 else
     step_warn "Chưa tìm thấy file docker-compose.prod.yml tại $PROJECT_DIR."
-    step_info "GitHub Actions CD sẽ copy cấu hình khi bạn push commit lên branch 'main'."
+    step_info "GitHub Actions chỉ deploy production khi dispatch thủ công từ main và được GitHub Environment cho phép."
 fi
 
 # ------------------------------------------------------------------------------
@@ -252,13 +248,14 @@ if confirm "Bạn có muốn kích hoạt lịch tự động sao lưu CSDL hàn
     cat << 'EOF' > "$CRON_FILE"
 # ==============================================================================
 # Sky-Lux CRM — Daily Automated Database Backup & Retention Schedule
-# Chạy mỗi ngày lúc 02:00 sáng, tự động nén và đồng bộ Cloudflare R2 / S3
+# Chạy mỗi ngày lúc 02:00 sáng, tạo bản sao lưu local trên VPS
 # ==============================================================================
 0 2 * * * root /bin/bash /opt/skylux/infra/scripts/backup-db.sh >> /var/log/skylux-backup.log 2>&1
 EOF
     chmod 0644 "$CRON_FILE" 2>/dev/null || true
     step_success "Đã tạo cấu hình cron job tự động tại $CRON_FILE."
     step_info "Nhật ký sao lưu hàng đêm sẽ được lưu tại: /var/log/skylux-backup.log"
+    step_info "Backup local giữ các bản mới nhất theo retention 7 ngày; Cloudinary chỉ lưu media của ứng dụng."
 else
     step_info "Bỏ qua thiết lập cron job tự động (bạn có thể cấu hình sau thủ công)."
 fi
