@@ -1,134 +1,34 @@
-# API-WS-CHAT-008-WS-ws-chat-notificationunread-count Detail Design
+# API-WS-CHAT-008: Realtime Notification & Unread Count Stream
 
-## 1. Tổng quan
+## 1. Tổng quan & Kiến trúc Thực thi
+
+> **Architectural Transition Notice (Phase 2 Reality)**:  
+> Cập nhật số lượng thông báo hoặc tin nhắn chưa đọc được phát qua các luồng SSE chuyên biệt:
+> - Tin nhắn chat chưa đọc: `GET /api/conversations/stream?token={streamToken}` (event: `unread_count`).
+> - Thông báo hệ thống thời gian thực: `GET /api/notifications/stream?token={streamToken}` (event: `notification` hoặc `unread_count`).
 
 | Trường | Giá trị |
-| --- | --- |
+| :--- | :--- |
 | Task ID | Sky-Lux-125 |
-| Level 0 | Lap trinh Backend API (Documents & Communication) |
-| Level 1 | WebSocket Chat Events (MOD-WS-CHAT) |
-| Level 2 | API-WS-CHAT-008-WS-ws-chat-notificationunread-count |
-| Method | WS |
-| Endpoint | `/ws/chat notification:unread_count` |
-| Phase | Phase 2 |
-| Mục tiêu | Cap nhat so tin chua doc |
-| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
+| Module | Notifications & Realtime (MOD-NOTIFICATION) |
+| Action | Nhận số lượng tin nhắn / thông báo chưa đọc thời gian thực |
+| Stream Protocol | HTTP Server-Sent Events (SSE) |
+| Stream Endpoints | `GET /api/notifications/stream` & `GET /api/conversations/stream` |
+| Event Name | `unread_count` |
 
-> Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
+---
 
-## 2. Authorization
+## 2. Authentication & Ranh giới Bảo mật
 
-- Cần xác thực: Có, yêu cầu JWT access token hợp lệ.
-- Permission đề xuất: `chat.view/chat.send qua JWT handshake`
-- Tenant scope: Backend lấy `organizationId` từ authenticated context, không nhận scope quyết định từ client.
-- Role scope gợi ý: Sales chỉ xem dữ liệu own/team theo permission; Operator xem assigned/team; CEO/Admin xem all theo permission.
+- **Authentication**: `JwtQueryAuthGuard` yêu cầu token có claim `stream: true`.
+- **Target Isolation**: Bộ lọc trong `chat.service.ts` và `notifications.service.ts` đảm bảo payload số lượng chưa đọc chỉ gửi tới đúng `userId` mục tiêu, tuyệt đối không phát tán cho user khác.
 
-## 3. Redis Cache
+---
 
-- Chính sách: Không cache response ghi dữ liệu.
-- Cache key đề xuất: `N/A`
-- TTL đề xuất: `N/A`
-- Invalidation: Sau khi ghi thành công, xóa cache list/detail liên quan nếu có.
-- Lưu ý: cache key phải bao gồm tenant, user scope và hash của query/filter để tránh rò dữ liệu giữa user/organization.
+## 3. DTO & Data Contracts
 
-## 4. DTO & Data Models
-
-### 4.1 Path Params DTO
-
-Tên DTO: `ChatEventParamsDto`
-
-- `unread_count: string`
-
-### 4.2 Query DTO
-
-Tên DTO: `N/A`
-
-- Không có.
-
-### 4.3 Request Body DTO
-
-Tên DTO: `N/A`
-
-- Không có.
-
-### 4.4 Response DTO
-
-Tên DTO: `ChatEventResponseDto`
-
-```json
-{
-  "data": {
-    "id": "uuid",
-    "code": "string",
-    "status": "ACTIVE",
-    "createdAt": "2026-08-24T00:00:00.000Z",
-    "updatedAt": "2026-08-24T00:00:00.000Z"
-  },
-  "meta": {}
-}
+### 3.1 SSE Inbound Event Payload
+```text
+event: message
+data: {"type":"unread_count","payload":{"userId":"5c0df3b7-789a-4e2b-bb68-8be42f210ea1","unreadCount":5}}
 ```
-
-### 4.5 Data Model liên quan
-
-- Entity/aggregate chính: `ChatEvent`
-- Các field hệ thống nên có: `id`, `organizationId`, `createdAt`, `updatedAt`, `createdById`, `updatedById`.
-- Không expose field nhạy cảm như password hash, refresh token hash, private storage key hoặc internal cost rule nếu user không có permission.
-
-## 5. Validation & Business Rules
-
-- Không tin dữ liệu `organizationId` từ client; tenant lấy từ authenticated context.
-- Không trả TypeORM Entity trực tiếp sang frontend.
-- Response dùng format thống nhất `{ data, meta }`.
-- Path param phải là UUID hợp lệ hoặc slug/code hợp lệ theo business rule.
-- Body DTO phải dùng whitelist/forbidNonWhitelisted để chặn field lạ.
-
-## 6. Service Flow
-
-- Validate JWT trong Socket.io handshake.
-- Join room theo conversation/dossier scope nếu user là participant.
-- Validate payload event.
-- Ghi message/read state nếu event cần persist.
-- Broadcast tới room phù hợp và cập nhật unread counter.
-
-## 7. Error Handling
-
-- 200 OK
-- 400 Bad Request: input không hợp lệ.
-- 401 Unauthorized: thiếu hoặc sai access token.
-- 403 Forbidden: không đủ permission hoặc sai tenant scope.
-- 404 Not Found: resource không tồn tại hoặc không thuộc tenant.
-- 409 Conflict: trùng dữ liệu, trạng thái không hợp lệ, hoặc optimistic lock.
-- 500 Internal Server Error: lỗi ngoài dự kiến.
-
-Error response chuẩn:
-
-```json
-{
-  "statusCode": 400,
-  "code": "VALIDATION_FAILED",
-  "message": "Dữ liệu không hợp lệ",
-  "details": []
-}
-```
-
-## 8. Audit Log & Observability
-
-- Ghi audit log cho thao tác tạo/sửa/xóa/lock/approve/export hoặc thay đổi dữ liệu tài chính.
-- Log tối thiểu: `requestId`, `organizationId`, `actorUserId`, `method`, `endpoint`, `entityType`, `entityId`, `statusCode`, `durationMs`.
-- Không log password, token, signed URL đầy đủ, file private URL hoặc dữ liệu nhạy cảm.
-- Với endpoint đọc nhiều dữ liệu, track cache hit/miss và slow query.
-
-## 9. Test Checklist
-
-- Unit test DTO validation: required field, enum, UUID, pagination limit.
-- Unit test permission guard và tenant scope.
-- Service test happy path và business rule conflict.
-- E2E test response format `{ data, meta }`.
-- E2E test 401/403/404.
-- Cache test: cache hit, cache miss và invalidation nếu endpoint dùng Redis.
-
-## 10. Ghi chú triển khai
-
-- Controller chỉ xử lý HTTP boundary; logic nghiệp vụ đặt trong service.
-- DTO request/response cần xuất Swagger/OpenAPI để FE/BE review.
-- Nếu endpoint chưa có rule chi tiết trong docs gốc, đánh dấu TODO trong issue/task trước khi code production.
