@@ -4,6 +4,7 @@ import { NotificationsService } from './notifications.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { DataSource } from 'typeorm';
 import { of } from 'rxjs';
 
 describe('NotificationsController', () => {
@@ -51,6 +52,10 @@ describe('NotificationsController', () => {
         },
         {
           provide: ConfigService,
+          useValue: {},
+        },
+        {
+          provide: DataSource,
           useValue: {},
         },
       ],

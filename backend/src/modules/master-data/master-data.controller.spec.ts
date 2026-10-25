@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { MasterDataController } from './master-data.controller';
 import { MasterDataService } from './master-data.service';
 import { MasterDataQueryDto } from './dto/master-data-query.dto';
+import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
 describe('MasterDataController', () => {
   let controller: MasterDataController;
@@ -23,6 +24,16 @@ describe('MasterDataController', () => {
       pageSize: 20,
       total: 1,
     },
+  };
+
+  const mockUser: CurrentUserPayload = {
+    id: 'user-uuid-1',
+    organizationId: 'org-uuid-1',
+    employeeCode: 'EMP001',
+    fullName: 'Nguyễn Văn A',
+    email: 'a@skylux.com',
+    roles: ['CEO_ADMIN'],
+    permissions: ['master_data.view'],
   };
 
   const mockMasterDataService = {
@@ -94,9 +105,9 @@ describe('MasterDataController', () => {
   it('should delegate getSupplierTypes to MasterDataService', async () => {
     const query: MasterDataQueryDto = { page: 1, limit: 20, pageSize: 20 };
 
-    const res = await controller.getSupplierTypes(query);
+    const res = await controller.getSupplierTypes(query, mockUser);
 
-    expect(service.getSupplierTypes).toHaveBeenCalledWith(query);
+    expect(service.getSupplierTypes).toHaveBeenCalledWith(query, mockUser);
     expect(res).toBe(mockResponse);
   });
 
