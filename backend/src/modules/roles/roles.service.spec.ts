@@ -9,10 +9,12 @@ import { DataSource, Repository, EntityManager } from 'typeorm';
 import { RolesService } from './roles.service';
 import { Role } from './entities/role.entity';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { RedisService } from '../../common/redis/redis.service';
 
 describe('RolesService', () => {
   let service: RolesService;
   let repository: jest.Mocked<Repository<Role>>;
+  let mockRedisService: any;
 
   // Shared constants for tests
   const orgId = 'org-uuid';
@@ -43,9 +45,13 @@ describe('RolesService', () => {
     transaction: jest.fn((cb: (em: any) => Promise<any>) =>
       cb(mockEntityManager as any),
     ),
+    query: jest.fn().mockResolvedValue([{ user_id: 'user-1' }, { user_id: 'user-2' }]),
   };
 
   beforeEach(async () => {
+    mockRedisService = {
+      del: jest.fn().mockResolvedValue(undefined),
+    };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RolesService,
@@ -60,6 +66,10 @@ describe('RolesService', () => {
         {
           provide: AuditLogsService,
           useValue: { record: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: RedisService,
+          useValue: mockRedisService,
         },
       ],
     }).compile();
@@ -289,6 +299,27 @@ describe('RolesService', () => {
       });
       expect(mockEntityManager.create).toHaveBeenCalledTimes(2);
       expect(mockEntityManager.save).toHaveBeenCalled();
+      expect(mockDataSource.query).toHaveBeenCalledWith(
+        expect.stringContaining('SELECT "user_id" FROM "user_roles"'),
+        [customRole.id],
+      );
+      expect(mockRedisService.del).toHaveBeenCalledWith('user:auth-meta:user-1');
+      expect(mockRedisService.del).toHaveBeenCalledWith('user:auth-meta:user-2');
+      expect(result).toEqual({ message: 'Gán quyền cho vai trò thành công' });
+    });
+
+    it('should not throw if Redis del fails when assigning permissions', async () => {
+      const dto = {
+        permissions: [{ permissionId: 'p1-uuid', scope: 'ALL' as any }],
+      };
+
+      repository.findOne.mockResolvedValue(customRole);
+      mockEntityManager.delete.mockResolvedValue({ affected: 1 });
+      mockEntityManager.save.mockResolvedValue([]);
+      mockRedisService.del.mockRejectedValue(new Error('Redis connection lost'));
+
+      const result = await service.assignPermissions(roleId, dto, orgId);
+
       expect(result).toEqual({ message: 'Gán quyền cho vai trò thành công' });
     });
 

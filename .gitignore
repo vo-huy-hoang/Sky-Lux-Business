@@ -119,3 +119,5 @@ skills-lock.json
 
 # JetBrains AI Assistant
 .idea/aider
+
+/documentation
