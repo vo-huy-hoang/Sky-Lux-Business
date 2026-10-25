@@ -8,8 +8,9 @@ services:
     environment:
       NODE_ENV: production
 
-    expose:
-      - "3000"
+    # aaPanel Nginx runs on the VPS host and proxies to this loopback port.
+    ports:
+      - "127.0.0.1:3002:3000"
 
     healthcheck:
       test:
@@ -37,8 +38,9 @@ services:
     env_file:
       - .env
 
-    expose:
-      - "3001"
+    # Keep the API reachable only from the VPS host reverse proxy.
+    ports:
+      - "127.0.0.1:3001:3001"
 
     volumes:
       - skylux_uploads:/app/uploads
@@ -123,34 +125,6 @@ services:
 
     networks:
       - skylux
-
-
-
-  nginx:
-    image: nginx:1.27-alpine
-
-    restart: unless-stopped
-
-    ports:
-      - "80:80"
-      - "443:443"
-
-    volumes:
-      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./infra/nginx/skylux.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./infra/nginx/certs:/etc/nginx/certs:ro
-      - nextjs_static:/opt/skylux/static:ro
-
-    depends_on:
-      frontend:
-        condition: service_healthy
-      backend:
-        condition: service_healthy
-
-    networks:
-      - skylux
-
-
 
 volumes:
   postgres_data:

@@ -3,7 +3,7 @@
 # Sky-Lux CRM - Production Deployment Script with Automated Backup & Rollback
 # ==============================================================================
 
-set -e
+set -euo pipefail
 
 PROJECT_DIR="${PROJECT_DIR:-/opt/skylux}"
 COMPOSE_FILE="docker-compose.prod.yml"
@@ -23,19 +23,24 @@ if [ -n "$PREVIOUS_APP_VERSION" ]; then
   echo "APP_VERSION=$PREVIOUS_APP_VERSION" >> .env.previous
 fi
 
-# 2. Check for SSL certificates before proceeding
-echo "Verifying SSL certificates..."
-CERT_DIR="/opt/skylux/infra/nginx/certs"
-if [ ! -f "${CERT_DIR}/origin.pem" ] || [ ! -f "${CERT_DIR}/origin-key.pem" ]; then
-  echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
-  echo "✖ ERROR: SSL Certificates are missing on the VPS!"
-  echo "Expected files: "
-  echo "  - ${CERT_DIR}/origin.pem"
-  echo "  - ${CERT_DIR}/origin-key.pem"
-  echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
+# 2. Validate production settings before pulling images or migrating.
+if [ ! -s .env ]; then
+  echo "✖ ERROR: $PROJECT_DIR/.env is missing. Prepare production environment first."
   exit 1
 fi
-echo "✔ SSL certificates verified."
+for key in DB_NAME DB_USER DB_PASSWORD JWT_SECRET; do
+  value=$(grep -E "^${key}=" .env | tail -n 1 | cut -d '=' -f2- || true)
+  if [ -z "$value" ] || [[ "$value" == REPLACE_* ]]; then
+    echo "✖ ERROR: ${key} is missing or still uses a placeholder in $PROJECT_DIR/.env."
+    exit 1
+  fi
+done
+REGISTRY_OWNER_VALUE=$(grep -E '^REGISTRY_OWNER=' .env | tail -n 1 | cut -d '=' -f2- || true)
+if [ -z "$REGISTRY_OWNER_VALUE" ] || [[ "$REGISTRY_OWNER_VALUE" == your-github-owner || "$REGISTRY_OWNER_VALUE" == YOUR_ORG ]]; then
+  echo "✖ ERROR: REGISTRY_OWNER must be set to the lowercase GitHub owner in $PROJECT_DIR/.env."
+  exit 1
+fi
+echo "✔ Production environment variables are present. HTTPS is managed by aaPanel."
 
 # 3. Pull latest Docker images
 echo "Pulling latest Docker images..."
@@ -66,7 +71,8 @@ docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
 echo "Verifying service health status..."
 HEALTHY=0
 for i in $(seq 1 12); do
-  if docker compose -f "$COMPOSE_FILE" exec -T nginx wget -qO- http://backend:3001/api/health >/dev/null 2>&1; then
+  if docker compose -f "$COMPOSE_FILE" exec -T backend wget -qO- http://localhost:3001/api/health >/dev/null 2>&1 \
+    && docker compose -f "$COMPOSE_FILE" exec -T frontend wget -qO- http://localhost:3000/ >/dev/null 2>&1; then
     HEALTHY=1
     break
   fi
@@ -86,11 +92,7 @@ if [ "$HEALTHY" -ne 1 ]; then
 fi
 echo "✔ Services verified healthy and responding to HTTP requests."
 
-# 8. Reload Nginx configuration
-echo "Reloading Nginx proxy configuration..."
-docker compose -f "$COMPOSE_FILE" exec -T nginx nginx -s reload || true
-
-# 9. Cleanup unused images
+# 8. Cleanup unused images
 echo "Cleaning up dangling images..."
 docker image prune -f
 

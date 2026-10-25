@@ -90,7 +90,6 @@ COMPOSE_VER=$(docker compose version)
 step_success "Docker Compose đã sẵn sàng: $COMPOSE_VER"
 
 step_info "Kiểm tra thư mục dự án $PROJECT_DIR..."
-mkdir -p "$PROJECT_DIR/infra/nginx/certs"
 mkdir -p "$PROJECT_DIR/backups"
 step_success "Thư mục dự án đã sẵn sàng tại $PROJECT_DIR."
 
@@ -126,6 +125,7 @@ if [ "$GENERATE_NEW_ENV" = "1" ]; then
 NODE_ENV=production
 APP_PORT=3001
 APP_VERSION=latest
+REGISTRY_OWNER=your-github-owner
 
 # Database (PostgreSQL 16)
 DB_HOST=postgres
@@ -141,43 +141,29 @@ REDIS_PORT=6379
 # Authentication JWT
 JWT_SECRET=$RANDOM_JWT_SECRET
 
-# Cloudflare R2 / S3 Storage (Điền key thực tế của bạn)
-R2_ENDPOINT=https://your-account-id.r2.cloudflarestorage.com
-R2_ACCESS_KEY_ID=your_r2_access_key
-R2_SECRET_ACCESS_KEY=your_r2_secret_key
+# Cloudflare R2 / S3 Storage (để trống nếu chưa cấu hình)
+R2_ENDPOINT=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
 R2_BUCKET=skylux-files
 R2_PUBLIC_DOMAIN=https://files.skylux.vn
 EOF
     chmod 600 "$ENV_FILE"
     step_success "Đã tạo file $ENV_FILE với mật khẩu DB và JWT Secret sinh ngẫu nhiên cực mạnh."
-    step_warn "Hãy nhớ cập nhật thông tin Cloudflare R2 nếu sử dụng tính năng lưu trữ đám mây!"
+    step_warn "Hãy điền thông tin R2 nếu dùng lưu trữ file hoặc muốn backup off-site."
 fi
 
 # ------------------------------------------------------------------------------
-# STAGE 3: SSL CERTIFICATES VERIFICATION
+# STAGE 3: HTTPS VERIFICATION
 # ------------------------------------------------------------------------------
-stage_header "Kiểm tra Chứng chỉ Bảo mật SSL (HTTPS)"
-
-CERT_DIR="$PROJECT_DIR/infra/nginx/certs"
-ORIGIN_CERT="$CERT_DIR/origin.pem"
-ORIGIN_KEY="$CERT_DIR/origin-key.pem"
-
-if [ -f "$ORIGIN_CERT" ] && [ -f "$ORIGIN_KEY" ]; then
-    step_success "Đã tìm thấy chứng chỉ SSL hợp lệ tại:"
-    echo "  - $ORIGIN_CERT"
-    echo "  - $ORIGIN_KEY"
+stage_header "Kiểm tra HTTPS trên aaPanel"
+step_info "aaPanel Nginx xử lý HTTPS; chứng chỉ không cần mount vào Docker."
+step_info "Hãy xác nhận domain đã bật HTTPS trong aaPanel trước khi tiếp tục."
+APP_DOMAIN="${APP_DOMAIN:-app.skylux.vn}"
+if command -v curl >/dev/null 2>&1 && curl --silent --show-error --fail --head "https://$APP_DOMAIN" >/dev/null; then
+    step_success "HTTPS của https://$APP_DOMAIN phản hồi thành công."
 else
-    step_warn "Chưa tìm thấy chứng chỉ SSL Cloudflare Origin Certificate!"
-    echo -e "${YELLOW}Hướng dẫn tạo chứng chỉ Cloudflare:${NC}"
-    echo "  1. Truy cập Cloudflare Dashboard -> Tên miền -> SSL/TLS -> Origin Server."
-    echo "  2. Nhấn 'Create Certificate' -> Tạo chứng chỉ Origin Certificate (15 năm)."
-    echo "  3. Lưu nội dung Certificate vào: $ORIGIN_CERT"
-    echo "  4. Lưu nội dung Private Key vào:   $ORIGIN_KEY"
-    echo "  5. Cấp quyền: chmod 600 $ORIGIN_KEY"
-    echo ""
-    if ! confirm "Bạn đã đặt file chứng chỉ vào đúng đường dẫn chưa?"; then
-        step_warn "Vui lòng tải chứng chỉ lên trước khi khởi động Nginx chính thức."
-    fi
+    step_warn "Chưa xác nhận được HTTPS tại https://$APP_DOMAIN. Kiểm tra lại domain và chứng chỉ trong aaPanel."
 fi
 
 # ------------------------------------------------------------------------------
@@ -203,6 +189,19 @@ else
     step_info "Bỏ qua bước đăng nhập ghcr.io (Nếu image là public, bạn có thể pull bình thường)."
 fi
 
+if ! grep -q '^REGISTRY_OWNER=.' "$ENV_FILE" || grep -q '^REGISTRY_OWNER=your-github-owner$' "$ENV_FILE"; then
+    echo -en "${CYAN}Nhập GitHub owner/organization chứa image Sky-Lux: ${NC}"
+    read -r REGISTRY_OWNER
+    REGISTRY_OWNER=$(printf '%s' "$REGISTRY_OWNER" | tr '[:upper:]' '[:lower:]')
+    if [ -z "$REGISTRY_OWNER" ]; then
+        step_error "REGISTRY_OWNER không được để trống."
+        exit 1
+    fi
+    sed -i "s/^REGISTRY_OWNER=.*/REGISTRY_OWNER=$REGISTRY_OWNER/" "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
+    step_success "REGISTRY_OWNER đã được lưu vào $ENV_FILE."
+fi
+
 # ------------------------------------------------------------------------------
 # STAGE 5: BOOTSTRAP SERVICES & HEALTH CHECK
 # ------------------------------------------------------------------------------
@@ -213,25 +212,32 @@ cd "$PROJECT_DIR"
 if [ -f "docker-compose.prod.yml" ]; then
     if confirm "Bạn có muốn khởi chạy hệ thống ngay bây giờ?"; then
         step_info "Đang kéo image mới nhất..."
-        docker compose -f docker-compose.prod.yml pull || true
+        docker compose -f docker-compose.prod.yml pull
 
         step_info "Đang khởi động PostgreSQL và Redis..."
         docker compose -f docker-compose.prod.yml up -d postgres redis
 
-        step_info "Đang chạy Migration database..."
-        docker compose -f docker-compose.prod.yml run --rm backend npm run migration:run:prod || true
+        step_info "Đang tạo backup trước migration..."
+        BACKUP_PREFIX="skylux_pre_migration" bash infra/scripts/backup-db.sh
 
-        step_info "Đang khởi chạy toàn bộ dịch vụ (Backend, Frontend, Nginx)..."
+        step_info "Đang chạy Migration database..."
+        docker compose -f docker-compose.prod.yml run --rm backend npm run migration:run:prod
+
+        step_info "Đang khởi chạy backend và frontend..."
         docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
         step_info "Đang kiểm tra trạng thái các container..."
         docker compose -f docker-compose.prod.yml ps
 
-        step_success "Hệ thống Sky-Lux CRM đã được triển khai thành công!"
+        step_info "Đang kiểm tra healthcheck của backend và frontend..."
+        docker compose -f docker-compose.prod.yml exec -T backend wget -qO- http://localhost:3001/api/health >/dev/null
+        docker compose -f docker-compose.prod.yml exec -T frontend wget -qO- http://localhost:3000/ >/dev/null
+
+        step_success "Ứng dụng đã khởi chạy. aaPanel Nginx chuyển tiếp tới 127.0.0.1:3002 và 127.0.0.1:3001."
     fi
 else
     step_warn "Chưa tìm thấy file docker-compose.prod.yml tại $PROJECT_DIR."
-    step_info "GitHub Actions CD sẽ tự động copy file này lên máy chủ khi bạn push commit lên branch 'main'."
+    step_info "GitHub Actions CD sẽ copy cấu hình khi bạn push commit lên branch 'main'."
 fi
 
 # ------------------------------------------------------------------------------

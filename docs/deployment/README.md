@@ -21,7 +21,7 @@ Không cần Kubernetes hoặc microservices trong phạm vi hiện tại.
 ```mermaid
 flowchart TD
     U[Internet] --> CF[Cloudflare]
-    CF --> N[Nginx :80/:443]
+    CF --> N[aaPanel Nginx :80/:443]
     N --> FE[frontend :3000]
     N --> BE[backend :3001]
 
@@ -267,122 +267,39 @@ README.md
 
 ---
 
-# 7. Production Docker Compose
+# 7. Production Docker Compose (aaPanel Nginx)
 
-Nguồn triển khai khuyến nghị FE, BE, worker, PostgreSQL, Redis và Nginx tách container.
+Trên VPS đã chạy aaPanel, dùng Nginx của aaPanel làm reverse proxy. Compose chỉ mở frontend và backend trên loopback; không chạy thêm Nginx container và không chiếm cổng public 80/443. Cấu hình chuẩn nằm trong `docker-compose.prod.yml`.
 
-```yaml
-services:
-  frontend:
-    image: ghcr.io/YOUR_ORG/skylux-frontend:${APP_VERSION:-latest}
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-    expose:
-      - "3000"
-    networks: [skylux]
-
-  backend:
-    image: ghcr.io/YOUR_ORG/skylux-backend:${APP_VERSION:-latest}
-    restart: unless-stopped
-    env_file:
-      - .env
-    expose:
-      - "3001"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks: [skylux]
-
-  worker:
-    image: ghcr.io/YOUR_ORG/skylux-backend:${APP_VERSION:-latest}
-    restart: unless-stopped
-    env_file:
-      - .env
-    command: ["node", "dist/worker.js"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks: [skylux]
-
-  postgres:
-    image: postgres:17-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    networks: [skylux]
-
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    networks: [skylux]
-
-  nginx:
-    image: nginx:1.27-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./infra/nginx/skylux.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./infra/nginx/certs:/etc/nginx/certs:ro
-    depends_on:
-      - frontend
-      - backend
-    networks: [skylux]
-
-volumes:
-  postgres_data:
-  redis_data:
-
-networks:
-  skylux:
-    driver: bridge
+```text
+Internet → aaPanel Nginx :80/:443
+  /api/* → 127.0.0.1:3001 → backend container :3001
+  /*      → 127.0.0.1:3002 → frontend container :3000
 ```
+
+PostgreSQL và Redis chỉ nằm trong Docker network, không publish port ra VPS. Frontend production được build với `NEXT_PUBLIC_API_URL=/api`, nên browser dùng cùng domain HTTPS và không cần URL/IP public riêng cho API.
 
 ---
 
 # 8. Production environment
 
-`.env` production không commit.
+`.env` production tại `/opt/skylux/.env` không commit. Tạo giá trị bí mật riêng trên VPS; không dùng placeholder từ `.env.example`.
 
 ```env
 NODE_ENV=production
 APP_PORT=3001
 APP_VERSION=<git-sha>
+REGISTRY_OWNER=<github-owner-or-organization>
 
 DB_HOST=postgres
 DB_PORT=5432
 DB_NAME=skylux
 DB_USER=skylux
-DB_PASSWORD=CHANGE_ME
+DB_PASSWORD=<long-random-secret>
 
 REDIS_HOST=redis
 REDIS_PORT=6379
-
-JWT_SECRET=CHANGE_ME_LONG_RANDOM_SECRET
+JWT_SECRET=<long-random-secret>
 
 R2_ENDPOINT=...
 R2_ACCESS_KEY_ID=...
@@ -390,86 +307,61 @@ R2_SECRET_ACCESS_KEY=...
 R2_BUCKET=skylux-files
 ```
 
-Repository chỉ giữ `.env.example`.
+Giới hạn quyền file: `chmod 600 /opt/skylux/.env`. Nếu thay owner GitHub, dùng đúng owner viết thường mà workflow dùng cho image GHCR.
 
 ---
 
-# 9. Nginx
+# 9. aaPanel Nginx reverse proxy
 
-Flow:
-
-```text
-https://app.skylux.vn/
-→ frontend
-
-https://app.skylux.vn/api/
-→ backend
-```
-
-`infra/nginx/skylux.conf`:
+Trong aaPanel chọn website/domain và thêm reverse proxy theo các route sau. Không thay chứng chỉ TLS trong aaPanel; panel tiếp tục xử lý HTTPS. Thay domain trong aaPanel bằng domain thực tế của website.
 
 ```nginx
-server {
-    listen 80;
-    server_name app.skylux.vn;
-
-    return 301 https://$host$request_uri;
+# API và SSE; đặt các location SSE trước location /api/
+location ~ ^/api/(notifications/stream|conversations/stream|chat/conversations/[^/]+/stream) {
+    proxy_pass http://127.0.0.1:3001;
+    proxy_http_version 1.1;
+    proxy_set_header Connection '';
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 24h;
+    proxy_send_timeout 24h;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
 }
 
-server {
-    listen 443 ssl http2;
-    server_name app.skylux.vn;
+location /api/ {
+    proxy_pass http://127.0.0.1:3001;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
 
-    ssl_certificate /etc/nginx/certs/origin.pem;
-    ssl_certificate_key /etc/nginx/certs/origin-key.pem;
-
-    client_max_body_size 30m;
-
-    # Realtime Server-Sent Events (SSE: Chat & Notifications)
-    location ~ ^/api/(notifications/stream|conversations/stream|chat/conversations/[^/]+/stream) {
-        proxy_pass http://backend:3001;
-        proxy_http_version 1.1;
-
-        proxy_set_header Connection '';
-        proxy_buffering off;
-        proxy_cache off;
-        chunked_transfer_encoding off;
-
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 24h;
-        proxy_read_timeout 24h;
-
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /api/ {
-        proxy_pass http://backend:3001;
-        proxy_http_version 1.1;
-
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-    }
-
-    location / {
-        proxy_pass http://frontend:3000;
-        proxy_http_version 1.1;
-
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
+location / {
+    proxy_pass http://127.0.0.1:3002;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
 }
 ```
+
+Trong aaPanel, bảo đảm `/api/` đi tới backend và `/` đi tới frontend; bật WebSocket/SSE support nếu panel có tùy chọn đó. Nếu aaPanel đã sinh `location /` mặc định, sửa location mặc định thành frontend thay vì tạo block trùng. Kiểm tra cấu hình Nginx trong panel trước khi reload.
+
+Sau khi Compose chạy, xác nhận cổng chỉ lắng nghe trên loopback:
+
+```bash
+cd /opt/skylux
+docker compose -f docker-compose.prod.yml ps
+curl -I http://127.0.0.1:3002/
+curl -i http://127.0.0.1:3001/api/health
+```
+
+Từ máy bên ngoài, truy cập domain HTTPS và thử dashboard/API. DNS A của domain phải trỏ tới IP VPS; địa chỉ `127.0.0.1` chỉ dùng giữa aaPanel và ứng dụng trên cùng VPS.
 
 ---
 
@@ -480,7 +372,7 @@ DNS:
 ```text
 A
 app
-→ VPS_PUBLIC_IP
+→ 103.179.174.159
 Proxy ON
 ```
 
@@ -936,7 +828,7 @@ Logging:
 
 ```text
 NestJS technical log → stdout/stderr
-Nginx access/error    → container log
+aaPanel Nginx access/error → aaPanel website logs
 Business audit        → PostgreSQL audit_logs
 Error tracking        → Sentry hoặc tương đương
 ```
@@ -988,7 +880,6 @@ docker compose -f docker-compose.prod.yml ps
 
 docker compose -f docker-compose.prod.yml logs --tail=200 backend
 docker compose -f docker-compose.prod.yml logs --tail=200 frontend
-docker compose -f docker-compose.prod.yml logs --tail=200 nginx
 
 docker stats
 df -h
@@ -1006,7 +897,7 @@ free -h
 [ ] migration chạy staging OK
 [ ] PostgreSQL không public
 [ ] Redis không public
-[ ] Nginx route / và /api đúng
+[ ] aaPanel proxy / và /api đúng tới loopback ports
 [ ] Cloudflare Full (strict)
 [ ] VPS firewall đúng
 [ ] .env production không nằm trong Git

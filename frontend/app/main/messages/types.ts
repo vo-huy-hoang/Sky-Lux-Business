@@ -60,9 +60,12 @@ export function getAttachmentUrl(url?: string): string {
   ) {
     return url;
   }
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
   const backendOrigin =
-    process.env.NEXT_PUBLIC_API_URL
-      ? new URL(process.env.NEXT_PUBLIC_API_URL).origin
+    apiUrl
+      ? apiUrl.startsWith('/')
+        ? ''
+        : new URL(apiUrl).origin
       : typeof window !== 'undefined' && window.location.hostname === 'localhost'
       ? 'http://localhost:3001'
       : '';

@@ -134,20 +134,18 @@ jobs:
             set -e
             cd /opt/skylux
 
-            # Check for SSL certificates before proceeding
-            echo "Checking SSL certificates..."
-            CERT_DIR="/opt/skylux/infra/nginx/certs"
-            if [ ! -f "${CERT_DIR}/origin.pem" ] || [ ! -f "${CERT_DIR}/origin-key.pem" ]; then
-              echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
-              echo "ERROR: SSL Certificates are missing on the VPS!"
-              echo "Expected files: "
-              echo "  - ${CERT_DIR}/origin.pem"
-              echo "  - ${CERT_DIR}/origin-key.pem"
-              echo "Please manually upload these files to the VPS before deploying."
-              echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
+            # aaPanel owns public HTTPS; Compose publishes app ports on loopback.
+            if [ ! -s .env ]; then
+              echo "ERROR: /opt/skylux/.env is missing. Prepare production environment first."
               exit 1
             fi
-            echo "SSL certificates verified successfully."
+            for key in DB_NAME DB_USER DB_PASSWORD JWT_SECRET; do
+              value=$(grep -E "^${key}=" .env | tail -n 1 | cut -d '=' -f2- || true)
+              if [ -z "$value" ] || [[ "$value" == REPLACE_* ]]; then
+                echo "ERROR: ${key} is missing or still uses a placeholder in /opt/skylux/.env."
+                exit 1
+              fi
+            done
 
             export APP_VERSION=${{ github.sha }}
             export REGISTRY_OWNER=${{ steps.image_owner.outputs.owner }}
@@ -191,7 +189,8 @@ jobs:
             echo "Verifying service health status..."
             HEALTHY=0
             for i in $(seq 1 12); do
-              if docker compose -f docker-compose.prod.yml exec -T nginx wget -qO- http://backend:3001/api/health >/dev/null 2>&1; then
+              if docker compose -f docker-compose.prod.yml exec -T backend wget -qO- http://localhost:3001/api/health >/dev/null 2>&1 \
+                && docker compose -f docker-compose.prod.yml exec -T frontend wget -qO- http://localhost:3000/ >/dev/null 2>&1; then
                 HEALTHY=1
                 break
               fi
@@ -210,9 +209,6 @@ jobs:
               exit 1
             fi
             echo "Services verified healthy and responding to HTTP requests."
-
-            echo "Reload Nginx configuration"
-            docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload || true
 
             echo "Cleanup unused images"
             docker image prune -f

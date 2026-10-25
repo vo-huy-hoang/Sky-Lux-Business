@@ -71,14 +71,14 @@ confirm() {
 finish() {
   _clear
   printf '\n%s%s  ✔ Production Readiness & Disaster Recovery Verification Complete!%s\n\n' "$BOLD" "$GREEN" "$RESET"
-  ok "Sky-Lux CRM is fully hardened, tested, and certified for Enterprise Production Go-Live."
+  ok "Review complete. This wizard does not certify VPS backup, proxy, or production readiness by itself."
   printf '\n'
-  say "Hệ thống đã đạt đầy đủ 5 tiêu chuẩn vàng:"
-  say "  1. Zero Data Loss (ACID Transaction + Pre-Migration Backup Gate + R2 Cloud Sync)"
-  say "  2. Zero-Downtime Deployments (Graceful Shutdown + Nginx Retries + Healthchecks)"
-  say "  3. Zero ChunkLoadError (Accumulative Next.js Static Persistent Volume)"
-  say "  4. Thundering Herd Immunity (SSE Exponential Backoff with Jitter)"
-  say "  5. Automated Disaster Recovery (Nightly 02:00 Crontab + 7-Day Auto Pruning)"
+  say "Các hạng mục production vẫn cần được xác minh thực tế trên VPS:"
+  say "  1. Backup: xác nhận backup local, off-site R2 và thử khôi phục dữ liệu."
+  say "  2. Deploy: Compose một replica có thể gián đoạn ngắn; aaPanel proxy cần kiểm tra."
+  say "  3. Static assets: xác nhận chunk cũ còn tải được sau một lần deploy thực tế."
+  say "  4. SSE: xác nhận reconnect và đồng bộ dữ liệu sau khi backend khởi động lại."
+  say "  5. Khôi phục/giám sát: cấu hình lịch backup, retention và cảnh báo trước go-live."
   printf '\n'
 }
 
@@ -195,26 +195,26 @@ stage "Ký Duyệt Nghiệm Thu Kỹ Thuật (Production Go-Live Sign-Off)"
 say "Xác nhận các tiêu chí chất lượng doanh nghiệp theo biên bản kiểm toán:"
 
 step "Danh mục tiêu chí kiểm tra cuối cùng (Final Checklist):"
-say "  [✔] Phase 1: Estimates Transaction ACID Integrity & Normalized Migrations"
-say "  [✔] Phase 2: CI/CD Pre-migration Backup Gate & Automated Rollback Script"
-say "  [✔] Phase 3: Zero-502 Docker Healthchecks, Nginx Retries & Graceful Shutdown"
-say "  [✔] Phase 4: Next.js Persistent Static Volume & SSE Reconnection Resilience"
-say "  [✔] Phase 5: Off-site Cloud Backup Sync, 02:00 AM Crontab & Chaos Drill"
-say "  [✔] Automated Test Suites: 100% Passed (Backend: 67/67, Frontend: 62/62)"
+say "  [ ] Phase 1: Confirm application and migration behavior in the target environment"
+say "  [ ] Phase 2: Confirm CI/CD secrets, pre-migration backup and rollback behavior"
+say "  [ ] Phase 3: Healthchecks, aaPanel proxy và graceful shutdown đã xác minh trên VPS"
+say "  [ ] Phase 4: Static chunk retention and SSE reconnect verified after a real deploy"
+say "  [ ] Phase 5: Off-site backup, lịch backup, restore drill và giám sát đã xác minh"
+say "  [ ] Xem kết quả CI hiện hành; không dùng số liệu test ghi cứng trong wizard"
 
 printf '\n'
-if confirm "Bạn có đồng ý ký duyệt hệ thống Sky-Lux CRM đạt chuẩn chính thức Go-Live?"; then
+if confirm "Bạn đã tự xác minh tất cả hạng mục production trên VPS và vẫn muốn ghi nhận sign-off?"; then
   AUDIT_CERT="$PROJECT_DIR/reports/GO_LIVE_CERTIFICATE.md"
   mkdir -p "$(dirname "$AUDIT_CERT")" 2>/dev/null || true
   cat << EOF > "$AUDIT_CERT" 2>/dev/null || true
 # Sky-Lux CRM — Production Go-Live Certificate of Readiness
 
-- **Status:** APPROVED & CERTIFIED FOR PRODUCTION
+- **Status:** Operator sign-off recorded; not an automated production certification
 - **Audit Date:** $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-- **Architecture Standard:** Enterprise Resilience (ACID, Zero-Downtime, Off-site Cloud DR)
-- **Verified Phases:** Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 Complete
+- **Architecture Note:** Single-replica Compose may have brief deployment downtime
+- **Verified Phases:** Self-reported by the operator; this script does not verify them automatically
 
-All test suites and pre-flight validation gates passed at 100%.
+This file records operator sign-off only. Verify current CI results, aaPanel routes, backups, restore, and monitoring separately.
 EOF
   if [[ -f "$AUDIT_CERT" ]]; then
     ok "Biên bản nghiệm thu chính thức đã được xuất tại: $AUDIT_CERT"

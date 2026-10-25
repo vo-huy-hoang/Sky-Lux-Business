@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -euo pipefail
 
 # Load environment variables from .env if it exists
 if [ -f "/opt/skylux/.env" ]; then
@@ -19,7 +19,7 @@ FILE_NAME="${PREFIX}_${DATE}.sql.gz"
 DB_CONTAINER="skylux-postgres"
 DB_NAME=${DB_NAME:-skylux}
 DB_USER=${DB_USER:-skylux}
-DB_PASSWORD=${DB_PASSWORD:-12345678}
+: "${DB_PASSWORD:?DB_PASSWORD must be set in /opt/skylux/.env}"
 
 mkdir -p "$BACKUP_DIR"
 
@@ -44,7 +44,7 @@ docker exec -e PGPASSWORD="$DB_PASSWORD" "$DB_CONTAINER" \
   | gzip > "$BACKUP_DIR/$FILE_NAME"
 
 # Verify backup integrity (must exist and be non-empty)
-if [ ! -s "$BACKUP_DIR/$FILE_NAME" ]; then
+if [ ! -s "$BACKUP_DIR/$FILE_NAME" ] || ! gzip -t "$BACKUP_DIR/$FILE_NAME"; then
   echo "✖ ERROR: Database backup failed! File is empty or was not created."
   rm -f "$BACKUP_DIR/$FILE_NAME" 2>/dev/null || true
   exit 1
@@ -61,7 +61,12 @@ R2_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID:-${AWS_ACCESS_KEY_ID:-}}"
 R2_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY:-${AWS_SECRET_ACCESS_KEY:-}}"
 R2_REGION="${R2_REGION:-${AWS_DEFAULT_REGION:-auto}}"
 
-if [ -n "$R2_BUCKET" ] && [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ]; then
+if [ -n "$R2_BUCKET" ] \
+  && [ -n "$R2_ACCESS_KEY_ID" ] \
+  && [ -n "$R2_SECRET_ACCESS_KEY" ] \
+  && [[ "$R2_ENDPOINT" != *your-account-id* ]] \
+  && [[ "$R2_ACCESS_KEY_ID" != REPLACE_* && "$R2_ACCESS_KEY_ID" != your_* ]] \
+  && [[ "$R2_SECRET_ACCESS_KEY" != REPLACE_* && "$R2_SECRET_ACCESS_KEY" != your_* ]]; then
   echo "Syncing backup to off-site cloud storage (Bucket: $R2_BUCKET)..."
   UPLOAD_SUCCESS=0
 
