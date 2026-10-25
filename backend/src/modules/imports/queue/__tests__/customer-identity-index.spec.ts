@@ -214,7 +214,7 @@ describe('CustomerIdentityIndex', () => {
       const totalDuration = buildDuration + lookupDuration;
 
       expect(matchedCount).toBe(1000);
-      expect(totalDuration).toBeLessThan(300); // Benchmark assertion: < 300ms under heavy parallel test concurrency (typically ~15-30ms)
+      expect(totalDuration).toBeLessThan(100); // Benchmark assertion: < 100ms under heavy test concurrency (typically ~15-25ms)
     });
   });
 });
