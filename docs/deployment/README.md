@@ -62,10 +62,9 @@ skylux/
 ├── backend/
 │   └── Dockerfile
 ├── infra/
-│   ├── nginx/
-│   ├── scripts/
-│   └── monitoring/
+│   └── scripts/
 ├── docs/
+│   └── legacy/docker-nginx/ (cấu hình cũ, chỉ lưu tham khảo)
 ├── .github/workflows/
 ├── docker-compose.yml
 └── docker-compose.prod.yml
@@ -327,8 +326,9 @@ Giới hạn quyền file: `chmod 600 /opt/skylux/.env`. Nếu thay owner GitHub
 Trong aaPanel chọn website/domain và thêm reverse proxy theo các route sau. Không thay chứng chỉ TLS trong aaPanel; panel tiếp tục xử lý HTTPS. Thay domain trong aaPanel bằng domain thực tế của website.
 
 ```nginx
-# API và SSE; đặt các location SSE trước location /api/
-location ~ ^/api/(notifications/stream|conversations/stream|chat/conversations/[^/]+/stream) {
+# API SSE hiện hành: GET /api/notifications/stream và GET /api/conversations/stream.
+# Đặt location SSE trước location /api/.
+location ~ ^/api/(notifications/stream|conversations/stream)$ {
     proxy_pass http://127.0.0.1:3001;
     proxy_http_version 1.1;
     proxy_set_header Connection '';
@@ -351,6 +351,26 @@ location /api/ {
     proxy_set_header X-Forwarded-Proto $scheme;
 }
 
+# Next.js static assets được phục vụ qua frontend container.
+location /_next/static/ {
+    proxy_pass http://127.0.0.1:3002;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+# Nếu backend phục vụ tệp local qua /uploads/, giữ nguyên URI khi chuyển tiếp.
+location /uploads/ {
+    proxy_pass http://127.0.0.1:3001;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
 location / {
     proxy_pass http://127.0.0.1:3002;
     proxy_http_version 1.1;
@@ -362,6 +382,8 @@ location / {
 ```
 
 Trong aaPanel, bảo đảm `/api/` đi tới backend và `/` đi tới frontend; bật WebSocket/SSE support nếu panel có tùy chọn đó. Nếu aaPanel đã sinh `location /` mặc định, sửa location mặc định thành frontend thay vì tạo block trùng. Kiểm tra cấu hình Nginx trong panel trước khi reload.
+
+Chỉ có một `location /` trong cấu hình website. Nếu aaPanel đã sinh location này, sửa block hiện có để chuyển tiếp tới frontend thay vì thêm block trùng. `proxy_pass` của backend không có URI phía sau host, nên giữ nguyên tiền tố `/api` và `/uploads`. Không dùng alias tới thư mục static của cấu hình Docker Nginx cũ. Kiểm tra cấu hình bằng chức năng kiểm tra cấu hình Nginx trong aaPanel trước khi reload.
 
 Sau khi Compose chạy, xác nhận cổng chỉ lắng nghe trên loopback:
 
