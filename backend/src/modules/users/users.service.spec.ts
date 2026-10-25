@@ -10,6 +10,7 @@ import { User } from './entities/user.entity';
 import { RefreshToken } from '../auth/entities/refresh-token.entity';
 import { Role } from '../roles/entities/role.entity';
 import { Department } from '../departments/entities/department.entity';
+import { Organization } from '../organizations/entities/organization.entity';
 import { UserStatus } from '../../common/enums';
 import { QueryUserDto } from './dto/query-user.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
@@ -66,6 +67,10 @@ describe('UsersService', () => {
         {
           provide: getRepositoryToken(Department),
           useValue: mockDepartmentRepository,
+        },
+        {
+          provide: getRepositoryToken(Organization),
+          useValue: { findOne: jest.fn() },
         },
         {
           provide: AuditLogsService,

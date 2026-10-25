@@ -5,6 +5,8 @@ import { Repository } from 'typeorm';
 import { OrganizationsController } from './organizations.controller';
 import { OrganizationsService } from './organizations.service';
 import { Organization } from './entities/organization.entity';
+import { Role } from '../roles/entities/role.entity';
+import { RolePermission } from '../permissions/entities/role-permission.entity';
 import { SettingsService } from '../settings/settings.service';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { UpdateSettingDto } from '../settings/dto/update-setting.dto';
@@ -54,6 +56,21 @@ describe('Organization & Settings Module (Integration)', () => {
         {
           provide: getRepositoryToken(Organization),
           useValue: mockOrgRepository,
+        },
+        {
+          provide: getRepositoryToken(Role),
+          useValue: {
+            find: jest.fn().mockResolvedValue([]),
+            create: jest.fn((data) => data),
+            save: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(RolePermission),
+          useValue: {
+            create: jest.fn((data) => data),
+            save: jest.fn(),
+          },
         },
         {
           provide: SettingsService,

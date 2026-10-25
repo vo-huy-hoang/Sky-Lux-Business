@@ -7,9 +7,20 @@ import { ServiceCategory } from './entities/service-category.entity';
 import { PassengerType } from './entities/passenger-type.entity';
 import { Unit } from './entities/unit.entity';
 import { SupplierType } from '../suppliers/entities/supplier-type.entity';
+import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
 describe('MasterDataService', () => {
   let service: MasterDataService;
+
+  const mockUser = {
+    id: 'user-uuid',
+    organizationId: 'org-uuid',
+    employeeCode: 'EMP001',
+    fullName: 'Test User',
+    email: 'test@example.com',
+    roles: ['CEO_ADMIN'],
+    permissions: ['master_data.view'],
+  } as CurrentUserPayload;
 
   const mockQueryBuilder = {
     andWhere: jest.fn().mockReturnThis(),
@@ -255,11 +266,14 @@ describe('MasterDataService', () => {
       ];
       mockQueryBuilder.getManyAndCount.mockResolvedValue([mockItems, 1]);
 
-      const result = await service.getSupplierTypes({
-        page: 1,
-        limit: 20,
-        pageSize: 20,
-      });
+      const result = await service.getSupplierTypes(
+        {
+          page: 1,
+          limit: 20,
+          pageSize: 20,
+        },
+        mockUser,
+      );
 
       expect(mockSupplierTypeRepo.createQueryBuilder).toHaveBeenCalledWith(
         'supplierType',

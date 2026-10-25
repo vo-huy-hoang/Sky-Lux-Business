@@ -6,6 +6,7 @@ import { CustomersService } from './customers.service';
 import { Customer } from './entities/customer.entity';
 import { CustomerContact } from './entities/customer-contact.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
+import { User } from '../users/entities/user.entity';
 import { QueryCustomerDto } from './dto/query-customer.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
@@ -77,6 +78,12 @@ describe('CustomersService', () => {
         {
           provide: getRepositoryToken(Dossier),
           useValue: mockDossierRepository,
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: {
+            findOne: jest.fn().mockResolvedValue({ id: 'sales-uuid' }),
+          },
         },
         {
           provide: AuditLogsService,

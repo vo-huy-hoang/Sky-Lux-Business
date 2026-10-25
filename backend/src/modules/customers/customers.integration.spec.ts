@@ -11,6 +11,7 @@ import { CustomerType } from '../../common/enums';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { Dossier } from '../dossiers/entities/dossier.entity';
+import { User } from '../users/entities/user.entity';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 describe('Customers Module (Integration)', () => {
@@ -78,6 +79,12 @@ describe('Customers Module (Integration)', () => {
         {
           provide: getRepositoryToken(Dossier),
           useValue: mockDossierRepository,
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: {
+            findOne: jest.fn().mockResolvedValue({ id: 'sales-uuid' }),
+          },
         },
         {
           provide: AuditLogsService,

@@ -36,6 +36,7 @@ describe('RolesService', () => {
     delete: jest.fn(),
     create: jest.fn((entity: any, data: any) => data),
     save: jest.fn(),
+    query: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockDataSource = {

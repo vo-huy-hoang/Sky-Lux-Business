@@ -86,9 +86,21 @@ describe('UsersController', () => {
       const expectedResult = { data: { id: 'new-id', ...dto } };
       mockUsersService.create.mockResolvedValue(expectedResult);
 
-      const result = await controller.create(orgId, dto);
+      const actorUserId = 'ceo-user-uuid';
+      const actorRoles = ['CEO_ADMIN'];
+      const result = await controller.create(
+        orgId,
+        dto,
+        actorUserId,
+        actorRoles,
+      );
 
-      expect(service.create).toHaveBeenCalledWith(orgId, dto);
+      expect(service.create).toHaveBeenCalledWith(
+        orgId,
+        dto,
+        actorUserId,
+        actorRoles,
+      );
       expect(result).toEqual(expectedResult);
     });
   });
@@ -155,11 +167,25 @@ describe('UsersController', () => {
       const userId = 'user-uuid';
       const orgId = 'org-uuid';
       const dto: AssignRolesDto = { roleIds: ['role-uuid-1'] };
+      const actorUserId = 'ceo-user-uuid';
+      const actorRoles = ['CEO_ADMIN'];
       mockUsersService.assignRoles.mockResolvedValue({ message: 'Success' });
 
-      const result = await controller.assignRoles(userId, dto, orgId);
+      const result = await controller.assignRoles(
+        userId,
+        dto,
+        orgId,
+        actorUserId,
+        actorRoles,
+      );
 
-      expect(service.assignRoles).toHaveBeenCalledWith(userId, dto, orgId);
+      expect(service.assignRoles).toHaveBeenCalledWith(
+        userId,
+        dto,
+        orgId,
+        actorUserId,
+        actorRoles,
+      );
       expect(result).toEqual({ message: 'Success' });
     });
   });

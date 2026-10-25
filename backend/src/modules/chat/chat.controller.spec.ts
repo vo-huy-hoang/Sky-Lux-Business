@@ -3,6 +3,7 @@ import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
@@ -50,6 +51,7 @@ describe('ChatController', () => {
         { provide: ChatService, useValue: mockChatService },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: DataSource, useValue: {} },
       ],
     }).compile();
 

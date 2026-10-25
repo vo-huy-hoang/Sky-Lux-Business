@@ -4,6 +4,8 @@ import { NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { OrganizationsService } from './organizations.service';
 import { Organization } from './entities/organization.entity';
+import { Role } from '../roles/entities/role.entity';
+import { RolePermission } from '../permissions/entities/role-permission.entity';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { SettingsService } from '../settings/settings.service';
 
@@ -38,6 +40,21 @@ describe('OrganizationsService', () => {
         {
           provide: getRepositoryToken(Organization),
           useValue: mockOrgRepository,
+        },
+        {
+          provide: getRepositoryToken(Role),
+          useValue: {
+            find: jest.fn().mockResolvedValue([]),
+            create: jest.fn((data) => data),
+            save: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(RolePermission),
+          useValue: {
+            create: jest.fn((data) => data),
+            save: jest.fn(),
+          },
         },
         {
           provide: SettingsService,

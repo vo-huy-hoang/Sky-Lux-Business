@@ -8,6 +8,7 @@ import { Document } from './entities/document.entity';
 import { DocumentType } from './entities/document-type.entity';
 import { DocumentVersion } from './entities/document-version.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
+import { Estimate } from '../estimates/entities/estimate.entity';
 import { StorageService } from '../../shared/storage/storage.service';
 import { RedisService } from '../../common/redis/redis.service';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
@@ -88,6 +89,10 @@ describe('Documents Module (Integration)', () => {
         {
           provide: getRepositoryToken(Dossier),
           useValue: mockDossierRepo,
+        },
+        {
+          provide: getRepositoryToken(Estimate),
+          useValue: { findOne: jest.fn() },
         },
         {
           provide: StorageService,

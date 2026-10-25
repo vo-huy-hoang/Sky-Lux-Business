@@ -10,6 +10,7 @@ import { DossiersService } from './dossiers.service';
 import { Dossier } from './entities/dossier.entity';
 import { Comment } from './entities/comment.entity';
 import { Customer } from '../customers/entities/customer.entity';
+import { User } from '../users/entities/user.entity';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { QueryDossierDto } from './dto/query-dossier.dto';
 import { CreateDossierDto } from './dto/create-dossier.dto';
@@ -91,6 +92,12 @@ describe('DossiersService', () => {
         {
           provide: getRepositoryToken(Customer),
           useValue: mockCustomerRepository,
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: {
+            find: jest.fn().mockResolvedValue([{ id: mockUserPayload.id }]),
+          },
         },
         {
           provide: AuditLogsService,
@@ -182,11 +189,13 @@ describe('DossiersService', () => {
         ...mockDossier,
         salesUser: {
           id: 'sales-id',
+          organizationId: 'org-uuid',
           fullName: 'Sales',
           passwordHash: 'secret',
         },
         operatorUser: {
           id: 'operator-id',
+          organizationId: 'org-uuid',
           fullName: 'Operator',
           passwordHash: 'secret',
         },

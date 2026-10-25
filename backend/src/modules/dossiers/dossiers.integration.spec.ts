@@ -7,6 +7,7 @@ import { DossiersService } from './dossiers.service';
 import { Dossier } from './entities/dossier.entity';
 import { Comment } from './entities/comment.entity';
 import { Customer } from '../customers/entities/customer.entity';
+import { User } from '../users/entities/user.entity';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -88,6 +89,16 @@ describe('Dossiers Module (Integration)', () => {
           provide: getRepositoryToken(Customer),
           useValue: {
             findOne: jest.fn().mockResolvedValue({ id: 'cust-uuid' }),
+          },
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: {
+            find: jest
+              .fn()
+              .mockImplementation(({ where }: any) =>
+                Promise.resolve(where.map(({ id }: any) => ({ id }))),
+              ),
           },
         },
         {
@@ -203,7 +214,10 @@ describe('Dossiers Module (Integration)', () => {
       } as unknown as CurrentUserPayload;
       const teamDossier = {
         ...mockDossierOfOrgA,
-        salesUser: { departmentId: 'dept-sales-uuid' },
+        salesUser: {
+          organizationId: orgA,
+          departmentId: 'dept-sales-uuid',
+        },
         salesUserId: 'colleague-uuid',
       } as unknown as Dossier;
 

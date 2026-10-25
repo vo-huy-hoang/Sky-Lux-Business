@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { Notification } from './entities/notification.entity';
+import { User } from '../users/entities/user.entity';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { firstValueFrom } from 'rxjs';
 
@@ -58,6 +59,12 @@ describe('NotificationsService', () => {
         {
           provide: getRepositoryToken(Notification),
           useValue: mockRepository,
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: {
+            findOne: jest.fn().mockResolvedValue({ id: mockUser.id }),
+          },
         },
       ],
     }).compile();

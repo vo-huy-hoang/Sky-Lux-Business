@@ -13,6 +13,7 @@ import { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskStatus } from '../../common/enums';
 import { RedisService } from '../../common/redis/redis.service';
 import { DataSource } from 'typeorm';
+import { User } from '../users/entities/user.entity';
 
 describe('Tasks Module (Integration)', () => {
   let controller: TasksController;
@@ -80,6 +81,16 @@ describe('Tasks Module (Integration)', () => {
           useValue: {
             create: jest.fn((dto) => dto),
             delete: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: {
+            findOne: jest
+              .fn()
+              .mockImplementation(({ where }: any) =>
+                Promise.resolve({ id: where.id }),
+              ),
           },
         },
         {

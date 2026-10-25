@@ -8,9 +8,20 @@ import { ServiceCategory } from './entities/service-category.entity';
 import { PassengerType } from './entities/passenger-type.entity';
 import { Unit } from './entities/unit.entity';
 import { SupplierType } from '../suppliers/entities/supplier-type.entity';
+import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
 describe('MasterData Module (Integration)', () => {
   let controller: MasterDataController;
+
+  const mockUser = {
+    id: 'user-uuid',
+    organizationId: 'org-uuid',
+    employeeCode: 'EMP001',
+    fullName: 'Test User',
+    email: 'test@example.com',
+    roles: ['CEO_ADMIN'],
+    permissions: ['master_data.view'],
+  } as CurrentUserPayload;
 
   const mockBusinessLines: Partial<BusinessLine>[] = [
     {
@@ -220,11 +231,14 @@ describe('MasterData Module (Integration)', () => {
   });
 
   it('API-MASTER-005: should return paginated list of supplier types with { data, meta }', async () => {
-    const response = await controller.getSupplierTypes({
-      page: 1,
-      limit: 20,
-      pageSize: 20,
-    });
+    const response = await controller.getSupplierTypes(
+      {
+        page: 1,
+        limit: 20,
+        pageSize: 20,
+      },
+      mockUser,
+    );
 
     expect(response).toBeDefined();
     expect(response.data).toHaveLength(1);
