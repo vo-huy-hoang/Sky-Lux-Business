@@ -3,6 +3,8 @@ import {
   CanActivate,
   ExecutionContext,
   UnauthorizedException,
+  Optional,
+  Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
@@ -11,14 +13,26 @@ import { DataSource } from 'typeorm';
 import { User } from '../../modules/users/entities/user.entity';
 import { UserStatus } from '../enums';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { RedisService } from '../redis/redis.service';
+
+export interface UserAuthMeta {
+  id: string;
+  organizationId: string;
+  status: UserStatus;
+  authVersion: number;
+}
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
+  private readonly logger = new Logger(JwtAuthGuard.name);
+
   constructor(
     private readonly reflector: Reflector,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
+    @Optional()
+    private readonly redisService?: RedisService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -47,15 +61,7 @@ export class JwtAuthGuard implements CanActivate {
         throw new Error('JWT_SECRET is not configured');
       }
       const payload = await this.jwtService.verifyAsync(token, { secret });
-      const currentUser = await this.dataSource.getRepository(User).findOne({
-        where: { id: payload.id },
-        select: {
-          id: true,
-          organizationId: true,
-          status: true,
-          authVersion: true,
-        },
-      });
+      const currentUser = await this.getUserAuthMeta(payload.id);
       if (
         !currentUser ||
         currentUser.status !== UserStatus.ACTIVE ||
@@ -66,8 +72,61 @@ export class JwtAuthGuard implements CanActivate {
       }
       request.user = payload;
       return true;
-    } catch {
+    } catch (err) {
+      if (err instanceof UnauthorizedException) {
+        throw err;
+      }
       throw new UnauthorizedException('Token is invalid or expired');
     }
+  }
+
+  private async getUserAuthMeta(userId: string): Promise<UserAuthMeta | null> {
+    const cacheKey = `user:auth-meta:${userId}`;
+
+    if (this.redisService) {
+      try {
+        const cached = await this.redisService.get<UserAuthMeta>(cacheKey);
+        if (cached !== null && cached !== undefined) {
+          return cached;
+        }
+      } catch (err: any) {
+        this.logger.warn(
+          `Redis get auth-meta fallback for user ${userId}: ${err?.message || err}`,
+        );
+      }
+    }
+
+    const user = await this.dataSource.getRepository(User).findOne({
+      where: { id: userId },
+      select: {
+        id: true,
+        organizationId: true,
+        status: true,
+        authVersion: true,
+      },
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    const meta: UserAuthMeta = {
+      id: user.id,
+      organizationId: user.organizationId,
+      status: user.status,
+      authVersion: user.authVersion,
+    };
+
+    if (this.redisService) {
+      try {
+        await this.redisService.set(cacheKey, meta, 300);
+      } catch (err: any) {
+        this.logger.warn(
+          `Redis set auth-meta error for user ${userId}: ${err?.message || err}`,
+        );
+      }
+    }
+
+    return meta;
   }
 }

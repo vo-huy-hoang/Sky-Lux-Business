@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotFoundException } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { OrganizationsController } from './organizations.controller';
 import { OrganizationsService } from './organizations.service';
 import { Organization } from './entities/organization.entity';
@@ -41,11 +41,29 @@ describe('Organization & Settings Module (Integration)', () => {
   const mockOrgRepository = {
     findOne: jest.fn(),
     save: jest.fn(),
+    create: jest.fn((data) => ({ ...data, id: 'new-org-id' })),
+    find: jest.fn(),
   };
 
   const mockSettingsService = {
     getOrganizationSettings: jest.fn(),
     updateOrganizationSetting: jest.fn(),
+  };
+
+  const mockDataSource = {
+    transaction: jest.fn(async (callback) => {
+      const manager = {
+        getRepository: jest.fn((entity) => {
+          if (entity === Organization) return mockOrgRepository;
+          return {
+            find: jest.fn().mockResolvedValue([]),
+            create: jest.fn((data) => data),
+            save: jest.fn().mockImplementation((data) => Promise.resolve(data)),
+          };
+        }),
+      };
+      return callback(manager);
+    }),
   };
 
   beforeEach(async () => {
@@ -75,6 +93,10 @@ describe('Organization & Settings Module (Integration)', () => {
         {
           provide: SettingsService,
           useValue: mockSettingsService,
+        },
+        {
+          provide: DataSource,
+          useValue: mockDataSource,
         },
       ],
     }).compile();
