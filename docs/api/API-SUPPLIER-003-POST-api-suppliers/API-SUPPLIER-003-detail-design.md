@@ -4,15 +4,15 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-044 |
+| Task ID | Sky-Lux-043 |
 | Level 0 | Lap trinh Backend API (CRM & Master Data) |
 | Level 1 | API Suppliers (MOD-SUPPLIER) |
 | Level 2 | API-SUPPLIER-003-POST-api-suppliers |
 | Method | POST |
 | Endpoint | `/api/suppliers` |
-| Phase | Phase 1-2 |
+| Phase | Phase 1 |
 | Mục tiêu | Tao nha cung cap |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

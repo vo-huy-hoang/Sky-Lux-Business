@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { isCanceledError } from '@/lib/api-client';
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -10,12 +11,16 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 60 * 1000, // 1 minute
-            retry: 1,
+            retry: (failureCount, error) => {
+              if (isCanceledError(error)) return false;
+              return failureCount < 1;
+            },
             refetchOnWindowFocus: false,
           },
         },
       }),
   );
+
 
   return (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>

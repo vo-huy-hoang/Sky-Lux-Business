@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-060 |
+| Task ID | Sky-Lux-058 |
 | Level 0 | Lap trinh Backend API (Dossier, Import & Workflow) |
 | Level 1 | API Import Excel (MOD-IMPORT) |
 | Level 2 | API-IMPORT-001-POST-api-imports |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/imports` |
 | Phase | Phase 1 |
 | Mục tiêu | Upload file import |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 
@@ -81,8 +81,17 @@ Tên DTO: `ImportSessionResponseDto`
 - Không tin dữ liệu `organizationId` từ client; tenant lấy từ authenticated context.
 - Không trả TypeORM Entity trực tiếp sang frontend.
 - Response dùng format thống nhất `{ data, meta }`.
-- Body DTO phải dùng whitelist/forbidNonWhitelisted để chặn field lạ.
-- File import cần kiểm tra mime type, dung lượng, template version và số dòng tối đa.
+- File import cần kiểm tra mime type, dung lượng (.xlsx, .xls), template version và số dòng tối đa.
+- **Cấu trúc cột và Quy tắc kiểm duyệt dữ liệu trong File Excel**:
+  - `Mã hồ sơ` (Bắt buộc, chuỗi ký tự)
+  - `Tên hồ sơ` (Bắt buộc, chuỗi ký tự)
+  - `Mã khách hàng` (Bắt buộc, phải tồn tại trong tổ chức)
+  - `Tên khách hàng` (Tùy chọn, tối đa 255 ký tự)
+  - `Số điện thoại` (Tùy chọn, chuỗi từ 8-20 ký tự số/ký hiệu hợp lệ)
+  - `Email` (Tùy chọn, định dạng email chuẩn)
+  - `Ngày sinh nhật` / `Ngày sinh` (Tùy chọn, định dạng ngày YYYY-MM-DD, không vượt quá ngày hiện tại)
+  - `Ngày bắt đầu` / `Ngày kết thúc` (Định dạng YYYY-MM-DD)
+  - `Tuyến đường`, `Mức độ ưu tiên` (LOW / MEDIUM / HIGH)
 
 ## 6. Service Flow
 

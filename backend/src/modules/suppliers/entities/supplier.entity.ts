@@ -5,11 +5,12 @@ import { SupplierType } from './supplier-type.entity';
 
 @Entity('suppliers')
 export class Supplier extends BaseEntity {
+  @Index()
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;
 
   @Column({ name: 'supplier_type_id', type: 'uuid', nullable: true })
-  supplierTypeId?: string;
+  supplierTypeId?: string | null;
 
   @Index()
   @Column({ type: 'varchar', length: 50 })
@@ -21,7 +22,12 @@ export class Supplier extends BaseEntity {
   @Column({ name: 'tax_code', type: 'varchar', length: 50, nullable: true })
   taxCode?: string;
 
-  @Column({ name: 'contact_name', type: 'varchar', length: 255, nullable: true })
+  @Column({
+    name: 'contact_name',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
   contactName?: string;
 
   @Column({ type: 'varchar', length: 20, nullable: true })

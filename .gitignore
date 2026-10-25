@@ -100,3 +100,22 @@ outputs/
 .vercel/
 
 .scratch/
+
+
+
+
+# Gemini Codeassist ignore
+GEMINI.md
+skills-lock.json
+
+# Other AI / tool configs
+.agents/
+.claude/
+.claudecode/
+.agentprotocol/
+
+# OpenAI Codeassist plugin
+.openai/plugins
+
+# JetBrains AI Assistant
+.idea/aider

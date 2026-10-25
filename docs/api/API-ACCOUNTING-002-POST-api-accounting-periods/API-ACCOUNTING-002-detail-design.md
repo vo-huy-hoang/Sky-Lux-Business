@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-155 |
+| Task ID | Sky-Lux-158 |
 | Level 0 | Lap trinh Backend API (Tasks, Finance, KPI & Ops) |
 | Level 1 | API Accounting Period (MOD-ACCOUNTING) |
 | Level 2 | API-ACCOUNTING-002-POST-api-accounting-periods |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/accounting-periods` |
 | Phase | Phase 2 |
 | Mục tiêu | Tao ky ke toan |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

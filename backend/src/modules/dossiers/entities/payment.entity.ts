@@ -3,7 +3,11 @@ import { BaseEntity } from '../../../common/entities/base.entity';
 import { Organization } from '../../organizations/entities/organization.entity';
 import { Dossier } from './dossier.entity';
 import { User } from '../../users/entities/user.entity';
-import { PaymentDirection, PaymentStatus, PaymentMethod } from '../../../common/enums';
+import {
+  PaymentDirection,
+  PaymentStatus,
+  PaymentMethod,
+} from '../../../common/enums';
 
 @Entity('payments')
 export class Payment extends BaseEntity {
@@ -38,7 +42,12 @@ export class Payment extends BaseEntity {
   })
   paymentMethod: PaymentMethod;
 
-  @Column({ name: 'reference_code', type: 'varchar', length: 100, nullable: true })
+  @Column({
+    name: 'reference_code',
+    type: 'varchar',
+    length: 100,
+    nullable: true,
+  })
   referenceCode?: string;
 
   @Column({

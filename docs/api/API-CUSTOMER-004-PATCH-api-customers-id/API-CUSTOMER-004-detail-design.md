@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-033 |
+| Task ID | Sky-Lux-032 |
 | Level 0 | Lap trinh Backend API (CRM & Master Data) |
 | Level 1 | API Customers (MOD-CUSTOMER) |
 | Level 2 | API-CUSTOMER-004-PATCH-api-customers-id |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/customers/:id` |
 | Phase | Phase 1 |
 | Mục tiêu | Cap nhat khach hang |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 
@@ -47,13 +47,15 @@ Tên DTO: `N/A`
 
 ### 4.3 Request Body DTO
 
-Tên DTO: `CustomerPatchRequestDto`
+Tên DTO: `CustomerPatchRequestDto` / `UpdateCustomerDto`
 
-- `type?: string`
-- `name?: string`
+- `customerType?: CustomerType`
+- `displayName?: string`
 - `taxCode?: string`
 - `phone?: string`
 - `email?: string`
+- `dateOfBirth?: string` (Định dạng YYYY-MM-DD)
+- `address?: string`
 - `assignedSalesId?: string`
 - `status?: string`
 
@@ -65,7 +67,13 @@ Tên DTO: `CustomerResponseDto`
 {
   "data": {
     "id": "uuid",
-    "code": "string",
+    "code": "KH001",
+    "customerType": "INDIVIDUAL",
+    "displayName": "Nguyễn Văn A",
+    "phone": "0912345678",
+    "email": "customer.a@gmail.com",
+    "dateOfBirth": "1990-05-15",
+    "address": "123 Đường Láng, Hà Nội",
     "status": "ACTIVE",
     "createdAt": "2026-08-24T00:00:00.000Z",
     "updatedAt": "2026-08-24T00:00:00.000Z"

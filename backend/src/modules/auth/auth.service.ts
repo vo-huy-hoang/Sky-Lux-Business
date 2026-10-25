@@ -17,7 +17,10 @@ import { RefreshToken } from './entities/refresh-token.entity';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { UserStatus } from '../../common/enums';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
 @Injectable()
 export class AuthService {
@@ -59,6 +62,18 @@ export class AuthService {
     return Array.from(permissionCodes);
   }
 
+  private getNotificationPreferences(
+    preferences?: Record<string, boolean>,
+  ): Record<string, boolean> {
+    return {
+      taskAssignments: false,
+      dossierUpdates: false,
+      appointmentReminders: false,
+      periodicReports: false,
+      ...(preferences || {}),
+    };
+  }
+
   private async generateTokens(
     user: User,
     permissions: string[],
@@ -69,6 +84,7 @@ export class AuthService {
 
     const payload = {
       id: user.id,
+      authVersion: user.authVersion ?? 0,
       organizationId: user.organizationId,
       departmentId: user.departmentId,
       employeeCode: user.employeeCode,
@@ -78,9 +94,7 @@ export class AuthService {
       permissions,
     };
 
-    const secret =
-      this.configService.get<string>('JWT_SECRET') ||
-      'CHANGE_ME_LONG_RANDOM_SECRET';
+    const secret = this.getJwtSecret();
 
     const accessToken = await this.jwtService.signAsync(payload, {
       secret,
@@ -149,7 +163,12 @@ export class AuthService {
     await this.userRepository.save(user);
 
     const permissions = await this.extractUserPermissions(user.roles);
-    const tokens = await this.generateTokens(user, permissions, ipAddress, userAgent);
+    const tokens = await this.generateTokens(
+      user,
+      permissions,
+      ipAddress,
+      userAgent,
+    );
 
     return {
       ...tokens,
@@ -195,9 +214,7 @@ export class AuthService {
     userAgent?: string,
   ) {
     const { refreshToken } = refreshTokenDto;
-    const secret =
-      this.configService.get<string>('JWT_SECRET') ||
-      'CHANGE_ME_LONG_RANDOM_SECRET';
+    const secret = this.getJwtSecret();
 
     try {
       const decoded = await this.jwtService.verifyAsync(refreshToken, {
@@ -214,8 +231,14 @@ export class AuthService {
         where: { userId: decoded.id, tokenHash },
       });
 
-      if (!tokenRecord || tokenRecord.isRevoked || tokenRecord.expiresAt < new Date()) {
-        throw new UnauthorizedException('Phiên đăng nhập không hợp lệ hoặc đã bị thu hồi');
+      if (
+        !tokenRecord ||
+        tokenRecord.isRevoked ||
+        tokenRecord.expiresAt < new Date()
+      ) {
+        throw new UnauthorizedException(
+          'Phiên đăng nhập không hợp lệ hoặc đã bị thu hồi',
+        );
       }
 
       const user = await this.userRepository.findOne({
@@ -238,7 +261,9 @@ export class AuthService {
       if (err instanceof UnauthorizedException) {
         throw err;
       }
-      throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn');
+      throw new UnauthorizedException(
+        'Refresh token không hợp lệ hoặc đã hết hạn',
+      );
     }
   }
 
@@ -272,15 +297,107 @@ export class AuthService {
       email: user.email,
       phone: user.phone,
       avatarUrl: user.avatarUrl,
+      twoFactorEnabled: user.twoFactorEnabled,
+      notificationPreferences: this.getNotificationPreferences(
+        user.notificationPreferences,
+      ),
       status: user.status,
       lastLoginAt: user.lastLoginAt,
-      roles: user.roles?.map((r) => ({
-        id: r.id,
-        code: r.code,
-        name: r.name,
-      })) || [],
+      roles:
+        user.roles?.map((r) => ({
+          id: r.id,
+          code: r.code,
+          name: r.name,
+        })) || [],
       permissions,
     };
+  }
+
+  async updateMyProfile(userId: string, updateProfileDto: UpdateProfileDto) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: { organization: true, department: true, roles: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy thông tin người dùng');
+    }
+
+    if (updateProfileDto.fullName !== undefined) {
+      const fullName = updateProfileDto.fullName.trim();
+      if (fullName.length < 2) {
+        throw new BadRequestException('Họ và tên phải có ít nhất 2 ký tự');
+      }
+      user.fullName = fullName;
+    }
+    if (updateProfileDto.phone !== undefined) {
+      user.phone = updateProfileDto.phone.trim() || undefined;
+    }
+    if (updateProfileDto.avatarUrl !== undefined) {
+      user.avatarUrl = updateProfileDto.avatarUrl.trim() || undefined;
+    }
+
+    await this.userRepository.save(user);
+    return this.getMe(userId);
+  }
+
+  async updateMySettings(
+    userId: string,
+    updateUserSettingsDto: UpdateUserSettingsDto,
+  ) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy thông tin người dùng');
+    }
+
+    if (updateUserSettingsDto.twoFactorEnabled !== undefined) {
+      user.twoFactorEnabled = updateUserSettingsDto.twoFactorEnabled;
+    }
+
+    const notificationPreferences = this.getNotificationPreferences(
+      user.notificationPreferences,
+    );
+    const preferenceKeys = [
+      'taskAssignments',
+      'dossierUpdates',
+      'appointmentReminders',
+      'periodicReports',
+    ] as const;
+    for (const key of preferenceKeys) {
+      if (updateUserSettingsDto[key] !== undefined) {
+        notificationPreferences[key] = updateUserSettingsDto[key];
+      }
+    }
+    user.notificationPreferences = notificationPreferences;
+
+    await this.userRepository.save(user);
+    return this.getMe(userId);
+  }
+
+  async createStreamToken(user: CurrentUserPayload) {
+    // Build the stream payload from the authenticated user claims instead of
+    // spreading request.user, which may also contain JWT registered claims
+    // such as `exp` and `iat`. `expiresIn` must be the single source of truth
+    // for this short-lived token's expiration.
+    const streamPayload = {
+      id: user.id,
+      authVersion: user.authVersion,
+      organizationId: user.organizationId,
+      departmentId: user.departmentId,
+      employeeCode: user.employeeCode,
+      fullName: user.fullName,
+      email: user.email,
+      roles: user.roles,
+      permissions: user.permissions,
+      stream: true,
+    };
+
+    const token = await this.jwtService.signAsync(streamPayload, {
+      secret: this.getJwtSecret(),
+      expiresIn: '60s',
+    });
+    return { token };
   }
 
   async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {
@@ -297,8 +414,21 @@ export class AuthService {
     }
 
     user.passwordHash = await bcrypt.hash(newPassword, 10);
+    user.authVersion = (user.authVersion ?? 0) + 1;
     await this.userRepository.save(user);
 
+    // A password change invalidates every other active session, including the
+    // current refresh token. The client will sign in again with the new secret.
+    await this.revokeUserTokens(userId);
+
     return { message: 'Đổi mật khẩu thành công' };
+  }
+
+  private getJwtSecret(): string {
+    const secret = this.configService.get<string>('JWT_SECRET');
+    if (!secret) {
+      throw new Error('JWT_SECRET is not configured');
+    }
+    return secret;
   }
 }

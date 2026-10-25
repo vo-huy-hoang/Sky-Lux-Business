@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-090 |
+| Task ID | Sky-Lux-102 |
 | Level 0 | Lap trinh Backend API (Documents & Communication) |
 | Level 1 | API Document Versions (MOD-DOCVER) |
 | Level 2 | API-DOCVER-002-POST-api-documents-id-versions |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/documents/:id/versions` |
 | Phase | Phase 2 |
 | Mục tiêu | Tao version tai lieu |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

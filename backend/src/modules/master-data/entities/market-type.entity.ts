@@ -1,21 +1,5 @@
-import { Entity, Column, Index } from 'typeorm';
-import { BaseEntity } from '../../../common/entities/base.entity';
+import { Entity } from 'typeorm';
+import { BaseCatalogEntity } from '../../../common/entities/catalog.entity';
 
 @Entity('market_types')
-export class MarketType extends BaseEntity {
-  @Index({ unique: true })
-  @Column({ type: 'varchar', length: 50, unique: true })
-  code: string;
-
-  @Column({ type: 'varchar', length: 255 })
-  name: string;
-
-  @Column({ type: 'text', nullable: true })
-  description?: string;
-
-  @Column({ type: 'varchar', length: 30, default: 'ACTIVE' })
-  status: string;
-
-  @Column({ name: 'sort_order', type: 'int', default: 0 })
-  sortOrder: number;
-}
+export class MarketType extends BaseCatalogEntity {}

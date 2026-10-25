@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-098 |
+| Task ID | Sky-Lux-107 |
 | Level 0 | Lap trinh Backend API (Documents & Communication) |
 | Level 1 | API Conversations (MOD-CHAT) |
 | Level 2 | API-CHAT-004-GET-api-dossiers-dossierid-conversation |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/dossiers/:dossierId/conversation` |
 | Phase | Phase 2 |
 | Mục tiêu | Hoi thoai gan voi ho so |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

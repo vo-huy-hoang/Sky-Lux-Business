@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-124 |
+| Task ID | Sky-Lux-132 |
 | Level 0 | Lap trinh Backend API (Tasks, Finance, KPI & Ops) |
 | Level 1 | API Tasks (MOD-TASK) |
 | Level 2 | API-TASK-006-POST-api-tasks-id-start |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/tasks/:id/start` |
 | Phase | Phase 2 |
 | Mục tiêu | Bat dau task |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

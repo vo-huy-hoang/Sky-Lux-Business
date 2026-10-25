@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-084 |
+| Task ID | Sky-Lux-081 |
 | Level 0 | Lap trinh Backend API (Documents & Communication) |
 | Level 1 | API Documents (MOD-DOCUMENT) |
 | Level 2 | API-DOCUMENT-002-POST-api-dossiers-id-documents |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/dossiers/:id/documents` |
 | Phase | Phase 1 |
 | Mục tiêu | Upload tai lieu cho ho so |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 
@@ -47,34 +47,46 @@ Tên DTO: `N/A`
 
 ### 4.3 Request Body DTO
 
-Tên DTO: `DossierPostRequestDto`
+Tên DTO: `CreateDocumentDto` + multipart file field
 
-- `customerId?: string`
-- `operatorUserId?: string`
-- `businessLineId?: string`
-- `marketTypeId?: string`
-- `note?: string`
+- `file: binary` (multipart field bắt buộc, tối đa 50MB)
+- `documentTypeId?: string`
+- `estimateId?: string`
+- `changeNote?: string`
 
 ### 4.4 Response DTO
 
-Tên DTO: `DossierResponseDto`
+Tên DTO: `DocumentResponseDto`
 
 ```json
 {
+  "success": true,
+  "statusCode": 201,
+  "message": "Operation successful",
   "data": {
     "id": "uuid",
-    "code": "string",
-    "status": "ACTIVE",
+    "organizationId": "uuid",
+    "dossierId": "uuid",
+    "estimateId": "uuid",
+    "documentTypeId": "uuid",
+    "originalName": "contract.pdf",
+    "mimeType": "application/pdf",
+    "fileSize": 1024,
+    "checksum": "md5",
+    "versionNo": 1,
+    "uploadedBy": "uuid",
     "createdAt": "2026-08-24T00:00:00.000Z",
     "updatedAt": "2026-08-24T00:00:00.000Z"
   },
-  "meta": {}
+  "timestamp": "2026-08-24T00:00:00.000Z"
 }
 ```
 
+Không trả `objectKey`, signed URL hoặc thông tin nhạy cảm trong response upload.
+
 ### 4.5 Data Model liên quan
 
-- Entity/aggregate chính: `Dossier`
+- Entity/aggregate chính: `Document`
 - Các field hệ thống nên có: `id`, `organizationId`, `createdAt`, `updatedAt`, `createdById`, `updatedById`.
 - Không expose field nhạy cảm như password hash, refresh token hash, private storage key hoặc internal cost rule nếu user không có permission.
 
@@ -82,7 +94,7 @@ Tên DTO: `DossierResponseDto`
 
 - Không tin dữ liệu `organizationId` từ client; tenant lấy từ authenticated context.
 - Không trả TypeORM Entity trực tiếp sang frontend.
-- Response dùng format thống nhất `{ data, meta }`.
+- Response dùng envelope thống nhất của backend.
 - Path param phải là UUID hợp lệ hoặc slug/code hợp lệ theo business rule.
 - Body DTO phải dùng whitelist/forbidNonWhitelisted để chặn field lạ.
 

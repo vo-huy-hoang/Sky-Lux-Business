@@ -1,4 +1,11 @@
-import { Entity, Column, ManyToOne, OneToMany, JoinColumn, Index } from 'typeorm';
+import {
+  Entity,
+  Column,
+  ManyToOne,
+  OneToMany,
+  JoinColumn,
+  Index,
+} from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Organization } from '../../organizations/entities/organization.entity';
 import { Dossier } from '../../dossiers/entities/dossier.entity';
@@ -44,7 +51,9 @@ export class Conversation extends BaseEntity {
   @JoinColumn({ name: 'created_by' })
   creator?: User;
 
-  @OneToMany(() => ConversationParticipant, (p) => p.conversation, { cascade: true })
+  @OneToMany(() => ConversationParticipant, (p) => p.conversation, {
+    cascade: true,
+  })
   participants: ConversationParticipant[];
 
   @OneToMany(() => Message, (msg) => msg.conversation)

@@ -1,21 +1,24 @@
-import { Entity, Column, Index } from 'typeorm';
-import { BaseEntity } from '../../../common/entities/base.entity';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
+import { BaseCatalogEntity } from '../../../common/entities/catalog.entity';
+import { Organization } from '../../organizations/entities/organization.entity';
 
 @Entity('supplier_types')
-export class SupplierType extends BaseEntity {
-  @Index({ unique: true })
-  @Column({ type: 'varchar', length: 50, unique: true })
-  code: string;
+@Index('uq_supplier_types_system_code', ['code'], {
+  unique: true,
+  where: 'organization_id IS NULL',
+})
+@Index('uq_supplier_types_org_code', ['organizationId', 'code'], {
+  unique: true,
+  where: 'organization_id IS NOT NULL',
+})
+export class SupplierType extends BaseCatalogEntity {
+  @Column({ name: 'is_system', type: 'boolean', default: false })
+  isSystem: boolean;
 
-  @Column({ type: 'varchar', length: 255 })
-  name: string;
+  @Column({ name: 'organization_id', type: 'uuid', nullable: true })
+  organizationId?: string | null;
 
-  @Column({ type: 'text', nullable: true })
-  description?: string;
-
-  @Column({ type: 'varchar', length: 30, default: 'ACTIVE' })
-  status: string;
-
-  @Column({ name: 'sort_order', type: 'int', default: 0 })
-  sortOrder: number;
+  @ManyToOne(() => Organization, { onDelete: 'CASCADE', nullable: true })
+  @JoinColumn({ name: 'organization_id' })
+  organization?: Organization | null;
 }

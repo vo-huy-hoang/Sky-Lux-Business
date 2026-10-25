@@ -4,15 +4,15 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-076 |
+| Task ID | Sky-Lux-074 |
 | Level 0 | Lap trinh Backend API (Dossier, Import & Workflow) |
 | Level 1 | API Workflow / Approvals (MOD-WORKFLOW) |
 | Level 2 | API-WORKFLOW-005-POST-api-dossiers-id-approve |
 | Method | POST |
 | Endpoint | `/api/dossiers/:id/approve` |
-| Phase | Phase 1-2 |
+| Phase | Phase 1 |
 | Mục tiêu | Phe duyet |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

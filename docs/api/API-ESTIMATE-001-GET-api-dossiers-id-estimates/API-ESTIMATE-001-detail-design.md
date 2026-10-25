@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-068 |
+| Task ID | Sky-Lux-066 |
 | Level 0 | Lap trinh Backend API (Dossier, Import & Workflow) |
 | Level 1 | API Estimates (MOD-ESTIMATE) |
 | Level 2 | API-ESTIMATE-001-GET-api-dossiers-id-estimates |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/dossiers/:id/estimates` |
 | Phase | Phase 1 |
 | Mục tiêu | Danh sach estimate cua ho so |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

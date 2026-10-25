@@ -24,7 +24,7 @@ Base path:
 Ví dụ production:
 
 ```text
-https://app.skylux.vn/api
+https://<production-domain>/api
 ```
 
 Frontend không hard-code IP VPS.
@@ -696,7 +696,7 @@ Backend tính từ transaction hợp lệ.
 Sales:
 
 ```http
-GET /api/kpi/me
+GET /api/kpis/me
 ```
 
 Operator/CEO:

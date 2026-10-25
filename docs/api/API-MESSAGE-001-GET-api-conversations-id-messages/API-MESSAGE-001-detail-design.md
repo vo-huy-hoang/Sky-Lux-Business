@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-100 |
+| Task ID | Sky-Lux-109 |
 | Level 0 | Lap trinh Backend API (Documents & Communication) |
 | Level 1 | API Messages (MOD-MESSAGE) |
 | Level 2 | API-MESSAGE-001-GET-api-conversations-id-messages |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/conversations/:id/messages` |
 | Phase | Phase 2 |
 | Mục tiêu | Danh sach tin nhan |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

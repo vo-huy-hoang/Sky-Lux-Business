@@ -1,34 +1,58 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Param, Query, ParseUUIDPipe } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+} from '@nestjs/swagger';
 import { AuditLogsService } from './audit-logs.service';
-import { CreateAuditLogDto } from './dto/create-audit-log.dto';
-import { UpdateAuditLogDto } from './dto/update-audit-log.dto';
+import { QueryAuditLogDto } from './dto/query-audit-log.dto';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
+@ApiTags('Audit Logs')
+@ApiBearerAuth('JWT-auth')
 @Controller('audit-logs')
 export class AuditLogsController {
   constructor(private readonly auditLogsService: AuditLogsService) {}
 
-  @Post()
-  create(@Body() createAuditLogDto: CreateAuditLogDto) {
-    return this.auditLogsService.create(createAuditLogDto);
-  }
-
   @Get()
-  findAll() {
-    return this.auditLogsService.findAll();
+  @RequirePermissions('audit.view')
+  @ApiOperation({
+    summary: 'Lấy danh sách nhật ký kiểm toán (API-AUDIT-001)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lấy danh sách nhật ký kiểm toán thành công',
+  })
+  @ApiResponse({ status: 401, description: 'Chưa xác thực' })
+  @ApiResponse({ status: 403, description: 'Không có quyền truy cập' })
+  findAll(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query() queryDto: QueryAuditLogDto,
+  ) {
+    return this.auditLogsService.findAll(user, queryDto);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.auditLogsService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateAuditLogDto: UpdateAuditLogDto) {
-    return this.auditLogsService.update(+id, updateAuditLogDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.auditLogsService.remove(+id);
+  @RequirePermissions('audit.view')
+  @ApiOperation({
+    summary: 'Lấy chi tiết nhật ký kiểm toán theo ID (API-AUDIT-002)',
+  })
+  @ApiParam({ name: 'id', description: 'Audit Log UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lấy chi tiết nhật ký kiểm toán thành công',
+  })
+  @ApiResponse({ status: 401, description: 'Chưa xác thực' })
+  @ApiResponse({ status: 403, description: 'Không có quyền truy cập' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy nhật ký kiểm toán' })
+  findOne(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.auditLogsService.findOne(user, id);
   }
 }

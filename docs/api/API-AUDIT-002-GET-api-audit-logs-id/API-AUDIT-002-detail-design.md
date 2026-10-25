@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-160 |
+| Task ID | Sky-Lux-096 |
 | Level 0 | Lap trinh Backend API (Tasks, Finance, KPI & Ops) |
 | Level 1 | API Audit Log (MOD-AUDIT) |
 | Level 2 | API-AUDIT-002-GET-api-audit-logs-id |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/audit-logs/:id` |
 | Phase | Phase 1 |
 | Mục tiêu | Chi tiet audit log |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 
@@ -41,15 +41,9 @@ Tên DTO: `AuditLogParamsDto`
 
 ### 4.2 Query DTO
 
-Tên DTO: `AuditLogQueryDto`
+Tên DTO: `N/A` (API không có query parameters)
 
-- `actorUserId?: string`
-- `action?: string`
-- `entityType?: string`
-- `entityId?: string`
-- `from?: string`
-- `to?: string`
-- `requestId?: string`
+- Không có.
 
 ### 4.3 Request Body DTO
 
@@ -65,10 +59,24 @@ Tên DTO: `AuditLogResponseDto`
 {
   "data": {
     "id": "uuid",
-    "code": "string",
-    "status": "ACTIVE",
+    "organizationId": "uuid",
+    "actorUserId": "uuid",
+    "action": "UPDATE_DOSSIER",
+    "entityType": "dossier",
+    "entityId": "uuid",
+    "beforeData": null,
+    "afterData": { "status": "APPROVED" },
+    "ipAddress": "192.0.2.10",
+    "userAgent": "Mozilla/5.0",
+    "requestId": "uuid",
     "createdAt": "2026-08-24T00:00:00.000Z",
-    "updatedAt": "2026-08-24T00:00:00.000Z"
+    "updatedAt": "2026-08-24T00:00:00.000Z",
+    "actor": {
+      "id": "uuid",
+      "fullName": "Nguyen Van A",
+      "email": "a@example.com",
+      "avatarUrl": null
+    }
   },
   "meta": {}
 }

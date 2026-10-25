@@ -175,32 +175,32 @@ Audit, lịch sử phê duyệt hoặc giao dịch đã xác nhận không nên 
 
 Trường chính:
 
-| Field | Type | Rule |
-|---|---|---|
-| id | UUID | PK |
-| code | VARCHAR(50) | UNIQUE |
-| name | VARCHAR(255) | NOT NULL |
-| slug | VARCHAR(100) | UNIQUE |
-| logo_url | TEXT | nullable |
-| status | VARCHAR(30) | indexed |
-| timezone | VARCHAR(50) | default |
-| currency | VARCHAR(10) | default |
-| created_at | TIMESTAMPTZ | not null |
-| updated_at | TIMESTAMPTZ | not null |
-| deleted_at | TIMESTAMPTZ | nullable |
+| Field      | Type         | Rule     |
+| ---------- | ------------ | -------- |
+| id         | UUID         | PK       |
+| code       | VARCHAR(50)  | UNIQUE   |
+| name       | VARCHAR(255) | NOT NULL |
+| slug       | VARCHAR(100) | UNIQUE   |
+| logo_url   | TEXT         | nullable |
+| status     | VARCHAR(30)  | indexed  |
+| timezone   | VARCHAR(50)  | default  |
+| currency   | VARCHAR(10)  | default  |
+| created_at | TIMESTAMPTZ  | not null |
+| updated_at | TIMESTAMPTZ  | not null |
+| deleted_at | TIMESTAMPTZ  | nullable |
 
 Phase 1–2 có thể chỉ có một organization nhưng vẫn phải giữ `organization_id` ở các bảng nghiệp vụ.
 
 ### `organization_settings`
 
-| Field | Type |
-|---|---|
-| id | UUID |
-| organization_id | UUID |
-| key | VARCHAR(150) |
-| value | JSONB |
-| created_at | TIMESTAMPTZ |
-| updated_at | TIMESTAMPTZ |
+| Field           | Type         |
+| --------------- | ------------ |
+| id              | UUID         |
+| organization_id | UUID         |
+| key             | VARCHAR(150) |
+| value           | JSONB        |
+| created_at      | TIMESTAMPTZ  |
+| updated_at      | TIMESTAMPTZ  |
 
 Ví dụ key:
 
@@ -307,6 +307,7 @@ display_name
 tax_code
 phone
 email
+date_of_birth
 address
 assigned_sales_id
 status
@@ -740,20 +741,21 @@ Quản lý thông tin cuộc trò chuyện / phòng chat.
 
 Field chính:
 
-| Field | Type | Rule |
-|---|---|---|
-| id | UUID | PK |
-| organization_id | UUID | FK -> organizations.id |
-| type | VARCHAR(30) | NOT NULL (`DIRECT`, `GROUP`, `DOSSIER`) |
-| title | VARCHAR(255) | nullable (bắt buộc với `GROUP`, optional với `DIRECT` / `DOSSIER`) |
-| dossier_id | UUID | FK -> dossiers.id, nullable (khi chat gắn với hồ sơ) |
-| created_by | UUID | FK -> users.id |
-| last_message_at | TIMESTAMPTZ | indexed, hỗ trợ sắp xếp danh sách chat |
-| created_at | TIMESTAMPTZ | NOT NULL |
-| updated_at | TIMESTAMPTZ | NOT NULL |
-| deleted_at | TIMESTAMPTZ | nullable (soft delete) |
+| Field           | Type         | Rule                                                                        |
+| --------------- | ------------ | --------------------------------------------------------------------------- |
+| id              | UUID         | PK                                                                          |
+| organization_id | UUID         | FK -> organizations.id                                                      |
+| type            | VARCHAR(30)  | NOT NULL (`DIRECT`, `GROUP`, `DOSSIER`)                               |
+| title           | VARCHAR(255) | nullable (bắt buộc với`GROUP`, optional với `DIRECT` / `DOSSIER`) |
+| dossier_id      | UUID         | FK -> dossiers.id, nullable (khi chat gắn với hồ sơ)                    |
+| created_by      | UUID         | FK -> users.id                                                              |
+| last_message_at | TIMESTAMPTZ  | indexed, hỗ trợ sắp xếp danh sách chat                                 |
+| created_at      | TIMESTAMPTZ  | NOT NULL                                                                    |
+| updated_at      | TIMESTAMPTZ  | NOT NULL                                                                    |
+| deleted_at      | TIMESTAMPTZ  | nullable (soft delete)                                                      |
 
 Hỗ trợ 3 loại hội thoại (`type`):
+
 - `DIRECT`: Chat 1:1 giữa 2 người dùng (ví dụ: Sales trao đổi riêng với Operator).
 - `GROUP`: Chat nhóm người dùng tự tạo.
 - `DOSSIER`: Kênh chat tự động hoặc khởi tạo gắn với một hồ sơ nghiệp vụ cụ thể.
@@ -764,17 +766,17 @@ Quản lý danh sách thành viên tham gia hội thoại và trạng thái đã
 
 Field chính:
 
-| Field | Type | Rule |
-|---|---|---|
-| id | UUID | PK |
-| organization_id | UUID | FK -> organizations.id |
-| conversation_id | UUID | FK -> conversations.id |
-| user_id | UUID | FK -> users.id |
-| role | VARCHAR(30) | default `MEMBER` (`ADMIN`, `MEMBER`) |
-| last_read_message_id | UUID | FK -> messages.id, nullable (đánh dấu tin nhắn cuối đã đọc) |
-| last_read_at | TIMESTAMPTZ | nullable |
-| joined_at | TIMESTAMPTZ | NOT NULL |
-| left_at | TIMESTAMPTZ | nullable |
+| Field                | Type        | Rule                                                                 |
+| -------------------- | ----------- | -------------------------------------------------------------------- |
+| id                   | UUID        | PK                                                                   |
+| organization_id      | UUID        | FK -> organizations.id                                               |
+| conversation_id      | UUID        | FK -> conversations.id                                               |
+| user_id              | UUID        | FK -> users.id                                                       |
+| role                 | VARCHAR(30) | default`MEMBER` (`ADMIN`, `MEMBER`)                            |
+| last_read_message_id | UUID        | FK -> messages.id, nullable (đánh dấu tin nhắn cuối đã đọc) |
+| last_read_at         | TIMESTAMPTZ | nullable                                                             |
+| joined_at            | TIMESTAMPTZ | NOT NULL                                                             |
+| left_at              | TIMESTAMPTZ | nullable                                                             |
 
 Ràng buộc UNIQUE: `(conversation_id, user_id)`.
 
@@ -784,20 +786,20 @@ Lưu trữ danh sách tin nhắn.
 
 Field chính:
 
-| Field | Type | Rule |
-|---|---|---|
-| id | UUID | PK |
-| organization_id | UUID | FK -> organizations.id |
-| conversation_id | UUID | FK -> conversations.id |
-| sender_id | UUID | FK -> users.id |
-| message_type | VARCHAR(30) | default `TEXT` (`TEXT`, `FILE`, `IMAGE`, `SYSTEM`) |
-| content | TEXT | nullable (khi gửi tệp đính kèm) |
-| parent_id | UUID | FK -> messages.id, nullable (dùng cho Reply/Thread) |
-| metadata | JSONB | nullable (lưu thông tin payload hệ thống hoặc preview) |
-| is_edited | BOOLEAN | default false |
-| created_at | TIMESTAMPTZ | NOT NULL |
-| updated_at | TIMESTAMPTZ | NOT NULL |
-| deleted_at | TIMESTAMPTZ | nullable (thu hồi tin nhắn) |
+| Field           | Type        | Rule                                                        |
+| --------------- | ----------- | ----------------------------------------------------------- |
+| id              | UUID        | PK                                                          |
+| organization_id | UUID        | FK -> organizations.id                                      |
+| conversation_id | UUID        | FK -> conversations.id                                      |
+| sender_id       | UUID        | FK -> users.id                                              |
+| message_type    | VARCHAR(30) | default`TEXT` (`TEXT`, `FILE`, `IMAGE`, `SYSTEM`) |
+| content         | TEXT        | nullable (khi gửi tệp đính kèm)                        |
+| parent_id       | UUID        | FK -> messages.id, nullable (dùng cho Reply/Thread)        |
+| metadata        | JSONB       | nullable (lưu thông tin payload hệ thống hoặc preview) |
+| is_edited       | BOOLEAN     | default false                                               |
+| created_at      | TIMESTAMPTZ | NOT NULL                                                    |
+| updated_at      | TIMESTAMPTZ | NOT NULL                                                    |
+| deleted_at      | TIMESTAMPTZ | nullable (thu hồi tin nhắn)                               |
 
 ### `message_attachments`
 
@@ -805,17 +807,17 @@ Quản lý tệp / hình ảnh đính kèm trong tin nhắn.
 
 Field chính:
 
-| Field | Type | Rule |
-|---|---|---|
-| id | UUID | PK |
-| organization_id | UUID | FK -> organizations.id |
-| message_id | UUID | FK -> messages.id |
-| document_id | UUID | FK -> documents.id, nullable (nếu liên kết module Documents) |
-| file_name | VARCHAR(255) | NOT NULL |
-| file_url | TEXT | NOT NULL |
-| file_type | VARCHAR(100) | MIME type |
-| file_size | BIGINT | số byte |
-| created_at | TIMESTAMPTZ | NOT NULL |
+| Field           | Type         | Rule                                                            |
+| --------------- | ------------ | --------------------------------------------------------------- |
+| id              | UUID         | PK                                                              |
+| organization_id | UUID         | FK -> organizations.id                                          |
+| message_id      | UUID         | FK -> messages.id                                               |
+| document_id     | UUID         | FK -> documents.id, nullable (nếu liên kết module Documents) |
+| file_name       | VARCHAR(255) | NOT NULL                                                        |
+| file_url        | TEXT         | NOT NULL                                                        |
+| file_type       | VARCHAR(100) | MIME type                                                       |
+| file_size       | BIGINT       | số byte                                                        |
+| created_at      | TIMESTAMPTZ  | NOT NULL                                                        |
 
 ---
 

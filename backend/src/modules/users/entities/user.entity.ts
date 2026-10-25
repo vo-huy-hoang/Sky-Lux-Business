@@ -14,6 +14,9 @@ import { Role } from '../../roles/entities/role.entity';
 import { UserStatus } from '../../../common/enums';
 
 @Entity('users')
+@Index('idx_users_org_employee_code', ['organizationId', 'employeeCode'], {
+  unique: true,
+})
 export class User extends BaseEntity {
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;
@@ -21,8 +24,7 @@ export class User extends BaseEntity {
   @Column({ name: 'department_id', type: 'uuid', nullable: true })
   departmentId?: string;
 
-  @Index({ unique: true })
-  @Column({ name: 'employee_code', type: 'varchar', length: 50, unique: true })
+  @Column({ name: 'employee_code', type: 'varchar', length: 50 })
   employeeCode: string;
 
   @Column({ name: 'full_name', type: 'varchar', length: 255 })
@@ -41,12 +43,25 @@ export class User extends BaseEntity {
   @Column({ name: 'avatar_url', type: 'text', nullable: true })
   avatarUrl?: string;
 
+  @Column({ name: 'two_factor_enabled', type: 'boolean', default: false })
+  twoFactorEnabled: boolean;
+
+  @Column({
+    name: 'notification_preferences',
+    type: 'jsonb',
+    default: {},
+  })
+  notificationPreferences: Record<string, boolean>;
+
   @Column({
     type: 'enum',
     enum: UserStatus,
     default: UserStatus.ACTIVE,
   })
   status: UserStatus;
+
+  @Column({ name: 'auth_version', type: 'integer', default: 0 })
+  authVersion: number;
 
   @Column({ name: 'last_login_at', type: 'timestamptz', nullable: true })
   lastLoginAt?: Date;
@@ -55,7 +70,10 @@ export class User extends BaseEntity {
   @JoinColumn({ name: 'organization_id' })
   organization: Organization;
 
-  @ManyToOne(() => Department, (dept) => dept.users, { onDelete: 'SET NULL', nullable: true })
+  @ManyToOne(() => Department, (dept) => dept.users, {
+    onDelete: 'SET NULL',
+    nullable: true,
+  })
   @JoinColumn({ name: 'department_id' })
   department?: Department;
 

@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Organization } from '../../organizations/entities/organization.entity';
 import { Estimate } from './estimate.entity';
@@ -6,6 +6,7 @@ import { PassengerType } from '../../master-data/entities/passenger-type.entity'
 import { Unit } from '../../master-data/entities/unit.entity';
 
 @Entity('estimate_revenue_lines')
+@Index('idx_rev_lines_estimate_id', ['estimateId'])
 export class EstimateRevenueLine extends BaseEntity {
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;
@@ -28,19 +29,43 @@ export class EstimateRevenueLine extends BaseEntity {
   @Column({ type: 'numeric', precision: 12, scale: 3, default: 1 })
   multiplier: number;
 
-  @Column({ name: 'unit_price', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  @Column({
+    name: 'unit_price',
+    type: 'numeric',
+    precision: 18,
+    scale: 2,
+    default: 0,
+  })
   unitPrice: number;
 
-  @Column({ name: 'vat_rate', type: 'numeric', precision: 5, scale: 2, default: 0 })
+  @Column({
+    name: 'vat_rate',
+    type: 'numeric',
+    precision: 5,
+    scale: 2,
+    default: 0,
+  })
   vatRate: number;
 
   @Column({ name: 'price_basis', type: 'varchar', length: 50, nullable: true })
   priceBasis?: string;
 
-  @Column({ name: 'gross_amount', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  @Column({
+    name: 'gross_amount',
+    type: 'numeric',
+    precision: 18,
+    scale: 2,
+    default: 0,
+  })
   grossAmount: number;
 
-  @Column({ name: 'net_amount', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  @Column({
+    name: 'net_amount',
+    type: 'numeric',
+    precision: 18,
+    scale: 2,
+    default: 0,
+  })
   netAmount: number;
 
   @Column({ type: 'text', nullable: true })
@@ -53,7 +78,9 @@ export class EstimateRevenueLine extends BaseEntity {
   @JoinColumn({ name: 'organization_id' })
   organization: Organization;
 
-  @ManyToOne(() => Estimate, (estimate) => estimate.revenueLines, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Estimate, (estimate) => estimate.revenueLines, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'estimate_id' })
   estimate: Estimate;
 

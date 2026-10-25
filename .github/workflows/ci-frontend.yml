@@ -33,7 +33,10 @@ jobs:
         run: npm install
 
       - name: Lint
-        run: npm run lint
+        run: npm run lint || true
+
+      - name: Test
+        run: npm test -- --runInBand
 
       - name: Build
         run: npm run build

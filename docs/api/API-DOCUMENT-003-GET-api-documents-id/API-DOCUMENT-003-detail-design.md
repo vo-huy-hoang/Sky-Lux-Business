@@ -4,7 +4,7 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-085 |
+| Task ID | Sky-Lux-082 |
 | Level 0 | Lap trinh Backend API (Documents & Communication) |
 | Level 1 | API Documents (MOD-DOCUMENT) |
 | Level 2 | API-DOCUMENT-003-GET-api-documents-id |
@@ -12,7 +12,7 @@
 | Endpoint | `/api/documents/:id` |
 | Phase | Phase 1 |
 | Mục tiêu | Chi tiet tai lieu |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 
@@ -57,16 +57,42 @@ Tên DTO: `DocumentResponseDto`
 
 ```json
 {
+  "success": true,
+  "statusCode": 200,
+  "message": "Operation successful",
   "data": {
     "id": "uuid",
-    "code": "string",
-    "status": "ACTIVE",
+    "organizationId": "uuid",
+    "dossierId": "uuid",
+    "estimateId": "uuid",
+    "documentTypeId": "uuid",
+    "originalName": "passport.pdf",
+    "mimeType": "application/pdf",
+    "fileSize": 1024,
+    "checksum": "md5",
+    "versionNo": 1,
+    "uploadedBy": "uuid",
+    "versions": [
+      {
+        "id": "uuid",
+        "documentId": "uuid",
+        "versionNo": 1,
+        "fileSize": 1024,
+        "checksum": "md5",
+        "changeNote": "Phiên bản đầu tiên",
+        "uploadedBy": "uuid",
+        "createdAt": "2026-08-24T00:00:00.000Z",
+        "updatedAt": "2026-08-24T00:00:00.000Z"
+      }
+    ],
     "createdAt": "2026-08-24T00:00:00.000Z",
     "updatedAt": "2026-08-24T00:00:00.000Z"
   },
-  "meta": {}
+  "timestamp": "2026-08-24T00:00:00.000Z"
 }
 ```
+
+Không trả `objectKey`, signed URL hoặc thông tin nhạy cảm trong API chi tiết.
 
 ### 4.5 Data Model liên quan
 
@@ -78,7 +104,7 @@ Tên DTO: `DocumentResponseDto`
 
 - Không tin dữ liệu `organizationId` từ client; tenant lấy từ authenticated context.
 - Không trả TypeORM Entity trực tiếp sang frontend.
-- Response dùng format thống nhất `{ data, meta }`.
+- Response dùng envelope thống nhất của backend.
 - Path param phải là UUID hợp lệ hoặc slug/code hợp lệ theo business rule.
 - Download private file phải kiểm tra tenant/permission trước khi tạo signed URL ngắn hạn.
 

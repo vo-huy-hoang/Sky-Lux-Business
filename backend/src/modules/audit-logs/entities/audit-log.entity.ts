@@ -4,7 +4,14 @@ import { Organization } from '../../organizations/entities/organization.entity';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('audit_logs')
-@Index('idx_audit_entity_time', ['organizationId', 'entityType', 'entityId', 'createdAt'])
+@Index('idx_audit_entity_time', [
+  'organizationId',
+  'entityType',
+  'entityId',
+  'createdAt',
+])
+@Index('idx_audit_org_created', ['organizationId', 'createdAt'])
+@Index('idx_audit_org_actor', ['organizationId', 'actorUserId'])
 export class AuditLog extends BaseEntity {
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;
@@ -14,6 +21,13 @@ export class AuditLog extends BaseEntity {
 
   @Column({ type: 'varchar', length: 100 })
   action: string;
+
+  @Column({
+    type: 'varchar',
+    length: 500,
+    default: 'Thao tác hệ thống',
+  })
+  description: string;
 
   @Column({ name: 'entity_type', type: 'varchar', length: 100 })
   entityType: string;

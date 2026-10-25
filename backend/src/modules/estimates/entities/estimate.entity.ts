@@ -15,6 +15,8 @@ import { EstimateCostLine } from './estimate-cost-line.entity';
 import { EstimateStatus } from '../../../common/enums';
 
 @Entity('estimates')
+@Index('idx_estimates_dossier_status', ['dossierId', 'status'])
+@Index('idx_estimates_status_approved', ['status', 'approvedAt'])
 export class Estimate extends BaseEntity {
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;
@@ -64,7 +66,9 @@ export class Estimate extends BaseEntity {
   @JoinColumn({ name: 'organization_id' })
   organization: Organization;
 
-  @ManyToOne(() => Dossier, (dossier) => dossier.estimates, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Dossier, (dossier) => dossier.estimates, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'dossier_id' })
   dossier: Dossier;
 
@@ -80,7 +84,9 @@ export class Estimate extends BaseEntity {
   @JoinColumn({ name: 'approved_by' })
   approver?: User;
 
-  @OneToMany(() => EstimateRevenueLine, (line) => line.estimate, { cascade: true })
+  @OneToMany(() => EstimateRevenueLine, (line) => line.estimate, {
+    cascade: true,
+  })
   revenueLines: EstimateRevenueLine[];
 
   @OneToMany(() => EstimateCostLine, (line) => line.estimate, { cascade: true })

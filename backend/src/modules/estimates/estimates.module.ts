@@ -5,6 +5,10 @@ import { EstimatesController } from './estimates.controller';
 import { Estimate } from './entities/estimate.entity';
 import { EstimateRevenueLine } from './entities/estimate-revenue-line.entity';
 import { EstimateCostLine } from './entities/estimate-cost-line.entity';
+import { Supplier } from '../suppliers/entities/supplier.entity';
+
+import { DossiersModule } from '../dossiers/dossiers.module';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
   imports: [
@@ -12,7 +16,10 @@ import { EstimateCostLine } from './entities/estimate-cost-line.entity';
       Estimate,
       EstimateRevenueLine,
       EstimateCostLine,
+      Supplier,
     ]),
+    DossiersModule,
+    AuditLogsModule,
   ],
   controllers: [EstimatesController],
   providers: [EstimatesService],

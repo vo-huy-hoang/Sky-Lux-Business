@@ -4,15 +4,15 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-074 |
+| Task ID | Sky-Lux-072 |
 | Level 0 | Lap trinh Backend API (Dossier, Import & Workflow) |
 | Level 1 | API Workflow / Approvals (MOD-WORKFLOW) |
 | Level 2 | API-WORKFLOW-003-POST-api-dossiers-id-request-changes |
 | Method | POST |
 | Endpoint | `/api/dossiers/:id/request-changes` |
-| Phase | Phase 1-2 |
+| Phase | Phase 1 |
 | Mục tiêu | Yeu cau chinh sua |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

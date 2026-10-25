@@ -4,15 +4,15 @@
 
 | Trường | Giá trị |
 | --- | --- |
-| Task ID | Sky-Lux-141 |
+| Task ID | Sky-Lux-148 |
 | Level 0 | Lap trinh Backend API (Tasks, Finance, KPI & Ops) |
 | Level 1 | API KPI (MOD-KPI) |
 | Level 2 | API-KPI-004-PATCH-api-kpis-targets-id |
 | Method | PATCH |
 | Endpoint | `/api/kpis/targets/:id` |
-| Phase | Phase 1-2 |
+| Phase | Phase 2 |
 | Mục tiêu | Cap nhat target KPI |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 
@@ -49,11 +49,12 @@ Tên DTO: `N/A`
 
 Tên DTO: `KpiPatchRequestDto`
 
-- `periodType: string`
-- `periodStart: string`
-- `periodEnd: string`
+- `periodType?: KpiPeriodType`
+- `metricCode?: KpiMetric`
+- `periodStart?: string`
+- `periodEnd?: string`
 - `userId?: string`
-- `targetValue: number`
+- `targetValue?: number`
 
 ### 4.4 Response DTO
 
@@ -63,8 +64,13 @@ Tên DTO: `KpiResponseDto`
 {
   "data": {
     "id": "uuid",
-    "code": "string",
-    "status": "ACTIVE",
+    "organizationId": "uuid",
+    "userId": "uuid",
+    "metricCode": "REVENUE",
+    "periodType": "MONTHLY",
+    "periodStart": "2026-08-01",
+    "periodEnd": "2026-08-31",
+    "targetValue": 100000000,
     "createdAt": "2026-08-24T00:00:00.000Z",
     "updatedAt": "2026-08-24T00:00:00.000Z"
   },
@@ -74,7 +80,7 @@ Tên DTO: `KpiResponseDto`
 
 ### 4.5 Data Model liên quan
 
-- Entity/aggregate chính: `Kpi`
+- Entity/aggregate chính: `KpiTarget`
 - Các field hệ thống nên có: `id`, `organizationId`, `createdAt`, `updatedAt`, `createdById`, `updatedById`.
 - Không expose field nhạy cảm như password hash, refresh token hash, private storage key hoặc internal cost rule nếu user không có permission.
 
@@ -85,6 +91,9 @@ Tên DTO: `KpiResponseDto`
 - Response dùng format thống nhất `{ data, meta }`.
 - Path param phải là UUID hợp lệ hoặc slug/code hợp lệ theo business rule.
 - Body DTO phải dùng whitelist/forbidNonWhitelisted để chặn field lạ.
+- `id` phải là UUID và target thuộc cùng organization với user hiện tại.
+- Không cho cập nhật target đã có `KpiResult.isLocked = true`.
+- Không cho tạo trùng target sau khi thay đổi các trường định danh kỳ/user/metric.
 
 ## 6. Service Flow
 

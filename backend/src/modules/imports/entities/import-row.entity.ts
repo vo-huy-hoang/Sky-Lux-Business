@@ -7,7 +7,12 @@ export class ImportRow extends BaseEntity {
   @Column({ name: 'session_id', type: 'uuid' })
   sessionId: string;
 
-  @Column({ name: 'sheet_name', type: 'varchar', length: 100, default: 'Sheet1' })
+  @Column({
+    name: 'sheet_name',
+    type: 'varchar',
+    length: 100,
+    default: 'Sheet1',
+  })
   sheetName: string;
 
   @Index()
@@ -23,7 +28,9 @@ export class ImportRow extends BaseEntity {
   @Column({ type: 'varchar', length: 30, default: 'PENDING' })
   status: string;
 
-  @ManyToOne(() => ImportSession, (session) => session.rows, { onDelete: 'CASCADE' })
+  @ManyToOne(() => ImportSession, (session) => session.rows, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'session_id' })
   session: ImportSession;
 }

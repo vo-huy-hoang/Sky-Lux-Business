@@ -20,11 +20,15 @@ export class RolePermission extends BaseEntity {
   })
   scope: RoleScope;
 
-  @ManyToOne(() => Role, (role) => role.rolePermissions, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Role, (role) => role.rolePermissions, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'role_id' })
   role: Role;
 
-  @ManyToOne(() => Permission, (perm) => perm.rolePermissions, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Permission, (perm) => perm.rolePermissions, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'permission_id' })
   permission: Permission;
 }

@@ -14,7 +14,12 @@ export class ImportTemplate extends BaseEntity {
   @Column({ type: 'varchar', length: 255 })
   name: string;
 
-  @Column({ name: 'template_type', type: 'varchar', length: 50, default: 'ESTIMATE' })
+  @Column({
+    name: 'template_type',
+    type: 'varchar',
+    length: 50,
+    default: 'ESTIMATE',
+  })
   templateType: string;
 
   @Column({ name: 'mapping_config', type: 'jsonb', default: {} })

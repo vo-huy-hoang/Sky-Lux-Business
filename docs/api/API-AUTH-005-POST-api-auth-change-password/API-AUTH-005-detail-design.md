@@ -12,7 +12,7 @@
 | Endpoint | `/api/auth/change-password` |
 | Phase | Phase 1 |
 | Mục tiêu | Doi mat khau |
-| Nguồn | `outputs/sky_lux_api_tasks/sky_lux_api_tasks.xlsx` |
+| Nguồn | `sky_lux_api_tasks_phase_sorted.xlsx` |
 
 > Tài liệu này được sinh từ file Excel API task. Nếu có khác biệt với code thực tế, ưu tiên review lại contract FE/BE trước khi khóa.
 

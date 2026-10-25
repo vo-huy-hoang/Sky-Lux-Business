@@ -10,7 +10,8 @@ services:
       POSTGRES_PASSWORD: skylux_local_password
 
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5433:5432"
+
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -25,14 +26,13 @@ services:
       timeout: 5s
       retries: 5
 
-
   redis:
     image: redis:7-alpine
     container_name: skylux-redis
     restart: unless-stopped
 
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
     volumes:
       - redis_data:/data
@@ -48,6 +48,53 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    profiles:
+      - apps
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: skylux-backend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3001"
+    environment:
+      NODE_ENV: production
+      APP_PORT: 3001
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: skylux
+      DB_USER: skylux
+      DB_PASSWORD: skylux_local_password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3002,http://127.0.0.1:3002"
+      JWT_SECRET: skylux_super_secret_jwt_key_2026_change_in_production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    profiles:
+      - apps
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api}
+    container_name: skylux-frontend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3002:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+    depends_on:
+      backend:
+        condition: service_started
 
 volumes:
   postgres_data:
