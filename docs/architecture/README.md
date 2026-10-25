@@ -65,7 +65,9 @@ skylux/
 ├── frontend/
 ├── backend/
 ├── infra/
+│   └── scripts/
 ├── docs/
+│   └── legacy/docker-nginx/ (cấu hình cũ, chỉ lưu tham khảo)
 ├── .github/
 ├── docker-compose.yml
 ├── docker-compose.prod.yml
@@ -141,7 +143,7 @@ Không chứa business logic.
 
 ```text
 infra/
-├── nginx/
+└── (Nginx Docker cũ được lưu tại docs/legacy/docker-nginx/; không dùng trong production)
 ├── scripts/
 └── monitoring/
 ```
