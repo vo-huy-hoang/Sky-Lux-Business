@@ -4,8 +4,6 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
-  Optional,
-  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
@@ -26,12 +24,9 @@ import {
   AuditAction,
   AuditEntityType,
 } from '../audit-logs/audit-event.constants';
-import { RedisService } from '../../common/redis/redis.service';
 
 @Injectable()
 export class UsersService {
-  private readonly logger = new Logger(UsersService.name);
-
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -44,20 +39,7 @@ export class UsersService {
     @InjectRepository(Organization)
     private readonly organizationRepository: Repository<Organization>,
     private readonly auditLogsService: AuditLogsService,
-    @Optional()
-    private readonly redisService?: RedisService,
   ) {}
-
-  private async invalidateAuthMetaCache(userId: string): Promise<void> {
-    if (!this.redisService) return;
-    try {
-      await this.redisService.del(`user:auth-meta:${userId}`);
-    } catch (err: any) {
-      this.logger.warn(
-        `Failed to invalidate auth-meta cache for user ${userId}: ${err?.message || err}`,
-      );
-    }
-  }
 
   /**
    * Helper function to sanitize user entity by removing sensitive fields like passwordHash
@@ -496,8 +478,6 @@ export class UsersService {
       }
     }
 
-    await this.invalidateAuthMetaCache(id);
-
     return {
       data: this.sanitizeUser(updatedUser),
     };
@@ -531,8 +511,6 @@ export class UsersService {
       });
     }
 
-    await this.invalidateAuthMetaCache(id);
-
     return {
       message: 'Đã khóa tài khoản và thu hồi tất cả phiên đăng nhập thành công',
       data: this.sanitizeUser(savedUser),
@@ -560,8 +538,6 @@ export class UsersService {
         afterData: { status: UserStatus.ACTIVE },
       });
     }
-
-    await this.invalidateAuthMetaCache(id);
 
     return {
       message: 'Đã mở khóa tài khoản thành công',
@@ -596,8 +572,6 @@ export class UsersService {
         beforeData,
       });
     }
-
-    await this.invalidateAuthMetaCache(id);
 
     return {
       message: 'Đã xóa người dùng thành công',
@@ -651,8 +625,6 @@ export class UsersService {
         afterData: { roleIds: nextRoleIds },
       });
     }
-
-    await this.invalidateAuthMetaCache(id);
 
     return { message: 'Gán vai trò cho nhân viên thành công' };
   }

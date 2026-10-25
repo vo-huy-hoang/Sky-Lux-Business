@@ -3,8 +3,6 @@ import {
   UnauthorizedException,
   BadRequestException,
   NotFoundException,
-  Optional,
-  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -23,12 +21,9 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { UserStatus } from '../../common/enums';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
-import { RedisService } from '../../common/redis/redis.service';
 
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
-
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -38,8 +33,6 @@ export class AuthService {
     private readonly refreshTokenRepository: Repository<RefreshToken>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    @Optional()
-    private readonly redisService?: RedisService,
   ) {}
 
   private async extractUserPermissions(roles: any[]): Promise<string[]> {
@@ -279,7 +272,6 @@ export class AuthService {
       { userId, isRevoked: false },
       { isRevoked: true },
     );
-    await this.invalidateAuthMetaCache(userId);
   }
 
   async getMe(userId: string) {
@@ -428,20 +420,8 @@ export class AuthService {
     // A password change invalidates every other active session, including the
     // current refresh token. The client will sign in again with the new secret.
     await this.revokeUserTokens(userId);
-    await this.invalidateAuthMetaCache(userId);
 
     return { message: 'Đổi mật khẩu thành công' };
-  }
-
-  private async invalidateAuthMetaCache(userId: string): Promise<void> {
-    if (!this.redisService) return;
-    try {
-      await this.redisService.del(`user:auth-meta:${userId}`);
-    } catch (err: any) {
-      this.logger.warn(
-        `Failed to invalidate auth-meta cache for user ${userId}: ${err?.message || err}`,
-      );
-    }
   }
 
   private getJwtSecret(): string {

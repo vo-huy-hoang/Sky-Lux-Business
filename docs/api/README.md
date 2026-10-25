@@ -850,30 +850,7 @@ Dùng cho monitoring/deployment verification.
 
 ---
 
-# 23. Realtime Communication (SSE & Redis Pub/Sub)
-
-Hệ thống Sky-Lux CRM sử dụng kiến trúc **HTTP REST + Server-Sent Events (SSE)** kết hợp Redis Pub/Sub thay cho full-duplex WebSocket:
-
-### 1. Luồng xác thực SSE Stream Token
-Trước khi mở kết nối SSE EventSource, client gọi:
-```http
-POST /api/auth/stream-token
-Authorization: Bearer <AccessToken>
-```
-Nhận về dedicated stream token với claim `stream: true` (hạn dùng 120s).
-
-### 2. Mở kết nối luồng SSE
-- **Luồng chat**: `GET /api/conversations/stream?token={streamToken}`
-- **Luồng thông báo**: `GET /api/notifications/stream?token={streamToken}`
-
-### 3. Gửi tin nhắn & tương tác
-- **Gửi tin nhắn**: `POST /api/conversations/:id/messages`
-- **Đánh dấu đã đọc**: `POST /api/conversations/:id/read`
-- **Tín hiệu gõ phím**: `POST /api/conversations/:id/typing/start` & `POST /api/conversations/:id/typing/stop`
-
----
-
-# 24. HTTP status đề xuất
+# 23. HTTP status đề xuất
 
 ```text
 200 OK
@@ -890,7 +867,7 @@ Nhận về dedicated stream token với claim `stream: true` (hạn dùng 120s)
 
 ---
 
-# 25. OpenAPI
+# 24. OpenAPI
 
 NestJS nên xuất Swagger/OpenAPI để FE/BE thống nhất contract.
 
@@ -907,7 +884,7 @@ Không share TypeORM Entity trực tiếp sang frontend.
 
 ---
 
-# 26. Tài liệu liên quan
+# 25. Tài liệu liên quan
 
 - [Architecture](../architecture/README.md)
 - [Database](../database/README.md)

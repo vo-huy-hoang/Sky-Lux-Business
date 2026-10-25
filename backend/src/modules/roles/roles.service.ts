@@ -3,8 +3,6 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
-  Optional,
-  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -19,19 +17,14 @@ import {
   AuditAction,
   AuditEntityType,
 } from '../audit-logs/audit-event.constants';
-import { RedisService } from '../../common/redis/redis.service';
 
 @Injectable()
 export class RolesService {
-  private readonly logger = new Logger(RolesService.name);
-
   constructor(
     @InjectRepository(Role)
     private readonly roleRepository: Repository<Role>,
     private readonly dataSource: DataSource,
     private readonly auditLogsService: AuditLogsService,
-    @Optional()
-    private readonly redisService?: RedisService,
   ) {}
 
   async create(
@@ -229,26 +222,6 @@ export class RolesService {
         [role.id],
       );
     });
-
-    if (this.redisService) {
-      try {
-        const userRows: { user_id: string }[] = await this.dataSource.query(
-          `SELECT "user_id" FROM "user_roles" WHERE "role_id" = $1`,
-          [role.id],
-        );
-        if (userRows && userRows.length > 0) {
-          await Promise.all(
-            userRows.map((r) =>
-              this.redisService!.del(`user:auth-meta:${r.user_id}`),
-            ),
-          );
-        }
-      } catch (err: any) {
-        this.logger.warn(
-          `Failed to invalidate auth-meta cache for users in role ${role.id}: ${err?.message || err}`,
-        );
-      }
-    }
 
     await this.auditLogsService.record({
       organizationId,

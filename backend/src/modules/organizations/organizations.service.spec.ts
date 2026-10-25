@@ -1,13 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { NotFoundException, ConflictException } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
+import { NotFoundException } from '@nestjs/common';
+import { Repository } from 'typeorm';
 import { OrganizationsService } from './organizations.service';
 import { Organization } from './entities/organization.entity';
 import { Role } from '../roles/entities/role.entity';
 import { RolePermission } from '../permissions/entities/role-permission.entity';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
-import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { SettingsService } from '../settings/settings.service';
 
 describe('OrganizationsService', () => {
@@ -27,32 +26,6 @@ describe('OrganizationsService', () => {
   const mockOrgRepository = {
     findOne: jest.fn(),
     save: jest.fn(),
-    create: jest.fn((data) => ({ ...data, id: 'new-org-uuid' })),
-    find: jest.fn(),
-  };
-
-  const mockRoleRepository = {
-    find: jest.fn().mockResolvedValue([]),
-    create: jest.fn((data) => ({ ...data, id: `role-${data.code}` })),
-    save: jest.fn().mockImplementation((data) => Promise.resolve(data)),
-  };
-
-  const mockRolePermissionRepository = {
-    create: jest.fn((data) => data),
-    save: jest.fn().mockImplementation((data) => Promise.resolve(data)),
-  };
-
-  const mockEntityManager = {
-    getRepository: jest.fn((entity) => {
-      if (entity === Organization) return mockOrgRepository;
-      if (entity === Role) return mockRoleRepository;
-      if (entity === RolePermission) return mockRolePermissionRepository;
-      return {};
-    }),
-  };
-
-  const mockDataSource = {
-    transaction: jest.fn(async (callback) => callback(mockEntityManager)),
   };
 
   const mockSettingsService = {
@@ -70,19 +43,22 @@ describe('OrganizationsService', () => {
         },
         {
           provide: getRepositoryToken(Role),
-          useValue: mockRoleRepository,
+          useValue: {
+            find: jest.fn().mockResolvedValue([]),
+            create: jest.fn((data) => data),
+            save: jest.fn(),
+          },
         },
         {
           provide: getRepositoryToken(RolePermission),
-          useValue: mockRolePermissionRepository,
+          useValue: {
+            create: jest.fn((data) => data),
+            save: jest.fn(),
+          },
         },
         {
           provide: SettingsService,
           useValue: mockSettingsService,
-        },
-        {
-          provide: DataSource,
-          useValue: mockDataSource,
         },
       ],
     }).compile();
@@ -204,87 +180,6 @@ describe('OrganizationsService', () => {
         'VALUE',
       );
       expect(result).toEqual(mockSettingResult);
-    });
-  });
-
-  describe('findAll', () => {
-    it('should return a list of organizations sorted by name', async () => {
-      mockOrgRepository.find.mockResolvedValue([mockOrganization]);
-
-      const result = await service.findAll();
-
-      expect(mockOrgRepository.find).toHaveBeenCalledWith({
-        order: { name: 'ASC' },
-      });
-      expect(result).toEqual([mockOrganization]);
-    });
-  });
-
-  describe('create', () => {
-    const createDto: CreateOrganizationDto = {
-      code: 'NEWORG',
-      name: 'New Organization',
-      slug: 'new-org',
-      timezone: 'Asia/Ho_Chi_Minh',
-      currency: 'VND',
-    };
-
-    it('should atomically create organization, 5 system roles and copy permissions in a transaction', async () => {
-      mockOrgRepository.findOne.mockResolvedValue(null);
-      mockOrgRepository.save.mockResolvedValue({
-        id: 'new-org-uuid',
-        ...createDto,
-        status: 'ACTIVE',
-      });
-      mockRoleRepository.find.mockResolvedValue([
-        {
-          code: 'SUPER_ADMIN',
-          name: 'Quản trị tối cao',
-          rolePermissions: [{ permissionId: 'perm-1', scope: 'ALL' }],
-        },
-      ]);
-
-      const result = await service.create(createDto);
-
-      expect(mockDataSource.transaction).toHaveBeenCalled();
-      expect(mockOrgRepository.findOne).toHaveBeenCalledWith({
-        where: [{ code: 'NEWORG' }, { slug: 'new-org' }],
-      });
-      expect(mockOrgRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          code: 'NEWORG',
-          slug: 'new-org',
-          name: 'New Organization',
-          status: 'ACTIVE',
-        }),
-      );
-      expect(mockRoleRepository.save).toHaveBeenCalled();
-      expect(result.id).toBe('new-org-uuid');
-    });
-
-    it('should throw ConflictException if organization code or slug already exists', async () => {
-      mockOrgRepository.findOne.mockResolvedValue({ id: 'existing-id' });
-
-      await expect(service.create(createDto)).rejects.toThrow(ConflictException);
-
-      expect(mockOrgRepository.save).not.toHaveBeenCalled();
-      expect(mockRoleRepository.save).not.toHaveBeenCalled();
-    });
-
-    it('should abort and rollback transaction if role or permission creation fails', async () => {
-      mockOrgRepository.findOne.mockResolvedValue(null);
-      mockOrgRepository.save.mockResolvedValue({
-        id: 'new-org-uuid',
-        ...createDto,
-      });
-      mockRoleRepository.find.mockResolvedValue([]);
-      mockRoleRepository.save.mockRejectedValue(
-        new Error('PostgreSQL Unique Constraint Violation on roles'),
-      );
-
-      await expect(service.create(createDto)).rejects.toThrow(
-        'PostgreSQL Unique Constraint Violation on roles',
-      );
     });
   });
 });
