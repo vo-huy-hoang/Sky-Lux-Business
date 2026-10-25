@@ -6,6 +6,7 @@ import databaseConfig from './config/database.config';
 import appConfig from './config/app.config';
 import redisConfig from './config/redis.config';
 import storageConfig from './config/storage.config';
+import { validate } from './config/env.validations';
 import { BullModule } from '@nestjs/bullmq';
 
 import { AppController } from './app.controller';
@@ -73,6 +74,7 @@ import { CustomThrottlerGuard } from './common/throttler/custom-throttler.guard'
     ConfigModule.forRoot({
       isGlobal: true,
       load: [databaseConfig, appConfig, redisConfig, storageConfig],
+      validate,
     }),
     BullModule.forRootAsync({
       inject: [ConfigService],

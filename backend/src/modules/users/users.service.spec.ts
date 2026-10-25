@@ -14,9 +14,11 @@ import { Organization } from '../organizations/entities/organization.entity';
 import { UserStatus } from '../../common/enums';
 import { QueryUserDto } from './dto/query-user.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { RedisService } from '../../common/redis/redis.service';
 
 describe('UsersService', () => {
   let service: UsersService;
+  let mockRedisService: any;
 
   const mockQueryBuilder = {
     leftJoinAndSelect: jest.fn().mockReturnThis(),
@@ -49,6 +51,10 @@ describe('UsersService', () => {
   };
 
   beforeEach(async () => {
+    mockRedisService = {
+      del: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
@@ -75,6 +81,10 @@ describe('UsersService', () => {
         {
           provide: AuditLogsService,
           useValue: { record: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: RedisService,
+          useValue: mockRedisService,
         },
       ],
     }).compile();
@@ -484,6 +494,54 @@ describe('UsersService', () => {
       expect(result).toEqual({
         message: 'Gán vai trò cho nhân viên thành công',
       });
+      expect(mockRedisService.del).toHaveBeenCalledWith('user:auth-meta:user-uuid');
+    });
+  });
+
+  describe('Security Cache Invalidation (0ms Realtime Revocation)', () => {
+    const userId = 'user-uuid-sec';
+    const orgId = 'org-uuid-sec';
+
+    it('lockUser invalidates user auth-meta in Redis', async () => {
+      const mockUser = { id: userId, organizationId: orgId, status: UserStatus.ACTIVE };
+      mockUserRepository.findOne.mockResolvedValue(mockUser);
+      mockUserRepository.save.mockResolvedValue({ ...mockUser, status: UserStatus.LOCKED });
+      mockRefreshTokenRepository.update.mockResolvedValue({ affected: 1 });
+
+      await service.lockUser(orgId, userId);
+
+      expect(mockRedisService.del).toHaveBeenCalledWith(`user:auth-meta:${userId}`);
+    });
+
+    it('unlockUser invalidates user auth-meta in Redis', async () => {
+      const mockUser = { id: userId, organizationId: orgId, status: UserStatus.LOCKED };
+      mockUserRepository.findOne.mockResolvedValue(mockUser);
+      mockUserRepository.save.mockResolvedValue({ ...mockUser, status: UserStatus.ACTIVE });
+
+      await service.unlockUser(orgId, userId);
+
+      expect(mockRedisService.del).toHaveBeenCalledWith(`user:auth-meta:${userId}`);
+    });
+
+    it('remove invalidates user auth-meta in Redis', async () => {
+      const mockUser = { id: userId, organizationId: orgId };
+      mockUserRepository.findOne.mockResolvedValue(mockUser);
+      mockRefreshTokenRepository.update.mockResolvedValue({ affected: 1 });
+      mockUserRepository.softRemove.mockResolvedValue(mockUser);
+
+      await service.remove(orgId, userId);
+
+      expect(mockRedisService.del).toHaveBeenCalledWith(`user:auth-meta:${userId}`);
+    });
+
+    it('update invalidates user auth-meta in Redis', async () => {
+      const mockUser = { id: userId, organizationId: orgId, fullName: 'Old Name' };
+      mockUserRepository.findOne.mockResolvedValue(mockUser);
+      mockUserRepository.save.mockResolvedValue({ ...mockUser, fullName: 'New Name' });
+
+      await service.update(orgId, userId, { fullName: 'New Name' });
+
+      expect(mockRedisService.del).toHaveBeenCalledWith(`user:auth-meta:${userId}`);
     });
   });
 });

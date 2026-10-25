@@ -4,7 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Organization } from './entities/organization.entity';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { SettingsService } from '../settings/settings.service';
@@ -22,6 +22,7 @@ export class OrganizationsService {
     @InjectRepository(RolePermission)
     private readonly rolePermissionRepository: Repository<RolePermission>,
     private readonly settingsService: SettingsService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async findAll(): Promise<Organization[]> {
@@ -31,70 +32,77 @@ export class OrganizationsService {
   async create(dto: CreateOrganizationDto): Promise<Organization> {
     const code = dto.code.trim().toUpperCase();
     const slug = dto.slug.trim().toLowerCase();
-    const duplicate = await this.orgRepository.findOne({
-      where: [{ code }, { slug }],
-    });
-    if (duplicate) {
-      throw new ConflictException('Mã hoặc slug tổ chức đã tồn tại');
-    }
 
-    const organization = await this.orgRepository.save(
-      this.orgRepository.create({
-        ...dto,
-        code,
-        slug,
-        name: dto.name.trim(),
-        timezone: dto.timezone ?? 'Asia/Ho_Chi_Minh',
-        currency: dto.currency?.trim().toUpperCase() ?? 'VND',
-        status: 'ACTIVE',
-      }),
-    );
+    return this.dataSource.transaction(async (manager) => {
+      const orgRepo = manager.getRepository(Organization);
+      const roleRepo = manager.getRepository(Role);
+      const rolePermRepo = manager.getRepository(RolePermission);
 
-    // Every organization needs its own role records and permission grants.
-    // Copy the role template from the first configured organization.
-    const templates = await this.roleRepository.find({
-      relations: { rolePermissions: true },
-      order: { createdAt: 'ASC' },
-    });
-    const templateByCode = new Map<string, Role>();
-    for (const role of templates) {
-      if (!templateByCode.has(role.code)) templateByCode.set(role.code, role);
-    }
-    const roleCodes = [
-      'SUPER_ADMIN',
-      'CEO_ADMIN',
-      'SALES',
-      'OPERATOR',
-      'ACCOUNTANT',
-    ];
-    const createdRoles = await this.roleRepository.save(
-      roleCodes.map((roleCode) => {
-        const template = templateByCode.get(roleCode);
-        return this.roleRepository.create({
-          organizationId: organization.id,
-          code: roleCode,
-          name: template?.name ?? roleCode,
-          description: template?.description,
-          isSystem:
-            template?.isSystem ??
-            ['SUPER_ADMIN', 'CEO_ADMIN'].includes(roleCode),
-        });
-      }),
-    );
-    const permissionGrants = createdRoles.flatMap((role) =>
-      (templateByCode.get(role.code)?.rolePermissions ?? []).map((grant) =>
-        this.rolePermissionRepository.create({
-          roleId: role.id,
-          permissionId: grant.permissionId,
-          scope: grant.scope,
+      const duplicate = await orgRepo.findOne({
+        where: [{ code }, { slug }],
+      });
+      if (duplicate) {
+        throw new ConflictException('Mã hoặc slug tổ chức đã tồn tại');
+      }
+
+      const organization = await orgRepo.save(
+        orgRepo.create({
+          ...dto,
+          code,
+          slug,
+          name: dto.name.trim(),
+          timezone: dto.timezone ?? 'Asia/Ho_Chi_Minh',
+          currency: dto.currency?.trim().toUpperCase() ?? 'VND',
+          status: 'ACTIVE',
         }),
-      ),
-    );
-    if (permissionGrants.length) {
-      await this.rolePermissionRepository.save(permissionGrants);
-    }
+      );
 
-    return organization;
+      // Every organization needs its own role records and permission grants.
+      // Copy the role template from the first configured organization.
+      const templates = await roleRepo.find({
+        relations: { rolePermissions: true },
+        order: { createdAt: 'ASC' },
+      });
+      const templateByCode = new Map<string, Role>();
+      for (const role of templates) {
+        if (!templateByCode.has(role.code)) templateByCode.set(role.code, role);
+      }
+      const roleCodes = [
+        'SUPER_ADMIN',
+        'CEO_ADMIN',
+        'SALES',
+        'OPERATOR',
+        'ACCOUNTANT',
+      ];
+      const createdRoles = await roleRepo.save(
+        roleCodes.map((roleCode) => {
+          const template = templateByCode.get(roleCode);
+          return roleRepo.create({
+            organizationId: organization.id,
+            code: roleCode,
+            name: template?.name ?? roleCode,
+            description: template?.description,
+            isSystem:
+              template?.isSystem ??
+              ['SUPER_ADMIN', 'CEO_ADMIN'].includes(roleCode),
+          });
+        }),
+      );
+      const permissionGrants = createdRoles.flatMap((role) =>
+        (templateByCode.get(role.code)?.rolePermissions ?? []).map((grant) =>
+          rolePermRepo.create({
+            roleId: role.id,
+            permissionId: grant.permissionId,
+            scope: grant.scope,
+          }),
+        ),
+      );
+      if (permissionGrants.length) {
+        await rolePermRepo.save(permissionGrants);
+      }
+
+      return organization;
+    });
   }
 
   async getProfile(organizationId: string): Promise<Organization> {

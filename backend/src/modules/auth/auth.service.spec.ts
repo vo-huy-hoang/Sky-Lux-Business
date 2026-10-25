@@ -2,18 +2,28 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { User } from '../users/entities/user.entity';
 import { RolePermission } from '../permissions/entities/role-permission.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
+import { RedisService } from '../../common/redis/redis.service';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+
+jest.mock('bcrypt', () => ({
+  compare: jest.fn().mockResolvedValue(true),
+  hash: jest.fn().mockResolvedValue('new-hashed-password'),
+}));
 
 describe('AuthService', () => {
   let service: AuthService;
   let testingModule: TestingModule;
+  let mockUserRepository: any;
+  let mockRefreshTokenRepository: any;
+  let mockRedisService: any;
 
   beforeEach(async () => {
-    const mockRepository = {
+    mockUserRepository = {
       findOne: jest.fn(),
       save: jest.fn(),
     };
@@ -24,12 +34,23 @@ describe('AuthService', () => {
       getMany: jest.fn().mockResolvedValue([]),
     };
 
+    mockRefreshTokenRepository = {
+      create: jest.fn(),
+      save: jest.fn(),
+      findOne: jest.fn(),
+      update: jest.fn(),
+    };
+
+    mockRedisService = {
+      del: jest.fn().mockResolvedValue(undefined),
+    };
+
     testingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         {
           provide: getRepositoryToken(User),
-          useValue: mockRepository,
+          useValue: mockUserRepository,
         },
         {
           provide: getRepositoryToken(RolePermission),
@@ -39,12 +60,7 @@ describe('AuthService', () => {
         },
         {
           provide: getRepositoryToken(RefreshToken),
-          useValue: {
-            create: jest.fn(),
-            save: jest.fn(),
-            findOne: jest.fn(),
-            update: jest.fn(),
-          },
+          useValue: mockRefreshTokenRepository,
         },
         {
           provide: JwtService,
@@ -58,6 +74,10 @@ describe('AuthService', () => {
           useValue: {
             get: jest.fn(),
           },
+        },
+        {
+          provide: RedisService,
+          useValue: mockRedisService,
         },
       ],
     }).compile();
@@ -102,4 +122,51 @@ describe('AuthService', () => {
       { secret: 'test-jwt-secret', expiresIn: '60s' },
     );
   });
+
+  describe('Security Cache Invalidation (0ms Realtime Revocation)', () => {
+    it('changePassword increments authVersion, revokes tokens, and immediately invalidates Redis auth-meta cache', async () => {
+      const mockUser = {
+        id: 'user-uuid-1',
+        passwordHash: 'old-hashed-password',
+        authVersion: 1,
+      };
+      mockUserRepository.findOne.mockResolvedValue(mockUser);
+      mockUserRepository.save.mockImplementation(async (u: any) => u);
+      mockRefreshTokenRepository.update.mockResolvedValue({ affected: 2 });
+
+      const result = await service.changePassword('user-uuid-1', {
+        currentPassword: 'currentPassword123',
+        newPassword: 'newPassword123',
+      });
+
+      expect(result).toEqual({ message: 'Đổi mật khẩu thành công' });
+      expect(mockUser.authVersion).toBe(2);
+      expect(mockUserRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'user-uuid-1',
+          authVersion: 2,
+          passwordHash: 'new-hashed-password',
+        }),
+      );
+      expect(mockRefreshTokenRepository.update).toHaveBeenCalledWith(
+        { userId: 'user-uuid-1', isRevoked: false },
+        { isRevoked: true },
+      );
+      // Redis auth-meta cache is actively deleted for 0ms realtime revocation
+      expect(mockRedisService.del).toHaveBeenCalledWith('user:auth-meta:user-uuid-1');
+    });
+
+    it('revokeUserTokens invalidates Redis auth-meta cache', async () => {
+      mockRefreshTokenRepository.update.mockResolvedValue({ affected: 1 });
+
+      await service.revokeUserTokens('user-uuid-2');
+
+      expect(mockRefreshTokenRepository.update).toHaveBeenCalledWith(
+        { userId: 'user-uuid-2', isRevoked: false },
+        { isRevoked: true },
+      );
+      expect(mockRedisService.del).toHaveBeenCalledWith('user:auth-meta:user-uuid-2');
+    });
+  });
 });
+
