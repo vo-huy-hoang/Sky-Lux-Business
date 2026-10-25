@@ -15,6 +15,7 @@ export const dataSourceOptions: DataSourceOptions = {
   database: process.env.DB_NAME || 'skylux',
   entities: [path.join(__dirname, '../modules/**/*.entity{.ts,.js}')],
   migrations: [path.join(__dirname, 'migrations/*{.ts,.js}')],
+  migrationsRun: false,
   subscribers: [path.join(__dirname, 'subscribers/*{.ts,.js}')],
   synchronize: false,
   logging: process.env.NODE_ENV !== 'production',

@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Sky-Lux CRM — Pre-Go-Live Chaos Drill & Rolling Deploy Simulation Script
-# Generated for Ticket 10 & Phase 5 Enterprise Verification
+# Sky-Lux CRM — Concurrent Availability Probe
 #
-# Simulates concurrent traffic, data mutations, and SSE stream checks during
-# container deployment to prove 0% 502/503 errors, data integrity, and resilience.
+# Sends concurrent HTTP probes to the configured app URL. This does not deploy
+# containers or verify database integrity, SSE behavior, or zero-downtime rollout.
 # ==============================================================================
 
 set -euo pipefail
@@ -15,7 +14,7 @@ CONCURRENCY="${CONCURRENCY:-4}"
 REPORT_FILE="${REPORT_FILE:-/opt/skylux/reports/CHAOS_DRILL_REPORT.md}"
 
 echo "=============================================================================="
-echo " 🚀 SKY-LUX CRM — PRE-GO-LIVE CHAOS DRILL & RESILIENCE SIMULATION"
+echo " 🚀 SKY-LUX CRM — CONCURRENT AVAILABILITY PROBE"
 echo " Target URL:       $TARGET_URL"
 echo " Total Requests:   $TOTAL_REQUESTS"
 echo " Concurrency:      $CONCURRENCY workers"
@@ -137,25 +136,21 @@ cat << EOF > "$REPORT_FILE" 2>/dev/null || true
 ## Key Performance Indicators (KPIs)
 | Chỉ Số Đo Lường | Kết Quả Thực Tế | Ngưỡng Chuẩn Enterprise | Đánh Giá |
 | :--- | :---: | :---: | :---: |
-| **Tỷ lệ lỗi HTTP 502/503** | **${DOWNTIME_PCT}%** | < 0.5% (Zero-Downtime) | PASS ✔ |
-| **Tỷ lệ phục vụ thành công** | **${SUCCESS_PCT}%** | >= 99.5% | PASS ✔ |
-| **Tính toàn vẹn ACID Estimates** | 100% Transaction | Rollback-safe on error | PASS ✔ |
-| **SSE Reconnect Resilience** | Backoff + Jitter | Capped 15s (No herd) | PASS ✔ |
-| **Static Chunk Retention** | Shared Persistent Vol | Zero ChunkLoadError | PASS ✔ |
-| **Cơ chế Sao lưu Dự phòng** | 7-day retention + R2 | Pre-migration backup gate | PASS ✔ |
+| HTTP 502/503 trong probe | ${DOWNTIME_PCT}% | < 0.5% | Đo trong lần chạy này |
+| HTTP response được chấp nhận | ${SUCCESS_PCT}% | Tham khảo | Đo trong lần chạy này |
 
 ## Kết Luận Kiểm Toán
-Hệ thống Sky-Lux CRM đáp ứng đầy đủ tiêu chuẩn vận hành cấp doanh nghiệp, đảm bảo triển khai không gián đoạn (Zero-Downtime Deployments) và không mất mát dữ liệu (Zero Data Loss).
+Probe này chỉ đo phản hồi HTTP dưới một lượng request đồng thời. Nó không mô phỏng deploy và không xác nhận ACID, SSE, static chunks, backup, hay zero downtime.
 EOF
 
 if [[ -f "$REPORT_FILE" ]]; then
   echo "✔ Audit report successfully written to: $REPORT_FILE"
 fi
 
-if (( $(echo "$DOWNTIME_PCT < 1.0" | awk '{print ($1)?1:0}') )); then
-  echo "✔ CHAOS DRILL PASSED: System achieved Zero-Downtime resiliency."
+if (( $(echo "$DOWNTIME_PCT < 0.5" | awk '{print ($1)?1:0}') )); then
+  echo "✔ Availability probe stayed below the configured 0.5% HTTP 502/503 threshold."
   exit 0
 else
   echo "⚠ DRILL WARNING: HTTP 502 error rate exceeded threshold."
-  exit 0
+  exit 1
 fi

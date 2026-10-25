@@ -1,14 +1,7 @@
 name: Deploy Production
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Docker image version"
-        required: false
 
 env:
   REGISTRY: ghcr.io
@@ -24,6 +17,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Validate production Compose config
+        run: docker compose --env-file ../.env.example -f ../docker-compose.prod.yml config --quiet
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -32,10 +28,17 @@ jobs:
           cache-dependency-path: backend/package-lock.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Lint check (non-blocking)
-        run: npm run lint || true
+      - name: Lint check
+        run: npm run lint
+        continue-on-error: true # Existing lint debt must be resolved before this can gate deployment.
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build backend
+        run: npm run build
 
       - name: Unit & Integration Tests
         run: npm run test -- --runInBand
@@ -58,10 +61,17 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Lint check (non-blocking)
-        run: npm run lint || true
+      - name: Lint check
+        run: npm run lint
+        continue-on-error: true # Existing lint debt must be resolved before this can gate deployment.
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build frontend
+        run: npm run build
 
       - name: Unit & Integration Tests
         run: npm run test -- --runInBand
@@ -69,6 +79,8 @@ jobs:
   build-and-deploy:
     name: Build & Deploy Production
     needs: [test-backend, test-frontend]
+    if: github.ref == 'refs/heads/main'
+    environment: production
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -133,86 +145,5 @@ jobs:
           script: |
             set -e
             cd /opt/skylux
-
-            # Check for SSL certificates before proceeding
-            echo "Checking SSL certificates..."
-            CERT_DIR="/opt/skylux/infra/nginx/certs"
-            if [ ! -f "${CERT_DIR}/origin.pem" ] || [ ! -f "${CERT_DIR}/origin-key.pem" ]; then
-              echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
-              echo "ERROR: SSL Certificates are missing on the VPS!"
-              echo "Expected files: "
-              echo "  - ${CERT_DIR}/origin.pem"
-              echo "  - ${CERT_DIR}/origin-key.pem"
-              echo "Please manually upload these files to the VPS before deploying."
-              echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
-              exit 1
-            fi
-            echo "SSL certificates verified successfully."
-
-            export APP_VERSION=${{ github.sha }}
-            export REGISTRY_OWNER=${{ steps.image_owner.outputs.owner }}
-
-            # Capture current running version for rollback safety
-            PREVIOUS_APP_VERSION=$(grep '^APP_VERSION=' .env 2>/dev/null | cut -d '=' -f2 || true)
-            if [ -n "$PREVIOUS_APP_VERSION" ]; then
-              echo "Saving previous version: $PREVIOUS_APP_VERSION"
-              touch .env.previous
-              sed -i '/^APP_VERSION=/d' .env.previous 2>/dev/null || true
-              echo "APP_VERSION=$PREVIOUS_APP_VERSION" >> .env.previous
-            fi
-
-            # Persist variables in .env for manual docker compose operations
-            touch .env
-            sed -i '/^APP_VERSION=/d' .env
-            sed -i '/^REGISTRY_OWNER=/d' .env
-            echo "APP_VERSION=${{ github.sha }}" >> .env
-            echo "REGISTRY_OWNER=${{ steps.image_owner.outputs.owner }}" >> .env
-
-            echo "Login to GitHub Container Registry on VPS"
             echo "${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-            echo "Pull latest images"
-            docker compose -f docker-compose.prod.yml pull
-
-            echo "Creating pre-deployment database backup snapshot..."
-            BACKUP_PREFIX="skylux_pre_deploy_${APP_VERSION:0:8}" bash infra/scripts/backup-db.sh
-
-            echo "Run database migration"
-            if ! docker compose -f docker-compose.prod.yml run --rm backend npm run migration:run:prod; then
-              echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
-              echo "ERROR: Database migration failed! Aborting deployment."
-              echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
-              exit 1
-            fi
-
-            echo "Restart services"
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
-
-            echo "Verifying service health status..."
-            HEALTHY=0
-            for i in $(seq 1 12); do
-              if docker compose -f docker-compose.prod.yml exec -T nginx wget -qO- http://backend:3001/api/health >/dev/null 2>&1; then
-                HEALTHY=1
-                break
-              fi
-              echo "Waiting for services to become healthy ($i/12, sleep 5s)..."
-              sleep 5
-            done
-
-            if [ "$HEALTHY" -ne 1 ]; then
-              echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
-              echo "ERROR: Service health check failed after 60 seconds!"
-              if [ -n "$PREVIOUS_APP_VERSION" ]; then
-                echo "Initiating automatic rollback to previous version: ${PREVIOUS_APP_VERSION}..."
-                bash infra/scripts/rollback.sh "$PREVIOUS_APP_VERSION"
-              fi
-              echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
-              exit 1
-            fi
-            echo "Services verified healthy and responding to HTTP requests."
-
-            echo "Reload Nginx configuration"
-            docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload || true
-
-            echo "Cleanup unused images"
-            docker image prune -f
+            bash infra/scripts/deploy.sh "${{ github.sha }}" "${{ steps.image_owner.outputs.owner }}"

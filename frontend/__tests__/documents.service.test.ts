@@ -98,7 +98,7 @@ describe('DocumentsService (Frontend)', () => {
 
   it('API-DOCUMENT-005: getDownloadUrl calls GET /documents/:id/download-url', async () => {
     const mockDownloadResponse = {
-      downloadUrl: 'https://r2.storage.example.com/file.pdf?signature=xyz',
+      downloadUrl: 'https://res.cloudinary.com/example/raw/upload/file.pdf',
       originalName: 'hop-dong-tour.pdf',
       mimeType: 'application/pdf',
       fileSize: 102400,

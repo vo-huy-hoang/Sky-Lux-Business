@@ -10,7 +10,8 @@ export default registerAs('database', (): TypeOrmModuleOptions => ({
   database: process.env.DB_NAME || 'skylux',
   entities: [__dirname + '/../modules/**/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
-  migrationsRun: true,
+  // Production migrations are applied once by the deployment pipeline.
+  migrationsRun: false,
   subscribers: [__dirname + '/../database/subscribers/*{.ts,.js}'],
   synchronize: false,
   logging: process.env.NODE_ENV !== 'production',

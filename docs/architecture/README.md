@@ -27,12 +27,12 @@ flowchart TD
 
     BE --> PG[(PostgreSQL)]
     BE --> R[(Redis<br/>Cache / PubSub / Queue)]
-    BE --> OS[Cloudflare R2 / S3-compatible]
+    BE --> OS[Cloudinary<br/>uploads and media delivery]
     BE --> Q[BullMQ Queue]
     W[Worker] --> PG
     Q --> W
     W --> R
-    W --> OS
+    HOST[Host cron] --> BK[Local database backups<br/>/opt/skylux/backups]
 ```
 
 Luồng public:
@@ -40,9 +40,9 @@ Luồng public:
 ```text
 Internet
    ↓
-app.skylux.vn
+Domain production được cấu hình qua `APP_DOMAIN`
    ↓
-Cloudflare
+DNS / Proxy / TLS provider
    ↓
 VPS
    ↓
@@ -270,12 +270,11 @@ Không cho frontend update `status` tùy ý. Backend phải kiểm tra transitio
 
 ```text
 StorageService
-├── R2StorageAdapter
-├── S3StorageAdapter
-└── B2StorageAdapter
+├── Cloudinary uploads
+└── Local filesystem fallback
 ```
 
-Business module chỉ phụ thuộc abstraction.
+Business module chỉ phụ thuộc abstraction. Cloudinary chỉ được dùng cho media và tệp ứng dụng. Database backups hiện được giữ local trên VPS; off-site backup sẽ được cấu hình riêng sau.
 
 ### 5.4. Pipeline cho Excel Import
 

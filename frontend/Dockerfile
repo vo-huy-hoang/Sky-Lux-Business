@@ -3,6 +3,7 @@ FROM node:20-alpine AS deps
 WORKDIR /app
 
 COPY package*.json ./
+COPY scripts/patch-next.js ./scripts/patch-next.js
 
 RUN npm install
 

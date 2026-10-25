@@ -24,7 +24,7 @@ Base path:
 Ví dụ production:
 
 ```text
-https://app.skylux.vn/api
+https://<production-domain>/api
 ```
 
 Frontend không hard-code IP VPS.

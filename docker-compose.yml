@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: skylux_local_password
 
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
 
 
     volumes:
@@ -32,7 +32,7 @@ services:
     restart: unless-stopped
 
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
     volumes:
       - redis_data:/data
@@ -57,7 +57,7 @@ services:
     container_name: skylux-backend
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     environment:
       NODE_ENV: production
       APP_PORT: 3001
@@ -68,6 +68,7 @@ services:
       DB_PASSWORD: skylux_local_password
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3002,http://127.0.0.1:3002"
       JWT_SECRET: skylux_super_secret_jwt_key_2026_change_in_production
     depends_on:
       postgres:
@@ -81,10 +82,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api}
     container_name: skylux-frontend
     restart: unless-stopped
     ports:
-      - "3002:3000"
+      - "127.0.0.1:3002:3000"
     environment:
       NODE_ENV: production
       PORT: 3000

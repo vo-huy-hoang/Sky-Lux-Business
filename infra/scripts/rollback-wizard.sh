@@ -198,10 +198,11 @@ bash "$PROJECT_DIR/infra/scripts/rollback.sh" "$TARGET_APP_VERSION"
 ok "Container đã được xoay vòng về phiên bản $TARGET_APP_VERSION."
 
 step "Kiểm tra kiểm toán sức khỏe tổng thể:"
-if docker compose -f "$COMPOSE_FILE" exec -T nginx wget -qO- http://backend:3001/api/health >/dev/null 2>&1; then
-  ok "API Healthcheck 200 OK — Hệ thống đang vận hành ổn định."
+if docker compose -f "$COMPOSE_FILE" exec -T backend wget -qO- http://localhost:3001/api/health >/dev/null 2>&1 \
+  && docker compose -f "$COMPOSE_FILE" exec -T frontend wget -qO- http://localhost:3000/ >/dev/null 2>&1; then
+  ok "Backend và frontend phản hồi healthcheck."
 else
-  warn "Healthcheck chưa phản hồi ngay lập tức. Hãy kiểm tra logs hệ thống:"
+  warn "Backend hoặc frontend chưa phản hồi healthcheck. Hãy kiểm tra logs hệ thống:"
   say "docker compose -f $COMPOSE_FILE logs -f"
 fi
 

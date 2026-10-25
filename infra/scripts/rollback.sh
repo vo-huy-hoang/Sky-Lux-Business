@@ -8,7 +8,7 @@
 #   bash rollback.sh --db <backup_file>    # Phục hồi CSDL từ file backup
 # ==============================================================================
 
-set -e
+set -euo pipefail
 
 PROJECT_DIR="${PROJECT_DIR:-/opt/skylux}"
 COMPOSE_FILE="docker-compose.prod.yml"
@@ -19,6 +19,11 @@ if [ -f ".env" ]; then
   # shellcheck disable=SC1091
   . ./.env
 fi
+: "${REGISTRY_OWNER:?REGISTRY_OWNER must be set in /opt/skylux/.env}"
+if [[ "$REGISTRY_OWNER" == your-github-owner || "$REGISTRY_OWNER" == YOUR_ORG ]]; then
+  echo "✖ ERROR: Replace the REGISTRY_OWNER placeholder in /opt/skylux/.env."
+  exit 1
+fi
 
 echo "=========================================================="
 echo "      🚀 SKY-LUX CRM - PRODUCTION ROLLBACK UTILITY        "
@@ -28,8 +33,8 @@ CURRENT_VERSION="${APP_VERSION:-unknown}"
 echo "Current APP_VERSION: $CURRENT_VERSION"
 
 # Xử lý tham số phục hồi CSDL chuyên biệt
-if [ "$1" = "--db" ]; then
-  if [ -z "$2" ]; then
+if [ "${1:-}" = "--db" ]; then
+  if [ -z "${2:-}" ]; then
     echo "✖ ERROR: Vui lòng cung cấp đường dẫn file backup: bash rollback.sh --db <file.sql.gz>"
     exit 1
   fi
@@ -41,7 +46,7 @@ if [ "$1" = "--db" ]; then
 fi
 
 # Xác định phiên bản mục tiêu cần rollback
-TARGET_VERSION="$1"
+TARGET_VERSION="${1:-}"
 if [ -z "$TARGET_VERSION" ]; then
   if [ -f ".env.previous" ]; then
     TARGET_VERSION=$(grep '^APP_VERSION=' .env.previous 2>/dev/null | cut -d '=' -f2 || true)
@@ -60,13 +65,14 @@ if [ "$TARGET_VERSION" = "$CURRENT_VERSION" ]; then
 fi
 
 echo "Initiating rollback to version: $TARGET_VERSION..."
+echo "This changes application images only; database schema and data are not reverted."
 
 # Cập nhật .env với phiên bản mục tiêu
 sed -i '/^APP_VERSION=/d' .env
 echo "APP_VERSION=$TARGET_VERSION" >> .env
 
 echo "Pulling Docker images for version: $TARGET_VERSION..."
-docker compose -f "$COMPOSE_FILE" pull frontend backend || true
+docker compose -f "$COMPOSE_FILE" pull frontend backend
 
 echo "Restarting application containers..."
 docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
@@ -74,7 +80,8 @@ docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
 echo "Verifying health status of rolled-back services..."
 HEALTHY=0
 for i in $(seq 1 12); do
-  if docker compose -f "$COMPOSE_FILE" exec -T nginx wget -qO- http://backend:3001/api/health >/dev/null 2>&1; then
+  if docker compose -f "$COMPOSE_FILE" exec -T backend wget -qO- http://localhost:3001/api/health >/dev/null 2>&1 \
+    && docker compose -f "$COMPOSE_FILE" exec -T frontend wget -qO- http://localhost:3000/ >/dev/null 2>&1; then
     HEALTHY=1
     break
   fi
@@ -89,9 +96,6 @@ if [ "$HEALTHY" -ne 1 ]; then
   echo "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
   exit 1
 fi
-
-echo "Reloading Nginx proxy configuration..."
-docker compose -f "$COMPOSE_FILE" exec -T nginx nginx -s reload || true
 
 echo "=========================================================="
 echo "✔ ROLLBACK COMPLETED SUCCESSFULLY to version: $TARGET_VERSION"
