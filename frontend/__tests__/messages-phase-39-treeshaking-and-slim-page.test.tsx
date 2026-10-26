@@ -197,7 +197,7 @@ describe('Phase 39: Tree-Shaking, Barrel Optimization & Slim Page', () => {
     it('verifies page.tsx is under 60 lines', () => {
       const fs = require('fs');
       const path = require('path');
-      const pageContent = fs.readFileSync(path.resolve(__dirname, '../app/main/messages/page.tsx'), 'utf-8');
+      const pageContent = fs.readFileSync(path.resolve(__dirname, '../app/(main)/messages/page.tsx'), 'utf-8');
       const lineCount = pageContent.split('\n').length;
       expect(lineCount).toBeLessThanOrEqual(60);
     });

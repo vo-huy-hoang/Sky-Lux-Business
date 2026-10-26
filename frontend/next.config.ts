@@ -13,8 +13,26 @@ const nextConfig: NextConfig = {
       'lodash',
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: '/auth/login',
+        destination: '/login',
+        permanent: true,
+      },
+      {
+        source: '/main',
+        destination: '/dashboard',
+        permanent: true,
+      },
+      {
+        source: '/main/:path*',
+        destination: '/:path*',
+        permanent: true,
+      },
+    ];
+  },
 };
-
 
 // Next.js config with dynamic routes support
 export default nextConfig;

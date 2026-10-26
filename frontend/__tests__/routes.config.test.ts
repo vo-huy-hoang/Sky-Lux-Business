@@ -27,7 +27,7 @@ import {
 } from '@/lib/routes.config';
 
 describe('routes.config - Permission-Driven Dynamic Navigation', () => {
-  it('OPERATOR: includes /main/suppliers and excludes /main/customers', () => {
+  it('OPERATOR: includes /suppliers and excludes /customers', () => {
     const operatorCtx: UserContext = {
       roles: ['OPERATOR'],
       permissions: [
@@ -54,15 +54,15 @@ describe('routes.config - Permission-Driven Dynamic Navigation', () => {
     const routes = getAccessibleRoutes(operatorCtx);
     const paths = routes.map((r) => r.path);
 
-    expect(paths).toContain('/main/suppliers');
-    expect(paths).not.toContain('/main/customers');
-    expect(paths).toContain('/main/imports');
-    expect(paths).toContain('/main/sales');
-    expect(paths).toContain('/main/revenue');
-    expect(paths).toContain('/main/dashboard');
+    expect(paths).toContain('/suppliers');
+    expect(paths).not.toContain('/customers');
+    expect(paths).toContain('/imports');
+    expect(paths).toContain('/sales');
+    expect(paths).toContain('/revenue');
+    expect(paths).toContain('/dashboard');
   });
 
-  it('SALES: includes /main/customers and excludes /main/suppliers and /main/approvals', () => {
+  it('SALES: includes /customers and excludes /suppliers and /approvals', () => {
     const salesCtx: UserContext = {
       roles: ['SALES'],
       permissions: [
@@ -92,13 +92,13 @@ describe('routes.config - Permission-Driven Dynamic Navigation', () => {
     const routes = getAccessibleRoutes(salesCtx);
     const paths = routes.map((r) => r.path);
 
-    expect(paths).toContain('/main/customers');
-    expect(paths).toContain('/main/imports');
-    expect(paths).toContain('/main/dossiers');
-    expect(paths).not.toContain('/main/suppliers');
-    expect(paths).not.toContain('/main/approvals');
-    expect(paths).not.toContain('/main/users');
-    expect(paths).not.toContain('/main/settings');
+    expect(paths).toContain('/customers');
+    expect(paths).toContain('/imports');
+    expect(paths).toContain('/dossiers');
+    expect(paths).not.toContain('/suppliers');
+    expect(paths).not.toContain('/approvals');
+    expect(paths).not.toContain('/users');
+    expect(paths).not.toContain('/settings');
   });
 
   it('SUPER_ADMIN: has access to full administrative suite', () => {
@@ -114,20 +114,26 @@ describe('routes.config - Permission-Driven Dynamic Navigation', () => {
     const routes = getAccessibleRoutes(superAdminCtx);
     const paths = routes.map((r) => r.path);
 
-    expect(paths).toContain('/main/users');
-    expect(paths).toContain('/main/settings');
-    expect(paths).toContain('/main/audit-logs');
-    expect(paths).toContain('/main/reports');
-    expect(paths).toContain('/main/approvals');
-    expect(paths).toContain('/main/revenue');
-    expect(paths).toContain('/main/kpi');
+    expect(paths).toContain('/users');
+    expect(paths).toContain('/settings');
+    expect(paths).toContain('/audit-logs');
+    expect(paths).toContain('/reports');
+    expect(paths).toContain('/approvals');
+    expect(paths).toContain('/revenue');
+    expect(paths).toContain('/kpi');
   });
 
-  it('getActiveMenuKey: fixes the bug where /main/suppliers highlighted /main/customers', () => {
-    expect(getActiveMenuKey('/main/suppliers')).toBe('/main/suppliers');
-    expect(getActiveMenuKey('/main/customers')).toBe('/main/customers');
-    expect(getActiveMenuKey('/main/dossiers/123-abc')).toBe('/main/dossiers');
-    expect(getActiveMenuKey('/main/dashboard')).toBe('/main/dashboard');
+  it('getActiveMenuKey: highlights canonical and backward-compatible paths correctly', () => {
+    expect(getActiveMenuKey('/suppliers')).toBe('/suppliers');
+    expect(getActiveMenuKey('/customers')).toBe('/customers');
+    expect(getActiveMenuKey('/dossiers/123-abc')).toBe('/dossiers');
+    expect(getActiveMenuKey('/dashboard')).toBe('/dashboard');
+
+    // Backward compatibility checks
+    expect(getActiveMenuKey('/main/suppliers')).toBe('/suppliers');
+    expect(getActiveMenuKey('/main/customers')).toBe('/customers');
+    expect(getActiveMenuKey('/main/dossiers/123-abc')).toBe('/dossiers');
+    expect(getActiveMenuKey('/main/dashboard')).toBe('/dashboard');
   });
 
   it('getRouteMeta: provides dynamic titles based on user context', () => {
@@ -137,7 +143,7 @@ describe('routes.config - Permission-Driven Dynamic Navigation', () => {
       isCeoAdmin: false,
     };
 
-    const meta = getRouteMeta('/main/dossiers', operatorCtx);
+    const meta = getRouteMeta('/dossiers', operatorCtx);
     expect(meta.title).toBe('Hồ sơ chờ xử lý');
 
     const salesCtx: UserContext = {
@@ -146,14 +152,18 @@ describe('routes.config - Permission-Driven Dynamic Navigation', () => {
       isCeoAdmin: false,
     };
 
-    const salesMeta = getRouteMeta('/main/dossiers', salesCtx);
+    const salesMeta = getRouteMeta('/dossiers', salesCtx);
     expect(salesMeta.title).toBe('Hồ sơ của tôi');
 
-    const supplierMeta = getRouteMeta('/main/suppliers', operatorCtx);
+    const supplierMeta = getRouteMeta('/suppliers', operatorCtx);
     expect(supplierMeta.title).toBe('Nhà cung cấp');
+
+    // Backward compatibility check with legacy /main
+    const legacyMeta = getRouteMeta('/main/dossiers', operatorCtx);
+    expect(legacyMeta.title).toBe('Hồ sơ chờ xử lý');
   });
 
-  it('isPathAccessible: allows /main/dossiers/[id] for OPERATOR, SALES, CEO/Admin and denies unauthorized roles', () => {
+  it('isPathAccessible: allows /dossiers/[id] for OPERATOR, SALES, CEO/Admin and denies unauthorized roles', () => {
     const salesCtx: UserContext = {
       isOperator: false,
       isSales: true,
@@ -182,9 +192,13 @@ describe('routes.config - Permission-Driven Dynamic Navigation', () => {
       isSuperAdmin: false,
     };
 
+    expect(isPathAccessible('/dossiers/dc6c0291-7bbd-4514', salesCtx)).toBe(true);
+    expect(isPathAccessible('/dossiers/dc6c0291-7bbd-4514', operatorCtx)).toBe(true);
+    expect(isPathAccessible('/dossiers/dc6c0291-7bbd-4514', ceoCtx)).toBe(true);
+    expect(isPathAccessible('/dossiers/dc6c0291-7bbd-4514', unauthorizedCtx)).toBe(false);
+
+    // Backward compatibility checks with /main/
     expect(isPathAccessible('/main/dossiers/dc6c0291-7bbd-4514', salesCtx)).toBe(true);
-    expect(isPathAccessible('/main/dossiers/dc6c0291-7bbd-4514', operatorCtx)).toBe(true);
-    expect(isPathAccessible('/main/dossiers/dc6c0291-7bbd-4514', ceoCtx)).toBe(true);
     expect(isPathAccessible('/main/dossiers/dc6c0291-7bbd-4514', unauthorizedCtx)).toBe(false);
   });
 
@@ -196,12 +210,12 @@ describe('routes.config - Permission-Driven Dynamic Navigation', () => {
       isSuperAdmin: false,
     };
 
-    const meta = getRouteMeta('/main/tasks', ceoCtx);
+    const meta = getRouteMeta('/tasks', ceoCtx);
     expect(meta.title).toBe('Lịch trình điều hành');
     expect(meta.subtitle).toBe('Theo dõi lịch trình các đoàn tour và dịch vụ toàn công ty');
 
     const accessible = getAccessibleRoutes(ceoCtx);
-    const taskRoute = accessible.find((r) => r.path === '/main/tasks');
+    const taskRoute = accessible.find((r) => r.path === '/tasks');
     expect(taskRoute).toBeDefined();
     expect(typeof taskRoute!.label === 'function' ? taskRoute!.label(ceoCtx) : taskRoute!.label).toBe('Lịch trình điều hành');
   });
@@ -222,20 +236,20 @@ describe('routes.config - Permission-Driven Dynamic Navigation', () => {
     const paths = routes.map((r) => r.path);
 
     expect(paths).toEqual([
-      '/main/dashboard',
-      '/main/approvals',
-      '/main/tasks',
-      '/main/dossiers',
-      '/main/revenue',
-      '/main/reports',
-      '/main/kpi',
-      '/main/customers',
-      '/main/imports',
-      '/main/messages',
-      '/main/users',
-      '/main/settings',
-      '/main/audit-logs',
-      '/main/profile',
+      '/dashboard',
+      '/approvals',
+      '/tasks',
+      '/dossiers',
+      '/revenue',
+      '/reports',
+      '/kpi',
+      '/customers',
+      '/imports',
+      '/messages',
+      '/users',
+      '/settings',
+      '/audit-logs',
+      '/profile',
     ]);
   });
 });

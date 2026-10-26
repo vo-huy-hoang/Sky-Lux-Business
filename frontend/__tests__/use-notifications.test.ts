@@ -48,7 +48,7 @@ describe('useNotifications hooks', () => {
     content: 'Bạn đã được giao nhiệm vụ mới',
     type: 'TASK',
     isRead: false,
-    linkUrl: '/main/tasks',
+    linkUrl: '/tasks',
     createdAt: '2026-09-04T11:00:00.000Z',
     updatedAt: '2026-09-04T11:00:00.000Z',
   };

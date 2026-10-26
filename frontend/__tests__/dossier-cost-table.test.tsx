@@ -802,7 +802,7 @@ describe("Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
       const editBtn = screen.getByRole("link", { name: /Sửa dự toán/i });
       expect(editBtn).toHaveAttribute(
         "href",
-        "/main/dossiers/dossier-123/edit-import",
+        "/dossiers/dossier-123/edit-import",
       );
       expect(screen.getByText("Tải file gốc")).toBeInTheDocument();
     });
@@ -835,7 +835,7 @@ describe("Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
       const editLink = screen.getByRole("link", { name: /Sửa dự toán/i });
       expect(editLink).toHaveAttribute(
         "href",
-        "/main/dossiers/dossier-123/edit-import",
+        "/dossiers/dossier-123/edit-import",
       );
     });
 

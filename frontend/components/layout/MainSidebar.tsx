@@ -77,7 +77,7 @@ export function MainSidebar({ userCtx }: MainSidebarProps) {
   const menuItems: MenuProps['items'] = useMemo(() => {
     const navigationRoutes = getAccessibleRoutes(userCtx).filter(
       (route) =>
-        route.path !== '/main/messages' &&
+        route.path !== '/messages' &&
         !route.hideFromNavigationRoles?.some((role) => userCtx.roles?.includes(role)),
     );
     return navigationRoutes.map((r) => ({

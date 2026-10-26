@@ -203,7 +203,7 @@ export default function OperatorDashboard() {
       key: 'code',
       width: 280,
       render: (value: string, record: DossierItem) => (
-        <Link href={`/main/dossiers/${record.id}`}>
+        <Link href={`/dossiers/${record.id}`}>
           <Text strong className="text-[var(--op-primary-900)] hover:underline whitespace-nowrap">
             {value}
           </Text>
@@ -255,7 +255,7 @@ export default function OperatorDashboard() {
           icon={<BarChartOutlined />}
           tone="gold"
           loading={isLoadingTrend}
-          href="/main/revenue"
+          href="/revenue"
         />
         <SummaryMetricCard
           label="Lợi nhuận tháng"
@@ -263,7 +263,7 @@ export default function OperatorDashboard() {
           icon={<LineChartOutlined />}
           tone="green"
           loading={isLoadingOperator}
-          href="/main/revenue"
+          href="/revenue"
         />
         */}
         <SummaryMetricCard
@@ -272,7 +272,7 @@ export default function OperatorDashboard() {
           icon={<FolderOpenOutlined />}
           tone="blue"
           loading={isLoadingOperator}
-          href="/main/dossiers"
+          href="/dossiers"
         />
         <SummaryMetricCard
           label="Hồ sơ chờ duyệt"
@@ -280,7 +280,7 @@ export default function OperatorDashboard() {
           icon={<ClockCircleOutlined />}
           tone="gold"
           loading={isLoadingOperator}
-          href="/main/dossiers?status=SUBMITTED"
+          href="/dossiers?status=SUBMITTED"
         />
         <SummaryMetricCard
           label="Hồ sơ đang xử lý"
@@ -288,7 +288,7 @@ export default function OperatorDashboard() {
           icon={<FolderOpenOutlined />}
           tone="green"
           loading={isLoadingOperator}
-          href="/main/dossiers?status=IN_REVIEW"
+          href="/dossiers?status=IN_REVIEW"
         />
         <SummaryMetricCard
           label="Ưu tiên cao / Khẩn cấp"
@@ -296,7 +296,7 @@ export default function OperatorDashboard() {
           icon={<ExclamationCircleOutlined />}
           tone="orange"
           loading={isLoadingOperator}
-          href="/main/dossiers?priority=HIGH"
+          href="/dossiers?priority=HIGH"
         />
         <SummaryMetricCard
           label="Nhà cung cấp đối tác"
@@ -304,7 +304,7 @@ export default function OperatorDashboard() {
           icon={<ShopOutlined />}
           tone="blue"
           loading={isLoadingOperator}
-          href="/main/suppliers"
+          href="/suppliers"
         />
       </section>
 
@@ -314,7 +314,7 @@ export default function OperatorDashboard() {
           className="op-card"
           title={<h2 className="text-[15px] font-bold text-slate-900 m-0 leading-normal">Top Sales theo Hiệu suất</h2>}
           extra={
-            <Link href="/main/sales">
+            <Link href="/sales">
               Xem chi tiết <RightOutlined />
             </Link>
           }
@@ -390,7 +390,7 @@ export default function OperatorDashboard() {
           className="op-card"
           title={<h2 className="text-[15px] font-bold text-slate-900 m-0 leading-normal">Việc cần xử lý hôm nay</h2>}
           extra={
-            <Link href="/main/tasks">
+            <Link href="/tasks">
               Xem tất cả <RightOutlined />
             </Link>
           }
@@ -436,7 +436,7 @@ export default function OperatorDashboard() {
         <Card className="op-card" title={<h2 className="text-[15px] font-bold text-slate-900 m-0 leading-normal">Nhắc nhở vận hành</h2>}>
           <div className="space-y-4">
             <Link
-              href="/main/tasks"
+              href="/tasks"
               className="op-reminder hover:bg-[#E8F6ED]/60 transition-all cursor-pointer group block"
             >
               <div className="flex items-start gap-2.5">
@@ -450,7 +450,7 @@ export default function OperatorDashboard() {
               </div>
             </Link>
             <Link
-              href="/main/dossiers?priority=HIGH"
+              href="/dossiers?priority=HIGH"
               className="op-reminder hover:bg-[#FFF2E8]/70 transition-all cursor-pointer group block"
             >
               <div className="flex items-start gap-2.5">
@@ -464,7 +464,7 @@ export default function OperatorDashboard() {
               </div>
             </Link>
             <Link
-              href="/main/suppliers"
+              href="/suppliers"
               className="op-reminder hover:bg-[#E6F7FF]/60 transition-all cursor-pointer group block"
             >
               <div className="flex items-start gap-2.5">
@@ -487,7 +487,7 @@ export default function OperatorDashboard() {
           className="op-card"
           title={<h2 className="text-[15px] font-bold text-slate-900 m-0 leading-normal">Hồ sơ gần đây</h2>}
           extra={
-            <Link href="/main/dossiers">
+            <Link href="/dossiers">
               Xem tất cả <RightOutlined />
             </Link>
           }

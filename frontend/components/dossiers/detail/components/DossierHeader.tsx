@@ -37,7 +37,7 @@ export function DossierHeader({
 
         {dossier?.id && !isLocked && (
           <Space size="small">
-            <Link href={`/main/dossiers/${dossier.id}/edit-import`}>
+            <Link href={`/dossiers/${dossier.id}/edit-import`}>
               <Button size="small" icon={<EditOutlined />}>
                 Sửa dự toán
               </Button>
@@ -55,7 +55,7 @@ export function DossierHeader({
           items={[
             {
               title: (
-                <Link href="/main/dossiers" suppressHydrationWarning>
+                <Link href="/dossiers" suppressHydrationWarning>
                   <span suppressHydrationWarning>
                     {isOperator
                       ? "Hồ sơ chờ xử lý"
@@ -78,11 +78,11 @@ export function DossierHeader({
         </div>
       </div>
       <Space wrap>
-        <Link href="/main/dossiers">
+        <Link href="/dossiers">
           <Button icon={<ArrowLeftOutlined />}>Quay lại danh sách</Button>
         </Link>
         {dossier?.id && !isLocked && (
-          <Link href={`/main/dossiers/${dossier.id}/edit-import`}>
+          <Link href={`/dossiers/${dossier.id}/edit-import`}>
             <Button
               icon={<EditOutlined />}
               className="border-emerald-600 text-emerald-800 hover:text-emerald-900 font-semibold"
