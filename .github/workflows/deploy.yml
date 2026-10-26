@@ -1,149 +1,18 @@
-name: Deploy Production
+name: Production Deployment (Not Enabled)
 
 on:
   workflow_dispatch:
 
-env:
-  REGISTRY: ghcr.io
+permissions:
+  contents: read
 
 jobs:
-  test-backend:
-    name: Backend Test Gate
+  disabled:
+    name: Production deployment is not enabled
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Validate production Compose config
-        run: docker compose --env-file ../.env.example -f ../docker-compose.prod.yml config --quiet
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Lint check
-        run: npm run lint
-        continue-on-error: true # Existing lint debt must be resolved before this can gate deployment.
-
-      - name: Type check
-        run: npm run typecheck
-
-      - name: Build backend
-        run: npm run build
-
-      - name: Unit & Integration Tests
-        run: npm run test -- --runInBand
-
-  test-frontend:
-    name: Frontend Test Gate
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Lint check
-        run: npm run lint
-        continue-on-error: true # Existing lint debt must be resolved before this can gate deployment.
-
-      - name: Type check
-        run: npm run typecheck
-
-      - name: Build frontend
-        run: npm run build
-
-      - name: Unit & Integration Tests
-        run: npm run test -- --runInBand
-
-  build-and-deploy:
-    name: Build & Deploy Production
-    needs: [test-backend, test-frontend]
-    if: github.ref == 'refs/heads/main'
-    environment: production
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Downcase Image Owner
-        id: image_owner
-        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_OUTPUT
-
-      - name: Login GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push frontend image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./frontend
-          push: true
-          build-args: |
-            NEXT_PUBLIC_API_URL=/api
-          tags: |
-            ghcr.io/${{ steps.image_owner.outputs.owner }}/skylux-frontend:${{ github.sha }}
-            ghcr.io/${{ steps.image_owner.outputs.owner }}/skylux-frontend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push backend image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          push: true
-          tags: |
-            ghcr.io/${{ steps.image_owner.outputs.owner }}/skylux-backend:${{ github.sha }}
-            ghcr.io/${{ steps.image_owner.outputs.owner }}/skylux-backend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Copy config files to production server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: "docker-compose.prod.yml,infra/scripts"
-          target: "/opt/skylux"
-
-      - name: Deploy production server
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            set -e
-            cd /opt/skylux
-            echo "${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            bash infra/scripts/deploy.sh "${{ github.sha }}" "${{ steps.image_owner.outputs.owner }}"
+      - name: Explain deployment status
+        run: |
+          echo "::error::Production deployment is disabled. No images were built or pushed, no SSH connection was made, and no deployment was attempted."
+          echo "Complete GĐ7.6.5 after VPS installation and GitHub production secrets are reviewed."
+          exit 1
