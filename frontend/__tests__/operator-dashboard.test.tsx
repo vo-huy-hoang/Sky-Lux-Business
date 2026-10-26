@@ -127,41 +127,41 @@ describe('OperatorDashboard Component (Phase 1 & Phase 2 Improvements)', () => {
   it('renders all 5 operational KPI cards with clickable drill-down links', () => {
     renderDashboard();
 
-    // 1. Thẻ Hồ sơ toàn hệ thống -> /main/dossiers
-    const dossiersLinks = screen.getAllByRole('link').filter((el) => el.getAttribute('href') === '/main/dossiers');
+    // 1. Thẻ Hồ sơ toàn hệ thống -> /dossiers
+    const dossiersLinks = screen.getAllByRole('link').filter((el) => el.getAttribute('href') === '/dossiers');
     expect(dossiersLinks.length).toBeGreaterThanOrEqual(1);
 
-    // 2. Thẻ Hồ sơ chờ duyệt -> /main/dossiers?status=SUBMITTED
-    const submittedLinks = screen.getAllByRole('link').filter((el) => el.getAttribute('href') === '/main/dossiers?status=SUBMITTED');
+    // 2. Thẻ Hồ sơ chờ duyệt -> /dossiers?status=SUBMITTED
+    const submittedLinks = screen.getAllByRole('link').filter((el) => el.getAttribute('href') === '/dossiers?status=SUBMITTED');
     expect(submittedLinks.length).toBe(1);
 
-    // 3. Thẻ Hồ sơ đang xử lý -> /main/dossiers?status=IN_REVIEW
-    const inReviewLinks = screen.getAllByRole('link').filter((el) => el.getAttribute('href') === '/main/dossiers?status=IN_REVIEW');
+    // 3. Thẻ Hồ sơ đang xử lý -> /dossiers?status=IN_REVIEW
+    const inReviewLinks = screen.getAllByRole('link').filter((el) => el.getAttribute('href') === '/dossiers?status=IN_REVIEW');
     expect(inReviewLinks.length).toBe(1);
 
-    // 4. Thẻ Ưu tiên cao / Khẩn cấp -> /main/dossiers?priority=HIGH
-    const highPriorityLinks = screen.getAllByRole('link').filter((el) => el.getAttribute('href') === '/main/dossiers?priority=HIGH');
+    // 4. Thẻ Ưu tiên cao / Khẩn cấp -> /dossiers?priority=HIGH
+    const highPriorityLinks = screen.getAllByRole('link').filter((el) => el.getAttribute('href') === '/dossiers?priority=HIGH');
     expect(highPriorityLinks.length).toBeGreaterThanOrEqual(1);
 
-    // 5. Thẻ Nhà cung cấp đối tác -> /main/suppliers
-    const suppliersLinks = screen.getAllByRole('link').filter((el) => el.getAttribute('href') === '/main/suppliers');
+    // 5. Thẻ Nhà cung cấp đối tác -> /suppliers
+    const suppliersLinks = screen.getAllByRole('link').filter((el) => el.getAttribute('href') === '/suppliers');
     expect(suppliersLinks.length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders actionable reminder links in the "Nhắc nhở vận hành" card', () => {
     renderDashboard();
 
-    // Nhắc nhở quá hạn công việc -> /main/tasks
+    // Nhắc nhở quá hạn công việc -> /tasks
     const taskReminder = screen.getByText('Quá hạn công việc').closest('a');
-    expect(taskReminder).toHaveAttribute('href', '/main/tasks');
+    expect(taskReminder).toHaveAttribute('href', '/tasks');
 
-    // Nhắc nhở ưu tiên xử lý -> /main/dossiers?priority=HIGH
+    // Nhắc nhở ưu tiên xử lý -> /dossiers?priority=HIGH
     const priorityReminder = screen.getByText('Ưu tiên xử lý').closest('a');
-    expect(priorityReminder).toHaveAttribute('href', '/main/dossiers?priority=HIGH');
+    expect(priorityReminder).toHaveAttribute('href', '/dossiers?priority=HIGH');
 
-    // Nhắc nhở mạng lưới đối tác -> /main/suppliers
+    // Nhắc nhở mạng lưới đối tác -> /suppliers
     const supplierReminder = screen.getByText('Mạng lưới đối tác').closest('a');
-    expect(supplierReminder).toHaveAttribute('href', '/main/suppliers');
+    expect(supplierReminder).toHaveAttribute('href', '/suppliers');
   });
 
   it('contains exactly 6 semantic <h2> headings across all widget cards', () => {

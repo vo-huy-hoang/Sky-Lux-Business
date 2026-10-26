@@ -402,10 +402,10 @@ export function useEstimateEditorState({
 
       if (options?.submitStatus === EstimateStatus.SUBMITTED) {
         message.success('Đã gửi điều hành xem xét thành công!');
-        router.push(`/main/dossiers/${dossierId}`);
+        router.push(`/dossiers/${dossierId}`);
       } else if (options?.navigateBack) {
         message.success('Đã lưu thay đổi dự toán thành công!');
-        router.push(`/main/dossiers/${dossierId}`);
+        router.push(`/dossiers/${dossierId}`);
       } else {
         message.success(
           canOperate

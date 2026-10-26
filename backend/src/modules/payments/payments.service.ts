@@ -176,7 +176,7 @@ export class PaymentsService {
           title: `Hồ sơ ${dossier.code} vừa được thanh toán`,
           content: `Một khoản thanh toán trị giá ${this.formatCurrency(savedPayment.amount)} vừa được cập nhật cho hồ sơ ${dossier.code}.`,
           type: 'DOSSIER',
-          linkUrl: `/main/dossiers/${dossierId}`,
+          linkUrl: `/dossiers/${dossierId}`,
           metadata: { dossierId, paymentId: savedPayment.id },
         });
       } catch {

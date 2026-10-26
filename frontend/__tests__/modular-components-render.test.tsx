@@ -13,15 +13,15 @@ jest.mock('@ant-design/icons', () => ({
 
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import UserSummaryCards from '../app/main/users/components/UserSummaryCards';
-import TaskSummaryCards from '../app/main/tasks/components/TaskSummaryCards';
-import TaskFilterBar from '../app/main/tasks/components/TaskFilterBar';
+import UserSummaryCards from '../app/(main)/users/components/UserSummaryCards';
+import TaskSummaryCards from '../app/(main)/tasks/components/TaskSummaryCards';
+import TaskFilterBar from '../app/(main)/tasks/components/TaskFilterBar';
 import {
   isSameDay,
   isInLastSevenDays,
   getDossierLabel,
   getBoardStatus,
-} from '../app/main/tasks/helpers';
+} from '../app/(main)/tasks/helpers';
 import { TaskItem } from '@/types/task';
 
 beforeAll(() => {

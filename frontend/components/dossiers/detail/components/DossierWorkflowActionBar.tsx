@@ -73,7 +73,7 @@ export function DossierWorkflowActionBar({
           <>
             {/* Direct link to Edit Import for rapid navigation */}
             {dossierId && (
-              <Link href={`/main/dossiers/${dossierId}/edit-import`}>
+              <Link href={`/dossiers/${dossierId}/edit-import`}>
                 <Button
                   size={isDrawer ? 'middle' : 'large'}
                   icon={<EditOutlined />}

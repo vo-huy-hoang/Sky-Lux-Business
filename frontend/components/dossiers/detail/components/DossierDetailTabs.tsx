@@ -25,7 +25,7 @@ const DossierDocumentsTab = dynamic(
 );
 
 const DossierComments = dynamic(
-  () => import("@/app/main/dossiers/components/DossierComments"),
+  () => import("@/app/(main)/dossiers/components/DossierComments"),
   {
     ssr: false,
     loading: () => <Skeleton active paragraph={{ rows: 6 }} className="p-4" />,

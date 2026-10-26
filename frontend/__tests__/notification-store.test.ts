@@ -80,7 +80,7 @@ describe('useNotificationStore (Zustand Realtime Notification Store)', () => {
         title: 'Hồ sơ đã duyệt',
         content: 'Duyệt thành công',
         type: 'DOSSIER',
-        linkUrl: '/main/dossiers/1',
+        linkUrl: '/dossiers/1',
         isRead: false,
         createdAt: '2026-09-04T12:00:00.000Z',
         updatedAt: '2026-09-04T12:00:00.000Z',
@@ -94,7 +94,7 @@ describe('useNotificationStore (Zustand Realtime Notification Store)', () => {
     expect(storeItems[0].id).toBe('b-1');
     expect(storeItems[0].message).toBe('Duyệt thành công');
     expect(storeItems[0].type).toBe('info');
-    expect(storeItems[0].actionUrl).toBe('/main/dossiers/1');
+    expect(storeItems[0].actionUrl).toBe('/dossiers/1');
   });
 
   it('should support server unread count synchronization', () => {

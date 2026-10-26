@@ -579,7 +579,7 @@ export class DossiersService {
 
     if (this.notificationsService) {
       try {
-        const linkUrl = `/main/dossiers/${dossierId}`;
+        const linkUrl = `/dossiers/${dossierId}`;
         const snippet =
           content.length > 80 ? `${content.slice(0, 80)}...` : content;
         const notifiedUserIds = new Set<string>();

@@ -63,7 +63,7 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
     } finally {
       queryClient.clear();
       logout();
-      router.push('/auth/login');
+      router.push('/login');
     }
   }, [logout, queryClient, router]);
 
@@ -99,7 +99,7 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
         key: 'profile',
         icon: <UserOutlined />,
         label: 'Hồ sơ cá nhân',
-        onClick: () => router.push('/main/profile'),
+        onClick: () => router.push('/profile'),
       },
       ...(canManageUsers
         ? [
@@ -107,7 +107,7 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
               key: 'user-admin',
               icon: <TeamOutlined />,
               label: 'Quản trị người dùng',
-              onClick: () => router.push('/main/users'),
+              onClick: () => router.push('/users'),
             },
           ]
         : []),
@@ -193,7 +193,7 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
               shape="circle"
               icon={<MessageOutlined className="text-lg text-slate-600" />}
               aria-label="Tin nhắn"
-              onClick={() => router.push('/main/messages')}
+              onClick={() => router.push('/messages')}
               className="flex items-center justify-center min-w-[44px] min-h-[44px]"
             />
           )} */}

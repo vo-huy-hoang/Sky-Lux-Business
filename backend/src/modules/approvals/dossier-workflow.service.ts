@@ -223,7 +223,7 @@ export class DossierWorkflowService {
         title: `Sales đã phản hồi yêu cầu bổ sung hồ sơ ${dossier.code}`,
         content: `${user.fullName || 'Sales'} đã phản hồi: "${responseText}"`,
         type: 'DOSSIER',
-        linkUrl: `/main/dossiers/${dossier.id}`,
+        linkUrl: `/dossiers/${dossier.id}`,
         metadata: {
           dossierId: dossier.id,
           changeRequestId: request.id,
@@ -698,7 +698,7 @@ export class DossierWorkflowService {
   ) {
     if (!this.notificationsService) return;
 
-    const linkUrl = `/main/dossiers/${dossier.id}`;
+    const linkUrl = `/dossiers/${dossier.id}`;
     const dossierName = dossier.name || dossier.code;
 
     // 1. SUBMIT / RESUBMIT: Sales submits to Operator
