@@ -214,21 +214,42 @@ commit and hashes are verified. Do not use an installer that is writable by
    it. Sudoers wildcard arguments are deliberately not used because `*` can
    span spaces and arguments.
 
-## Required follow-up outside this task
+## GitHub Actions production deployment
 
-The legacy workflow has been replaced by a manual notification that fails and
-performs no build, SSH, or deployment. A later workflow change in GĐ7.6.5 must:
+`.github/workflows/build-images.yml` runs the protected `production`
+Environment deployment after both test jobs and `build-and-push` succeed on
+`main`. The deployment job has a separate concurrency group and does not cancel
+an in-progress deployment. It checks that the built 40-character commit SHA is
+still the current remote `main` HEAD before creating a ticket. Images use that
+SHA as their tag; `latest` is never used and images are not rebuilt in the
+deployment job.
 
-- require protected `main` and a GitHub `production` Environment with required
-  reviewer `vo-huy-hoang`, administrator bypass disabled, and deployment refs
-  limited to `main` (the current self-review setting remains off by design);
-- build and publish both images before the approved deployment step;
-- create the signed ticket only in the approved job, using the Environment
-  private-key secret, SHA, timestamp, and `${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}`;
-- SSH as `skylux-deploy` and pipe the five stdin fields to
-  `sudo -n /usr/local/sbin/skylux-production-deploy <sha>`;
-- remove the current `docker login` performed as `ops`; the wrapper performs
-  login through its temporary root-only Docker config.
+After Environment approval, the job creates the RSA-3072/SHA-256 ticket and
+passes exactly five newline-terminated fields to the restricted wrapper over
+OpenSSH. SSH verifies the configured `VPS_SSH_KNOWN_HOSTS` file with strict
+host-key checking and uses private temporary files with mode `0600`. The
+workflow's `GITHUB_TOKEN` is granted only `contents: read` and `packages: read`
+in this job. The GHCR packages must grant this repository read access:
+
+- `ghcr.io/vo-huy-hoang/skylux-frontend`
+- `ghcr.io/vo-huy-hoang/skylux-backend`
+
+Package access is configured in GitHub's package settings and cannot be
+confirmed from this repository checkout. Verify both packages explicitly
+before the first deployment. If either package is not linked to this repository
+or does not grant it access, add this repository under that package's
+**Settings → Manage Actions access** with **Read** permission. Do not create a
+broad-scope PAT to work around package access.
+
+`.github/workflows/deploy.yml` remains a disabled manual notification that
+fails without building, connecting over SSH, or deploying. The root-owned
+wrapper remains the only production deployment implementation; the workflow
+does not copy Compose configuration or invoke Docker on the VPS.
+
+The GitHub `production` Environment must have required reviewers, administrator
+bypass disabled, and deployment refs limited to `main` (the current self-review
+setting remains off by design). The VPS still needs the reviewed one-time
+installation and validation described above before any first deployment.
 
 The existing `ops` account retains its administrative access and must not be
 used by GitHub Actions. Protect its credentials as an administrator account.
