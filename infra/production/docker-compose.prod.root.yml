@@ -1,0 +1,116 @@
+name: skylux
+
+services:
+  frontend:
+    image: ghcr.io/vo-huy-hoang/skylux-frontend:${APP_VERSION:?APP_VERSION must be set}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    ports:
+      - "127.0.0.1:3002:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/login', { redirect: 'manual' }).then((response) => process.exit(response.status === 200 ? 0 : 1)).catch(() => process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    volumes:
+      - nextjs_static:/app/.next/static
+    networks:
+      - skylux
+
+  backend:
+    image: ghcr.io/vo-huy-hoang/skylux-backend:${APP_VERSION:?APP_VERSION must be set}
+    restart: unless-stopped
+    env_file:
+      - /etc/skylux/production.env
+    environment:
+      APP_VERSION: ${APP_VERSION:?APP_VERSION must be set}
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - skylux_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:3001/api/health >/dev/null 2>&1 || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - skylux
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: skylux-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:?DB_NAME must be set}
+      POSTGRES_USER: ${DB_USER:?DB_USER must be set}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DB_USER:?DB_USER must be set} -d ${DB_NAME:?DB_NAME must be set}"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - skylux
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes"
+      ]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "ping"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - skylux
+
+volumes:
+  postgres_data:
+    name: skylux_postgres_data
+  redis_data:
+    name: skylux_redis_data
+  skylux_uploads:
+    name: skylux_skylux_uploads
+  nextjs_static:
+    name: skylux_nextjs_static
+
+networks:
+  skylux:
+    name: skylux_skylux
+    driver: bridge
