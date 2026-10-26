@@ -1,0 +1,428 @@
+#!/bin/bash
+# Install as /usr/local/sbin/skylux-production-deploy, root:root, mode 0755.
+# Never install or invoke the ops-writable copy as a sudo target.
+
+set -Eeuo pipefail
+umask 077
+PATH="/usr/sbin:/usr/bin:/sbin:/bin"
+export PATH
+HOME="/root"
+export HOME
+unset DOCKER_HOST DOCKER_CONTEXT DOCKER_TLS_VERIFY DOCKER_CERT_PATH DOCKER_API_VERSION \
+  DOCKER_CLI_EXPERIMENTAL DOCKER_CLI_PLUGIN_EXTRA_DIRS DOCKER_DEFAULT_PLATFORM \
+  DOCKER_CONTENT_TRUST DOCKER_CONTENT_TRUST_SERVER DOCKER_CONFIG \
+  COMPOSE_FILE COMPOSE_PROJECT_NAME COMPOSE_PATH_SEPARATOR COMPOSE_PROFILES \
+  COMPOSE_ENV_FILES COMPOSE_DISABLE_ENV_FILE COMPOSE_HTTP_TIMEOUT \
+  COMPOSE_PARALLEL_LIMIT COMPOSE_MENU COMPOSE_ANSI COMPOSE_PROGRESS \
+  COMPOSE_IGNORE_ORPHANS COMPOSE_REMOVE_ORPHANS COMPOSE_COMPATIBILITY \
+  COMPOSE_BAKE COMPOSE_DRY_RUN COMPOSE_STATUS_STDOUT
+
+readonly TRUST_ROOT="/"
+readonly EXPECTED_OWNER_UID=0
+readonly EXPECTED_EUID=0
+readonly WRAPPER_PATH="/usr/local/sbin/skylux-production-deploy"
+readonly DOCKER_BIN="/usr/bin/docker"
+readonly OPENSSL_BIN="/usr/bin/openssl"
+readonly CURL_BIN="/usr/bin/curl"
+readonly GZIP_BIN="/usr/bin/gzip"
+readonly COMPOSE_FILE="/usr/local/lib/skylux-production/docker-compose.prod.yml"
+readonly ENV_FILE="/etc/skylux/production.env"
+readonly APPROVAL_KEY="/etc/skylux/deploy-approval.pub"
+readonly STATE_DIR="/var/lib/skylux-production"
+readonly STATUS_FILE="/var/lib/skylux-production/status"
+readonly BACKUP_DIR="/var/backups/skylux"
+readonly LOCK_DIR="/run/skylux-production"
+readonly LOCK_PATH="/run/skylux-production/active"
+readonly PROJECT_NAME="skylux"
+readonly REGISTRY_OWNER="vo-huy-hoang"
+
+TARGET_VERSION="${1:-}"
+REGISTRY_USERNAME=""
+REGISTRY_TOKEN=""
+TICKET_TIMESTAMP=""
+TICKET_RUN_ID=""
+TICKET_SIGNATURE=""
+PREVIOUS_VERSION="unknown"
+BACKUP_PATH=""
+CURRENT_PHASE="validation"
+MIGRATION_ATTEMPTED=0
+LOCK_ACQUIRED=0
+STATE_READY=0
+DOCKER_CONFIG_DIR=""
+RUNTIME_DIR=""
+STATUS_TMP=""
+BACKUP_TMP=""
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  log "ERROR: $*" >&2
+  exit 1
+}
+
+path_stat() {
+  local path="$1"
+  if stat -c '%u %a' "$path" >/dev/null 2>&1; then
+    stat -c '%u %a' "$path"
+  else
+    stat -f '%u %Lp' "$path"
+  fi
+}
+
+assert_trusted_path() {
+  local path="$1"
+  local kind="$2"
+  local secret_mode="${3:-no}"
+  local relative component current uid mode mode_value
+
+  [[ "$path" == /* ]] || die "Configured trusted path is not absolute."
+  if [[ "$TRUST_ROOT" == "/" ]]; then
+    relative="${path#/}"
+    current="/"
+    read -r uid mode < <(path_stat /) || die "Cannot inspect filesystem root ownership."
+    [[ "$uid" == "$EXPECTED_OWNER_UID" ]] || die "Filesystem root has an unexpected owner."
+    mode_value=$((8#$mode))
+    (( (mode_value & 0022) == 0 )) || die "Filesystem root is writable by group or other users."
+  else
+    [[ "$path" == "$TRUST_ROOT" || "$path" == "$TRUST_ROOT/"* ]] || die "Path is outside the trusted root."
+    relative="${path#"$TRUST_ROOT"}"
+    relative="${relative#/}"
+    current="$TRUST_ROOT"
+  fi
+
+  local -a components
+  IFS='/' read -r -a components <<< "$relative"
+  if [[ "$current" != "/" ]]; then
+    [[ -d "$current" && ! -L "$current" ]] || die "Trusted root is missing or is a symlink."
+    read -r uid mode < <(path_stat "$current") || die "Cannot inspect trusted root ownership."
+    [[ "$uid" == "$EXPECTED_OWNER_UID" ]] || die "Trusted root has an unexpected owner."
+    mode_value=$((8#$mode))
+    (( (mode_value & 0022) == 0 )) || die "Trusted root is writable by group or other users."
+  fi
+
+  for component in "${components[@]}"; do
+    [[ -n "$component" ]] || continue
+    current="${current%/}/$component"
+    [[ -e "$current" && ! -L "$current" ]] || die "Required protected path is missing or is a symlink: $current"
+    read -r uid mode < <(path_stat "$current") || die "Cannot inspect protected path: $current"
+    [[ "$uid" == "$EXPECTED_OWNER_UID" ]] || die "Protected path has an unexpected owner: $current"
+    mode_value=$((8#$mode))
+    (( (mode_value & 0022) == 0 )) || die "Protected path is writable by group or other users: $current"
+  done
+
+  case "$kind" in
+    file) [[ -f "$path" ]] || die "Protected file is missing: $path" ;;
+    dir) [[ -d "$path" ]] || die "Protected directory is missing: $path" ;;
+    *) die "Internal path validation error." ;;
+  esac
+
+  if [[ "$secret_mode" == yes ]]; then
+    mode_value=$((8#$mode))
+    (( (mode_value & 0077) == 0 )) || die "Secret file must not grant group or other access: $path"
+  fi
+}
+
+setting_value() {
+  local key="$1"
+  local value
+  value="$(awk -v key="$key" '
+    index($0, key "=") == 1 { count++; value = substr($0, length(key) + 2) }
+    END { if (count != 1) exit 2; print value }
+  ' "$ENV_FILE")" || return 1
+  [[ -n "$value" ]] || return 1
+  printf '%s' "$value"
+}
+
+write_status() {
+  local requested_status="$1"
+  STATUS_TMP="$(mktemp "$STATE_DIR/.status.XXXXXX")" || return 1
+  {
+    printf 'timestamp=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    printf 'status=%s\n' "$requested_status"
+    printf 'phase=%s\n' "$CURRENT_PHASE"
+    printf 'previous_version=%s\n' "$PREVIOUS_VERSION"
+    printf 'target_version=%s\n' "$TARGET_VERSION"
+    printf 'backup_path=%s\n' "$BACKUP_PATH"
+    printf 'run_id=%s\n' "$TICKET_RUN_ID"
+  } > "$STATUS_TMP" || return 1
+  chmod 600 "$STATUS_TMP" || return 1
+  mv -f -- "$STATUS_TMP" "$STATUS_FILE" || return 1
+  STATUS_TMP=""
+}
+
+cleanup() {
+  local exit_code="$1"
+  trap - EXIT HUP INT TERM
+
+  if (( exit_code != 0 && STATE_READY == 1 )); then
+    write_status failed || log "ERROR: Could not persist the failed deployment status."
+  fi
+  if (( exit_code != 0 && MIGRATION_ATTEMPTED == 1 )); then
+    log "Deployment failed after migrations were attempted; database changes may be partial or complete."
+    log "No database or application rollback was attempted. Assess schema compatibility before recovery."
+  fi
+
+  [[ -z "$STATUS_TMP" ]] || rm -f -- "$STATUS_TMP"
+  [[ -z "$BACKUP_TMP" ]] || rm -f -- "$BACKUP_TMP"
+  [[ -z "$RUNTIME_DIR" ]] || rm -rf -- "$RUNTIME_DIR"
+  [[ -z "$DOCKER_CONFIG_DIR" ]] || rm -rf -- "$DOCKER_CONFIG_DIR"
+  if (( LOCK_ACQUIRED == 1 )); then
+    rm -f -- "$LOCK_PATH/owner"
+    rmdir -- "$LOCK_PATH" 2>/dev/null || log "ERROR: Deployment lock remains; an administrator must inspect it."
+  fi
+  exit "$exit_code"
+}
+trap 'cleanup $?' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+if (( $# != 1 )); then
+  die "Usage: skylux-production-deploy <40-character-commit-sha>"
+fi
+if [[ ! "$TARGET_VERSION" =~ ^[[:xdigit:]]{40}$ ]]; then
+  die "Target version must be a full 40-character hexadecimal Git commit SHA."
+fi
+if (( EUID != EXPECTED_EUID )); then
+  die "This wrapper must run as root through the restricted sudo rule."
+fi
+
+assert_trusted_path "$WRAPPER_PATH" file
+assert_trusted_path "$DOCKER_BIN" file
+assert_trusted_path "$OPENSSL_BIN" file
+assert_trusted_path "$CURL_BIN" file
+assert_trusted_path "$GZIP_BIN" file
+assert_trusted_path "$COMPOSE_FILE" file
+assert_trusted_path "$ENV_FILE" file yes
+assert_trusted_path "$APPROVAL_KEY" file yes
+assert_trusted_path "$STATE_DIR" dir
+assert_trusted_path "$BACKUP_DIR" dir
+assert_trusted_path "$LOCK_DIR" dir
+
+DB_NAME="$(setting_value DB_NAME)" || die "DB_NAME is missing or duplicated in the protected environment file."
+DB_USER="$(setting_value DB_USER)" || die "DB_USER is missing or duplicated in the protected environment file."
+DB_PASSWORD="$(setting_value DB_PASSWORD)" || die "DB_PASSWORD is missing or duplicated in the protected environment file."
+JWT_SECRET="$(setting_value JWT_SECRET)" || die "JWT_SECRET is missing or duplicated in the protected environment file."
+ENV_REGISTRY_OWNER="$(setting_value REGISTRY_OWNER)" || die "REGISTRY_OWNER is missing or duplicated in the protected environment file."
+[[ "$ENV_REGISTRY_OWNER" == "$REGISTRY_OWNER" ]] || die "Protected REGISTRY_OWNER must be vo-huy-hoang."
+unset DB_NAME DB_USER DB_PASSWORD JWT_SECRET ENV_REGISTRY_OWNER
+
+# mkdir is atomic. A stale directory after SIGKILL fails closed and requires
+# an administrator to verify no deployment is running before clearing it.
+if ! mkdir -- "$LOCK_PATH" 2>/dev/null; then
+  log "ERROR: Another deployment is active or a stale deployment lock needs administrator review." >&2
+  exit 75
+fi
+LOCK_ACQUIRED=1
+printf 'pid=%s\n' "$$" > "$LOCK_PATH/owner"
+
+DOCKER_CONFIG_DIR="$(mktemp -d "$LOCK_DIR/docker-config.XXXXXX")" || die "Could not create a private Docker config directory."
+chmod 700 "$DOCKER_CONFIG_DIR"
+RUNTIME_DIR="$(mktemp -d "$LOCK_DIR/runtime.XXXXXX")" || die "Could not create a private runtime directory."
+chmod 700 "$RUNTIME_DIR"
+
+docker_cmd() {
+  DOCKER_CONFIG="$DOCKER_CONFIG_DIR" "$DOCKER_BIN" "$@"
+}
+
+docker_compose() {
+  APP_VERSION="$TARGET_VERSION" DOCKER_CONFIG="$DOCKER_CONFIG_DIR" "$DOCKER_BIN" compose \
+      --project-name "$PROJECT_NAME" \
+      --env-file "$ENV_FILE" \
+      -f "$COMPOSE_FILE" "$@"
+}
+
+read_ticket_line() {
+  local label="$1"
+  local output_name="$2"
+  local line=""
+  IFS= read -r -t 15 line || die "Timed out reading the approved deployment ticket ($label)."
+  printf -v "$output_name" '%s' "$line"
+}
+
+CURRENT_PHASE="approval"
+log "Reading signed deployment approval and short-lived GHCR credentials..."
+read_ticket_line "registry username" REGISTRY_USERNAME
+read_ticket_line "registry token" REGISTRY_TOKEN
+read_ticket_line "ticket timestamp" TICKET_TIMESTAMP
+read_ticket_line "workflow run id" TICKET_RUN_ID
+read_ticket_line "signature" TICKET_SIGNATURE
+EXTRA_TICKET_LINE=""
+if IFS= read -r -t 1 EXTRA_TICKET_LINE; then
+  die "Unexpected extra data followed the deployment ticket."
+fi
+[[ "$REGISTRY_USERNAME" =~ ^[A-Za-z0-9-]{1,39}$ ]] || die "Registry username format is invalid."
+(( ${#REGISTRY_TOKEN} >= 1 && ${#REGISTRY_TOKEN} <= 4096 )) || die "GHCR token length is invalid."
+[[ "$TICKET_TIMESTAMP" =~ ^[0-9]{10}$ ]] || die "Approval ticket timestamp is invalid."
+[[ "$TICKET_RUN_ID" =~ ^[0-9]{1,16}-[0-9]{1,4}$ ]] || die "Workflow run id format is invalid."
+(( ${#TICKET_SIGNATURE} >= 300 && ${#TICKET_SIGNATURE} <= 600 )) \
+  || die "Approval ticket signature length is invalid."
+[[ "$TICKET_SIGNATURE" =~ ^[A-Za-z0-9+/=]+$ ]] || die "Approval ticket signature format is invalid."
+
+NOW="$(date -u +%s)"
+(( TICKET_TIMESTAMP >= NOW - 300 && TICKET_TIMESTAMP <= NOW + 60 )) || die "Approval ticket has expired or is not yet valid."
+
+MESSAGE_FILE="$RUNTIME_DIR/approval-message"
+SIGNATURE_FILE="$RUNTIME_DIR/approval-signature"
+printf 'SKYLUX_PRODUCTION_DEPLOY_V1\n%s\n%s\n%s' \
+  "$TARGET_VERSION" "$TICKET_TIMESTAMP" "$TICKET_RUN_ID" > "$MESSAGE_FILE"
+if ! printf '%s' "$TICKET_SIGNATURE" | "$OPENSSL_BIN" base64 -d -A > "$SIGNATURE_FILE" 2>/dev/null; then
+  die "Approval ticket signature could not be decoded."
+fi
+[[ "$(wc -c < "$SIGNATURE_FILE" | tr -d '[:space:]')" == 384 ]] || die "Approval signature must be an RSA-3072 signature."
+
+COMPOSE_PLUGIN="$(docker_cmd info --format '{{range .ClientInfo.Plugins}}{{if eq .Name "compose"}}{{.Path}}{{end}}{{end}}' 2>/dev/null)" \
+  || die "Could not locate the Docker Compose plugin."
+[[ "$COMPOSE_PLUGIN" == /* && -f "$COMPOSE_PLUGIN" ]] || die "Docker Compose plugin path is unavailable."
+assert_trusted_path "$COMPOSE_PLUGIN" file
+mkdir -m 700 "$DOCKER_CONFIG_DIR/cli-plugins"
+ln -s -- "$COMPOSE_PLUGIN" "$DOCKER_CONFIG_DIR/cli-plugins/docker-compose"
+
+if ! "$OPENSSL_BIN" dgst -sha256 -verify "$APPROVAL_KEY" \
+  -signature "$SIGNATURE_FILE" "$MESSAGE_FILE" >/dev/null 2>&1; then
+  die "Deployment approval signature is invalid."
+fi
+
+RUN_MARKER="$STATE_DIR/used-run-$TICKET_RUN_ID"
+if ! ( set -o noclobber; : > "$RUN_MARKER" ) 2>/dev/null; then
+  die "This GitHub Actions run id was already used."
+fi
+chmod 600 "$RUN_MARKER"
+
+STATE_READY=1
+CURRENT_PHASE="preparing"
+if [[ -e "$STATUS_FILE" || -L "$STATUS_FILE" ]]; then
+  assert_trusted_path "$STATUS_FILE" file yes
+  LAST_STATUS="$(awk -F= '$1 == "status" { value = $2 } END { print value }' "$STATUS_FILE")"
+  LAST_VERSION="$(awk -F= '$1 == "target_version" { value = $2 } END { print value }' "$STATUS_FILE")"
+  if [[ "$LAST_STATUS" == succeeded && "$LAST_VERSION" =~ ^[[:xdigit:]]{40}$ ]]; then
+    PREVIOUS_VERSION="$LAST_VERSION"
+  fi
+fi
+
+get_container_version() {
+  local service="$1"
+  local container_id image version
+  container_id="$(docker_compose ps -q "$service" 2>/dev/null || true)"
+  [[ -n "$container_id" ]] || return 1
+  image="$(docker_cmd inspect -f '{{.Config.Image}}' "$container_id" 2>/dev/null)" || return 1
+  case "$service" in
+    frontend) [[ "$image" == "ghcr.io/$REGISTRY_OWNER/skylux-frontend:"* ]] || return 1 ;;
+    backend) [[ "$image" == "ghcr.io/$REGISTRY_OWNER/skylux-backend:"* ]] || return 1 ;;
+  esac
+  version="${image##*:}"
+  [[ "$version" =~ ^[[:xdigit:]]{40}$ ]] || return 1
+  printf '%s' "$version"
+}
+
+FRONTEND_PREVIOUS="$(get_container_version frontend || true)"
+BACKEND_PREVIOUS="$(get_container_version backend || true)"
+if [[ -n "$FRONTEND_PREVIOUS" && "$FRONTEND_PREVIOUS" == "$BACKEND_PREVIOUS" ]]; then
+  PREVIOUS_VERSION="$FRONTEND_PREVIOUS"
+fi
+log "Previous application version: $PREVIOUS_VERSION"
+log "Target application version:   $TARGET_VERSION"
+write_status running || die "Could not write initial deployment status."
+
+CURRENT_PHASE="registry-login"
+write_status running || die "Could not record the GHCR login phase."
+log "[1/7] Logging in to GHCR using a temporary root-only Docker config..."
+if ! printf '%s' "$REGISTRY_TOKEN" | docker_cmd login ghcr.io \
+  --username "$REGISTRY_USERNAME" --password-stdin >/dev/null 2>&1; then
+  die "GHCR login failed."
+fi
+unset REGISTRY_TOKEN
+
+CURRENT_PHASE="pull"
+write_status running || die "Could not record the image pull phase."
+log "[2/7] Pulling the two target images..."
+docker_compose pull frontend backend || die "Could not pull both application images."
+docker_cmd image inspect "ghcr.io/$REGISTRY_OWNER/skylux-frontend:$TARGET_VERSION" >/dev/null 2>&1 \
+  || die "Target frontend image is missing after pull."
+docker_cmd image inspect "ghcr.io/$REGISTRY_OWNER/skylux-backend:$TARGET_VERSION" >/dev/null 2>&1 \
+  || die "Target backend image is missing after pull."
+
+CURRENT_PHASE="dependency-health"
+write_status running || die "Could not record the dependency health phase."
+log "[3/7] Confirming PostgreSQL and Redis health without recreating them..."
+DEPENDENCIES_HEALTHY=0
+for attempt in {1..24}; do
+  PG_ID="$(docker_compose ps -q postgres 2>/dev/null || true)"
+  REDIS_ID="$(docker_compose ps -q redis 2>/dev/null || true)"
+  PG_HEALTH=""
+  REDIS_HEALTH=""
+  [[ -z "$PG_ID" ]] || PG_HEALTH="$(docker_cmd inspect -f '{{.State.Health.Status}}' "$PG_ID" 2>/dev/null || true)"
+  [[ -z "$REDIS_ID" ]] || REDIS_HEALTH="$(docker_cmd inspect -f '{{.State.Health.Status}}' "$REDIS_ID" 2>/dev/null || true)"
+  if [[ "$PG_HEALTH" == healthy && "$REDIS_HEALTH" == healthy ]]; then
+    DEPENDENCIES_HEALTHY=1
+    break
+  fi
+  log "Waiting for PostgreSQL and Redis health ($attempt/24)..."
+  sleep 5
+done
+(( DEPENDENCIES_HEALTHY == 1 )) || die "PostgreSQL or Redis is not healthy."
+
+CURRENT_PHASE="backup"
+write_status running || die "Could not record the backup phase."
+log "[4/7] Creating and validating a PostgreSQL backup before migrations..."
+BACKUP_TMP="$(mktemp "$BACKUP_DIR/skylux_pre_deploy_${TARGET_VERSION}.XXXXXX")" \
+  || die "Could not create a backup file in the protected backup directory."
+if ! docker_compose exec -T postgres sh -c \
+  'PGPASSWORD="$POSTGRES_PASSWORD" pg_dump --no-owner --no-privileges -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  | "$GZIP_BIN" -c > "$BACKUP_TMP"; then
+  rm -f -- "$BACKUP_TMP"
+  die "PostgreSQL dump or compression failed; migrations were not started."
+fi
+[[ -s "$BACKUP_TMP" ]] || die "Database backup is empty; migrations were not started."
+"$GZIP_BIN" -t "$BACKUP_TMP" >/dev/null 2>&1 || die "Database backup integrity check failed."
+BACKUP_PATH="${BACKUP_TMP}.sql.gz"
+mv -- "$BACKUP_TMP" "$BACKUP_PATH" || die "Could not finalize the verified database backup."
+BACKUP_TMP=""
+chmod 600 "$BACKUP_PATH"
+log "Verified database backup: $BACKUP_PATH"
+write_status running || die "Could not record the verified backup path."
+
+CURRENT_PHASE="migration"
+write_status running || die "Could not record the migration phase."
+log "[5/7] Running the production TypeORM migrations on the target backend image..."
+MIGRATION_ATTEMPTED=1
+docker_compose run --rm --no-deps backend npm run migration:run:prod \
+  || die "Production migration command failed; no automatic database rollback was attempted."
+
+CURRENT_PHASE="application-update"
+write_status running || die "Could not record the application update phase."
+log "[6/7] Updating only frontend and backend; database services are excluded..."
+docker_compose up -d --no-deps frontend backend \
+  || die "Could not start the target frontend/backend containers."
+
+CURRENT_PHASE="healthcheck"
+write_status running || die "Could not record the healthcheck phase."
+log "[7/7] Checking Docker health and host HTTP endpoints..."
+APPLICATIONS_HEALTHY=0
+for attempt in {1..12}; do
+  BACKEND_ID="$(docker_compose ps -q backend 2>/dev/null || true)"
+  FRONTEND_ID="$(docker_compose ps -q frontend 2>/dev/null || true)"
+  BACKEND_HEALTH=""
+  FRONTEND_HEALTH=""
+  [[ -z "$BACKEND_ID" ]] || BACKEND_HEALTH="$(docker_cmd inspect -f '{{.State.Health.Status}}' "$BACKEND_ID" 2>/dev/null || true)"
+  [[ -z "$FRONTEND_ID" ]] || FRONTEND_HEALTH="$(docker_cmd inspect -f '{{.State.Health.Status}}' "$FRONTEND_ID" 2>/dev/null || true)"
+  if [[ "$BACKEND_HEALTH" == healthy && "$FRONTEND_HEALTH" == healthy ]] \
+    && "$CURL_BIN" --fail --silent --connect-timeout 2 --max-time 5 \
+      http://127.0.0.1:3001/api/health >/dev/null 2>&1 \
+    && "$CURL_BIN" --fail --silent --connect-timeout 2 --max-time 5 \
+      http://127.0.0.1:3002/auth/login >/dev/null 2>&1; then
+    APPLICATIONS_HEALTHY=1
+    break
+  fi
+  log "Waiting for application health ($attempt/12)..."
+  sleep 5
+done
+(( APPLICATIONS_HEALTHY == 1 )) || die "Docker health or HTTP endpoint check failed."
+
+CURRENT_PHASE="complete"
+write_status succeeded || die "Healthchecks passed, but deployment status could not be recorded."
+log "Deployment completed successfully: $TARGET_VERSION"
+log "Previous version: $PREVIOUS_VERSION"
+log "Verified backup: $BACKUP_PATH"

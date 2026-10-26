@@ -1,0 +1,5 @@
+# Install only after the root-owned wrapper has been reviewed and installed.
+# This grants ops one wrapper and one full hexadecimal SHA argument.
+Defaults!/usr/local/sbin/skylux-production-deploy env_reset
+Defaults!/usr/local/sbin/skylux-production-deploy !setenv
+ops ALL=(root) NOPASSWD: /usr/local/sbin/skylux-production-deploy ^[[:xdigit:]]{40}$
