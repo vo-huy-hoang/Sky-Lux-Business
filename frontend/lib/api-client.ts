@@ -139,9 +139,9 @@ apiClient.interceptors.response.use(
           Cookies.remove('refresh_token', { path: '/' });
           Cookies.remove('access_token');
           Cookies.remove('refresh_token');
-          if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/login')) {
+          if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
             // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-            window.location.href = '/auth/login';
+            window.location.href = '/login';
           }
         }
         return Promise.reject(error);
@@ -178,9 +178,9 @@ apiClient.interceptors.response.use(
           Cookies.remove('refresh_token', { path: '/' });
           Cookies.remove('access_token');
           Cookies.remove('refresh_token');
-          if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/login')) {
+          if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
             // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-            window.location.href = '/auth/login';
+            window.location.href = '/login';
           }
         }
         return Promise.reject(refreshErr);

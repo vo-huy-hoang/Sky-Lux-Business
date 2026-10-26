@@ -268,11 +268,11 @@ export default function CeoDashboard() {
   const highestSupplierAmount = supplierRows[0]?.amount || 0;
   const topCustomers = (overview?.vipCustomers || []).slice(0, 5);
   const quickReports = [
-    { title: 'Báo cáo doanh thu chi tiết', icon: <FileTextOutlined />, iconBox: 'bg-[#E8F6ED] text-[#0A8A61] border-[#C8EBD5]', href: '/main/reports' },
-    { title: 'Báo cáo lợi nhuận theo mảng', icon: <DollarOutlined />, iconBox: 'bg-[#FEF5E7] text-[#D97706] border-[#FDE3B8]', href: '/main/reports' },
-    { title: 'Báo cáo công nợ phải thu', icon: <WalletOutlined />, iconBox: 'bg-[#EBF5FB] text-[#2E82C4] border-[#D1E8F7]', href: '/main/reports' },
-    { title: 'Báo cáo theo thị trường', icon: <GlobalOutlined />, iconBox: 'bg-[#E8F6ED] text-[#0A8A61] border-[#C8EBD5]', href: '/main/reports' },
-    { title: 'Báo cáo hiệu suất Sales', icon: <BarChartOutlined />, iconBox: 'bg-[#E6F8F6] text-[#0D9488] border-[#CCF0ED]', href: '/main/kpi' },
+    { title: 'Báo cáo doanh thu chi tiết', icon: <FileTextOutlined />, iconBox: 'bg-[#E8F6ED] text-[#0A8A61] border-[#C8EBD5]', href: '/reports' },
+    { title: 'Báo cáo lợi nhuận theo mảng', icon: <DollarOutlined />, iconBox: 'bg-[#FEF5E7] text-[#D97706] border-[#FDE3B8]', href: '/reports' },
+    { title: 'Báo cáo công nợ phải thu', icon: <WalletOutlined />, iconBox: 'bg-[#EBF5FB] text-[#2E82C4] border-[#D1E8F7]', href: '/reports' },
+    { title: 'Báo cáo theo thị trường', icon: <GlobalOutlined />, iconBox: 'bg-[#E8F6ED] text-[#0A8A61] border-[#C8EBD5]', href: '/reports' },
+    { title: 'Báo cáo hiệu suất Sales', icon: <BarChartOutlined />, iconBox: 'bg-[#E6F8F6] text-[#0D9488] border-[#CCF0ED]', href: '/kpi' },
   ];
   const notificationsList = notificationsResponse?.data || [];
   const pendingApprovals = React.useMemo(
@@ -390,7 +390,7 @@ export default function CeoDashboard() {
       dataIndex: 'code',
       width: 280,
       render: (value: string, record: DossierItem) => (
-        <Link className="font-semibold text-[var(--ceo-primary-700)] whitespace-nowrap hover:underline" href={`/main/dossiers/${record.id}`}>
+        <Link className="font-semibold text-[var(--ceo-primary-700)] whitespace-nowrap hover:underline" href={`/dossiers/${record.id}`}>
           {value}
         </Link>
       ),
@@ -497,7 +497,7 @@ export default function CeoDashboard() {
             hint={revenueHint}
             icon={<DollarOutlined />}
             loading={isLoadingOverview}
-            href="/main/revenue"
+            href="/revenue"
           />
         </Col>
         <Col xs={24} sm={12} lg={6}>
@@ -507,7 +507,7 @@ export default function CeoDashboard() {
             hint={profitHint}
             icon={<LineChartOutlined />}
             loading={isLoadingOverview}
-            href="/main/revenue"
+            href="/revenue"
           />
         </Col>
         <Col xs={24} sm={12} lg={6}>
@@ -518,7 +518,7 @@ export default function CeoDashboard() {
             icon={<FolderOpenOutlined />}
             tone="blue"
             loading={isLoadingOverview}
-            href="/main/dossiers"
+            href="/dossiers"
           />
         </Col>
         <Col xs={24} sm={12} lg={6}>
@@ -529,7 +529,7 @@ export default function CeoDashboard() {
             icon={<ClockCircleOutlined />}
             tone="gold"
             loading={isLoadingOverview}
-            href="/main/approvals"
+            href="/approvals"
           />
         </Col>
       </Row>
@@ -676,7 +676,7 @@ export default function CeoDashboard() {
                         <span className="font-semibold text-slate-900 tabular-nums whitespace-nowrap">
                           {formatCurrency(item.totalRevenue)}
                         </span>
-                        <Link href="/main/approvals">
+                        <Link href="/approvals">
                           <button
                             type="button"
                             className="px-2.5 py-0.5 rounded border border-slate-200 text-xs font-medium text-slate-600 hover:text-[#0B7A5B] hover:border-[#0B7A5B] bg-white transition-colors cursor-pointer"
@@ -691,7 +691,7 @@ export default function CeoDashboard() {
               </div>
 
               <Link
-                href="/main/approvals"
+                href="/approvals"
                 className="flex items-center justify-center gap-1.5 pt-3 mt-3 border-t border-slate-100 text-xs font-semibold text-[#0B7A5B] hover:text-[#08664D] transition-colors"
               >
                 <span>Xem tất cả hồ sơ chờ duyệt</span>
@@ -737,7 +737,7 @@ export default function CeoDashboard() {
               </div>
 
               <Link
-                href="/main/reports"
+                href="/reports"
                 className="flex items-center justify-center gap-1.5 pt-3 mt-3 border-t border-slate-100 text-xs font-semibold text-[#0B7A5B] hover:text-[#08664D] transition-colors"
               >
                 <span>Xem báo cáo hiệu suất Sales</span>
@@ -772,7 +772,7 @@ export default function CeoDashboard() {
                           <div className="text-[11px] text-slate-400 mt-0.5 truncate" title={notif.content}>{notif.content || formatDateTime(notif.createdAt)}</div>
                         </div>
                       </div>
-                      <Link href={notif.linkUrl || '/main/notifications'} className="shrink-0 pl-2 text-[var(--ceo-primary-700)]" aria-label={`Mở thông báo ${notif.title}`}>
+                      <Link href={notif.linkUrl || '/dashboard'} className="shrink-0 pl-2 text-[var(--ceo-primary-700)]" aria-label={`Mở thông báo ${notif.title}`}>
                         <ArrowRightOutlined className="text-sm" />
                       </Link>
                     </div>
@@ -781,7 +781,7 @@ export default function CeoDashboard() {
               </div>
 
               <Link
-                href="/main/notifications"
+                href="/dashboard"
                 className="flex items-center justify-center gap-1.5 pt-3 mt-3 border-t border-slate-100 text-xs font-semibold text-[#0B7A5B] hover:text-[#08664D] transition-colors"
               >
                 <span>Xem tất cả thông báo</span>
@@ -797,7 +797,7 @@ export default function CeoDashboard() {
           <Card
             className="ceo-card"
             title="Hồ sơ toàn hệ thống - Cập nhật gần nhất"
-            extra={<Button type="link" href="/main/dossiers">Xem tất cả</Button>}
+            extra={<Button type="link" href="/dossiers">Xem tất cả</Button>}
           >
             <Table
               rowKey="id"

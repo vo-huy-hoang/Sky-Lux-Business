@@ -11,6 +11,7 @@ const config: Config = {
   testEnvironment: 'jsdom',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: {
+    '^@/app/main/(.*)$': '<rootDir>/app/(main)/$1',
     '^@/(.*)$': '<rootDir>/$1',
   },
   // Ant Design 6 ships some ESM files in @ant-design/colors and related

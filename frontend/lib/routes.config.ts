@@ -42,8 +42,8 @@ export interface AppRoute {
 
 export const APP_ROUTES: AppRoute[] = [
   {
-    key: '/main/dashboard',
-    path: '/main/dashboard',
+    key: '/dashboard',
+    path: '/dashboard',
     icon: React.createElement(DashboardOutlined),
     label: 'Bảng điều khiển',
     title: 'Bảng điều khiển',
@@ -56,8 +56,8 @@ export const APP_ROUTES: AppRoute[] = [
     order: 10,
   },
   {
-    key: '/main/approvals',
-    path: '/main/approvals',
+    key: '/approvals',
+    path: '/approvals',
     icon: React.createElement(AuditOutlined),
     label: 'Hồ sơ chờ duyệt',
     title: 'Hồ sơ chờ duyệt',
@@ -66,8 +66,8 @@ export const APP_ROUTES: AppRoute[] = [
     order: 20,
   },
   {
-    key: '/main/tasks',
-    path: '/main/tasks',
+    key: '/tasks',
+    path: '/tasks',
     icon: React.createElement(CheckSquareOutlined),
     label: (ctx) =>
       ctx.isCeoAdmin
@@ -91,8 +91,8 @@ export const APP_ROUTES: AppRoute[] = [
     order: 30,
   },
   {
-    key: '/main/dossiers',
-    path: '/main/dossiers',
+    key: '/dossiers',
+    path: '/dossiers',
     icon: React.createElement(FolderOpenOutlined),
     label: (ctx) =>
       ctx.isCeoAdmin
@@ -116,8 +116,8 @@ export const APP_ROUTES: AppRoute[] = [
     order: 40,
   },
   {
-    key: '/main/revenue',
-    path: '/main/revenue',
+    key: '/revenue',
+    path: '/revenue',
     icon: React.createElement(BarChartOutlined),
     label: 'Doanh thu & thống kê',
     title: 'Doanh thu & thống kê',
@@ -127,8 +127,8 @@ export const APP_ROUTES: AppRoute[] = [
     order: 50,
   },
   {
-    key: '/main/reports',
-    path: '/main/reports',
+    key: '/reports',
+    path: '/reports',
     icon: React.createElement(FileTextOutlined),
     label: 'Báo cáo',
     title: 'Báo cáo',
@@ -137,8 +137,8 @@ export const APP_ROUTES: AppRoute[] = [
     order: 60,
   },
   {
-    key: '/main/kpi',
-    path: '/main/kpi',
+    key: '/kpi',
+    path: '/kpi',
     icon: React.createElement(RiseOutlined),
     label: 'KPI Sales',
     title: 'KPI Sales',
@@ -147,8 +147,8 @@ export const APP_ROUTES: AppRoute[] = [
     order: 70,
   },
   {
-    key: '/main/customers',
-    path: '/main/customers',
+    key: '/customers',
+    path: '/customers',
     icon: React.createElement(UsergroupAddOutlined),
     label: (ctx) =>
       ctx.isCeoAdmin ? 'Khách hàng & NCC' : 'Khách hàng của tôi',
@@ -159,8 +159,8 @@ export const APP_ROUTES: AppRoute[] = [
     order: 80,
   },
   {
-    key: '/main/suppliers',
-    path: '/main/suppliers',
+    key: '/suppliers',
+    path: '/suppliers',
     icon: React.createElement(CustomerServiceOutlined),
     label: 'Nhà cung cấp',
     title: 'Nhà cung cấp',
@@ -170,8 +170,8 @@ export const APP_ROUTES: AppRoute[] = [
     order: 85,
   },
   {
-    key: '/main/sales',
-    path: '/main/sales',
+    key: '/sales',
+    path: '/sales',
     icon: React.createElement(TeamOutlined),
     label: 'Quản lý Sales',
     title: 'Quản lý Sales',
@@ -182,8 +182,8 @@ export const APP_ROUTES: AppRoute[] = [
     order: 88,
   },
   {
-    key: '/main/imports',
-    path: '/main/imports',
+    key: '/imports',
+    path: '/imports',
     icon: React.createElement(FileExcelOutlined),
     label: 'Import dự toán Excel',
     title: 'Import dự toán Excel',
@@ -192,8 +192,8 @@ export const APP_ROUTES: AppRoute[] = [
     order: 90,
   },
   {
-    key: '/main/messages',
-    path: '/main/messages',
+    key: '/messages',
+    path: '/messages',
     icon: React.createElement(MessageOutlined),
     label: 'Tin nhắn',
     title: 'Tin nhắn',
@@ -202,8 +202,8 @@ export const APP_ROUTES: AppRoute[] = [
     order: 100,
   },
   {
-    key: '/main/users',
-    path: '/main/users',
+    key: '/users',
+    path: '/users',
     icon: React.createElement(TeamOutlined),
     label: 'Người dùng & phân quyền',
     title: 'Người dùng & phân quyền',
@@ -212,8 +212,8 @@ export const APP_ROUTES: AppRoute[] = [
     order: 110,
   },
   {
-    key: '/main/settings',
-    path: '/main/settings',
+    key: '/settings',
+    path: '/settings',
     icon: React.createElement(SettingOutlined),
     label: 'Cấu hình hệ thống',
     title: 'Cấu hình hệ thống',
@@ -222,8 +222,8 @@ export const APP_ROUTES: AppRoute[] = [
     order: 120,
   },
   {
-    key: '/main/audit-logs',
-    path: '/main/audit-logs',
+    key: '/audit-logs',
+    path: '/audit-logs',
     icon: React.createElement(HistoryOutlined),
     label: 'Nhật ký hoạt động',
     title: 'Nhật ký hoạt động',
@@ -232,8 +232,8 @@ export const APP_ROUTES: AppRoute[] = [
     order: 130,
   },
   {
-    key: '/main/profile',
-    path: '/main/profile',
+    key: '/profile',
+    path: '/profile',
     icon: React.createElement(UserOutlined),
     label: 'Hồ sơ cá nhân',
     title: 'Hồ sơ cá nhân',
@@ -291,15 +291,18 @@ export function isPathAccessible(
   pathname: string | null,
   ctx: UserContext,
 ): boolean {
-  if (!pathname || pathname === '/main') return true;
+  if (!pathname || pathname === '/' || pathname === '/main') return true;
+
+  // Chuẩn hóa đường dẫn legacy nếu bắt đầu bằng /main
+  const normalized = pathname.startsWith('/main/') ? pathname.replace(/^\/main/, '') : pathname;
 
   // Cho phép Operator, Sales, CEO/Admin và Super Admin truy cập trang chi tiết hồ sơ tour
-  if (pathname.startsWith('/main/dossiers/')) {
+  if (normalized.startsWith('/dossiers/')) {
     return !!(ctx.isOperator || ctx.isSales || ctx.isCeoAdmin || ctx.isSuperAdmin);
   }
 
   // Khớp chính xác route dài nhất
-  const matched = APP_ROUTES.filter((r) => pathname.startsWith(r.path)).sort(
+  const matched = APP_ROUTES.filter((r) => normalized.startsWith(r.path) || pathname.startsWith(r.path)).sort(
     (a, b) => b.path.length - a.path.length,
   )[0];
 
@@ -321,8 +324,11 @@ export function getRouteMeta(
     };
   }
 
+  // Chuẩn hóa đường dẫn legacy nếu bắt đầu bằng /main
+  const normalized = pathname.startsWith('/main/') ? pathname.replace(/^\/main/, '') : pathname;
+
   // Trường hợp đặc biệt: Chi tiết hồ sơ
-  if (pathname.startsWith('/main/dossiers/')) {
+  if (normalized.startsWith('/dossiers/')) {
     return {
       title: 'Chi tiết hồ sơ',
       subtitle: 'Xem dự toán, tài liệu và quy trình phê duyệt hồ sơ tour',
@@ -330,7 +336,7 @@ export function getRouteMeta(
   }
 
   // Tìm route khớp với tiền tố dài nhất
-  const matched = APP_ROUTES.filter((r) => pathname.startsWith(r.path)).sort(
+  const matched = APP_ROUTES.filter((r) => normalized.startsWith(r.path) || pathname.startsWith(r.path)).sort(
     (a, b) => b.path.length - a.path.length,
   )[0];
 
@@ -354,12 +360,14 @@ export function getRouteMeta(
  * Xác định chính xác key của menu đang được chọn (highlight)
  */
 export function getActiveMenuKey(pathname: string | null): string {
-  if (!pathname || pathname === '/main') return '/main/dashboard';
+  if (!pathname || pathname === '/' || pathname === '/main' || pathname === '/dashboard') return '/dashboard';
+
+  const normalized = pathname.startsWith('/main/') ? pathname.replace(/^\/main/, '') : pathname;
 
   // Khớp chính xác route dài nhất
-  const matched = APP_ROUTES.filter((r) => pathname.startsWith(r.path)).sort(
+  const matched = APP_ROUTES.filter((r) => normalized.startsWith(r.path) || pathname.startsWith(r.path)).sort(
     (a, b) => b.path.length - a.path.length,
   )[0];
 
-  return matched ? matched.key : pathname;
+  return matched ? matched.key : normalized;
 }

@@ -227,7 +227,7 @@ export class TasksService {
           title: `Công việc mới được giao: ${savedTask.title}`,
           content: `${user.fullName || 'Quản lý'} đã giao công việc "${savedTask.title}" cho bạn.`,
           type: 'TASK',
-          linkUrl: '/main/tasks',
+          linkUrl: '/tasks',
           metadata: { taskId: savedTask.id, dossierId: savedTask.dossierId },
         });
       } catch (err: any) {
@@ -341,7 +341,7 @@ export class TasksService {
           title: `Công việc được chuyển giao: ${savedTask.title}`,
           content: `${user.fullName || 'Quản lý'} đã phân công công việc "${savedTask.title}" cho bạn.`,
           type: 'TASK',
-          linkUrl: '/main/tasks',
+          linkUrl: '/tasks',
           metadata: { taskId: savedTask.id, dossierId: savedTask.dossierId },
         });
       } catch (err: any) {

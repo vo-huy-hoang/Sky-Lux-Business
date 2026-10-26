@@ -37,7 +37,7 @@ export class CreateNotificationDto {
 
   @ApiPropertyOptional({
     description: 'Đường dẫn liên kết khi click thông báo',
-    example: '/main/dossiers/123',
+    example: '/dossiers/123',
   })
   @IsString()
   @IsOptional()

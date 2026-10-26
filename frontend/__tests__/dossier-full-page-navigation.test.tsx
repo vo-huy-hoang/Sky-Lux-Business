@@ -119,13 +119,13 @@ describe('Dossier Navigation - Full Page & Drawer Removal', () => {
     // Check code link
     const codeLink = screen.getByText('TOUR-2026-001').closest('a');
     expect(codeLink).not.toBeNull();
-    expect(codeLink).toHaveAttribute('href', '/main/dossiers/dossier-uuid-1234');
+    expect(codeLink).toHaveAttribute('href', '/dossiers/dossier-uuid-1234');
 
     // Check "Xem chi tiết" action link
     const detailBtn = screen.getByText('Xem chi tiết');
     const detailLink = detailBtn.closest('a');
     expect(detailLink).not.toBeNull();
-    expect(detailLink).toHaveAttribute('href', '/main/dossiers/dossier-uuid-1234');
+    expect(detailLink).toHaveAttribute('href', '/dossiers/dossier-uuid-1234');
 
     // Verify Drawer is NOT in the DOM
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();

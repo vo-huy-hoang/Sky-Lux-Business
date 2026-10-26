@@ -27,7 +27,7 @@ describe('NotificationsService', () => {
     title: 'Hồ sơ đã được gửi duyệt',
     content: 'Sales vừa nộp hồ sơ tour Đà Nẵng',
     type: 'DOSSIER',
-    linkUrl: '/main/dossiers/dossier-1',
+    linkUrl: '/dossiers/dossier-1',
     isRead: false,
     readAt: undefined,
     metadata: { dossierId: 'dossier-1' },
@@ -89,7 +89,7 @@ describe('NotificationsService', () => {
         title: 'Hồ sơ mới',
         content: 'Nội dung hồ sơ',
         type: 'DOSSIER',
-        linkUrl: '/main/dossiers/1',
+        linkUrl: '/dossiers/1',
       });
 
       expect(mockRepository.create).toHaveBeenCalled();

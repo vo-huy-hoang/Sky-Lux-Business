@@ -26,7 +26,7 @@ describe('NotificationsService (Frontend)', () => {
     content: 'Sales đã nộp hồ sơ HS-001',
     type: 'DOSSIER',
     isRead: false,
-    linkUrl: '/main/dossiers/hs-1',
+    linkUrl: '/dossiers/hs-1',
     metadata: { dossierId: 'hs-1' },
     createdAt: '2026-09-04T10:00:00.000Z',
     updatedAt: '2026-09-04T10:00:00.000Z',
