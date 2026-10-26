@@ -2,15 +2,13 @@ name: Frontend CI
 
 on:
   pull_request:
-    paths:
-      - "frontend/**"
-      - ".github/workflows/ci-frontend.yml"
+    branches:
+      - develop
+      - main
   push:
     branches:
       - develop
       - main
-    paths:
-      - "frontend/**"
 
 jobs:
   frontend:
@@ -30,10 +28,14 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Lint
-        run: npm run lint || true
+      - name: Lint (non-blocking - existing lint debt)
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Typecheck
+        run: npm run typecheck
 
       - name: Test
         run: npm test -- --runInBand
