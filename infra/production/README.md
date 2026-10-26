@@ -40,6 +40,23 @@ approval private key must be available only as a GitHub **production
 Environment** secret to the protected deployment workflow after approval; the
 matching public key is installed as `/etc/skylux/deploy-approval.pub`.
 
+### GitHub `production` Environment
+
+The current Environment configuration is:
+
+- Required reviewers: enabled; reviewer `vo-huy-hoang`.
+- Prevent self-review: off. The administrator currently approves Production
+  deployments personally as an intentional operating choice.
+- Administrator bypass: off.
+- Deployment branches and tags: selected refs, with `main` as the only allowed
+  branch and no allowed tags.
+- Wait timer: off.
+
+If more release owners join the project, enable prevention of self-review to
+increase separation of duties. GitHub approval does not replace the VPS-side
+RSA signature verification; the wrapper independently rejects unsigned,
+invalid, expired, or replayed tickets.
+
 The wrapper reads five newline-terminated stdin fields in this order:
 
 1. GHCR login username
@@ -203,8 +220,8 @@ The legacy workflow has been replaced by a manual notification that fails and
 performs no build, SSH, or deployment. A later workflow change in GĐ7.6.5 must:
 
 - require protected `main` and a GitHub `production` Environment with required
-  reviewers, prevent self-review, and prevent administrator bypass where the
-  repository policy permits;
+  reviewer `vo-huy-hoang`, administrator bypass disabled, and deployment refs
+  limited to `main` (the current self-review setting remains off by design);
 - build and publish both images before the approved deployment step;
 - create the signed ticket only in the approved job, using the Environment
   private-key secret, SHA, timestamp, and `${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}`;

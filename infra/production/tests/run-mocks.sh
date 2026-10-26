@@ -37,7 +37,19 @@ TEST_LOCK="$TEST_ROOT/install/run/skylux-production"
 cp "$SOURCE_WRAPPER" "$TEST_WRAPPER"
 cp "$ROOT_DIR/infra/production/docker-compose.prod.root.yml" \
   "$TEST_ROOT/install/lib/skylux-production/docker-compose.prod.yml"
-cp "$(command -v openssl)" "$TEST_OPENSSL"
+REAL_OPENSSL_BIN="$(command -v openssl)"
+cat > "$TEST_OPENSSL" <<EOF
+#!/bin/bash
+if [[ "\$1 \$2 \$3" == "dgst -sha256 -verify" ]]; then
+  if [[ "\${MOCK_MARKER_MUST_BE_ABSENT_AT_VERIFY:-}" == 1 \
+    && -n "\${MOCK_REQUIRED_MARKER:-}" && -e "\$MOCK_REQUIRED_MARKER" ]]; then
+    printf '%s\\n' 'Replay marker was created before approval verification' >&2
+    exit 97
+  fi
+  printf '%s\\n' 'approval-verify' >> "\$MOCK_LOG"
+fi
+exec "$REAL_OPENSSL_BIN" "\$@"
+EOF
 REAL_GZIP_BIN="$(command -v gzip)"
 cat > "$TEST_GZIP" <<EOF
 #!/bin/bash
@@ -97,6 +109,10 @@ cat > "$TEST_DOCKER" <<'MOCK'
 #!/bin/bash
 set -euo pipefail
 printf 'docker %s\n' "$*" >> "$MOCK_LOG"
+if [[ -n "${MOCK_REQUIRED_MARKER:-}" && ! -f "$MOCK_REQUIRED_MARKER" ]]; then
+  printf '%s\n' 'Docker was called before the replay marker existed' >&2
+  exit 98
+fi
 if [[ "$1" == info ]]; then
   printf '%s\n' "$MOCK_COMPOSE_PLUGIN"
   exit 0
@@ -183,8 +199,8 @@ export MOCK_LOG MOCK_COMPOSE_PLUGIN="$TEST_COMPOSE"
 export PATH="$TEST_ROOT/install/mock-bin:/usr/bin:/bin"
 
 issue_ticket() {
-  local sha="$1" run_id="$2" timestamp signature message message_file signature_file
-  timestamp="$(date -u +%s)"
+  local sha="$1" run_id="$2" timestamp="${3:-}" signature message message_file signature_file
+  timestamp="${timestamp:-$(date -u +%s)}"
   message="$(printf 'SKYLUX_PRODUCTION_DEPLOY_V1\n%s\n%s\n%s' "$sha" "$timestamp" "$run_id")"
   message_file="$TEST_ROOT/message-$run_id"
   signature_file="$TEST_ROOT/signature-$run_id"
@@ -198,13 +214,17 @@ run_case() {
   local label="$1" sha="$2" run_id="$3" fail_kind="${4:-}" expected="$5" missing_image="${6:-}" http_status="${7:-200}" rc
   : > "$MOCK_LOG"
   set +e
-  issue_ticket "$sha" "$run_id" | env MOCK_LOG="$MOCK_LOG" MOCK_COMPOSE_PLUGIN="$TEST_COMPOSE" MOCK_FAIL="$fail_kind" MOCK_MISSING_IMAGE="$missing_image" MOCK_HTTP_STATUS="$http_status" \
+  issue_ticket "$sha" "$run_id" | env MOCK_LOG="$MOCK_LOG" MOCK_COMPOSE_PLUGIN="$TEST_COMPOSE" MOCK_REQUIRED_MARKER="$TEST_STATE/used-run-$run_id" MOCK_MARKER_MUST_BE_ABSENT_AT_VERIFY=1 MOCK_FAIL="$fail_kind" MOCK_MISSING_IMAGE="$missing_image" MOCK_HTTP_STATUS="$http_status" \
     "$TEST_WRAPPER" "$sha" > "$TEST_ROOT/output" 2>&1
   rc=$?
   set -e
   case "$expected" in
     success)
       [[ $rc -eq 0 ]] || { cat "$TEST_ROOT/output"; return 1; }
+      local verify_line docker_line
+      verify_line="$(grep -n '^approval-verify$' "$MOCK_LOG" | head -n 1 | cut -d: -f1)"
+      docker_line="$(grep -n '^docker ' "$MOCK_LOG" | head -n 1 | cut -d: -f1)"
+      [[ -n "$verify_line" && -n "$docker_line" && "$verify_line" -lt "$docker_line" ]] || return 1
       grep -q '^status=succeeded$' "$TEST_STATE/status" || return 1
       grep -q '^previous_version=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa$' "$TEST_STATE/status" || return 1
       grep -q '^target_version=0123456789abcdef0123456789abcdef01234567$' "$TEST_STATE/status" || return 1
@@ -245,11 +265,24 @@ printf '%s\n' 'unprivileged deploy client: fixed wrapper and stdin forwarded'
 : > "$MOCK_LOG"
 set +e
 issue_ticket "$GOOD_SHA" 100000-1 | env MOCK_LOG="$MOCK_LOG" MOCK_COMPOSE_PLUGIN="$TEST_COMPOSE" \
+  MOCK_REQUIRED_MARKER="$TEST_STATE/used-run-100000-1" MOCK_MARKER_MUST_BE_ABSENT_AT_VERIFY=1 \
   "$TEST_WRAPPER" "abcdef0123456789abcdef0123456789abcdef01" > "$TEST_ROOT/output" 2>&1
 rc=$?
 set -e
-[[ $rc -ne 0 && ! -s "$MOCK_LOG" ]]
+[[ $rc -ne 0 && ! -e "$TEST_STATE/used-run-100000-1" && ! -e "$TEST_LOCK/active" ]]
+! grep -q '^docker ' "$MOCK_LOG"
+! grep -q 'mock-ghcr-token\|MOCK_DATABASE_PASSWORD\|MOCK_JWT_SECRET' "$TEST_ROOT/output"
 printf '%s\n' 'invalid approval signature: rejected before Docker'
+
+EXPIRED_TIMESTAMP="$(( $(date -u +%s) - 301 ))"
+: > "$MOCK_LOG"
+set +e
+issue_ticket "$GOOD_SHA" 100016-1 "$EXPIRED_TIMESTAMP" | env MOCK_LOG="$MOCK_LOG" MOCK_COMPOSE_PLUGIN="$TEST_COMPOSE" \
+  "$TEST_WRAPPER" "$GOOD_SHA" > "$TEST_ROOT/output" 2>&1
+rc=$?
+set -e
+[[ $rc -ne 0 && ! -s "$MOCK_LOG" && ! -e "$TEST_STATE/used-run-100016-1" && ! -e "$TEST_LOCK/active" ]]
+printf '%s\n' 'expired approval ticket: rejected before Docker and replay marker'
 
 grep -q 'skylux-deploy ALL=(root) NOPASSWD: /usr/local/sbin/skylux-production-deploy \^\[\[:xdigit:\]\]{40}\$' \
   "$ROOT_DIR/infra/production/skylux-production.sudoers"
@@ -269,6 +302,8 @@ run_case 'invalid registry owner' "$GOOD_SHA" 100001-1 '' preflight-rejected
 cp "$TEST_ROOT/original.env" "$TEST_ENV"
 rm -f "$TEST_ENV.bak"
 
+run_case 'image pull failure' "$GOOD_SHA" 100017-1 pull rejected
+! grep -Eq 'image inspect|exec -T postgres|run --rm' "$MOCK_LOG"
 run_case 'missing backend image' "$GOOD_SHA" 100002-1 '' rejected backend
 grep -q '^status=failed$' "$TEST_STATE/status" || { cat "$TEST_ROOT/output"; exit 1; }
 run_case 'backup failure' "$GOOD_SHA" 100003-1 backup rejected
@@ -292,6 +327,30 @@ grep -q '127.0.0.1:3000/login' "$ROOT_DIR/infra/production/docker-compose.prod.r
 grep -q 'name: skylux_postgres_data' "$TEST_ROOT/install/lib/skylux-production/docker-compose.prod.yml"
 grep -q 'name: skylux_redis_data' "$TEST_ROOT/install/lib/skylux-production/docker-compose.prod.yml"
 grep -q 'name: skylux_skylux' "$TEST_ROOT/install/lib/skylux-production/docker-compose.prod.yml"
+
+# Replaying the same signed ticket is rejected before any Docker command.
+REPLAY_RUN_ID="100015-1"
+REPLAY_TICKET="$TEST_ROOT/replay-ticket"
+issue_ticket "$GOOD_SHA" "$REPLAY_RUN_ID" > "$REPLAY_TICKET"
+REPLAY_MARKER="$TEST_STATE/used-run-$REPLAY_RUN_ID"
+: > "$MOCK_LOG"
+set +e
+env MOCK_LOG="$MOCK_LOG" MOCK_COMPOSE_PLUGIN="$TEST_COMPOSE" MOCK_REQUIRED_MARKER="$REPLAY_MARKER" MOCK_MARKER_MUST_BE_ABSENT_AT_VERIFY=1 \
+  "$TEST_WRAPPER" "$GOOD_SHA" < "$REPLAY_TICKET" > "$TEST_ROOT/output" 2>&1
+first_replay_rc=$?
+set -e
+[[ $first_replay_rc -eq 0 && -f "$REPLAY_MARKER" ]]
+: > "$MOCK_LOG"
+set +e
+env MOCK_LOG="$MOCK_LOG" MOCK_COMPOSE_PLUGIN="$TEST_COMPOSE" MOCK_REQUIRED_MARKER="$REPLAY_MARKER" \
+  "$TEST_WRAPPER" "$GOOD_SHA" < "$REPLAY_TICKET" > "$TEST_ROOT/output" 2>&1
+second_replay_rc=$?
+set -e
+[[ $second_replay_rc -ne 0 ]]
+! grep -q '^docker ' "$MOCK_LOG"
+grep -q 'already used' "$TEST_ROOT/output"
+! grep -q 'mock-ghcr-token\|MOCK_DATABASE_PASSWORD\|MOCK_JWT_SECRET' "$TEST_ROOT/output"
+printf '%s\n' 'approval replay: first accepted, reuse rejected before Docker'
 
 # A group/world writable protected secret config must fail before any Docker call.
 chmod 640 "$TEST_ENV"

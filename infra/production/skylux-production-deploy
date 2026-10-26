@@ -209,17 +209,6 @@ ENV_REGISTRY_OWNER="$(setting_value REGISTRY_OWNER)" || die "REGISTRY_OWNER is m
 [[ "$ENV_REGISTRY_OWNER" == "$REGISTRY_OWNER" ]] || die "Protected REGISTRY_OWNER must be vo-huy-hoang."
 unset DB_NAME DB_USER DB_PASSWORD JWT_SECRET ENV_REGISTRY_OWNER
 
-# mkdir is atomic. A stale directory after SIGKILL fails closed and requires
-# an administrator to verify no deployment is running before clearing it.
-if ! mkdir -- "$LOCK_PATH" 2>/dev/null; then
-  log "ERROR: Another deployment is active or a stale deployment lock needs administrator review." >&2
-  exit 75
-fi
-LOCK_ACQUIRED=1
-printf 'pid=%s\n' "$$" > "$LOCK_PATH/owner"
-
-DOCKER_CONFIG_DIR="$(mktemp -d "$LOCK_DIR/docker-config.XXXXXX")" || die "Could not create a private Docker config directory."
-chmod 700 "$DOCKER_CONFIG_DIR"
 RUNTIME_DIR="$(mktemp -d "$LOCK_DIR/runtime.XXXXXX")" || die "Could not create a private runtime directory."
 chmod 700 "$RUNTIME_DIR"
 
@@ -273,23 +262,36 @@ if ! printf '%s' "$TICKET_SIGNATURE" | "$OPENSSL_BIN" base64 -d -A > "$SIGNATURE
 fi
 [[ "$(wc -c < "$SIGNATURE_FILE" | tr -d '[:space:]')" == 384 ]] || die "Approval signature must be an RSA-3072 signature."
 
-COMPOSE_PLUGIN="$(docker_cmd info --format '{{range .ClientInfo.Plugins}}{{if eq .Name "compose"}}{{.Path}}{{end}}{{end}}' 2>/dev/null)" \
-  || die "Could not locate the Docker Compose plugin."
-[[ "$COMPOSE_PLUGIN" == /* && -f "$COMPOSE_PLUGIN" ]] || die "Docker Compose plugin path is unavailable."
-assert_trusted_path "$COMPOSE_PLUGIN" file
-mkdir -m 700 "$DOCKER_CONFIG_DIR/cli-plugins"
-ln -s -- "$COMPOSE_PLUGIN" "$DOCKER_CONFIG_DIR/cli-plugins/docker-compose"
-
 if ! "$OPENSSL_BIN" dgst -sha256 -verify "$APPROVAL_KEY" \
   -signature "$SIGNATURE_FILE" "$MESSAGE_FILE" >/dev/null 2>&1; then
   die "Deployment approval signature is invalid."
 fi
+
+# Acquire the lock only after authenticating the request, so an invalid ticket
+# cannot hold the deployment lock while it is being rejected.
+if ! mkdir -- "$LOCK_PATH" 2>/dev/null; then
+  log "ERROR: Another deployment is active or a stale deployment lock needs administrator review." >&2
+  exit 75
+fi
+LOCK_ACQUIRED=1
+printf 'pid=%s\n' "$$" > "$LOCK_PATH/owner"
 
 RUN_MARKER="$STATE_DIR/used-run-$TICKET_RUN_ID"
 if ! ( set -o noclobber; : > "$RUN_MARKER" ) 2>/dev/null; then
   die "This GitHub Actions run id was already used."
 fi
 chmod 600 "$RUN_MARKER"
+
+# Do not contact Docker or load its Compose plugin until the signed ticket is
+# valid and its workflow run id has been atomically marked as consumed.
+DOCKER_CONFIG_DIR="$(mktemp -d "$LOCK_DIR/docker-config.XXXXXX")" || die "Could not create a private Docker config directory."
+chmod 700 "$DOCKER_CONFIG_DIR"
+COMPOSE_PLUGIN="$(docker_cmd info --format '{{range .ClientInfo.Plugins}}{{if eq .Name "compose"}}{{.Path}}{{end}}{{end}}' 2>/dev/null)" \
+  || die "Could not locate the Docker Compose plugin."
+[[ "$COMPOSE_PLUGIN" == /* && -f "$COMPOSE_PLUGIN" ]] || die "Docker Compose plugin path is unavailable."
+assert_trusted_path "$COMPOSE_PLUGIN" file
+mkdir -m 700 "$DOCKER_CONFIG_DIR/cli-plugins"
+ln -s -- "$COMPOSE_PLUGIN" "$DOCKER_CONFIG_DIR/cli-plugins/docker-compose"
 
 STATE_READY=1
 CURRENT_PHASE="preparing"
