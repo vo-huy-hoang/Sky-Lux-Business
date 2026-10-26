@@ -1,23 +1,109 @@
 name: Build and Push Images
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
+  test-frontend:
+    name: Test frontend
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test -- --runInBand
+
+      - name: Build
+        run: npm run build
+
+  test-backend:
+    name: Test backend
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test -- --runInBand
+
+      - name: Build
+        run: npm run build
+
   build-and-push:
     name: Build and push Docker images to GHCR
+    if: github.ref == 'refs/heads/main' && needs.test-frontend.result == 'success' && needs.test-backend.result == 'success'
+    needs:
+      - test-frontend
+      - test-backend
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          load: true
+          build-args: |
+            NEXT_PUBLIC_API_URL=/api
+          tags: ghcr.io/vo-huy-hoang/skylux-frontend:${{ github.sha }}
+
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          load: true
+          tags: ghcr.io/vo-huy-hoang/skylux-backend:${{ github.sha }}
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -26,20 +112,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push frontend image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
-          push: true
-          build-args: |
-            NEXT_PUBLIC_API_URL=/api
-          tags: ghcr.io/vo-huy-hoang/skylux-frontend:${{ github.sha }}
+      - name: Push frontend image
+        run: docker push ghcr.io/vo-huy-hoang/skylux-frontend:${GITHUB_SHA}
 
-      - name: Build and push backend image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile
-          push: true
-          tags: ghcr.io/vo-huy-hoang/skylux-backend:${{ github.sha }}
+      - name: Push backend image
+        run: docker push ghcr.io/vo-huy-hoang/skylux-backend:${GITHUB_SHA}
