@@ -113,7 +113,93 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push frontend image
-        run: docker push ghcr.io/vo-huy-hoang/skylux-frontend:${GITHUB_SHA}
+        run: docker push "ghcr.io/vo-huy-hoang/skylux-frontend:${GITHUB_SHA}"
 
       - name: Push backend image
-        run: docker push ghcr.io/vo-huy-hoang/skylux-backend:${GITHUB_SHA}
+        run: docker push "ghcr.io/vo-huy-hoang/skylux-backend:${GITHUB_SHA}"
+
+  deploy-production:
+    name: Deploy production
+    if: github.ref == 'refs/heads/main' && needs.build-and-push.result == 'success'
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: skylux-production-deploy
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout built commit
+        uses: actions/checkout@v4
+
+      - name: Sign approval ticket and deploy through the restricted wrapper
+        env:
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+          DEPLOY_APPROVAL_PRIVATE_KEY: ${{ secrets.DEPLOY_APPROVAL_PRIVATE_KEY }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOY_SHA: ${{ github.sha }}
+          DEPLOY_RUN_ID: ${{ github.run_id }}
+          DEPLOY_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$DEPLOY_RUN_ID" =~ ^[0-9]{1,16}$ ]]
+          [[ "$DEPLOY_RUN_ATTEMPT" =~ ^[0-9]{1,4}$ ]]
+          [[ "$GHCR_USERNAME" =~ ^[A-Za-z0-9-]{1,39}$ ]]
+          [[ "$VPS_USER" =~ ^[A-Za-z_][A-Za-z0-9._-]*$ ]]
+          [[ "$VPS_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
+          [[ -n "$VPS_SSH_KEY" && -n "$VPS_SSH_KNOWN_HOSTS" ]]
+          [[ -n "$DEPLOY_APPROVAL_PRIVATE_KEY" && -n "$GHCR_TOKEN" ]]
+
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"
+          if [[ "$MAIN_SHA" != "$DEPLOY_SHA" ]]; then
+            echo "::error::Refusing stale production deployment: built commit is not the current main HEAD."
+            exit 1
+          fi
+
+          TEMP_DIR="$(mktemp -d "$RUNNER_TEMP/skylux-production.XXXXXX")"
+          trap 'rm -rf -- "$TEMP_DIR"' EXIT
+          SSH_KEY_FILE="$TEMP_DIR/id_key"
+          KNOWN_HOSTS_FILE="$TEMP_DIR/known_hosts"
+          APPROVAL_KEY_FILE="$TEMP_DIR/approval-private.pem"
+          MESSAGE_FILE="$TEMP_DIR/approval-message"
+          SIGNATURE_FILE="$TEMP_DIR/approval-signature"
+
+          printf '%s\n' "$VPS_SSH_KEY" > "$SSH_KEY_FILE"
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > "$KNOWN_HOSTS_FILE"
+          printf '%s\n' "$DEPLOY_APPROVAL_PRIVATE_KEY" > "$APPROVAL_KEY_FILE"
+          chmod 600 "$SSH_KEY_FILE" "$KNOWN_HOSTS_FILE" "$APPROVAL_KEY_FILE"
+
+          TICKET_TIMESTAMP="$(date -u +%s)"
+          TICKET_RUN_ID="${DEPLOY_RUN_ID}-${DEPLOY_RUN_ATTEMPT}"
+          printf 'SKYLUX_PRODUCTION_DEPLOY_V1\n%s\n%s\n%s' \
+            "$DEPLOY_SHA" "$TICKET_TIMESTAMP" "$TICKET_RUN_ID" > "$MESSAGE_FILE"
+          openssl dgst -sha256 -sign "$APPROVAL_KEY_FILE" \
+            -out "$SIGNATURE_FILE" "$MESSAGE_FILE"
+          [[ "$(wc -c < "$SIGNATURE_FILE" | tr -d '[:space:]')" == 384 ]]
+          TICKET_SIGNATURE="$(openssl base64 -A -in "$SIGNATURE_FILE")"
+
+          printf '%s\n%s\n%s\n%s\n%s\n' \
+            "$GHCR_USERNAME" \
+            "$GHCR_TOKEN" \
+            "$TICKET_TIMESTAMP" \
+            "$TICKET_RUN_ID" \
+            "$TICKET_SIGNATURE" |
+            ssh \
+              -o BatchMode=yes \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile="$KNOWN_HOSTS_FILE" \
+              -o ConnectTimeout=15 \
+              -i "$SSH_KEY_FILE" \
+              "$VPS_USER@$VPS_HOST" \
+              "sudo -n /usr/local/sbin/skylux-production-deploy $DEPLOY_SHA"
