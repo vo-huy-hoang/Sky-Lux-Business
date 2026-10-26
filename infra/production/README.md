@@ -11,11 +11,21 @@ and file hashes have first been independently verified.
 ```text
 GitHub Actions workflow on protected main
   -> GitHub production Environment approval
-  -> SSH as ops, forwarding a signed approval ticket and GHCR token on stdin
-  -> sudo -n restricted to the root-owned wrapper and one 40-hex SHA
+  -> SSH as the dedicated, unprivileged skylux-deploy account
+  -> `sudo -n` permits only the root-owned wrapper and one 40-hex SHA
   -> wrapper verifies the ticket, acquires an exclusive lock, and invokes
      root-owned Docker, Compose configuration, and environment configuration
 ```
+
+The `skylux-deploy` account must not belong to `sudo` or `docker`, and must not
+be able to modify the wrapper, Compose file, production environment, approval
+key, or their parent directories. Keep `ops` as the existing administrator
+account; this plan does not change its current privileges. Install the GitHub
+Actions SSH public key only in `skylux-deploy`'s `authorized_keys`, using a
+dedicated key pair and the `restrict` authorized-key option. Do not install
+that key for `ops` or another account. The sudoers rule below grants
+`skylux-deploy` only the root-owned wrapper with one 40-character hexadecimal
+argument; wrapper validation and the signed ticket are independent checks.
 
 The wrapper requires an RSA-3072 SHA-256 signature over these exact bytes:
 
@@ -64,12 +74,13 @@ pulls `frontend` and `backend`, runs migrations with `--no-deps`, and updates
 those two services with `up -d --no-deps frontend backend`. It never runs
 `down`, prunes resources, or calls `up` for PostgreSQL or Redis.
 
-The frontend container healthcheck is internal to its network namespace and
-uses the confirmed `http://127.0.0.1:3000/auth/login` route. The host-side
-published endpoint remains `http://127.0.0.1:3002/auth/login`, because the
-existing port mapping is `127.0.0.1:3002:3000`. The backend host endpoint is
-`http://127.0.0.1:3001/api/health`. Neither port or the aaPanel Nginx config is
-changed here.
+The frontend container healthcheck uses `http://127.0.0.1:3000/login`; its
+Node fetch client disables redirect following and accepts only HTTP 200. The
+host-side endpoint is `http://127.0.0.1:3002/login`. The wrapper checks exact
+HTTP 200 for that endpoint and `http://127.0.0.1:3001/api/health`, without
+following redirects. Docker healthchecks are also required for both app
+containers. The `/login` route is implemented by `frontend/app/login/page.tsx`;
+`/auth/login` redirects to it. Ports and aaPanel Nginx are unchanged.
 
 These names preserve the Compose-derived names for project `skylux`, but the
 actual VPS volume/network objects must still be inspected by an administrator
@@ -87,7 +98,28 @@ commit and hashes are verified. Do not use an installer that is writable by
 2. Verify `/usr/bin/docker`, its Compose plugin path, `/usr/bin/openssl`,
    `/usr/bin/curl`, and `/usr/bin/gzip` are root-owned and not writable by
    `ops`, its groups, or other users. The wrapper checks these paths at runtime.
-3. Create protected directories and install only reviewed static files:
+3. Create the dedicated account and verify it has no privileged groups. Keep
+   `ops` as the existing administrator; do not use `ops` for GitHub Actions.
+   These commands are an administrator's installation plan only and have not
+   been run on the VPS:
+
+   ```bash
+   sudo useradd --create-home --shell /bin/bash skylux-deploy
+   id skylux-deploy
+   getent group sudo docker
+   ```
+
+   Confirm `skylux-deploy` is absent from both `sudo` and `docker` group member
+   lists. Add a dedicated GitHub Actions SSH public key to
+   `/home/skylux-deploy/.ssh/authorized_keys` with the `restrict` option; keep
+   the matching private key only in the GitHub Environment `production` and
+   configure SSH to connect as `skylux-deploy`. Do not reuse `ops`'s key.
+   Set the SSH directory to owner `skylux-deploy:skylux-deploy`, mode `0700`,
+   and `authorized_keys` to the same owner, mode `0600`. Prefix its one key
+   line with `restrict`. Verify public-key SSH login works for this user, then
+   lock password authentication with `sudo passwd --lock skylux-deploy` and
+   verify key login again before relying on the account.
+4. Create protected directories and install only reviewed static files:
 
    ```bash
    install -d -o root -g root -m 0755 /usr/local/lib/skylux-production
@@ -108,12 +140,12 @@ commit and hashes are verified. Do not use an installer that is writable by
    systemd-tmpfiles --create /etc/tmpfiles.d/skylux-production.conf
    ```
 
-4. Create `/etc/skylux/production.env` from the reviewed production settings.
+5. Create `/etc/skylux/production.env` from the reviewed production settings.
    It must contain exactly one each of `DB_NAME`, `DB_USER`, `DB_PASSWORD`,
    `JWT_SECRET`, and `REGISTRY_OWNER=vo-huy-hoang`. Keep it root-owned with mode
    `0600`. Do not source this file as shell code. The wrapper uses it for Compose
    interpolation and as the backend container's `env_file`.
-5. Generate the signing key pair off the VPS using OpenSSL RSA-3072. Keep the
+6. Generate the signing key pair off the VPS using OpenSSL RSA-3072. Keep the
    private key only in the protected GitHub production Environment secret;
    install only the public key as root:root mode `0600` at
    `/etc/skylux/deploy-approval.pub`.
@@ -136,7 +168,7 @@ commit and hashes are verified. Do not use an installer that is writable by
    install -o root -g root -m 0600 \
      deploy-approval.pub /etc/skylux/deploy-approval.pub
    ```
-6. Validate the root-owned Compose file using a reviewed full SHA. Review the
+7. Validate the root-owned Compose file using a reviewed full SHA. Review the
    rendered image names, mounts, network, and ports. This is configuration
    validation only; do not run `up` as part of installation.
 
@@ -145,29 +177,30 @@ commit and hashes are verified. Do not use an installer that is writable by
      --env-file /etc/skylux/production.env \
      -f /usr/local/lib/skylux-production/docker-compose.prod.yml config
    ```
-7. Add the sudoers fragment only after confirming the wrapper is root-owned and
-   the intended `ops` account has no broader sudo or Docker-daemon access that
-   would bypass the approval gate:
+8. Add the sudoers fragment only after confirming the wrapper is root-owned and
+   `skylux-deploy` has no broader sudo or Docker-daemon access that would bypass
+   the approval gate:
 
    ```bash
    install -o root -g root -m 0440 \
      infra/production/skylux-production.sudoers \
      /etc/sudoers.d/skylux-production-deploy
    visudo -cf /etc/sudoers.d/skylux-production-deploy
-   sudo -l -U ops
+   sudo -l -U skylux-deploy
    ```
 
-   The rule matches only the installed wrapper with one 40-hex argument. The
-   wrapper independently validates that argument and its signed approval
-   ticket. Ubuntu 24.04's sudo version should be checked with `sudo --version`;
+   The rule names only `skylux-deploy` and matches the installed wrapper with
+   one 40-hex argument. The wrapper independently validates that argument and
+   its signed approval ticket. Ubuntu 24.04's sudo version should be checked
+   with `sudo --version`;
    validate the regular-expression argument rule with `visudo` before enabling
    it. Sudoers wildcard arguments are deliberately not used because `*` can
    span spaces and arguments.
 
 ## Required follow-up outside this task
 
-The current GitHub Actions workflow is not wired to this protocol. A later
-workflow change must:
+The legacy workflow has been replaced by a manual notification that fails and
+performs no build, SSH, or deployment. A later workflow change in GĐ7.6.5 must:
 
 - require protected `main` and a GitHub `production` Environment with required
   reviewers, prevent self-review, and prevent administrator bypass where the
@@ -175,17 +208,15 @@ workflow change must:
 - build and publish both images before the approved deployment step;
 - create the signed ticket only in the approved job, using the Environment
   private-key secret, SHA, timestamp, and `${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}`;
-- SSH to `ops` and pipe the five stdin fields to
+- SSH as `skylux-deploy` and pipe the five stdin fields to
   `sudo -n /usr/local/sbin/skylux-production-deploy <sha>`;
 - remove the current `docker login` performed as `ops`; the wrapper performs
   login through its temporary root-only Docker config.
 
-For a real approval boundary, `ops` must not remain in the `docker` group and
-must not retain a password-authenticated sudo grant such as `ops ALL=(ALL)
-ALL`. Either restrict `ops` to the wrapper or use a dedicated deploy account
-with only this rule; keep a separate administrator account for VPS maintenance.
-Otherwise a user who can run arbitrary Docker commands or a root shell can
-bypass GitHub approval regardless of this wrapper.
+The existing `ops` account retains its administrative access and must not be
+used by GitHub Actions. Protect its credentials as an administrator account.
+The dedicated `skylux-deploy` account must have no Docker-daemon access or
+broader sudo rights; otherwise a user could bypass the GitHub approval gate.
 
 ## Runtime behavior and recovery
 

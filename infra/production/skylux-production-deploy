@@ -317,6 +317,14 @@ get_container_version() {
   printf '%s' "$version"
 }
 
+http_endpoint_healthy() {
+  local endpoint="$1"
+  local status
+  status="$("$CURL_BIN" --silent --show-error --output /dev/null \
+    --write-out '%{http_code}' --connect-timeout 2 --max-time 5 "$endpoint" 2>/dev/null)" || return 1
+  [[ "$status" == 200 ]]
+}
+
 FRONTEND_PREVIOUS="$(get_container_version frontend || true)"
 BACKEND_PREVIOUS="$(get_container_version backend || true)"
 if [[ -n "$FRONTEND_PREVIOUS" && "$FRONTEND_PREVIOUS" == "$BACKEND_PREVIOUS" ]]; then
@@ -409,10 +417,8 @@ for attempt in {1..12}; do
   [[ -z "$BACKEND_ID" ]] || BACKEND_HEALTH="$(docker_cmd inspect -f '{{.State.Health.Status}}' "$BACKEND_ID" 2>/dev/null || true)"
   [[ -z "$FRONTEND_ID" ]] || FRONTEND_HEALTH="$(docker_cmd inspect -f '{{.State.Health.Status}}' "$FRONTEND_ID" 2>/dev/null || true)"
   if [[ "$BACKEND_HEALTH" == healthy && "$FRONTEND_HEALTH" == healthy ]] \
-    && "$CURL_BIN" --fail --silent --connect-timeout 2 --max-time 5 \
-      http://127.0.0.1:3001/api/health >/dev/null 2>&1 \
-    && "$CURL_BIN" --fail --silent --connect-timeout 2 --max-time 5 \
-      http://127.0.0.1:3002/auth/login >/dev/null 2>&1; then
+    && http_endpoint_healthy http://127.0.0.1:3001/api/health \
+    && http_endpoint_healthy http://127.0.0.1:3002/login; then
     APPLICATIONS_HEALTHY=1
     break
   fi

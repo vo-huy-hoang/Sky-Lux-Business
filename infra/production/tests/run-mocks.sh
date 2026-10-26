@@ -161,7 +161,7 @@ MOCK
 cat > "$TEST_CURL" <<'MOCK'
 #!/bin/bash
 printf 'curl %s\n' "$*" >> "$MOCK_LOG"
-[[ "${MOCK_FAIL:-}" != http ]]
+printf '%s' "${MOCK_HTTP_STATUS:-200}"
 MOCK
 cat > "$TEST_ROOT/install/mock-bin/sleep" <<'MOCK'
 #!/bin/bash
@@ -195,10 +195,10 @@ issue_ticket() {
 }
 
 run_case() {
-  local label="$1" sha="$2" run_id="$3" fail_kind="${4:-}" expected="$5" missing_image="${6:-}" rc
+  local label="$1" sha="$2" run_id="$3" fail_kind="${4:-}" expected="$5" missing_image="${6:-}" http_status="${7:-200}" rc
   : > "$MOCK_LOG"
   set +e
-  issue_ticket "$sha" "$run_id" | env MOCK_LOG="$MOCK_LOG" MOCK_COMPOSE_PLUGIN="$TEST_COMPOSE" MOCK_FAIL="$fail_kind" MOCK_MISSING_IMAGE="$missing_image" \
+  issue_ticket "$sha" "$run_id" | env MOCK_LOG="$MOCK_LOG" MOCK_COMPOSE_PLUGIN="$TEST_COMPOSE" MOCK_FAIL="$fail_kind" MOCK_MISSING_IMAGE="$missing_image" MOCK_HTTP_STATUS="$http_status" \
     "$TEST_WRAPPER" "$sha" > "$TEST_ROOT/output" 2>&1
   rc=$?
   set -e
@@ -242,6 +242,27 @@ grep -q "sudo -n /usr/local/sbin/skylux-production-deploy $GOOD_SHA" "$MOCK_LOG"
 [[ -s "$MOCK_STDIN_CAPTURE" ]]
 printf '%s\n' 'unprivileged deploy client: fixed wrapper and stdin forwarded'
 
+: > "$MOCK_LOG"
+set +e
+issue_ticket "$GOOD_SHA" 100000-1 | env MOCK_LOG="$MOCK_LOG" MOCK_COMPOSE_PLUGIN="$TEST_COMPOSE" \
+  "$TEST_WRAPPER" "abcdef0123456789abcdef0123456789abcdef01" > "$TEST_ROOT/output" 2>&1
+rc=$?
+set -e
+[[ $rc -ne 0 && ! -s "$MOCK_LOG" ]]
+printf '%s\n' 'invalid approval signature: rejected before Docker'
+
+grep -q 'skylux-deploy ALL=(root) NOPASSWD: /usr/local/sbin/skylux-production-deploy \^\[\[:xdigit:\]\]{40}\$' \
+  "$ROOT_DIR/infra/production/skylux-production.sudoers"
+! grep -q '^ops ' "$ROOT_DIR/infra/production/skylux-production.sudoers"
+printf '%s\n' 'restricted sudoers identity and command: verified'
+
+DISABLED_WORKFLOW="$ROOT_DIR/.github/workflows/deploy.yml"
+grep -q '^  workflow_dispatch:$' "$DISABLED_WORKFLOW"
+grep -q 'Production deployment is disabled' "$DISABLED_WORKFLOW"
+grep -q 'exit 1' "$DISABLED_WORKFLOW"
+! grep -Eq 'appleboy/(ssh|scp)-action|build-push-action|VPS_HOST|VPS_SSH_KEY|infra/scripts/deploy\.sh' "$DISABLED_WORKFLOW"
+printf '%s\n' 'legacy production workflow: disabled without build or SSH'
+
 cp "$TEST_ENV" "$TEST_ROOT/original.env"
 sed -i.bak 's/REGISTRY_OWNER=vo-huy-hoang/REGISTRY_OWNER=someone-else/' "$TEST_ENV"
 run_case 'invalid registry owner' "$GOOD_SHA" 100001-1 '' preflight-rejected
@@ -257,10 +278,16 @@ grep -q '^status=failed$' "$TEST_STATE/status"
 grep -q 'partial or complete' "$TEST_ROOT/output" || { cat "$TEST_ROOT/output"; exit 1; }
 ! grep -q 'compose-up' "$MOCK_LOG"
 run_case 'unhealthy application' "$GOOD_SHA" 100005-1 unhealthy rejected
-run_case 'HTTP endpoint failure' "$GOOD_SHA" 100006-1 http rejected
-run_case 'success' "$GOOD_SHA" 100007-1 '' success
+run_case 'HTTP redirect 301' "$GOOD_SHA" 100006-1 '' rejected '' 301
+run_case 'HTTP redirect 302' "$GOOD_SHA" 100012-1 '' rejected '' 302
+run_case 'HTTP 404' "$GOOD_SHA" 100013-1 '' rejected '' 404
+run_case 'HTTP 500' "$GOOD_SHA" 100014-1 '' rejected '' 500
+run_case 'HTTP 200' "$GOOD_SHA" 100007-1 '' success '' 200
 grep -q 'http://127.0.0.1:3001/api/health' "$MOCK_LOG"
-grep -q 'http://127.0.0.1:3002/auth/login' "$MOCK_LOG"
+grep -q 'http://127.0.0.1:3002/login' "$MOCK_LOG"
+! grep -q 'curl .* -L\|curl .* --location' "$MOCK_LOG"
+grep -q '127.0.0.1:3000/login' "$ROOT_DIR/infra/production/docker-compose.prod.root.yml"
+! grep -Eq 'auth/login|localhost:3000/' "$ROOT_DIR/infra/production/docker-compose.prod.root.yml"
 ! grep -q 'SECRET\|PASSWORD\|TOKEN' "$TEST_ROOT/output"
 grep -q 'name: skylux_postgres_data' "$TEST_ROOT/install/lib/skylux-production/docker-compose.prod.yml"
 grep -q 'name: skylux_redis_data' "$TEST_ROOT/install/lib/skylux-production/docker-compose.prod.yml"
