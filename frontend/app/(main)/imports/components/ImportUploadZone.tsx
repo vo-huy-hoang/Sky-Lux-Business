@@ -7,6 +7,7 @@ import {
   DownloadOutlined,
   FileExcelFilled,
 } from '@ant-design/icons';
+import { themeTokens } from '@/lib/theme/tokens.config';
 
 const { Text } = Typography;
 const { Dragger } = Upload;
@@ -27,14 +28,14 @@ export function ImportUploadZone({
       {/* 1. Tải mẫu file dự toán chuẩn */}
       <Col xs={24} md={12}>
         <Card
-          className="skylux-card shadow-xs rounded-xl overflow-hidden h-full border border-[#E5E8E6]"
+          className="skylux-card shadow-xs rounded-xl overflow-hidden h-full border border-[var(--color-border)]"
           styles={{
             header: {
-              borderBottom: '1px solid #EEF1EF',
+              borderBottom: `1px solid ${themeTokens.neutral.divider}`,
               padding: '12px 18px',
               fontSize: '13px',
               fontWeight: 700,
-              color: '#1E293B',
+              color: themeTokens.neutral.text,
             },
             body: { padding: '16px 18px' },
           }}
@@ -69,14 +70,14 @@ export function ImportUploadZone({
       {/* 2. Tải lên file dự toán */}
       <Col xs={24} md={12}>
         <Card
-          className="skylux-card shadow-xs rounded-xl overflow-hidden h-full border border-[#E5E8E6]"
+          className="skylux-card shadow-xs rounded-xl overflow-hidden h-full border border-[var(--color-border)]"
           styles={{
             header: {
-              borderBottom: '1px solid #EEF1EF',
+              borderBottom: `1px solid ${themeTokens.neutral.divider}`,
               padding: '12px 18px',
               fontSize: '13px',
               fontWeight: 700,
-              color: '#1E293B',
+              color: themeTokens.neutral.text,
             },
             body: { padding: '14px 18px' },
           }}

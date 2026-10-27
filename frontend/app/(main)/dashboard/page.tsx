@@ -24,28 +24,14 @@ import {
   TeamOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import {
-  BarElement,
-  CategoryScale,
-  Chart as ChartJS,
-  ChartOptions,
-  Legend,
-  LinearScale,
-  Tooltip,
-  ArcElement,
-  LineElement,
-  PointElement,
-} from 'chart.js';
-import { Bar, Doughnut } from 'react-chartjs-2';
 import { dossiersService } from '@/services/dossiers.service';
 import { DossierItem } from '@/types/dossier';
 import { useOperatorDashboard, useSalesDashboard } from '@/hooks/dashboards';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { themeTokens } from '@/lib/theme/tokens.config';
 import { queryKeys } from '@/lib/query-keys';
 import { WidgetErrorBoundary } from '@/components/common/widget-error-boundary';
 import dynamic from 'next/dynamic';
-
-
 
 const CeoDashboard = dynamic(() => import('@/components/ceo/CeoDashboard'), {
   ssr: false,
@@ -55,18 +41,36 @@ const OperatorDashboard = dynamic(() => import('@/components/operator/OperatorDa
   ssr: false,
   loading: () => <Skeleton active paragraph={{ rows: 8 }} />,
 });
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend, LineElement, PointElement);
+const DossierOperationalCharts = dynamic(
+  () => import('@/components/dossiers/DossierOperationalCharts'),
+  {
+    ssr: false,
+    loading: () => (
+      <>
+        <Col xs={24} xl={14}>
+          <Card className="skylux-card h-full">
+            <Skeleton active paragraph={{ rows: 8 }} />
+          </Card>
+        </Col>
+        <Col xs={24} md={12} xl={5}>
+          <Card className="skylux-card h-full">
+            <Skeleton active paragraph={{ rows: 8 }} />
+          </Card>
+        </Col>
+      </>
+    ),
+  }
+);
 
 const { Text } = Typography;
 
 const statusConfig: Record<string, { label: string; className: string; color: string }> = {
-  DRAFT: { label: 'Mới nhập', className: 'skylux-status-info', color: '#2F80ED' },
-  SUBMITTED: { label: 'Đã gửi', className: 'skylux-status-purple', color: '#7C5CCB' },
-  IN_REVIEW: { label: 'Đang xử lý', className: 'skylux-status-warning', color: '#F59E0B' },
-  APPROVED: { label: 'Đã duyệt', className: 'skylux-status-valid', color: '#007A55' },
-  COMPLETED: { label: 'Thành công', className: 'skylux-status-valid', color: '#00543D' },
-  CANCELLED: { label: 'Đã hủy', className: 'skylux-status-danger', color: '#D93737' },
+  DRAFT: { label: 'Mới nhập', className: 'skylux-status-info', color: themeTokens.semantic.info.main },
+  SUBMITTED: { label: 'Đã gửi', className: 'skylux-status-purple', color: themeTokens.semantic.purple.main },
+  IN_REVIEW: { label: 'Đang xử lý', className: 'skylux-status-warning', color: themeTokens.semantic.warning.main },
+  APPROVED: { label: 'Đã duyệt', className: 'skylux-status-valid', color: themeTokens.brand.primary[700] },
+  COMPLETED: { label: 'Thành công', className: 'skylux-status-valid', color: themeTokens.brand.primary[800] },
+  CANCELLED: { label: 'Đã hủy', className: 'skylux-status-danger', color: themeTokens.semantic.danger.main },
 };
 
 function formatDate(value?: string) {
@@ -78,7 +82,7 @@ function getStatus(status?: string) {
   return statusConfig[status || ''] || {
     label: status || 'Chưa rõ',
     className: 'skylux-status-info',
-    color: '#6B7280',
+    color: themeTokens.neutral.textMuted,
   };
 }
 
@@ -179,67 +183,6 @@ function OperationalDashboard() {
   const tasksBreakdown =
     operatorDashboard?.tasksBreakdown || salesDashboard?.tasksBreakdown || [];
   const isLoadingTasks = isOperator ? isLoadingOperator : isLoadingSales;
-
-  const dailyCounts = useMemo(() => buildDailyCounts(dossiers), [dossiers]);
-  const statusCounts = useMemo(() => {
-    return dossiers.reduce<Record<string, number>>((acc, item) => {
-      acc[item.status] = (acc[item.status] || 0) + 1;
-      return acc;
-    }, {});
-  }, [dossiers]);
-
-  const barOptions: ChartOptions<'bar'> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: (context) => `${context.parsed.y} hồ sơ`,
-        },
-      },
-    },
-    scales: {
-      x: {
-        grid: { display: false },
-        border: { display: false },
-        ticks: { color: '#6B7280', font: { size: 12 } },
-      },
-      y: {
-        beginAtZero: true,
-        grid: { color: '#F0F0F0' },
-        border: { display: false },
-        ticks: { color: '#6B7280', precision: 0, font: { size: 12 } },
-      },
-    },
-  };
-
-  const barData = {
-    labels: dailyCounts.map((item) => item.label),
-    datasets: [
-      {
-        data: dailyCounts.map((item) => item.count),
-        backgroundColor: '#007A55',
-        borderRadius: 999,
-        borderSkipped: false,
-        barThickness: 18,
-      },
-    ],
-  };
-
-  const doughnutLabels = Object.keys(statusCounts);
-  const doughnutData = {
-    labels: doughnutLabels.map((status) => getStatus(status).label),
-    datasets: [
-      {
-        data: doughnutLabels.map((status) => statusCounts[status]),
-        backgroundColor: doughnutLabels.map((status) => getStatus(status).color),
-        borderColor: '#FFFFFF',
-        borderWidth: 4,
-        hoverOffset: 4,
-      },
-    ],
-  };
 
   const columns = [
     {
@@ -414,8 +357,8 @@ function OperationalDashboard() {
                 <Progress
                   percent={Math.min(completionPercent, 100)}
                   showInfo={false}
-                  strokeColor="#0B7A5B"
-                  railColor="#E5E8E6"
+                  strokeColor={themeTokens.brand.primary[600]}
+                  railColor={themeTokens.neutral.border}
                   className="mt-3"
                 />
               </div>
@@ -425,75 +368,7 @@ function OperationalDashboard() {
       </Row>
 
       <Row gutter={[16, 16]}>
-        <Col xs={24} xl={14}>
-          <WidgetErrorBoundary title="Hồ sơ tạo theo ngày">
-            <Card
-              className="skylux-card h-full"
-              title={<span className="font-bold text-slate-900">Hồ sơ tạo theo ngày</span>}
-            >
-              <div className="h-[288px]">
-                {isLoadingDossiers ? (
-                  <Skeleton active paragraph={{ rows: 8 }} />
-                ) : dossiers.length ? (
-                  <Bar data={barData} options={barOptions} />
-                ) : (
-                  <Empty description="Chưa có dữ liệu hồ sơ để hiển thị biểu đồ" />
-                )}
-              </div>
-            </Card>
-          </WidgetErrorBoundary>
-        </Col>
-        <Col xs={24} md={12} xl={5}>
-          <WidgetErrorBoundary title="Hồ sơ theo trạng thái">
-            <Card
-              className="skylux-card h-full"
-              title={<span className="font-bold text-slate-900">Hồ sơ theo trạng thái</span>}
-            >
-              <div className="relative h-[260px]">
-                {isLoadingDossiers ? (
-                  <Skeleton active paragraph={{ rows: 6 }} />
-                ) : doughnutLabels.length ? (
-                  <>
-                    <Doughnut
-                      data={doughnutData}
-                      options={{
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        cutout: '66%',
-                        plugins: { legend: { display: false } },
-                      }}
-                    />
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="text-xs text-slate-500">Tổng số</div>
-                        <div className="text-3xl font-bold text-slate-900">{dossiers.length}</div>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <Empty description="Chưa có dữ liệu trạng thái" />
-                )}
-              </div>
-              <div className="mt-4 space-y-2">
-                {doughnutLabels.map((status) => {
-                  const config = getStatus(status);
-                  return (
-                    <div key={status} className="flex items-center justify-between text-sm">
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="h-2.5 w-2.5 rounded-full"
-                          style={{ background: config.color }}
-                        />
-                        {config.label}
-                      </span>
-                      <span className="font-semibold text-slate-800">{statusCounts[status]}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-          </WidgetErrorBoundary>
-        </Col>
+        <DossierOperationalCharts dossiers={dossiers} isLoadingDossiers={isLoadingDossiers} />
         <Col xs={24} md={12} xl={5}>
           <WidgetErrorBoundary title="Tình trạng công việc">
             <Card

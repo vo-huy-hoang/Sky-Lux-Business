@@ -26,6 +26,7 @@ import {
 } from '@ant-design/icons';
 import { useDossierComments, useCreateDossierComment } from '@/hooks/dossiers';
 import { DossierComment } from '@/types/dossier';
+import { themeTokens } from '@/lib/theme/tokens.config';
 
 const { Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -156,7 +157,7 @@ export const DossierComments: React.FC<DossierCommentsProps> = ({
               <List.Item
                 style={{
                   padding: '12px 8px',
-                  backgroundColor: isTargetReply ? '#f0f5ff' : 'transparent',
+                  backgroundColor: isTargetReply ? themeTokens.semantic.info.softAlt : 'transparent',
                   borderRadius: 6,
                   transition: 'background-color 0.2s',
                 }}
@@ -180,7 +181,7 @@ export const DossierComments: React.FC<DossierCommentsProps> = ({
                     ) : (
                       <Avatar
                         icon={<UserOutlined />}
-                        style={{ backgroundColor: '#1677ff' }}
+                        style={{ backgroundColor: themeTokens.avatar.defaultBg, color: themeTokens.avatar.defaultText }}
                       />
                     )
                   }
@@ -201,7 +202,7 @@ export const DossierComments: React.FC<DossierCommentsProps> = ({
                     <Paragraph
                       style={{
                         margin: '4px 0 0 0',
-                        color: '#262626',
+                        color: themeTokens.neutral.text,
                         whiteSpace: 'pre-wrap',
                       }}
                     >
@@ -216,7 +217,7 @@ export const DossierComments: React.FC<DossierCommentsProps> = ({
       )}
 
       {/* Input box for new comment */}
-      <div style={{ marginTop: 16, borderTop: '1px solid #f0f0f0', paddingTop: 16 }}>
+      <div style={{ marginTop: 16, borderTop: `1px solid ${themeTokens.neutral.divider}`, paddingTop: 16 }}>
         {replyTo && (
           <div style={{ marginBottom: 8 }}>
             <Tag
@@ -234,10 +235,10 @@ export const DossierComments: React.FC<DossierCommentsProps> = ({
           <div
             style={{
               padding: '12px',
-              backgroundColor: '#fffbe6',
-              border: '1px solid #ffe58f',
+              backgroundColor: themeTokens.semantic.warning.soft,
+              border: `1px solid ${themeTokens.semantic.warning.border}`,
               borderRadius: 6,
-              color: '#d46b08',
+              color: themeTokens.semantic.warning.strong,
               display: 'flex',
               alignItems: 'center',
               gap: 8,

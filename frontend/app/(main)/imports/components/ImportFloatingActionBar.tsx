@@ -33,7 +33,7 @@ export function ImportFloatingActionBar({
 
   return (
     <div
-      className={`fixed bottom-0 right-0 z-20 border-t border-[#E5E8E6] bg-white/95 backdrop-blur-md px-7 py-3.5 shadow-[0_-8px_25px_rgba(0,0,0,0.05)] transition-[left] duration-200 ease-in-out ${
+      className={`fixed bottom-0 right-0 z-20 border-t border-[var(--color-border)] bg-white/95 backdrop-blur-md px-7 py-3.5 shadow-[0_-8px_25px_rgba(0,0,0,0.05)] transition-[left] duration-200 ease-in-out ${
         sidebarCollapsed ? 'left-0 lg:left-[72px]' : 'left-0 lg:left-[238px]'
       }`}
     >
@@ -97,7 +97,7 @@ export function ImportFloatingActionBar({
               disabled={!canConfirm || isConfirming}
               className={`inline-flex items-center gap-2 px-5 h-9 rounded-lg text-xs font-bold text-white transition-all shadow-xs ${
                 canConfirm && !isConfirming
-                  ? 'bg-[#004230] hover:bg-[#00382a] active:bg-[#002e22] cursor-pointer hover:shadow-md'
+                  ? 'bg-[var(--color-primary-800)] hover:bg-[var(--color-primary-900)] active:bg-[var(--color-primary-900)] cursor-pointer hover:shadow-md'
                   : 'bg-slate-300 text-slate-500 cursor-not-allowed'
               }`}
             >

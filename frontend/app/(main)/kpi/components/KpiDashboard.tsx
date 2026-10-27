@@ -164,7 +164,6 @@ export default function KpiDashboard() {
               setEditingTarget(null);
               setIsModalVisible(true);
             }}
-            className="bg-[#0A2540] hover:bg-[#133E68] border-none"
           >
             Giao KPI mới
           </Button>

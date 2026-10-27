@@ -266,7 +266,7 @@ export function MessageInputBar({
                   </p>
                   <p className="m-0 text-[10px] text-slate-400">
                     {item.isUploading ? (
-                      <span className="flex items-center text-[#007A55]">
+                      <span className="flex items-center text-[var(--color-primary-700)]">
                         <SafeLoadingOutlined className="mr-1 animate-spin text-[10px]" />
                         Đang tải...
                       </span>
@@ -292,14 +292,14 @@ export function MessageInputBar({
         </div>
       )}
 
-      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 focus-within:border-[#007A55] focus-within:bg-white transition-colors">
+      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 focus-within:border-[var(--color-primary-700)] focus-within:bg-white transition-colors">
         {/* Nút đính kèm tệp */}
         <Tooltip title="Đính kèm tài liệu (PDF, Word, Excel, ZIP... tối đa 15MB)">
           <Button
             type="text"
             shape="circle"
             size="small"
-            icon={<SafePaperClipOutlined className="text-slate-500 hover:text-[#007A55] text-base" />}
+            icon={<SafePaperClipOutlined className="text-slate-500 hover:text-[var(--color-primary-700)] text-base" />}
             onClick={() => fileInputRef.current?.click()}
             aria-label="Đính kèm tệp"
           />
@@ -311,7 +311,7 @@ export function MessageInputBar({
             type="text"
             shape="circle"
             size="small"
-            icon={<SafePictureOutlined className="text-slate-500 hover:text-[#007A55] text-base" />}
+            icon={<SafePictureOutlined className="text-slate-500 hover:text-[var(--color-primary-700)] text-base" />}
             onClick={() => imageInputRef.current?.click()}
             aria-label="Gửi ảnh"
           />
@@ -341,7 +341,7 @@ export function MessageInputBar({
             disabled={!canSend}
             loading={isSending}
             onClick={handleSend}
-            className="bg-[#007A55] hover:bg-[#006646]"
+            className="bg-[var(--color-primary-700)] hover:bg-[var(--color-primary-800)]"
             aria-label="Gửi tin nhắn"
           />
         </Tooltip>

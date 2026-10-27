@@ -9,6 +9,7 @@ import {
   TeamOutlined,
 } from '@ant-design/icons';
 import { Conversation } from '@/types/chat';
+import { themeTokens } from '@/lib/theme/tokens.config';
 import { getInitials } from '../types';
 
 const { Text } = Typography;
@@ -34,8 +35,10 @@ export function MessageThreadHeader({
         <Avatar
           size={40}
           style={{
-            backgroundColor: activeConversation.isGroup ? '#2F80ED' : '#007A55',
-            color: '#FFFFFF',
+            backgroundColor: activeConversation.isGroup
+              ? themeTokens.semantic.info.main
+              : themeTokens.brand.primary[700],
+            color: themeTokens.neutral.surface,
             fontWeight: 600,
           }}
           icon={activeConversation.isGroup ? <TeamOutlined /> : undefined}
@@ -56,7 +59,7 @@ export function MessageThreadHeader({
       <div className="flex items-center gap-2">
         {relatedDossier ? (
           <Link href={`/dossiers/${relatedDossier.id}`}>
-            <Button size="small" icon={<FolderOpenOutlined />} className="text-[#007A55]">
+            <Button size="small" icon={<FolderOpenOutlined />} className="text-[var(--color-primary-700)]">
               Mở hồ sơ
             </Button>
           </Link>

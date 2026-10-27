@@ -28,6 +28,7 @@ import { usersService } from '@/services/users.service';
 import { useRbacStore } from '../store';
 import { useShallow } from 'zustand/react/shallow';
 import { queryKeys } from '@/lib/query-keys';
+import { themeTokens } from '@/lib/theme/tokens.config';
 
 export default function UserDetailDrawer() {
   const queryClient = useQueryClient();
@@ -135,7 +136,7 @@ export default function UserDetailDrawer() {
               size={64}
               src={user.avatarUrl}
               icon={<UserOutlined />}
-              style={{ backgroundColor: '#0A2540' }}
+              style={{ backgroundColor: themeTokens.brand.primary[900] }}
               className="shadow-sm"
             >
               {user.fullName?.charAt(0)}

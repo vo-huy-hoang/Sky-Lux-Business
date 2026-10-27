@@ -26,6 +26,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { estimatesService } from '@/services/estimates.service';
 import { EstimateItem, EstimateStatus } from '@/types/estimate';
+import { themeTokens } from '@/lib/theme/tokens.config';
 import { queryKeys } from '@/lib/query-keys';
 import { formatCurrency } from '@/lib/financial-calculations';
 
@@ -113,7 +114,7 @@ export default function ApprovalsPage() {
     { title: 'Doanh thu dự toán', width: 158, align: 'right' as const, render: (_: unknown, item: EstimateItem) => money(getFinancial(item).revenue) },
     { title: 'Lợi nhuận', width: 150, align: 'right' as const, render: (_: unknown, item: EstimateItem) => {
       const value = getFinancial(item).profit;
-      return <Text strong style={{ color: value >= 0 ? '#0A8A61' : '#DC3F46' }}>{money(value)}</Text>;
+      return <Text strong style={{ color: value >= 0 ? themeTokens.semantic.success.main : themeTokens.semantic.danger.main }}>{money(value)}</Text>;
     } },
     { title: 'Tình trạng', dataIndex: 'status', width: 128, render: (value: EstimateStatus) => (
       <Tag className={value === EstimateStatus.IN_REVIEW ? 'skylux-status-warning' : 'skylux-status-purple'}>

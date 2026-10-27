@@ -36,7 +36,7 @@ export function CreateConversationModal({
       confirmLoading={flow.isCreating}
       okText="Tạo cuộc trò chuyện"
       cancelText="Hủy"
-      okButtonProps={{ className: 'bg-[#007A55]' }}
+      okButtonProps={{ className: 'bg-[var(--color-primary-700)]' }}
     >
       <div className="space-y-4 pt-3">
         <div>

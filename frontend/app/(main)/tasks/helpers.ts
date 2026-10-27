@@ -8,27 +8,27 @@ export const statusMeta: Record<
 > = {
   TODO: {
     label: 'Cần làm',
-    dotClass: 'bg-[#78B06B]',
+    dotClass: 'bg-[var(--color-primary-600)]',
     tagClass: 'skylux-status-info',
   },
   IN_PROGRESS: {
     label: 'Đang xử lý',
-    dotClass: 'bg-[#F2B11C]',
+    dotClass: 'bg-[var(--color-gold)]',
     tagClass: 'skylux-status-warning',
   },
   WAITING: {
     label: 'Chờ phản hồi',
-    dotClass: 'bg-[#E0A420]',
+    dotClass: 'bg-[var(--color-warning)]',
     tagClass: 'skylux-status-warning',
   },
   COMPLETED: {
     label: 'Hoàn thành',
-    dotClass: 'bg-[#66A967]',
+    dotClass: 'bg-[var(--color-success)]',
     tagClass: 'skylux-status-valid',
   },
   CANCELLED: {
     label: 'Đã hủy',
-    dotClass: 'bg-[#D93737]',
+    dotClass: 'bg-[var(--color-danger)]',
     tagClass: 'skylux-status-danger',
   },
 };
@@ -37,10 +37,10 @@ export const priorityMeta: Record<
   TaskPriority,
   { label: string; color: string }
 > = {
-  LOW: { label: 'Thấp', color: 'text-[#32825F]' },
-  MEDIUM: { label: 'Trung bình', color: 'text-[#B87809]' },
-  HIGH: { label: 'Cao', color: 'text-[#D93737]' },
-  URGENT: { label: 'Khẩn cấp', color: 'text-[#B91C1C]' },
+  LOW: { label: 'Thấp', color: 'text-[var(--color-primary-600)]' },
+  MEDIUM: { label: 'Trung bình', color: 'text-[var(--color-warning)]' },
+  HIGH: { label: 'Cao', color: 'text-[var(--color-danger)]' },
+  URGENT: { label: 'Khẩn cấp', color: 'text-[var(--color-danger)]' },
 };
 
 export const boardColumns: Array<{ status: TaskStatus; title: string }> = [

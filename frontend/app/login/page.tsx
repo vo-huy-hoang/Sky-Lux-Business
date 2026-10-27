@@ -48,10 +48,10 @@ function LoginLogo() {
   }
 
   return (
-    <div className="flex h-[130px] w-[130px] items-center justify-center rounded-full border-2 border-[#D4AF37] bg-[#0A3324] text-center shadow-lg">
+    <div className="flex h-[130px] w-[130px] items-center justify-center rounded-full border-2 border-[var(--color-gold)] bg-[var(--color-primary-950)] text-center shadow-lg">
       <div>
-        <div className="text-xl font-bold tracking-wider text-[#F0C020]">SKYLUX</div>
-        <div className="mt-0.5 text-[10px] font-semibold tracking-widest text-[#D4AF37]">
+        <div className="text-xl font-bold tracking-wider text-[var(--color-gold-strong)]">SKYLUX</div>
+        <div className="mt-0.5 text-[10px] font-semibold tracking-widest text-[var(--color-gold)]">
           TRAVEL
         </div>
       </div>
@@ -115,7 +115,7 @@ function LoginForm() {
   return (
     <div className="w-full max-w-[420px] mx-auto">
       <div className="mb-8">
-        <h2 className="text-2xl md:text-[28px] font-bold text-[#06281B] tracking-tight mb-2">
+        <h2 className="text-2xl md:text-[28px] font-bold text-[var(--color-primary-950)] tracking-tight mb-2">
           Đăng nhập hệ thống
         </h2>
         <p className="text-slate-500 text-sm font-normal">
@@ -161,7 +161,7 @@ function LoginForm() {
             prefix={<MailOutlined className="text-slate-400 mr-2 text-base" />}
             placeholder="Nhập email của bạn"
             autoComplete="email"
-            className="h-12 rounded-lg border-slate-200 hover:border-[#073323] focus:border-[#073323] text-sm text-slate-800 placeholder:text-slate-400 shadow-sm"
+            className="h-12 rounded-lg border-slate-200 hover:border-[var(--color-primary-700)] focus:border-[var(--color-primary-700)] text-sm text-slate-800 placeholder:text-slate-400 shadow-sm"
           />
         </Form.Item>
 
@@ -178,7 +178,7 @@ function LoginForm() {
             prefix={<LockOutlined className="text-slate-400 mr-2 text-base" />}
             placeholder="Nhập mật khẩu"
             autoComplete="current-password"
-            className="h-12 rounded-lg border-slate-200 hover:border-[#073323] focus:border-[#073323] text-sm text-slate-800 placeholder:text-slate-400 shadow-sm"
+            className="h-12 rounded-lg border-slate-200 hover:border-[var(--color-primary-700)] focus:border-[var(--color-primary-700)] text-sm text-slate-800 placeholder:text-slate-400 shadow-sm"
             iconRender={(visible) =>
               visible ? (
                 <EyeTwoTone twoToneColor="#10B981" />
@@ -204,7 +204,7 @@ function LoginForm() {
             loading={loading}
             disabled={lockoutSeconds > 0}
             block
-            className="h-12 rounded-lg bg-[#063826] hover:bg-[#084D34] active:bg-[#052C1E] border-none text-white font-semibold text-base shadow-md transition-all duration-200 flex items-center justify-center gap-2"
+            className="h-12 rounded-lg bg-[var(--color-primary-950)] hover:bg-[var(--color-primary-850)] active:bg-[var(--color-primary-950)] border-none text-white font-semibold text-base shadow-md transition-all duration-200 flex items-center justify-center gap-2"
           >
             <span>{loading ? 'Đang xác thực...' : 'Đăng nhập'}</span>
             {!loading && <ArrowRightOutlined className="text-sm" />}
@@ -221,7 +221,7 @@ function LoginForm() {
 
       <div className="flex items-center justify-between text-sm pt-1">
         <a
-          className="text-[#074D34] hover:text-[#0A6B48] font-medium transition-colors"
+          className="text-[var(--color-primary-800)] hover:text-[var(--color-primary-700)] font-medium transition-colors"
           href="#"
           onClick={(e) => {
             e.preventDefault();
@@ -231,7 +231,7 @@ function LoginForm() {
           Quên mật khẩu?
         </a>
         <a
-          className="inline-flex items-center gap-1 text-[#074D34] hover:text-[#0A6B48] font-medium transition-colors"
+          className="inline-flex items-center gap-1 text-[var(--color-primary-800)] hover:text-[var(--color-primary-700)] font-medium transition-colors"
           href="#"
           onClick={(e) => {
             e.preventDefault();
@@ -248,11 +248,11 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="relative flex min-h-[100dvh] items-center justify-center bg-[#F3F5F4] px-4 py-8 sm:px-6 lg:px-8">
+    <div className="relative flex min-h-[100dvh] items-center justify-center bg-[var(--color-bg)] px-4 py-8 sm:px-6 lg:px-8">
       {/* Background Travel Vector Watermarks */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-[0.04]">
         <svg
-          className="absolute -top-24 -left-24 w-[600px] h-[600px] text-[#06281B]"
+          className="absolute -top-24 -left-24 w-[600px] h-[600px] text-[var(--color-primary-950)]"
           fill="none"
           viewBox="0 0 400 400"
         >
@@ -261,7 +261,7 @@ export default function LoginPage() {
           <path d="M50 200 Q 200 80 350 200" stroke="currentColor" strokeWidth="2" strokeDasharray="8 8" />
         </svg>
         <svg
-          className="absolute -bottom-20 -right-20 w-[500px] h-[500px] text-[#06281B]"
+          className="absolute -bottom-20 -right-20 w-[500px] h-[500px] text-[var(--color-primary-950)]"
           fill="none"
           viewBox="0 0 300 300"
         >
@@ -273,7 +273,7 @@ export default function LoginPage() {
       {/* Main Login Card Wrapper */}
       <div className="relative z-10 w-full max-w-[1240px] rounded-[28px] md:rounded-[36px] bg-white shadow-2xl shadow-emerald-950/10 border border-slate-100 overflow-hidden grid grid-cols-1 lg:grid-cols-[48%_52%] min-h-[680px]">
         {/* Left Hero Banner */}
-        <div className="relative flex flex-col justify-between overflow-hidden bg-[#06281B] p-8 sm:p-10 md:p-12 lg:p-14 text-white">
+        <div className="relative flex flex-col justify-between overflow-hidden bg-[var(--color-primary-950)] p-8 sm:p-10 md:p-12 lg:p-14 text-white">
           {/* Subtle Ambient Background Watermarks inside the banner */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
             {/* Airplane with dotted flight curve */}
@@ -303,21 +303,21 @@ export default function LoginPage() {
 
             {/* Headings */}
             <div className="mt-8 sm:mt-10">
-              <span className="block text-sm sm:text-base font-normal text-[#78A996] tracking-wide mb-1">
+              <span className="block text-sm sm:text-base font-normal text-emerald-200/80 tracking-wide mb-1">
                 Chào mừng bạn đến với
               </span>
               <h1 className="text-3xl sm:text-4xl md:text-[42px] font-bold text-white tracking-tight leading-tight mb-2 font-sans">
                 SkyLux Travel
               </h1>
-              <p className="text-sm sm:text-base font-normal text-[#6CA08B] mb-0">
+              <p className="text-sm sm:text-base font-normal text-emerald-200/70 mb-0">
                 Phần mềm quản trị nội bộ dành cho Sales
               </p>
 
               {/* Golden Accent Line */}
-              <div className="h-[2.5px] w-14 bg-[#D4AF37] rounded-full my-5" />
+              <div className="h-[2.5px] w-14 bg-[var(--color-gold)] rounded-full my-5" />
 
               {/* Description Paragraph */}
-              <p className="text-sm sm:text-[15px] font-normal leading-relaxed text-[#D2E3DC] max-w-[440px]">
+              <p className="text-sm sm:text-[15px] font-normal leading-relaxed text-emerald-100/90 max-w-[440px]">
                 Nền tảng quản lý toàn diện giúp đội ngũ Sales vận hành hiệu quả,
                 theo dõi doanh thu, xử lý khách hàng và chốt tour nhanh chóng.
               </p>
