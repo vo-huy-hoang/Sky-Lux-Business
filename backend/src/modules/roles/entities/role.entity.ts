@@ -6,6 +6,7 @@ import {
   ManyToMany,
   JoinColumn,
   Index,
+  Unique,
 } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Organization } from '../../organizations/entities/organization.entity';
@@ -13,6 +14,7 @@ import { User } from '../../users/entities/user.entity';
 import { RolePermission } from '../../permissions/entities/role-permission.entity';
 
 @Entity('roles')
+@Unique('uq_roles_org_code', ['organizationId', 'code'])
 export class Role extends BaseEntity {
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId: string;
