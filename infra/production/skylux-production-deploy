@@ -327,6 +327,44 @@ http_endpoint_healthy() {
   [[ "$status" == 200 ]]
 }
 
+frontend_assets_healthy() {
+  local page_file="$RUNTIME_DIR/login.html"
+  local asset_url asset_path result status content_type javascript_count=0
+  local -a asset_refs
+
+  "$CURL_BIN" --silent --show-error --output "$page_file" \
+    --connect-timeout 2 --max-time 5 http://127.0.0.1:3002/login >/dev/null 2>&1 || return 1
+  asset_refs=()
+  while IFS= read -r asset_url; do
+    [[ -n "$asset_url" ]] && asset_refs+=("$asset_url")
+  done < <(grep -oE '(src|href)="[^"]+"' "$page_file" | sed -E 's/^[^=]+="//; s/"$//' || true)
+
+  for asset_url in "${asset_refs[@]}"; do
+    case "$asset_url" in
+      *.js|*.js\?*)
+        javascript_count=$((javascript_count + 1))
+        asset_path="$asset_url"
+        ;;
+      *.css|*.css\?*) asset_path="$asset_url" ;;
+      /_next/static/*|/logo/*) asset_path="$asset_url" ;;
+      *) continue ;;
+    esac
+    [[ "$asset_path" == /* ]] || asset_path="/$asset_path"
+    result="$("$CURL_BIN" --silent --show-error --output /dev/null \
+      --write-out '%{http_code} %{content_type}' --connect-timeout 2 --max-time 5 \
+      "http://127.0.0.1:3002$asset_path" 2>/dev/null)" || return 1
+    status="${result%% *}"
+    content_type="${result#* }"
+    [[ "$status" == 200 ]] || return 1
+    case "$asset_path" in
+      *.js|*.js\?*) [[ "$content_type" == *javascript* || "$content_type" == *ecmascript* ]] || return 1 ;;
+      *.css|*.css\?*) [[ "$content_type" == text/css* ]] || return 1 ;;
+    esac
+  done
+
+  (( javascript_count > 0 ))
+}
+
 FRONTEND_PREVIOUS="$(get_container_version frontend || true)"
 BACKEND_PREVIOUS="$(get_container_version backend || true)"
 if [[ -n "$FRONTEND_PREVIOUS" && "$FRONTEND_PREVIOUS" == "$BACKEND_PREVIOUS" ]]; then
@@ -420,7 +458,8 @@ for attempt in {1..12}; do
   [[ -z "$FRONTEND_ID" ]] || FRONTEND_HEALTH="$(docker_cmd inspect -f '{{.State.Health.Status}}' "$FRONTEND_ID" 2>/dev/null || true)"
   if [[ "$BACKEND_HEALTH" == healthy && "$FRONTEND_HEALTH" == healthy ]] \
     && http_endpoint_healthy http://127.0.0.1:3001/api/health \
-    && http_endpoint_healthy http://127.0.0.1:3002/login; then
+    && http_endpoint_healthy http://127.0.0.1:3002/login \
+    && frontend_assets_healthy; then
     APPLICATIONS_HEALTHY=1
     break
   fi

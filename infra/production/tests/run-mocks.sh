@@ -177,7 +177,31 @@ MOCK
 cat > "$TEST_CURL" <<'MOCK'
 #!/bin/bash
 printf 'curl %s\n' "$*" >> "$MOCK_LOG"
-printf '%s' "${MOCK_HTTP_STATUS:-200}"
+url="${@: -1}"
+output_file=""
+write_out=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --output) output_file="$2"; shift 2 ;;
+    --write-out) write_out="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+if [[ "$url" == */login && -n "$output_file" ]]; then
+  printf '%s' '<html><head><link rel="stylesheet" href="/_next/static/css/login.css"></head><body><script src="/_next/static/chunks/login.js"></script></body></html>' > "$output_file"
+fi
+if [[ "$write_out" == *content_type* ]]; then
+  case "${MOCK_STATIC_FAILURE:-}" in
+    js404) [[ "$url" == *.js ]] && { printf '404 text/html'; exit 0; } ;;
+    js-mime) [[ "$url" == *.js ]] && { printf '200 text/html'; exit 0; } ;;
+    css404) [[ "$url" == *.css ]] && { printf '404 text/html'; exit 0; } ;;
+  esac
+  if [[ "$url" == *.js ]]; then printf '200 application/javascript'
+  elif [[ "$url" == *.css ]]; then printf '200 text/css'
+  else printf '200 application/octet-stream'; fi
+else
+  printf '%s' "${MOCK_HTTP_STATUS:-200}"
+fi
 MOCK
 cat > "$TEST_ROOT/install/mock-bin/sleep" <<'MOCK'
 #!/bin/bash
@@ -211,10 +235,10 @@ issue_ticket() {
 }
 
 run_case() {
-  local label="$1" sha="$2" run_id="$3" fail_kind="${4:-}" expected="$5" missing_image="${6:-}" http_status="${7:-200}" rc
+  local label="$1" sha="$2" run_id="$3" fail_kind="${4:-}" expected="$5" missing_image="${6:-}" http_status="${7:-200}" static_failure="${8:-}" rc
   : > "$MOCK_LOG"
   set +e
-  issue_ticket "$sha" "$run_id" | env MOCK_LOG="$MOCK_LOG" MOCK_COMPOSE_PLUGIN="$TEST_COMPOSE" MOCK_REQUIRED_MARKER="$TEST_STATE/used-run-$run_id" MOCK_MARKER_MUST_BE_ABSENT_AT_VERIFY=1 MOCK_FAIL="$fail_kind" MOCK_MISSING_IMAGE="$missing_image" MOCK_HTTP_STATUS="$http_status" \
+  issue_ticket "$sha" "$run_id" | env MOCK_LOG="$MOCK_LOG" MOCK_COMPOSE_PLUGIN="$TEST_COMPOSE" MOCK_REQUIRED_MARKER="$TEST_STATE/used-run-$run_id" MOCK_MARKER_MUST_BE_ABSENT_AT_VERIFY=1 MOCK_FAIL="$fail_kind" MOCK_MISSING_IMAGE="$missing_image" MOCK_HTTP_STATUS="$http_status" MOCK_STATIC_FAILURE="$static_failure" \
     "$TEST_WRAPPER" "$sha" > "$TEST_ROOT/output" 2>&1
   rc=$?
   set -e
@@ -317,9 +341,14 @@ run_case 'HTTP redirect 301' "$GOOD_SHA" 100006-1 '' rejected '' 301
 run_case 'HTTP redirect 302' "$GOOD_SHA" 100012-1 '' rejected '' 302
 run_case 'HTTP 404' "$GOOD_SHA" 100013-1 '' rejected '' 404
 run_case 'HTTP 500' "$GOOD_SHA" 100014-1 '' rejected '' 500
+run_case 'referenced JavaScript HTTP 404' "$GOOD_SHA" 100018-1 '' rejected '' 200 js404
+run_case 'referenced JavaScript wrong Content-Type' "$GOOD_SHA" 100019-1 '' rejected '' 200 js-mime
+run_case 'referenced CSS HTTP 404' "$GOOD_SHA" 100020-1 '' rejected '' 200 css404
 run_case 'HTTP 200' "$GOOD_SHA" 100007-1 '' success '' 200
 grep -q 'http://127.0.0.1:3001/api/health' "$MOCK_LOG"
 grep -q 'http://127.0.0.1:3002/login' "$MOCK_LOG"
+grep -q 'http://127.0.0.1:3002/_next/static/chunks/login.js' "$MOCK_LOG"
+grep -q 'http://127.0.0.1:3002/_next/static/css/login.css' "$MOCK_LOG"
 ! grep -q 'curl .* -L\|curl .* --location' "$MOCK_LOG"
 grep -q '127.0.0.1:3000/login' "$ROOT_DIR/infra/production/docker-compose.prod.root.yml"
 ! grep -Eq 'auth/login|localhost:3000/' "$ROOT_DIR/infra/production/docker-compose.prod.root.yml"
