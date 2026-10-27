@@ -89,6 +89,33 @@ describe('AuthService', () => {
     expect(service).toBeDefined();
   });
 
+  it('authenticates a SUPER_ADMIN with wildcard permissions without requiring role_permissions rows', async () => {
+    const user = {
+      id: 'admin-id', organizationId: 'org-id', departmentId: null,
+      employeeCode: 'SLX-ADMIN-001', fullName: 'Admin', email: 'admin@example.com',
+      passwordHash: 'bcrypt-hash', status: 'ACTIVE', authVersion: 0,
+      organization: { name: 'Sky-Lux Travel Corporation' }, department: null,
+      roles: [{ id: 'role-id', code: 'SUPER_ADMIN' }],
+    };
+    mockUserRepository.findOne.mockResolvedValue(user);
+    mockUserRepository.save.mockImplementation(async (value: any) => value);
+    mockRefreshTokenRepository.create.mockImplementation((value: any) => value);
+    mockRefreshTokenRepository.save.mockResolvedValue(undefined);
+    const jwtService = testingModule.get<JwtService>(JwtService);
+    const configService = testingModule.get<ConfigService>(ConfigService);
+    jest.spyOn(configService, 'get').mockReturnValue('test-jwt-secret');
+    jest.spyOn(jwtService, 'signAsync').mockResolvedValue('signed-token');
+
+    const result = await service.login({ email: ' ADMIN@EXAMPLE.COM ', password: 'password' });
+
+    expect(result.user).toMatchObject({ roles: ['SUPER_ADMIN'], permissions: ['*'] });
+    expect(jwtService.signAsync).toHaveBeenCalledWith(expect.objectContaining({
+      roles: ['SUPER_ADMIN'], permissions: ['*'], email: 'admin@example.com',
+    }), expect.objectContaining({ secret: 'test-jwt-secret' }));
+    const rolePermissionRepository = testingModule.get<any>(getRepositoryToken(RolePermission));
+    expect(rolePermissionRepository.createQueryBuilder).not.toHaveBeenCalled();
+  });
+
   it('createStreamToken signs a fresh short-lived token without inherited JWT claims', async () => {
     const jwtService = testingModule.get<JwtService>(JwtService);
     const configService = testingModule.get<ConfigService>(ConfigService);

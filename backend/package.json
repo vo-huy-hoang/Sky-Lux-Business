@@ -22,6 +22,8 @@
     "migration:show": "npm run typeorm -- migration:show -d src/database/data-source.ts",
     "schema:log": "npm run typeorm -- schema:log -d src/database/data-source.ts",
     "seed": "ts-node -r tsconfig-paths/register src/database/seeds/run-seed.ts",
+    "bootstrap:admin": "node dist/database/bootstrap/cli.js",
+    "bootstrap:admin:dev": "ts-node -r tsconfig-paths/register src/database/bootstrap/cli.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
