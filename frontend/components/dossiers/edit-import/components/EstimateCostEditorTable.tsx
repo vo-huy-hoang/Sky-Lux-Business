@@ -372,7 +372,7 @@ export const EstimateCostEditorTable: React.FC<
               return (
                 <>
                   {/* PHẦN I: DỊCH VỤ ĐẦU VÀO CÓ VAT */}
-                  <tr className="bg-[#D9EAF7] text-slate-900 font-bold border-y border-sky-300">
+                  <tr className="bg-[var(--table-direct-cost-total)] text-slate-900 font-bold border-y border-sky-300">
                     <td className="py-2 px-2 text-center font-bold border-r border-sky-200">
                       I
                     </td>
@@ -415,7 +415,7 @@ export const EstimateCostEditorTable: React.FC<
 
                   {costVatSections.map((sec, secIdx) => (
                     <React.Fragment key={sec.title}>
-                      <tr className="bg-[#EAF3FA] text-slate-900 font-semibold border-y border-sky-200/80">
+                      <tr className="bg-[var(--table-direct-cost-category)] text-slate-900 font-semibold border-y border-sky-200/80">
                         <td className="py-1.5 px-2 text-center font-bold text-[11px] text-sky-900 border-r border-slate-300">
                           {sec.code}
                         </td>
@@ -489,7 +489,7 @@ export const EstimateCostEditorTable: React.FC<
                   ))}
 
                   {/* PHẦN II: DỊCH VỤ ĐẦU VÀO CHƯA VAT */}
-                  <tr className="bg-[#FFF2CC] text-amber-950 font-bold border-y border-amber-300">
+                  <tr className="bg-[var(--table-indirect-cost-total)] text-amber-950 font-bold border-y border-amber-300">
                     <td className="py-2 px-2 text-center font-bold border-r border-amber-200">
                       II
                     </td>
@@ -553,7 +553,7 @@ export const EstimateCostEditorTable: React.FC<
 
           {/* Footer Row: TỔNG CỘNG */}
           <tfoot>
-            <tr className="bg-[#FCE4D6] text-slate-900 font-bold border-t-2 border-slate-400">
+            <tr className="bg-[var(--table-grand-total)] text-slate-900 font-bold border-t-2 border-slate-400">
               <td
                 colSpan={8}
                 className="py-2.5 px-3 text-center font-extrabold uppercase tracking-wider text-xs border-r border-slate-300"

@@ -103,12 +103,12 @@ export function ImportPreviewTable({
 
   return (
     <Card
-      className="skylux-card shadow-xs rounded-xl overflow-hidden border border-[#E5E8E6]"
+      className="skylux-card shadow-xs rounded-xl overflow-hidden border border-[var(--color-border)]"
       styles={{
         header: {
-          borderBottom: "1px solid #EEF1EF",
+          borderBottom: "1px solid var(--color-border-secondary)",
           padding: "12px 18px",
-          background: "#FFFFFF",
+          background: "var(--color-surface)",
         },
         body: {
           padding: "16px",
@@ -352,9 +352,9 @@ export function ImportPreviewTable({
                       key={row.id}
                       className={`transition-colors ${
                         isError
-                          ? "bg-[#FFF5F5] hover:bg-[#FFEBEB] border-l-4 border-l-rose-500"
+                          ? "bg-rose-50/70 hover:bg-rose-100/70 border-l-4 border-l-rose-500"
                           : isWarning
-                            ? "bg-[#FFFBEB] hover:bg-[#FEF3C7] border-l-4 border-l-amber-500"
+                            ? "bg-amber-50/70 hover:bg-amber-100/70 border-l-4 border-l-amber-500"
                             : "hover:bg-slate-50/70"
                       }`}
                     >
@@ -391,7 +391,7 @@ export function ImportPreviewTable({
                             {row.statusMessage || "Lỗi dữ liệu"}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#EDF8F4] text-[#007A55] border border-emerald-200/60">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[var(--color-primary-soft)] text-[var(--color-primary-700)] border border-emerald-200/60">
                             <CheckCircleFilled className="text-emerald-500 text-[10px]" />
                             Hợp lệ
                           </span>
@@ -500,9 +500,9 @@ export function ImportPreviewTable({
                           key={row.id}
                           className={`transition-colors ${
                             isError
-                              ? "bg-[#FFF5F5] hover:bg-[#FFE8E8] border-l-4 border-l-rose-500"
+                              ? "bg-rose-50/70 hover:bg-rose-100/70 border-l-4 border-l-rose-500"
                               : isWarning
-                                ? "bg-[#FFFBEB] hover:bg-[#FEF3C7] border-l-4 border-l-amber-500"
+                                ? "bg-amber-50/70 hover:bg-amber-100/70 border-l-4 border-l-amber-500"
                                 : "hover:bg-slate-50/70"
                           }`}
                         >
@@ -589,7 +589,7 @@ export function ImportPreviewTable({
                                 {row.statusMessage}
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#EDF8F4] text-[#007A55] border border-emerald-200/60">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[var(--color-primary-soft)] text-[var(--color-primary-700)] border border-emerald-200/60">
                                 <CheckCircleFilled className="text-emerald-500 text-[10px]" />
                                 Hợp lệ
                               </span>
@@ -743,7 +743,7 @@ export function ImportPreviewTable({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-[#FAFBFB] text-slate-700 font-semibold border-b border-[#E5E8E6]">
+                <tr className="bg-[var(--color-surface-muted)] text-slate-700 font-semibold border-b border-[var(--color-border)]">
                   <th className="py-2.5 px-3 text-center w-12 text-slate-500 font-medium">
                     STT
                   </th>
@@ -771,7 +771,7 @@ export function ImportPreviewTable({
                         key={row.id}
                         className={`transition-colors ${
                           isError
-                            ? "bg-[#FFF5F5] hover:bg-[#FFEBEB] border-l-4 border-l-rose-500"
+                            ? "bg-rose-50/70 hover:bg-rose-100/70 border-l-4 border-l-rose-500"
                             : "bg-white hover:bg-slate-50/70"
                         }`}
                       >
@@ -829,7 +829,7 @@ export function ImportPreviewTable({
                               {row.statusMessage}
                             </span>
                           ) : (
-                            <span className="inline-block px-3 py-0.5 rounded-full text-[11px] font-medium bg-[#EDF8F4] text-[#007A55] border border-emerald-200/60">
+                            <span className="inline-block px-3 py-0.5 rounded-full text-[11px] font-medium bg-[var(--color-primary-soft)] text-[var(--color-primary-700)] border border-emerald-200/60">
                               Hợp lệ
                             </span>
                           )}
@@ -842,7 +842,7 @@ export function ImportPreviewTable({
             </table>
           </div>
 
-          <div className="px-3.5 py-2.5 border-t border-slate-100 bg-[#FCFDFC]">
+          <div className="px-3.5 py-2.5 border-t border-slate-100 bg-[var(--color-surface-muted)]">
             <button
               type="button"
               onClick={() => setIsRawExpanded(!isRawExpanded)}

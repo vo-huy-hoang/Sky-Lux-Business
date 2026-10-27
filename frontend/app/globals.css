@@ -57,6 +57,34 @@
   --ceo-text: #171a19;
   --ceo-text-muted: #65706b;
   --ceo-text-soft: #98a19d;
+  --table-direct-cost-total: #d9eaf7;
+  --table-direct-cost-category: #eaf3fa;
+  --table-indirect-cost-total: #fff2cc;
+  --table-grand-total: #fce4d6;
+  --avatar-default-bg: #e8f3ee;
+  --avatar-default-text: #075440;
+  --avatar-subtle-bg: #f0f4f2;
+  --avatar-subtle-text: #004230;
+  --segment-tour-primary: #237acb;
+  --segment-tour-accent: #1d70b8;
+  --segment-tour-bg: #ebf5fe;
+  --segment-tour-border: #bfdbfe;
+  --segment-tour-text: #1e40af;
+  --segment-vehicle-primary: #eab308;
+  --segment-vehicle-accent: #ca8a04;
+  --segment-vehicle-bg: #fef9c3;
+  --segment-vehicle-border: #fde047;
+  --segment-vehicle-text: #854d0e;
+  --segment-ticket-primary: #0284c7;
+  --segment-ticket-accent: #0369a1;
+  --segment-ticket-bg: #e0f7fa;
+  --segment-ticket-border: #7dd3fc;
+  --segment-ticket-text: #0369a1;
+  --segment-event-primary: #9333ea;
+  --segment-event-accent: #7e22ce;
+  --segment-event-bg: #f3e8ff;
+  --segment-event-border: #d8b4fe;
+  --segment-event-text: #7e22ce;
 }
 
 @theme inline {

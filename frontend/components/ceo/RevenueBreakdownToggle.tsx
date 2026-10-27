@@ -32,9 +32,9 @@ export function RevenueBreakdownToggle({ value, onChange }: RevenueBreakdownTogg
             type="button"
             aria-pressed={isActive}
             onClick={() => onChange(option.value)}
-            className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+            className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-600)] focus-visible:ring-offset-1 ${
               isActive
-                ? 'bg-[#2563EB] text-white shadow-sm'
+                ? 'bg-[var(--color-primary-700)] text-white shadow-sm'
                 : 'text-slate-600 hover:bg-white hover:text-slate-900'
             }`}
           >

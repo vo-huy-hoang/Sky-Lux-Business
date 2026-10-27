@@ -73,7 +73,7 @@ export const EstimateBottomActionBar: React.FC<
               icon={<CheckCircleOutlined />}
               loading={isSaving}
               onClick={onSaveAndSubmit}
-              className="h-10 rounded-xl bg-[#063826] hover:bg-[#084D34] text-white font-semibold text-xs px-5 border-none shadow-md"
+              className="h-10 rounded-xl bg-[var(--color-primary-950)] hover:bg-[var(--color-primary-850)] text-white font-semibold text-xs px-5 border-none shadow-md"
             >
               {['APPROVED', 'EDITING'].includes(dossierStatus || '')
                 ? 'Gửi lại duyệt'
@@ -96,7 +96,7 @@ export const EstimateBottomActionBar: React.FC<
               icon={<CheckCircleOutlined />}
               loading={isSaving}
               onClick={onSaveAndSubmit}
-              className="h-10 rounded-xl bg-[#063826] hover:bg-[#084D34] text-white font-semibold text-xs px-5 border-none shadow-md"
+              className="h-10 rounded-xl bg-[var(--color-primary-950)] hover:bg-[var(--color-primary-850)] text-white font-semibold text-xs px-5 border-none shadow-md"
             >
               {['APPROVED', 'EDITING'].includes(dossierStatus || '')
                 ? 'Gửi lại duyệt'

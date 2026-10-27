@@ -23,6 +23,7 @@ import { useAuthStore } from '@/lib/stores/auth-store';
 import { useNotificationStore } from '@/lib/stores/notification-store';
 import { authService } from '@/services/auth.service';
 import type { UserContext } from '@/lib/routes.config';
+import { themeTokens } from '@/lib/theme/tokens.config';
 
 const { Header } = Layout;
 
@@ -133,7 +134,7 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
     <>
       <Header
         className="skylux-app-header sticky top-0 z-20 flex items-center justify-between border-b border-[var(--color-border)] px-4 sm:px-6 lg:px-7"
-        style={{ height: 78, backgroundColor: '#FFFFFF' }}
+        style={{ height: 78, backgroundColor: themeTokens.neutral.surface }}
       >
         <div className="flex flex-1 items-center gap-2 sm:gap-4 min-w-0">
           <Button
@@ -146,7 +147,7 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
 
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {routeMeta.icon && (
-              <span className="text-[22px] sm:text-[26px] text-[#D97706] flex items-center shrink-0">
+              <span className="text-[22px] sm:text-[26px] text-[var(--color-gold)] flex items-center shrink-0">
                 {routeMeta.icon}
               </span>
             )}
@@ -207,7 +208,7 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
               <Avatar
                 size={42}
                 src={user?.avatarUrl}
-                style={{ backgroundColor: '#EAF5EF', color: '#00543D' }}
+                style={{ backgroundColor: themeTokens.brand.primary.soft, color: themeTokens.brand.primary[800] }}
                 icon={<UserOutlined />}
               >
                 {user?.fullName?.charAt(0)}

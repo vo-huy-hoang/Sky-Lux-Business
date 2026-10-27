@@ -3,7 +3,8 @@
 
 import React, { useState, useRef } from 'react';
 import Link from 'next/link';
-import { DatePicker, message } from 'antd';
+import dynamic from 'next/dynamic';
+import { DatePicker, message, Skeleton } from 'antd';
 import {
   BarChartOutlined,
   CalendarOutlined,
@@ -37,11 +38,18 @@ import dayjs from 'dayjs';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useFilterStore } from '@/lib/stores/filter-store';
 import { useCeoDashboard, useCeoMonthlyTrend, useOperatorSalesSummary } from '@/hooks/dashboards';
-import OperatorRevenue from '@/components/operator/OperatorRevenue';
+const OperatorRevenue = dynamic(
+  () => import('@/components/operator/OperatorRevenue'),
+  {
+    ssr: false,
+    loading: () => <Skeleton active paragraph={{ rows: 8 }} />,
+  }
+);
 import { WidgetErrorBoundary } from '@/components/common/widget-error-boundary';
 import { formatCurrency } from '@/lib/financial-calculations';
 import { RevenueBreakdownToggle, RevenueBreakdownMode } from '@/components/ceo/RevenueBreakdownToggle';
 import { getRevenueDonutSlices, RevenueDonutChart } from '@/components/ceo/RevenueDonutChart';
+import { themeTokens } from '@/lib/theme/tokens.config';
 
 ChartJS.register(
   ArcElement,
@@ -125,25 +133,25 @@ function CeoRevenuePage() {
       {
         label: 'Doanh thu (đ)',
         data: chartRevenue,
-        borderColor: '#104E35',
-        backgroundColor: '#104E35',
+        borderColor: themeTokens.brand.primary[800],
+        backgroundColor: themeTokens.brand.primary[800],
         tension: 0.35,
         pointRadius: 3.5,
         pointHoverRadius: 5.5,
-        pointBackgroundColor: '#FFFFFF',
-        pointBorderColor: '#104E35',
+        pointBackgroundColor: themeTokens.neutral.surface,
+        pointBorderColor: themeTokens.brand.primary[800],
         pointBorderWidth: 2,
       },
       {
         label: 'Lợi nhuận (đ)',
         data: chartProfit,
-        borderColor: '#D48B1E',
-        backgroundColor: '#D48B1E',
+        borderColor: themeTokens.brand.gold.main,
+        backgroundColor: themeTokens.brand.gold.main,
         tension: 0.35,
         pointRadius: 3.5,
         pointHoverRadius: 5.5,
-        pointBackgroundColor: '#FFFFFF',
-        pointBorderColor: '#D48B1E',
+        pointBackgroundColor: themeTokens.neutral.surface,
+        pointBorderColor: themeTokens.brand.gold.main,
         pointBorderWidth: 2,
       },
     ],
@@ -156,13 +164,19 @@ function CeoRevenuePage() {
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: '#FFFFFF', titleColor: '#0F172A', bodyColor: '#334155', borderColor: '#E2E8F0', borderWidth: 1, padding: 9, usePointStyle: true,
+        backgroundColor: themeTokens.neutral.surface,
+        titleColor: themeTokens.neutral.text,
+        bodyColor: themeTokens.neutral.textMuted,
+        borderColor: themeTokens.neutral.border,
+        borderWidth: 1,
+        padding: 9,
+        usePointStyle: true,
         callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y} Tr` },
       },
     },
     scales: {
-      x: { grid: { display: false }, border: { display: false }, ticks: { color: '#64748B', font: { size: 9.5 } } },
-      y: { min: 0, grid: { color: '#F1F5F9' }, border: { display: false }, ticks: { color: '#64748B', font: { size: 9.5 }, callback: (v) => v === 0 ? '0' : v + 'Tr' } },
+      x: { grid: { display: false }, border: { display: false }, ticks: { color: themeTokens.neutral.textSoft, font: { size: 9.5 } } },
+      y: { min: 0, grid: { color: themeTokens.charts.gridLines }, border: { display: false }, ticks: { color: themeTokens.neutral.textSoft, font: { size: 9.5 }, callback: (v) => v === 0 ? '0' : v + 'Tr' } },
     },
   };
 
@@ -174,8 +188,8 @@ function CeoRevenuePage() {
       {
         label: 'Doanh thu (Tr)',
         data: topSales.map(s => Number(s.totalRevenue) / 1_000_000),
-        backgroundColor: '#104E35',
-        hoverBackgroundColor: '#0B3A27',
+        backgroundColor: themeTokens.brand.primary[800],
+        hoverBackgroundColor: themeTokens.brand.primary[900],
         borderRadius: 3.5,
         barThickness: 18,
       },
@@ -185,10 +199,21 @@ function CeoRevenuePage() {
 
   const salesBarOptions: ChartOptions<'bar'> = {
     responsive: true, maintainAspectRatio: false, layout: { padding: { top: 20 } },
-    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#FFFFFF', titleColor: '#0F172A', bodyColor: '#334155', borderColor: '#E2E8F0', borderWidth: 1, padding: 8, callbacks: { label: (ctx) => ` Doanh thu: ${ctx.parsed.y}Tr` } } },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: themeTokens.neutral.surface,
+        titleColor: themeTokens.neutral.text,
+        bodyColor: themeTokens.neutral.textMuted,
+        borderColor: themeTokens.neutral.border,
+        borderWidth: 1,
+        padding: 8,
+        callbacks: { label: (ctx) => ` Doanh thu: ${ctx.parsed.y}Tr` },
+      },
+    },
     scales: {
-      x: { grid: { display: false }, border: { display: false }, ticks: { color: '#334155', font: { size: 9 }, maxRotation: 40, minRotation: 35, autoSkip: false } },
-      y: { min: 0, max: Math.ceil(maxSalesValue / 50) * 50, grid: { color: '#F1F5F9' }, border: { display: false }, ticks: { color: '#64748B', font: { size: 9.5 },  callback: (v) => v === 0 ? '0' : v + 'Tr' } },
+      x: { grid: { display: false }, border: { display: false }, ticks: { color: themeTokens.neutral.textMuted, font: { size: 9 }, maxRotation: 40, minRotation: 35, autoSkip: false } },
+      y: { min: 0, max: Math.ceil(maxSalesValue / 50) * 50, grid: { color: themeTokens.neutral.divider }, border: { display: false }, ticks: { color: themeTokens.neutral.textSoft, font: { size: 9.5 },  callback: (v) => v === 0 ? '0' : v + 'Tr' } },
     },
   };
 
@@ -222,17 +247,17 @@ function CeoRevenuePage() {
   const highestSupplierAmount = supplierRows[0]?.amount || 0;
 
   const quickReports = [
-    { id: '1', title: 'Báo cáo doanh thu chi tiết', icon: <FileTextOutlined className="text-sm" />, iconBox: 'bg-[#E8F6ED] text-[#0A8A61] border border-[#C8EBD5]', href: '/reports' },
-    { id: '2', title: 'Báo cáo lợi nhuận theo mảng', icon: <DollarOutlined className="text-sm" />, iconBox: 'bg-[#FEF5E7] text-[#D97706] border border-[#FDE3B8]', href: '/reports' },
-    { id: '3', title: 'Báo cáo công nợ phải thu', icon: <WalletOutlined className="text-sm" />, iconBox: 'bg-[#EBF5FB] text-[#2E82C4] border border-[#D1E8F7]', href: '/reports' },
-    { id: '4', title: 'Báo cáo theo thị trường', icon: <GlobalOutlined className="text-sm" />, iconBox: 'bg-[#E8F6ED] text-[#0A8A61] border border-[#C8EBD5]', href: '/reports' },
-    { id: '5', title: 'Báo cáo hiệu suất Sales', icon: <BarChartOutlined className="text-sm" />, iconBox: 'bg-[#E6F8F6] text-[#0D9488] border border-[#CCF0ED]', href: '/kpi' },
+    { id: '1', title: 'Báo cáo doanh thu chi tiết', icon: <FileTextOutlined className="text-sm" />, iconBox: 'bg-[var(--color-primary-soft)] text-[var(--color-primary-600)] border border-[var(--color-primary-soft-2)]', href: '/reports' },
+    { id: '2', title: 'Báo cáo lợi nhuận theo mảng', icon: <DollarOutlined className="text-sm" />, iconBox: 'bg-[var(--color-warning-soft)] text-[var(--color-warning)] border border-[var(--color-warning-soft)]', href: '/reports' },
+    { id: '3', title: 'Báo cáo công nợ phải thu', icon: <WalletOutlined className="text-sm" />, iconBox: 'bg-[var(--color-info-soft)] text-[var(--color-info)] border border-[var(--color-info-soft)]', href: '/reports' },
+    { id: '4', title: 'Báo cáo theo thị trường', icon: <GlobalOutlined className="text-sm" />, iconBox: 'bg-[var(--color-primary-soft)] text-[var(--color-primary-600)] border border-[var(--color-primary-soft-2)]', href: '/reports' },
+    { id: '5', title: 'Báo cáo hiệu suất Sales', icon: <BarChartOutlined className="text-sm" />, iconBox: 'bg-[var(--color-primary-soft)] text-[var(--color-primary-700)] border border-[var(--color-primary-soft-2)]', href: '/kpi' },
   ];
 
   return (
     <div className="space-y-4 pb-8">
       {/* 1. FILTER TOOLBAR & EXPORT BUTTONS */}
-      <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5">
+      <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <div className="flex flex-1 items-center">
               {/* Filter 1 */}
@@ -269,62 +294,62 @@ function CeoRevenuePage() {
             </div>
           </div>
           <div className="flex items-center gap-2.5 shrink-0 justify-end">
-            <button type="button" onClick={handleExportPDF} className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[#0B7A5B] bg-white text-[#0B7A5B] text-xs font-semibold hover:bg-[#E8F6ED] transition-colors cursor-pointer"><FilePdfOutlined className="text-sm" /><span>Xuất PDF</span></button>
-            <button type="button" onClick={handleExportExcel} className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[#0F3D2E] hover:bg-[#0A2E22] text-white text-xs font-semibold transition-colors cursor-pointer shadow-sm"><FileExcelOutlined className="text-sm" /><span>Xuất Excel</span></button>
+            <button type="button" onClick={handleExportPDF} className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--color-primary-600)] bg-white text-[var(--color-primary-600)] text-xs font-semibold hover:bg-[var(--color-primary-soft)] transition-colors cursor-pointer"><FilePdfOutlined className="text-sm" /><span>Xuất PDF</span></button>
+            <button type="button" onClick={handleExportExcel} className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[var(--color-primary-900)] hover:bg-[var(--color-primary-950)] text-white text-xs font-semibold transition-colors cursor-pointer shadow-sm"><FileExcelOutlined className="text-sm" /><span>Xuất Excel</span></button>
           </div>
         </div>
       </div>
 
       {/* 2. KPI METRIC CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-        <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5 flex flex-col justify-between">
+        <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5 flex flex-col justify-between">
           <div className="flex items-start gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#E8F6ED] text-[#0A8A61] border border-[#C8EBD5] flex items-center justify-center shrink-0"><LineChartOutlined className="text-sm" /></div>
+            <div className="w-8 h-8 rounded-lg bg-[var(--color-primary-soft)] text-[var(--color-primary-600)] border border-[var(--color-primary-soft-2)] flex items-center justify-center shrink-0"><LineChartOutlined className="text-sm" /></div>
             <div className="min-w-0">
               <span className="text-xs text-slate-500 font-medium">Doanh thu tháng</span>
               <div className="text-[15px] xl:text-[15.5px] font-bold text-slate-900 tabular-nums leading-snug mt-0.5 whitespace-nowrap">{formatMoney(currentMonthRev)} đ</div>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5 flex flex-col justify-between">
+        <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5 flex flex-col justify-between">
           <div className="flex items-start gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#E8F6ED] text-[#0A8A61] border border-[#C8EBD5] flex items-center justify-center shrink-0"><CalendarOutlined className="text-sm" /></div>
+            <div className="w-8 h-8 rounded-lg bg-[var(--color-primary-soft)] text-[var(--color-primary-600)] border border-[var(--color-primary-soft-2)] flex items-center justify-center shrink-0"><CalendarOutlined className="text-sm" /></div>
             <div className="min-w-0">
               <span className="text-xs text-slate-500 font-medium">Doanh thu quý</span>
               <div className="text-[15px] xl:text-[15.5px] font-bold text-slate-900 tabular-nums leading-snug mt-0.5 whitespace-nowrap">{formatMoney(currentQuarterRev)} đ</div>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5 flex flex-col justify-between">
+        <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5 flex flex-col justify-between">
           <div className="flex items-start gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#FEF5E7] text-[#D97706] border border-[#FDE3B8] flex items-center justify-center shrink-0"><WalletOutlined className="text-sm" /></div>
+            <div className="w-8 h-8 rounded-lg bg-[var(--color-warning-soft)] text-[var(--color-warning)] border border-[var(--color-warning-soft)] flex items-center justify-center shrink-0"><WalletOutlined className="text-sm" /></div>
             <div className="min-w-0">
               <span className="text-xs text-slate-500 font-medium">Chi phí</span>
               <div className="text-[15px] xl:text-[15.5px] font-bold text-slate-900 tabular-nums leading-snug mt-0.5 whitespace-nowrap">{formatMoney(currentMonthCost)} đ</div>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5 flex flex-col justify-between">
+        <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5 flex flex-col justify-between">
           <div className="flex items-start gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#E8F6ED] text-[#0A8A61] border border-[#C8EBD5] flex items-center justify-center shrink-0"><RiseOutlined className="text-sm" /></div>
+            <div className="w-8 h-8 rounded-lg bg-[var(--color-primary-soft)] text-[var(--color-primary-600)] border border-[var(--color-primary-soft-2)] flex items-center justify-center shrink-0"><RiseOutlined className="text-sm" /></div>
             <div className="min-w-0">
               <span className="text-xs text-slate-500 font-medium">Lợi nhuận</span>
               <div className="text-[15px] xl:text-[15.5px] font-bold text-slate-900 tabular-nums leading-snug mt-0.5 whitespace-nowrap">{formatMoney(currentMonthProfit)} đ</div>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5 flex flex-col justify-between">
+        <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5 flex flex-col justify-between">
           <div className="flex items-start gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#E8F6ED] text-[#0A8A61] border border-[#C8EBD5] flex items-center justify-center shrink-0"><PercentageOutlined className="text-sm" /></div>
+            <div className="w-8 h-8 rounded-lg bg-[var(--color-primary-soft)] text-[var(--color-primary-600)] border border-[var(--color-primary-soft-2)] flex items-center justify-center shrink-0"><PercentageOutlined className="text-sm" /></div>
             <div className="min-w-0">
               <span className="text-xs text-slate-500 font-medium">Tỷ suất lợi nhuận</span>
               <div className="text-[15px] xl:text-[15.5px] font-bold text-slate-900 tabular-nums leading-snug mt-0.5 whitespace-nowrap">{currentMonthMargin.toFixed(1)}%</div>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5 flex flex-col justify-between">
+        <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5 flex flex-col justify-between">
           <div className="flex items-start gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#FEF5E7] text-[#D97706] border border-[#FDE3B8] flex items-center justify-center shrink-0"><DollarOutlined className="text-sm" /></div>
+            <div className="w-8 h-8 rounded-lg bg-[var(--color-warning-soft)] text-[var(--color-warning)] border border-[var(--color-warning-soft)] flex items-center justify-center shrink-0"><DollarOutlined className="text-sm" /></div>
             <div className="min-w-0">
               <span className="text-xs text-slate-500 font-medium">Thời gian chốt HSYC</span>
               <div className="text-[15px] xl:text-[15.5px] font-bold text-slate-900 tabular-nums leading-snug mt-0.5 whitespace-nowrap">{avgDays.toFixed(1)} ngày</div>
@@ -337,11 +362,11 @@ function CeoRevenuePage() {
       <div className="grid grid-cols-1 xl:grid-cols-[1.25fr_1fr_1.05fr] gap-4">
         <div>
           <WidgetErrorBoundary title="Doanh thu & lợi nhuận theo tháng">
-            <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
+            <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between"><span className="text-[15px] font-bold text-slate-900">Doanh thu & lợi nhuận theo tháng</span><span className="text-xs text-slate-400">Đơn vị: Triệu đồng</span></div>
               <div className="flex items-center gap-5 mt-2 mb-2">
-                <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600"><span className="w-3.5 h-1.5 rounded-full bg-[#104E35]" /><span>Doanh thu (đ)</span></div>
-                <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600"><span className="w-3.5 h-1.5 rounded-full bg-[#D48B1E]" /><span>Lợi nhuận (đ)</span></div>
+                <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600"><span className="w-3.5 h-1.5 rounded-full bg-[var(--color-primary-800)]" /><span>Doanh thu (đ)</span></div>
+                <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600"><span className="w-3.5 h-1.5 rounded-full bg-[var(--color-gold)]" /><span>Lợi nhuận (đ)</span></div>
               </div>
               <div className="relative h-[230px] w-full">
                 <Line data={lineChartData} options={lineChartOptions} />
@@ -352,7 +377,7 @@ function CeoRevenuePage() {
 
         <div>
           <WidgetErrorBoundary title="Doanh thu theo Sales">
-            <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
+            <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between mb-2"><span className="text-[15px] font-bold text-slate-900">Doanh thu theo Sales</span><span className="text-xs text-slate-400">Đơn vị: Triệu đồng</span></div>
               <div className="relative h-[255px] w-full">
                 <Bar data={salesBarData} options={salesBarOptions} plugins={[barTopLabelsPlugin]} />
@@ -363,7 +388,7 @@ function CeoRevenuePage() {
 
         <div>
           <WidgetErrorBoundary title="Cơ cấu doanh thu theo cách phân loại">
-            <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
+            <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                 <span className="text-[15px] font-bold text-slate-900">Cơ cấu doanh thu theo {breakdownMode === 'MARKET_TYPE' ? 'loại hình' : 'mảng'}</span>
                 <div className="flex items-center gap-3">
@@ -397,8 +422,8 @@ function CeoRevenuePage() {
       {/* 4. BOTTOM SECTION */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.3fr_0.9fr] gap-4">
         <WidgetErrorBoundary title="Top khách hàng">
-          <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col h-full">
-            <div className="p-4 border-b border-[#E5E8E6] flex items-center justify-between"><span className="text-[15px] font-bold text-slate-900">Top khách hàng</span><span className="text-xs text-slate-400">Đơn vị: Triệu đ</span></div>
+          <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col h-full">
+            <div className="p-4 border-b border-[var(--color-border)] flex items-center justify-between"><span className="text-[15px] font-bold text-slate-900">Top khách hàng</span><span className="text-xs text-slate-400">Đơn vị: Triệu đ</span></div>
             <div className="p-0 flex-1">
               <div className="flex flex-col">
                 {topCustomers.map((item, idx) => (
@@ -417,11 +442,11 @@ function CeoRevenuePage() {
         </WidgetErrorBoundary>
 
         <WidgetErrorBoundary title="Doanh thu Nhà cung cấp">
-          <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col h-full overflow-hidden">
-            <div className="p-4 border-b border-[#E5E8E6] flex items-start justify-between gap-3">
+          <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col h-full overflow-hidden">
+            <div className="p-4 border-b border-[var(--color-border)] flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-[#E8F6ED] text-[#0A8A61] border border-[#C8EBD5] flex items-center justify-center shrink-0"><ShopOutlined className="text-sm" /></div>
+                  <div className="w-7 h-7 rounded-lg bg-[var(--color-primary-soft)] text-[var(--color-primary-600)] border border-[var(--color-primary-soft-2)] flex items-center justify-center shrink-0"><ShopOutlined className="text-sm" /></div>
                   <span className="text-[15px] font-bold text-slate-900">Doanh thu Nhà cung cấp</span>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1.5 ml-9">Xếp hạng theo chi phí thuần trong kỳ</p>
@@ -434,7 +459,7 @@ function CeoRevenuePage() {
                   {supplierRows.map((supplier, index) => {
                     const share = supplierTotal > 0 ? (supplier.amount / supplierTotal) * 100 : 0;
                     const width = highestSupplierAmount > 0 ? (supplier.amount / highestSupplierAmount) * 100 : 0;
-                    const barColor = index === 0 ? '#104E35' : index === 1 ? '#2F7D61' : '#A8CDBB';
+                    const barColor = index === 0 ? themeTokens.brand.primary[800] : index === 1 ? themeTokens.brand.primary[600] : themeTokens.brand.primary.hoverBorder;
                     return (
                       <div key={supplier.supplierId} role="listitem" className="group">
                         <div className="flex items-center justify-between gap-3 mb-1.5">
@@ -466,20 +491,20 @@ function CeoRevenuePage() {
             </div>
             <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-3">
               <span className="text-[11px] text-slate-500">Tổng nhóm đang hiển thị</span>
-              <span className="text-sm font-bold text-[#0A8A61] tabular-nums">{formatTrm(supplierTotal)} Tr</span>
+              <span className="text-sm font-bold text-[var(--color-primary-600)] tabular-nums">{formatTrm(supplierTotal)} Tr</span>
             </div>
           </div>
         </WidgetErrorBoundary>
 
         <WidgetErrorBoundary title="Báo cáo nhanh">
-          <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col h-full">
-            <div className="p-4 border-b border-[#E5E8E6]"><span className="text-[15px] font-bold text-slate-900">Báo cáo nhanh</span></div>
+          <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col h-full">
+            <div className="p-4 border-b border-[var(--color-border)]"><span className="text-[15px] font-bold text-slate-900">Báo cáo nhanh</span></div>
             <div className="p-4 flex flex-col gap-2.5 flex-1">
               {quickReports.map((report) => (
-                <Link key={report.id} href={report.href} className="flex items-center gap-3 p-2.5 rounded-lg border border-slate-100 hover:border-[#C8EBD5] hover:bg-[#F3FAF5] transition-colors group">
+                <Link key={report.id} href={report.href} className="flex items-center gap-3 p-2.5 rounded-lg border border-slate-100 hover:border-[var(--color-primary-soft-2)] hover:bg-[var(--color-primary-soft)] transition-colors group">
                   <div className={"w-8 h-8 rounded-lg flex items-center justify-center shrink-0 " + report.iconBox}>{report.icon}</div>
-                  <span className="text-[13px] font-medium text-slate-700 group-hover:text-[#0A8A61] flex-1 truncate">{report.title}</span>
-                  <RightOutlined className="text-[10px] text-slate-300 group-hover:text-[#0A8A61]" />
+                  <span className="text-[13px] font-medium text-slate-700 group-hover:text-[var(--color-primary-600)] flex-1 truncate">{report.title}</span>
+                  <RightOutlined className="text-[10px] text-slate-300 group-hover:text-[var(--color-primary-600)]" />
                 </Link>
               ))}
             </div>

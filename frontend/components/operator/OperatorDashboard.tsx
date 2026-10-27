@@ -29,23 +29,27 @@ import { formatCurrency } from '@/lib/financial-calculations';
 import { WidgetErrorBoundary } from '@/components/common/widget-error-boundary';
 import { RevenueBreakdownToggle, RevenueBreakdownMode } from '@/components/ceo/RevenueBreakdownToggle';
 import { getRevenueDonutSlices, RevenueDonutChart } from '@/components/ceo/RevenueDonutChart';
+import { themeTokens } from '@/lib/theme/tokens.config';
+import OperatorMetricsGrid from './widgets/OperatorMetricsGrid';
+import OperatorDossierStatusTable from './widgets/OperatorDossierStatusTable';
+import OperatorQuickReminders from './widgets/OperatorQuickReminders';
 
 const { Text } = Typography;
 
 const statusMeta: Record<string, { label: string; color: string; className: string }> = {
-  DRAFT: { label: 'Mới tiếp nhận', color: '#3487C8', className: 'op-status-info' },
-  SUBMITTED: { label: 'Đã gửi duyệt', color: '#8462C7', className: 'op-status-purple' },
-  IN_REVIEW: { label: 'Đang xử lý', color: '#D3A11B', className: 'op-status-warning' },
-  APPROVED: { label: 'Đã duyệt', color: '#0B7A5B', className: 'op-status-valid' },
-  COMPLETED: { label: 'Hoàn thành', color: '#075440', className: 'op-status-valid' },
-  CANCELLED: { label: 'Đã hủy', color: '#D94A4A', className: 'op-status-danger' },
-  NEED_CHANGES: { label: 'Cần bổ sung', color: '#FF7A45', className: 'op-status-warning' },
-  RESUBMITTED: { label: 'Đã gửi lại', color: '#2E82C4', className: 'op-status-neutral' },
-  EDITING: { label: 'Đang sửa', color: '#D48806', className: 'op-status-warning' },
+  DRAFT: { label: 'Mới tiếp nhận', color: themeTokens.semantic.info.main, className: 'op-status-info' },
+  SUBMITTED: { label: 'Đã gửi duyệt', color: themeTokens.semantic.purple.main, className: 'op-status-purple' },
+  IN_REVIEW: { label: 'Đang xử lý', color: themeTokens.brand.gold.main, className: 'op-status-warning' },
+  APPROVED: { label: 'Đã duyệt', color: themeTokens.semantic.success.main, className: 'op-status-valid' },
+  COMPLETED: { label: 'Hoàn thành', color: themeTokens.semantic.success.dark, className: 'op-status-valid' },
+  CANCELLED: { label: 'Đã hủy', color: themeTokens.semantic.danger.main, className: 'op-status-danger' },
+  NEED_CHANGES: { label: 'Cần bổ sung', color: themeTokens.semantic.warning.main, className: 'op-status-warning' },
+  RESUBMITTED: { label: 'Đã gửi lại', color: themeTokens.semantic.info.neutral, className: 'op-status-neutral' },
+  EDITING: { label: 'Đang sửa', color: themeTokens.brand.gold.strong, className: 'op-status-warning' },
 };
 
 function getStatus(status?: string) {
-  return statusMeta[status || ''] || { label: status || 'Chưa rõ', color: '#66706C', className: 'op-status-neutral' };
+  return statusMeta[status || ''] || { label: status || 'Chưa rõ', color: themeTokens.neutral.textMuted, className: 'op-status-neutral' };
 }
 
 function formatDate(value?: string) {
@@ -60,58 +64,7 @@ function formatTrm(value?: number) {
   return formatCurrency(Math.round(Number(value || 0) / 1_000_000), { showSymbol: false });
 }
 
-function SummaryMetricCard({
-  label,
-  value,
-  icon,
-  tone,
-  loading,
-  href,
-}: {
-  label: string;
-  value: React.ReactNode;
-  icon: React.ReactNode;
-  tone: 'green' | 'blue' | 'gold' | 'orange';
-  loading: boolean;
-  href?: string;
-}) {
-  const toneClasses = {
-    green: 'bg-[#E8F6ED] text-[#0A8A61] border-[#C8EBD5]',
-    blue: 'bg-[#E6F7FF] text-[#0958D9] border-[#BAE0FF]',
-    gold: 'bg-[#FFF2E8] text-[#D46B08] border-[#FFD8BF]',
-    orange: 'bg-[#FFF2E8] text-[#D46B08] border-[#FFD8BF]',
-  };
 
-  const cardContent = (
-    <div
-      className={`bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-2 xl:p-2.5 2xl:p-3.5 flex flex-col justify-between h-full min-w-0 ${
-        href ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 hover:border-slate-300 transition-all duration-200' : ''
-      }`}
-    >
-      <div className="flex items-center gap-2 xl:gap-2.5 min-w-0">
-        <div className={`w-7 h-7 2xl:w-8 2xl:h-8 rounded-lg border flex items-center justify-center shrink-0 ${toneClasses[tone]} [&_.anticon]:text-sm`}>
-          {icon}
-        </div>
-        <div className="min-w-0 flex-1">
-          <span className="text-xs text-slate-500 font-medium leading-tight line-clamp-2">{label}</span>
-          <div className="text-[12px] 2xl:text-[15.5px] font-bold text-slate-900 tabular-nums leading-snug mt-0.5 whitespace-nowrap">
-            {loading ? <Skeleton.Input active size="small" /> : value}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  if (href) {
-    return (
-      <Link href={href} className="block h-full group focus:outline-none focus:ring-2 focus:ring-[#0B7A5B] rounded-xl">
-        {cardContent}
-      </Link>
-    );
-  }
-
-  return cardContent;
-}
 
 export default function OperatorDashboard() {
   const [breakdownMode, setBreakdownMode] = React.useState<RevenueBreakdownMode>('MARKET_TYPE');
@@ -196,117 +149,17 @@ export default function OperatorDashboard() {
     isLoadingDossiers ||
     isLoadingTasks;
 
-  const dossierColumns = [
-    {
-      title: 'Mã hồ sơ',
-      dataIndex: 'code',
-      key: 'code',
-      width: 280,
-      render: (value: string, record: DossierItem) => (
-        <Link href={`/dossiers/${record.id}`}>
-          <Text strong className="text-[var(--op-primary-900)] hover:underline whitespace-nowrap">
-            {value}
-          </Text>
-        </Link>
-      ),
-    },
-    {
-      title: 'Sales phụ trách',
-      key: 'sales',
-      width: 160,
-      render: (_: unknown, record: DossierItem) => record.salesUser?.fullName || '-',
-    },
-    {
-      title: 'Khách hàng',
-      key: 'customer',
-      width: 200,
-      render: (_: unknown, record: DossierItem) => (
-        <span className="truncate block" title={record.customer?.displayName || '-'}>
-          {record.customer?.displayName || '-'}
-        </span>
-      ),
-    },
-    {
-      title: 'Ngày đi',
-      dataIndex: 'startDate',
-      key: 'startDate',
-      width: 112,
-      render: formatDate,
-    },
-    {
-      title: 'Trạng thái',
-      dataIndex: 'status',
-      key: 'status',
-      width: 130,
-      render: (value: string) => (
-        <Tag className={getStatus(value).className}>{getStatus(value).label}</Tag>
-      ),
-    },
-  ];
-
   return (
     <div className="op-page space-y-4">
       {/* 1. THẺ KPI TỔNG QUAN */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5" aria-label="Chỉ số vận hành điều hành">
-        {/* Tạm thời comment 2 thẻ Doanh thu & Lợi nhuận - sau này cần thì mở lại
-        <SummaryMetricCard
-          label="Doanh thu tháng này"
-          value={formatMoney(totalMonthRevenue)}
-          icon={<BarChartOutlined />}
-          tone="gold"
-          loading={isLoadingTrend}
-          href="/revenue"
-        />
-        <SummaryMetricCard
-          label="Lợi nhuận tháng"
-          value={formatCurrency(operatorData?.totalProfit || 0)}
-          icon={<LineChartOutlined />}
-          tone="green"
-          loading={isLoadingOperator}
-          href="/revenue"
-        />
-        */}
-        <SummaryMetricCard
-          label="Hồ sơ toàn hệ thống"
-          value={operatorData?.totalDossiersCount || 0}
-          icon={<FolderOpenOutlined />}
-          tone="blue"
-          loading={isLoadingOperator}
-          href="/dossiers"
-        />
-        <SummaryMetricCard
-          label="Hồ sơ chờ duyệt"
-          value={operatorData?.pendingApprovalsCount || 0}
-          icon={<ClockCircleOutlined />}
-          tone="gold"
-          loading={isLoadingOperator}
-          href="/dossiers?status=SUBMITTED"
-        />
-        <SummaryMetricCard
-          label="Hồ sơ đang xử lý"
-          value={activeDossiers}
-          icon={<FolderOpenOutlined />}
-          tone="green"
-          loading={isLoadingOperator}
-          href="/dossiers?status=IN_REVIEW"
-        />
-        <SummaryMetricCard
-          label="Ưu tiên cao / Khẩn cấp"
-          value={priorityDossiers}
-          icon={<ExclamationCircleOutlined />}
-          tone="orange"
-          loading={isLoadingOperator}
-          href="/dossiers?priority=HIGH"
-        />
-        <SummaryMetricCard
-          label="Nhà cung cấp đối tác"
-          value={totalSuppliers}
-          icon={<ShopOutlined />}
-          tone="blue"
-          loading={isLoadingOperator}
-          href="/suppliers"
-        />
-      </section>
+      <OperatorMetricsGrid
+        totalDossiersCount={operatorData?.totalDossiersCount || 0}
+        pendingApprovalsCount={operatorData?.pendingApprovalsCount || 0}
+        activeDossiers={activeDossiers}
+        priorityDossiers={priorityDossiers}
+        totalSuppliers={totalSuppliers}
+        isLoading={isLoadingOperator}
+      />
 
       {/* 2. BẢNG XẾP HẠNG SALES */}
       <section className="grid gap-4 xl:grid-cols-4" aria-label="Báo cáo tiến độ và công việc">
@@ -326,7 +179,7 @@ export default function OperatorDashboard() {
               {topSalesRank.map((sales, index) => (
                 <div key={sales.salesUserId} className="flex items-center gap-3">
                   <span className="op-rank">{index + 1}</span>
-                  <Avatar size={32} style={{ backgroundColor: '#004230' }}>
+                  <Avatar size={32} style={{ backgroundColor: themeTokens.brand.primary[800] }}>
                     {sales.salesUserName.charAt(0)}
                   </Avatar>
                   <div className="min-w-0 flex-1">
@@ -337,7 +190,7 @@ export default function OperatorDashboard() {
                       {sales.totalDossiers} hồ sơ • {formatMoney(sales.totalRevenue)}
                     </Text>
                   </div>
-                  <strong className="tabular-nums text-xs text-[#0B7A5B]">
+                  <strong className="tabular-nums text-xs text-[var(--color-primary-600)]">
                     {sales.completionRate ? `${sales.completionRate}%` : `${sales.approvedDossiers} duyệt`}
                   </strong>
                 </div>
@@ -349,7 +202,7 @@ export default function OperatorDashboard() {
         </Card>
 
         <WidgetErrorBoundary title="Cơ cấu doanh thu theo cách phân loại">
-          <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
+          <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
             <div>
               <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                 <h2 className="text-[15px] font-bold text-slate-900 m-0 leading-normal">Cơ cấu doanh thu theo {breakdownMode === 'MARKET_TYPE' ? 'loại hình' : 'mảng'}</h2>
@@ -433,83 +286,26 @@ export default function OperatorDashboard() {
           )}
         </Card>
 
-        <Card className="op-card" title={<h2 className="text-[15px] font-bold text-slate-900 m-0 leading-normal">Nhắc nhở vận hành</h2>}>
-          <div className="space-y-4">
-            <Link
-              href="/tasks"
-              className="op-reminder hover:bg-[#E8F6ED]/60 transition-all cursor-pointer group block"
-            >
-              <div className="flex items-start gap-2.5">
-                <CheckCircleOutlined className="mt-0.5 group-hover:scale-110 transition-transform text-[#0A8A61]" />
-                <div className="min-w-0 flex-1">
-                  <Text strong className="group-hover:text-[#0A8A61] transition-colors">Quá hạn công việc</Text>
-                  <Text className="block text-xs text-[var(--op-text-muted)]">
-                    {overdueTasks} công việc cần đôn đốc hạn xử lý
-                  </Text>
-                </div>
-              </div>
-            </Link>
-            <Link
-              href="/dossiers?priority=HIGH"
-              className="op-reminder hover:bg-[#FFF2E8]/70 transition-all cursor-pointer group block"
-            >
-              <div className="flex items-start gap-2.5">
-                <ExclamationCircleOutlined className="mt-0.5 group-hover:scale-110 transition-transform text-[#D46B08]" />
-                <div className="min-w-0 flex-1">
-                  <Text strong className="group-hover:text-[#D46B08] transition-colors">Ưu tiên xử lý</Text>
-                  <Text className="block text-xs text-[var(--op-text-muted)]">
-                    {priorityDossiers} hồ sơ mức độ ưu tiên cao
-                  </Text>
-                </div>
-              </div>
-            </Link>
-            <Link
-              href="/suppliers"
-              className="op-reminder hover:bg-[#E6F7FF]/60 transition-all cursor-pointer group block"
-            >
-              <div className="flex items-start gap-2.5">
-                <ShopOutlined className="mt-0.5 group-hover:scale-110 transition-transform text-[#0958D9]" />
-                <div className="min-w-0 flex-1">
-                  <Text strong className="group-hover:text-[#0958D9] transition-colors">Mạng lưới đối tác</Text>
-                  <Text className="block text-xs text-[var(--op-text-muted)]">
-                    {totalSuppliers} nhà cung cấp đang sẵn sàng
-                  </Text>
-                </div>
-              </div>
-            </Link>
-          </div>
-        </Card>
+        <OperatorQuickReminders
+          overdueTasks={overdueTasks}
+          priorityDossiers={priorityDossiers}
+          totalSuppliers={totalSuppliers}
+        />
       </section>
 
       {/* 3. BẢNG HỒ SƠ GẦN ĐÂY & NHẮC NHỞ */}
       <section className="grid gap-4 xl:grid-cols-[1.95fr_1.3fr]" aria-label="Hồ sơ và mạng lưới nhà cung cấp">
-        <Card
-          className="op-card"
-          title={<h2 className="text-[15px] font-bold text-slate-900 m-0 leading-normal">Hồ sơ gần đây</h2>}
-          extra={
-            <Link href="/dossiers">
-              Xem tất cả <RightOutlined />
-            </Link>
-          }
-        >
-          <Table
-            className="op-table"
-            size="small"
-            rowKey="id"
-            dataSource={recentDossiers}
-            columns={dossierColumns}
-            loading={loading}
-            pagination={false}
-            scroll={{ x: 920 }}
-          />
-        </Card>
+        <OperatorDossierStatusTable
+          recentDossiers={recentDossiers}
+          loading={loading}
+        />
 
         <WidgetErrorBoundary title="Doanh thu Nhà cung cấp">
-          <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col h-full overflow-hidden">
-            <div className="p-4 border-b border-[#E5E8E6] flex items-start justify-between gap-3">
+          <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col h-full overflow-hidden">
+            <div className="p-4 border-b border-[var(--color-border)] flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-[#E8F6ED] text-[#0A8A61] border border-[#C8EBD5] flex items-center justify-center shrink-0"><ShopOutlined className="text-sm" /></div>
+                  <div className="w-7 h-7 rounded-lg bg-[var(--color-primary-soft)] text-[var(--color-primary-600)] border border-[var(--color-primary-soft-2)] flex items-center justify-center shrink-0"><ShopOutlined className="text-sm" /></div>
                   <h2 className="text-[15px] font-bold text-slate-900 m-0 leading-normal">Doanh thu Nhà cung cấp</h2>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1.5 ml-9">Xếp hạng theo chi phí thuần trong kỳ</p>
@@ -522,7 +318,7 @@ export default function OperatorDashboard() {
                   {supplierRows.map((supplier, index) => {
                     const share = supplierTotal > 0 ? (supplier.amount / supplierTotal) * 100 : 0;
                     const width = highestSupplierAmount > 0 ? (supplier.amount / highestSupplierAmount) * 100 : 0;
-                    const barColor = index === 0 ? '#104E35' : index === 1 ? '#2F7D61' : '#A8CDBB';
+                    const barColor = index === 0 ? themeTokens.brand.primary[800] : index === 1 ? themeTokens.brand.primary[600] : themeTokens.brand.primary.hoverBorder;
                     return (
                       <div key={supplier.supplierId} role="listitem" className="group">
                         <div className="flex items-center justify-between gap-3 mb-1.5">
@@ -554,7 +350,7 @@ export default function OperatorDashboard() {
             </div>
             <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-3">
               <span className="text-[11px] text-slate-500">Tổng nhóm đang hiển thị</span>
-              <span className="text-sm font-bold text-[#0A8A61] tabular-nums">{formatTrm(supplierTotal)} Tr</span>
+              <span className="text-sm font-bold text-[var(--color-primary-600)] tabular-nums">{formatTrm(supplierTotal)} Tr</span>
             </div>
           </div>
         </WidgetErrorBoundary>

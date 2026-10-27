@@ -8,6 +8,7 @@ import { useOperatorSalesSummary } from '@/hooks/dashboards';
 import { useFilterStore } from '@/lib/stores/filter-store';
 import { OperatorSalesSummaryItem } from '@/types/dashboard';
 import { formatCurrency } from '@/lib/financial-calculations';
+import { themeTokens } from '@/lib/theme/tokens.config';
 import KpiDashboard from './components/KpiDashboard';
 
 const { Title, Text } = Typography;
@@ -62,7 +63,7 @@ function SalesPerformance() {
       width: 240,
       render: (_: unknown, row: OperatorSalesSummaryItem) => (
         <div className="flex items-center gap-3">
-          <Avatar className="bg-[#0F3D2E] text-[#D4AF37]">{row.salesUserName.charAt(0)}</Avatar>
+          <Avatar style={{ backgroundColor: themeTokens.roles.ceo.primary900, color: themeTokens.roles.ceo.gold }}>{row.salesUserName.charAt(0)}</Avatar>
           <div>
             <Text strong className="block">{row.salesUserName}</Text>
             <Text className="text-xs text-[var(--ceo-text-muted)]">{row.employeeCode ? `Mã: ${row.employeeCode}` : row.salesUserEmail || 'N/A'}</Text>
@@ -92,7 +93,7 @@ function SalesPerformance() {
       key: 'totalRevenue',
       align: 'right' as const,
       width: 170,
-      render: (val: number) => <strong className="tabular-nums text-[#0F3D2E]">{money(val)}</strong>,
+      render: (val: number) => <strong className="tabular-nums" style={{ color: themeTokens.roles.ceo.primary900 }}>{money(val)}</strong>,
     },
     {
       title: 'Lợi nhuận gộp',
@@ -108,7 +109,7 @@ function SalesPerformance() {
       width: 160,
       render: (_: unknown, row: OperatorSalesSummaryItem) => (
         <div className="flex items-center gap-2">
-          <Progress percent={row.completionRate} size="small" showInfo={false} strokeColor="#0F3D2E" />
+          <Progress percent={row.completionRate} size="small" showInfo={false} strokeColor={themeTokens.roles.ceo.primary900} />
           <span className="w-10 tabular-nums text-xs font-semibold">{row.completionRate}%</span>
         </div>
       ),
@@ -189,7 +190,7 @@ function SalesPerformance() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <strong className="block text-sm text-[#0F3D2E]">{compact(sales.totalRevenue)}</strong>
+                      <strong className="block text-sm" style={{ color: themeTokens.roles.ceo.primary900 }}>{compact(sales.totalRevenue)}</strong>
                       <span className="text-xs text-emerald-600 font-semibold">{sales.completionRate}%</span>
                     </div>
                   </div>
@@ -230,7 +231,7 @@ export default function KpiPage() {
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
-          <Title level={3} style={{ marginBottom: 2, color: '#0F172A' }}>
+          <Title level={3} style={{ marginBottom: 2, color: themeTokens.neutral.text }}>
             Bảng điều khiển KPI (KPI Dashboard)
           </Title>
           <Text type="secondary" className="text-sm">

@@ -14,6 +14,7 @@ import {
 } from 'chart.js';
 import { OperatorSalesSummaryItem } from '@/types/dashboard';
 import { formatCurrency } from '@/lib/financial-calculations';
+import { themeTokens } from '@/lib/theme/tokens.config';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
@@ -28,7 +29,7 @@ export default function SalesRevenueChart({ items }: SalesRevenueChartProps) {
       {
         label: 'Doanh thu (VNĐ)',
         data: items.slice(0, 8).map((s) => s.totalRevenue),
-        backgroundColor: '#D4AF37',
+        backgroundColor: themeTokens.charts.salesRevenueBar,
         borderRadius: 6,
         barThickness: 22,
       },
@@ -53,7 +54,7 @@ export default function SalesRevenueChart({ items }: SalesRevenueChartProps) {
         min: 0,
         suggestedMax: 10_000_000,
         ticks: { callback: (v) => formatCurrency(Number(v), { compact: true, showSymbol: false }) },
-        grid: { color: '#EEF0EF' },
+        grid: { color: themeTokens.charts.gridLines },
         border: { display: false },
       },
       y: { grid: { display: false }, border: { display: false } },

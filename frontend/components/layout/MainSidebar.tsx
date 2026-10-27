@@ -11,6 +11,7 @@ import {
   getActiveMenuKey,
   type UserContext,
 } from '@/lib/routes.config';
+import { themeTokens } from '@/lib/theme/tokens.config';
 
 const { Sider } = Layout;
 
@@ -19,7 +20,7 @@ const BrandLogo = React.memo(function BrandLogo({ collapsed }: { collapsed: bool
 
   if (collapsed) {
     return (
-      <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full border border-[#D6A51F]/70 text-sm font-bold text-[#F0C020]">
+      <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full border border-[var(--color-gold)]/70 text-sm font-bold text-[var(--color-gold-strong)]">
         SL
       </div>
     );
@@ -39,7 +40,7 @@ const BrandLogo = React.memo(function BrandLogo({ collapsed }: { collapsed: bool
           unoptimized
         />
       ) : (
-        <div className="flex h-[116px] w-[138px] items-center justify-center rounded-full border border-[#D6A51F]/70 text-center text-[#F0C020]">
+        <div className="flex h-[116px] w-[138px] items-center justify-center rounded-full border border-[var(--color-gold)]/70 text-center text-[var(--color-gold-strong)]">
           <div>
             <div className="text-xl font-bold leading-none">SKYLUX</div>
             <div className="mt-1 text-[10px] font-semibold">TRAVEL</div>
@@ -136,7 +137,7 @@ export function MainSidebar({ userCtx }: MainSidebarProps) {
           top: 0,
           left: 0,
           zIndex: isMobile ? 40 : undefined,
-          backgroundColor: '#004533',
+          backgroundColor: themeTokens.brand.primary[950],
         }}
       >
         <div className="px-4 pb-6 pt-5">

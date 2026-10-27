@@ -10,6 +10,7 @@ import {
   WarningFilled,
 } from "@ant-design/icons";
 import { ImportSession, PaginatedImportErrorsResponse, PaginatedImportRowsResponse } from "@/types/import";
+import { themeTokens } from "@/lib/theme/tokens.config";
 import { useImportValidation } from "../hooks/useImportValidation";
 
 export interface ImportErrorSidebarProps {
@@ -36,14 +37,14 @@ export function ImportErrorSidebar({ session, previewData, errorsData }: ImportE
     <div className="space-y-4">
       {/* 1. Lưu ý kiểm tra dữ liệu */}
       <Card
-        className="skylux-card shadow-xs rounded-xl overflow-hidden border border-[#E5E8E6]"
+        className="skylux-card shadow-xs rounded-xl overflow-hidden border border-[var(--color-border)]"
         styles={{
           header: {
-            borderBottom: "1px solid #EEF1EF",
+            borderBottom: `1px solid ${themeTokens.neutral.divider}`,
             padding: "12px 18px",
             fontSize: "14px",
             fontWeight: 700,
-            color: "#1E293B",
+            color: themeTokens.neutral.text,
           },
           body: { padding: "16px 18px" },
         }}
@@ -73,14 +74,14 @@ export function ImportErrorSidebar({ session, previewData, errorsData }: ImportE
 
       {/* 2. Phần 5: Kết quả kiểm tra */}
       <Card
-        className="skylux-card shadow-xs rounded-xl overflow-hidden border border-[#E5E8E6]"
+        className="skylux-card shadow-xs rounded-xl overflow-hidden border border-[var(--color-border)]"
         styles={{
           header: {
-            borderBottom: "1px solid #EEF1EF",
+            borderBottom: `1px solid ${themeTokens.neutral.divider}`,
             padding: "12px 18px",
             fontSize: "14px",
             fontWeight: 700,
-            color: "#1E293B",
+            color: themeTokens.neutral.text,
           },
           body: { padding: "16px 18px" },
         }}
@@ -88,7 +89,7 @@ export function ImportErrorSidebar({ session, previewData, errorsData }: ImportE
       >
         <div className="space-y-3">
           {/* Dòng hợp lệ */}
-          <div className="p-3.5 rounded-xl bg-[#F0FDF4] border border-emerald-100/80 flex items-center justify-between">
+          <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-100/80 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white text-base shadow-xs">
                 <CheckCircleFilled />
@@ -103,7 +104,7 @@ export function ImportErrorSidebar({ session, previewData, errorsData }: ImportE
           </div>
 
           {/* Dòng lỗi */}
-          <div className="p-3.5 rounded-xl bg-[#FEF2F2] border border-rose-100/80 flex items-center justify-between">
+          <div className="p-3.5 rounded-xl bg-rose-50/60 border border-rose-100/80 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-rose-500 flex items-center justify-center text-white text-base shadow-xs">
                 <ExclamationCircleFilled />
@@ -118,7 +119,7 @@ export function ImportErrorSidebar({ session, previewData, errorsData }: ImportE
           </div>
 
           {/* Cảnh báo */}
-          <div className="p-3.5 rounded-xl bg-[#FFFBEB] border border-amber-100/80 flex items-center justify-between">
+          <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-100/80 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white text-base shadow-xs">
                 <WarningFilled />

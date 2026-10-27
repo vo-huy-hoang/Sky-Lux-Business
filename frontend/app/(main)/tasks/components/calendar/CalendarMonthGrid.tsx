@@ -21,7 +21,7 @@ export default function CalendarMonthGrid({
     <div className="w-full overflow-x-auto pb-1">
       <div className="min-w-[680px] overflow-hidden rounded-xl border border-slate-200">
       {/* Header: MON, TUE, WED, THU, FRI, SAT, SUN */}
-      <div className="grid grid-cols-7 border-b border-slate-200 bg-[#f1f4f9] text-center">
+      <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-100/70 text-center">
         {WEEKDAYS.map((day) => (
           <div
             key={day}

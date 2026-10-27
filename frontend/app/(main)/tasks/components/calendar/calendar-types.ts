@@ -13,42 +13,44 @@ export interface SegmentConfig {
   textColor: string;
 }
 
+import { themeTokens } from '@/lib/theme/tokens.config';
+
 export const SEGMENT_CONFIGS: Record<BusinessSegmentKey, SegmentConfig> = {
   TOUR: {
     key: 'TOUR',
-    label: 'TOUR',
-    primaryColor: '#237ACB',
-    accentBorder: '#1D70B8',
-    bgTint: '#EBF5FE',
-    borderColor: '#BFDBFE',
-    textColor: '#1E40AF',
+    label: themeTokens.segments.tour.label,
+    primaryColor: themeTokens.segments.tour.primary,
+    accentBorder: themeTokens.segments.tour.accent,
+    bgTint: themeTokens.segments.tour.bg,
+    borderColor: themeTokens.segments.tour.border,
+    textColor: themeTokens.segments.tour.text,
   },
   XE_CHO_THUE: {
     key: 'XE_CHO_THUE',
-    label: 'XE CHO THUÊ',
-    primaryColor: '#FFFF00',
-    accentBorder: '#EAB308',
-    bgTint: '#FEF9C3',
-    borderColor: '#FDE047',
-    textColor: '#854D0E',
+    label: themeTokens.segments.vehicle.label,
+    primaryColor: themeTokens.segments.vehicle.primary,
+    accentBorder: themeTokens.segments.vehicle.accent,
+    bgTint: themeTokens.segments.vehicle.bg,
+    borderColor: themeTokens.segments.vehicle.border,
+    textColor: themeTokens.segments.vehicle.text,
   },
   VE_LE: {
     key: 'VE_LE',
-    label: 'VÉ LẺ',
-    primaryColor: '#77E3FF',
-    accentBorder: '#0284C7',
-    bgTint: '#E0F7FA',
-    borderColor: '#7DD3FC',
-    textColor: '#0369A1',
+    label: themeTokens.segments.ticket.label,
+    primaryColor: themeTokens.segments.ticket.primary,
+    accentBorder: themeTokens.segments.ticket.accent,
+    bgTint: themeTokens.segments.ticket.bg,
+    borderColor: themeTokens.segments.ticket.border,
+    textColor: themeTokens.segments.ticket.text,
   },
   SU_KIEN: {
     key: 'SU_KIEN',
-    label: 'SỰ KIỆN',
-    primaryColor: '#C189F7',
-    accentBorder: '#9333EA',
-    bgTint: '#F3E8FF',
-    borderColor: '#D8B4FE',
-    textColor: '#7E22CE',
+    label: themeTokens.segments.event.label,
+    primaryColor: themeTokens.segments.event.primary,
+    accentBorder: themeTokens.segments.event.accent,
+    bgTint: themeTokens.segments.event.bg,
+    borderColor: themeTokens.segments.event.border,
+    textColor: themeTokens.segments.event.text,
   },
 };
 

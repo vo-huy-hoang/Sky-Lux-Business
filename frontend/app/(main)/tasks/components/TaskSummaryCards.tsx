@@ -68,7 +68,7 @@ export default function TaskSummaryCards({
           <div className="mt-1 text-[28px] font-bold leading-none text-[var(--color-primary-900)]">
             {isLoading ? <Skeleton.Input active size="small" /> : metrics.waiting}
           </div>
-          <Text className="mt-2 block text-xs text-[#B87809]">
+          <Text className="mt-2 block text-xs text-[var(--color-warning)]">
             Đang chờ phản hồi
           </Text>
         </div>

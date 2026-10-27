@@ -129,7 +129,7 @@ export default function UserModal() {
       width={720}
       forceRender
       destroyOnHidden
-      okButtonProps={{ className: 'bg-[#0A2540] hover:bg-[#133E68] border-none' }}
+      okButtonProps={{ className: 'bg-[var(--color-primary-900)] hover:bg-[var(--color-primary-950)] border-none' }}
     >
       <Form
         form={form}

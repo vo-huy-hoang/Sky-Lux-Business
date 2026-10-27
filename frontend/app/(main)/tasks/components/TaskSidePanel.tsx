@@ -4,6 +4,7 @@ import React from 'react';
 import { Button, Empty, Progress, Skeleton, Tag, Typography } from 'antd';
 import { TaskItem } from '@/types/task';
 import { formatShortDate, getDossierLabel, statusMeta } from '../helpers';
+import { themeTokens } from '@/lib/theme/tokens.config';
 
 const { Text } = Typography;
 
@@ -102,8 +103,8 @@ export default function TaskSidePanel({
                 percent={task.progressPercent || 0}
                 showInfo={false}
                 size="small"
-                strokeColor="#007A55"
-                railColor="#EEF2F1"
+                strokeColor={themeTokens.brand.primary[700]}
+                railColor={themeTokens.neutral.divider}
                 className="mt-1"
               />
             </button>

@@ -36,6 +36,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { customersService } from '@/services/customers.service';
 import { CustomerItem, CustomerType } from '@/types/customer';
+import { themeTokens } from '@/lib/theme/tokens.config';
 import { queryKeys } from '@/lib/query-keys';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useRouter } from 'next/navigation';
@@ -157,8 +158,8 @@ export default function CustomersPage() {
           <Avatar
             size={34}
             style={{
-              background: record.customerType === 'BUSINESS' ? '#EEF5FF' : '#EAF5EF',
-              color: record.customerType === 'BUSINESS' ? '#2F80ED' : '#007A55',
+              background: record.customerType === 'BUSINESS' ? themeTokens.semantic.info.soft : themeTokens.brand.primary.soft,
+              color: record.customerType === 'BUSINESS' ? themeTokens.semantic.info.main : themeTokens.brand.primary[700],
               fontWeight: 700,
             }}
             icon={record.customerType === 'BUSINESS' ? <TeamOutlined /> : undefined}
@@ -197,7 +198,7 @@ export default function CustomersPage() {
           <div className="flex flex-col">
             <Space size={6}>
               <Text>{primary.name}</Text>
-              {primary.isPrimary && <StarFilled style={{ color: '#D6A51F', fontSize: 12 }} />}
+              {primary.isPrimary && <StarFilled style={{ color: themeTokens.brand.gold.main, fontSize: 12 }} />}
             </Space>
             <Text type="secondary" className="text-xs">
               {primary.position || primary.phone || '-'}

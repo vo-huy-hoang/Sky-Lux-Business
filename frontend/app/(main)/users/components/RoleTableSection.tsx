@@ -11,6 +11,7 @@ import {
 import { RoleItem } from '@/services/rbac.service';
 import { useRbacStore } from '../store';
 import { useShallow } from 'zustand/react/shallow';
+import { themeTokens } from '@/lib/theme/tokens.config';
 
 export interface RoleTableSectionProps {
   roles: RoleItem[];
@@ -78,7 +79,7 @@ export default function RoleTableSection({
           overflowCount={999}
           style={{
             backgroundColor:
-              record.permissionCount > 0 ? '#10B981' : '#94A3B8',
+              record.permissionCount > 0 ? themeTokens.semantic.success.main : themeTokens.neutral.textSoft,
           }}
         />
       ),
@@ -105,7 +106,7 @@ export default function RoleTableSection({
                 record.permissions?.map((p) => p.code) || [],
               )
             }
-            className="bg-[#0A2540] hover:bg-[#133E68] border-none text-xs"
+            className="bg-[var(--color-primary-900)] hover:bg-[var(--color-primary-950)] border-none text-xs"
           >
             Phân quyền
           </Button>
@@ -129,7 +130,7 @@ export default function RoleTableSection({
           type="primary"
           icon={<PlusOutlined />}
           onClick={openCreateRole}
-          className="bg-[#0A2540] hover:bg-[#133E68] border-none"
+          className="bg-[var(--color-primary-900)] hover:bg-[var(--color-primary-950)] border-none"
         >
           Thêm vai trò
         </Button>

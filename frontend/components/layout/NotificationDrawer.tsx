@@ -24,6 +24,7 @@ import {
   useMarkNotificationReadMutation,
   useMarkAllNotificationsReadMutation,
 } from '@/hooks/useNotificationsRealtime';
+import { themeTokens } from '@/lib/theme/tokens.config';
 
 function formatNotificationTime(createdAt?: string): string {
   if (!createdAt) return '';
@@ -361,7 +362,7 @@ export function NotificationDrawer() {
                 style={{
                   background: 'var(--color-gold-soft)',
                   color: 'var(--color-gold-strong)',
-                  border: '1px solid #d3a11b40',
+                  border: '1px solid var(--color-gold-border)',
                 }}
               >
                 {unreadCount}
@@ -443,7 +444,7 @@ export function NotificationDrawer() {
                 onClick={() => handleCardClick(item)}
                 className="group relative rounded-xl p-3.5 transition-all duration-200 cursor-pointer border"
                 style={{
-                  background: isUnread ? '#ffffff' : 'var(--color-surface)',
+                  background: isUnread ? themeTokens.neutral.surface : 'var(--color-surface)',
                   borderColor: isUnread ? 'var(--color-primary-soft-2)' : 'var(--color-border)',
                   boxShadow: isUnread
                     ? '0 2px 8px rgba(0, 56, 42, 0.05)'

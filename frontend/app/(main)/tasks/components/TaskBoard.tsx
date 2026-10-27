@@ -46,7 +46,7 @@ function TaskCard({
       <div className="flex items-start gap-2">
         <span
           className={`mt-0.5 text-base ${
-            completed ? 'text-[var(--color-primary-600)]' : 'text-[#D6A51F]'
+            completed ? 'text-[var(--color-primary-600)]' : 'text-[var(--color-gold)]'
           }`}
         >
           {completed ? <CheckCircleOutlined /> : <FolderOpenOutlined />}

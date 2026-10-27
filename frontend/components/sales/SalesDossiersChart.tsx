@@ -12,6 +12,7 @@ import {
   Tooltip,
 } from 'chart.js';
 import { OperatorSalesSummaryItem } from '@/types/dashboard';
+import { themeTokens } from '@/lib/theme/tokens.config';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
@@ -26,7 +27,7 @@ export default function SalesDossiersChart({ items }: SalesDossiersChartProps) {
       {
         label: 'Hồ sơ phụ trách',
         data: items.slice(0, 8).map((s) => s.totalDossiers),
-        backgroundColor: '#004230',
+        backgroundColor: themeTokens.charts.salesDossiersBar,
         borderRadius: 6,
         barThickness: 22,
       },
@@ -58,7 +59,7 @@ export default function SalesDossiersChart({ items }: SalesDossiersChartProps) {
             min: 0,
             suggestedMax: 5,
             ticks: { precision: 0 },
-            grid: { color: '#EEF0EF' },
+            grid: { color: themeTokens.charts.gridLines },
             border: { display: false },
           },
           y: { grid: { display: false }, border: { display: false } },
