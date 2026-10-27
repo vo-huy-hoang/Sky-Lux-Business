@@ -213,31 +213,4 @@ jobs:
           node-version: 20
 
       - name: Verify public login JavaScript and CSS assets
-        run: |
-          node --input-type=module <<'NODE'
-          const bases = ['https://optrip.vn', 'https://www.optrip.vn'];
-          const mime = (path) => path.endsWith('.js') ? /javascript|ecmascript/i : /text\/css/i;
-
-          for (const base of bases) {
-            const page = await fetch(`${base}/login`);
-            if (page.status !== 200) throw new Error(`${base}/login returned HTTP ${page.status}`);
-            const html = await page.text();
-            const refs = new Set();
-            for (const match of html.matchAll(/\b(?:src|href)=["']([^"']+)["']/gi)) {
-              const asset = new URL(match[1], base);
-              if (asset.origin === new URL(base).origin && /\.js(?:\?|$)|\.css(?:\?|$)/i.test(asset.pathname)) refs.add(asset.href);
-            }
-            const assets = [...refs];
-            if (!assets.some((asset) => new URL(asset).pathname.endsWith('.js'))) {
-              throw new Error(`${base}/login did not reference JavaScript assets`);
-            }
-            for (const asset of assets) {
-              const response = await fetch(asset);
-              const pathname = new URL(asset).pathname;
-              const contentType = response.headers.get('content-type') || '';
-              if (response.status !== 200) throw new Error(`${asset} returned HTTP ${response.status}`);
-              if (!mime(pathname).test(contentType)) throw new Error(`${asset} has Content-Type ${contentType}`);
-              console.log(`${base}: HTTP ${response.status} ${contentType} ${pathname}`);
-            }
-          }
-          NODE
+        run: node infra/scripts/verify-public-assets.mjs
