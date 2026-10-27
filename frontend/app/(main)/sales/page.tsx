@@ -14,6 +14,7 @@ import {
 import { useOperatorSalesSummary } from '@/hooks/dashboards';
 import { OperatorSalesSummaryItem } from '@/types/dashboard';
 import { formatCurrency } from '@/lib/financial-calculations';
+import { themeTokens } from '@/lib/theme/tokens.config';
 
 // Dynamic import with ssr: false for fast initial page load (<100ms)
 const SalesDossiersChart = dynamic(
@@ -93,13 +94,13 @@ export default function OperatorSalesPage() {
         <Tooltip title={`Xem toàn bộ hồ sơ của ${row.salesUserName}`}>
           <Link
             href={`/dossiers?salesUserId=${row.salesUserId}`}
-            className="group flex items-center gap-3 text-inherit transition-colors hover:text-[#004230]"
+            className="group flex items-center gap-3 text-inherit transition-colors hover:text-[var(--color-primary-900)]"
           >
-            <Avatar className="bg-[#004230] text-[#D6A51F] transition-transform group-hover:scale-105">
+            <Avatar className="bg-[var(--color-primary-900)] text-[var(--color-gold)] transition-transform group-hover:scale-105">
               {row.salesUserName?.charAt(0) || 'S'}
             </Avatar>
             <div>
-              <Text strong className="block transition-colors group-hover:text-[#004230] group-hover:underline">
+              <Text strong className="block transition-colors group-hover:text-[var(--color-primary-900)] group-hover:underline">
                 {row.salesUserName}
               </Text>
               <Text className="text-xs text-[var(--op-text-muted)]">
@@ -125,7 +126,7 @@ export default function OperatorSalesPage() {
         <Tooltip title={`Bấm để xem ${val} hồ sơ của ${row.salesUserName}`}>
           <Link
             href={`/dossiers?salesUserId=${row.salesUserId}`}
-            className="inline-flex items-center gap-1.5 font-bold text-slate-800 transition-colors hover:text-[#004230] hover:underline"
+            className="inline-flex items-center gap-1.5 font-bold text-slate-800 transition-colors hover:text-[var(--color-primary-900)] hover:underline"
           >
             <span className="tabular-nums">{val}</span>
             <FolderOpenOutlined className="text-xs text-slate-400" />
@@ -155,7 +156,7 @@ export default function OperatorSalesPage() {
       key: 'totalRevenue',
       align: 'right' as const,
       render: (val: number) => (
-        <strong className="tabular-nums text-[#004230]">{money(val)}</strong>
+        <strong className="tabular-nums text-[var(--color-primary-900)]">{money(val)}</strong>
       ),
     },
     {
@@ -177,7 +178,7 @@ export default function OperatorSalesPage() {
             percent={row.completionRate}
             size="small"
             showInfo={false}
-            strokeColor="#0B7A5B"
+            strokeColor={themeTokens.brand.primary[600]}
           />
           <span className="w-10 tabular-nums text-xs font-semibold">
             {row.completionRate}%

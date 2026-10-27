@@ -12,10 +12,17 @@ import { queryKeys } from '@/lib/query-keys';
 import { formatCurrency } from '@/lib/financial-calculations';
 import { DossierItem } from '@/types/dossier';
 import { OperatorSalesSummaryItem, OperatorMonthlyTrendItem } from '@/types/dashboard';
+import { themeTokens } from '@/lib/theme/tokens.config';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 const { Text } = Typography;
-const statusTone = ['#004230', '#d3a11b', '#3487c8', '#8462c7', '#d94a4a'];
+const statusTone = [
+  themeTokens.brand.primary[900],
+  themeTokens.brand.gold.main,
+  themeTokens.semantic.info.main,
+  themeTokens.semantic.purple.main,
+  themeTokens.semantic.danger.main,
+];
 const statusLabels: Record<string, string> = { DRAFT: 'Mới tiếp nhận', SUBMITTED: 'Đã gửi', IN_REVIEW: 'Đang xử lý', NEED_CHANGES: 'Cần bổ sung', APPROVED: 'Đã duyệt', COMPLETED: 'Hoàn tất', CANCELLED: 'Đã hủy' };
 
 function money(value?: number) {
@@ -83,7 +90,7 @@ export default function OperatorRevenue() {
       {
         data: donutKeys.map((status) => statusCounts[status]),
         backgroundColor: donutKeys.map((_, index) => statusTone[index % statusTone.length]),
-        borderColor: '#fff',
+        borderColor: themeTokens.neutral.surface,
         borderWidth: 2,
         hoverOffset: 4,
       },
@@ -95,7 +102,7 @@ export default function OperatorRevenue() {
       {
         label: 'Hồ sơ tạo mới',
         data: monthlyTrend.map((item) => item.totalDossiers),
-        backgroundColor: '#004230',
+        backgroundColor: themeTokens.brand.primary[800],
         borderRadius: 8,
         borderSkipped: false,
         maxBarThickness: 42,
@@ -108,7 +115,7 @@ export default function OperatorRevenue() {
       {
         label: 'Hồ sơ phụ trách',
         data: salesSummary.slice(0, 8).map((item) => item.totalDossiers),
-        backgroundColor: '#004230',
+        backgroundColor: themeTokens.brand.primary[800],
         borderRadius: 8,
         borderSkipped: false,
         maxBarThickness: 23,
@@ -147,7 +154,7 @@ export default function OperatorRevenue() {
       <section className="grid gap-4 2xl:grid-cols-3">
         <Card className="op-card" title="Hồ sơ tạo mới theo tháng">
           <div className="h-71.5">
-            {loading ? <Skeleton active /> : monthlyTrend.length ? <Bar data={monthlyData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', align: 'start', labels: { boxWidth: 10, usePointStyle: true } } }, scales: { x: { grid: { display: false }, border: { display: false } }, y: { beginAtZero: true, min: 0, suggestedMax: 5, ticks: { precision: 0 }, grid: { color: '#eef0ef' }, border: { display: false } } } }} /> : <Empty description="Chưa có hồ sơ" />}
+            {loading ? <Skeleton active /> : monthlyTrend.length ? <Bar data={monthlyData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', align: 'start', labels: { boxWidth: 10, usePointStyle: true } } }, scales: { x: { grid: { display: false }, border: { display: false } }, y: { beginAtZero: true, min: 0, suggestedMax: 5, ticks: { precision: 0 }, grid: { color: themeTokens.neutral.divider }, border: { display: false } } } }} /> : <Empty description="Chưa có hồ sơ" />}
           </div>
         </Card>
         <Card className="op-card" title="Tình trạng hồ sơ">
@@ -160,7 +167,7 @@ export default function OperatorRevenue() {
         </Card>
         <Card className="op-card" title="Hồ sơ theo Sales">
           <div className="h-71.5">
-            {loading ? <Skeleton active /> : salesSummary.length ? <Bar data={salesData} options={{ indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#eef0ef' }, border: { display: false } }, y: { grid: { display: false }, border: { display: false } } } }} /> : <Empty description="Chưa có Sales" />}
+            {loading ? <Skeleton active /> : salesSummary.length ? <Bar data={salesData} options={{ indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: themeTokens.neutral.divider }, border: { display: false } }, y: { grid: { display: false }, border: { display: false } } } }} /> : <Empty description="Chưa có Sales" />}
           </div>
         </Card>
       </section>

@@ -28,6 +28,7 @@ import { RoleItem } from '@/services/rbac.service';
 import { useRbacStore } from '../store';
 import { useShallow } from 'zustand/react/shallow';
 import { useUserMutations } from '@/hooks/use-users';
+import { themeTokens } from '@/lib/theme/tokens.config';
 
 export interface UserTableSectionProps {
   users: UserItem[];
@@ -89,7 +90,7 @@ export default function UserTableSection({
           onClick={() => openUserDetail(record)}
         >
           <Avatar
-            style={{ backgroundColor: '#0A2540' }}
+            style={{ backgroundColor: themeTokens.brand.primary[900] }}
             src={record.avatarUrl}
             icon={<UserOutlined />}
           >
@@ -332,7 +333,7 @@ export default function UserTableSection({
           type="primary"
           icon={<PlusOutlined />}
           onClick={openCreateUser}
-          className="bg-[#0A2540] hover:bg-[#133E68] border-none"
+          className="bg-[var(--color-primary-900)] hover:bg-[var(--color-primary-950)] border-none"
         >
           Thêm người dùng
         </Button>

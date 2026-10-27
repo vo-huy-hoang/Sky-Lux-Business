@@ -67,7 +67,7 @@ export default function CalendarHeaderToolbar({
             onClick={() => onChangeViewMode('DAY')}
             className={`cursor-pointer px-3.5 py-2 min-h-[38px] text-xs font-semibold flex items-center justify-center transition-all ${
               viewMode === 'DAY'
-                ? 'rounded-md bg-[#3B82F6] text-white shadow-xs'
+                ? 'rounded-md bg-[var(--color-primary-700)] text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -78,7 +78,7 @@ export default function CalendarHeaderToolbar({
             onClick={() => onChangeViewMode('WEEK')}
             className={`cursor-pointer px-3.5 py-2 min-h-[38px] text-xs font-semibold flex items-center justify-center transition-all ${
               viewMode === 'WEEK'
-                ? 'rounded-md bg-[#3B82F6] text-white shadow-xs'
+                ? 'rounded-md bg-[var(--color-primary-700)] text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -89,7 +89,7 @@ export default function CalendarHeaderToolbar({
             onClick={() => onChangeViewMode('MONTH')}
             className={`cursor-pointer px-3.5 py-2 min-h-[38px] text-xs font-semibold flex items-center justify-center transition-all ${
               viewMode === 'MONTH'
-                ? 'rounded-md bg-[#3B82F6] text-white shadow-xs'
+                ? 'rounded-md bg-[var(--color-primary-700)] text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >

@@ -88,7 +88,7 @@ export function MessageThreadArea({
   const onInputChange = propOnInputChange || thread.handleInputChange;
   const onSendMessage = propOnSendMessage || thread.handleSendMessage;
   return (
-    <main className="skylux-message-thread flex flex-col flex-1 bg-[#F9FBFA]" aria-label="Nội dung cuộc trò chuyện">
+    <main className="skylux-message-thread flex flex-col flex-1 bg-[var(--color-surface-muted)]" aria-label="Nội dung cuộc trò chuyện">
       {activeConversation ? (
         <>
           <MessageThreadHeader
@@ -121,7 +121,7 @@ export function MessageThreadArea({
       ) : (
         <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
           <Empty
-            image={<MessageOutlined className="text-4xl text-[#B7D3C7]" />}
+            image={<MessageOutlined className="text-4xl text-[var(--color-primary-hover-border)]" />}
             description={
               <div className="mt-3">
                 <Text strong className="block text-base text-slate-700">
@@ -137,7 +137,7 @@ export function MessageThreadArea({
               type="primary"
               icon={<PlusOutlined />}
               onClick={onOpenCreateModal}
-              className="bg-[#007A55]"
+              className="bg-[var(--color-primary-700)] hover:bg-[var(--color-primary-800)]"
             >
               Tạo cuộc trò chuyện mới
             </Button>

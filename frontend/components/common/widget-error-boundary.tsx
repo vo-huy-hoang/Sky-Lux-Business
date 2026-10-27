@@ -65,7 +65,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               size="middle"
               icon={<ReloadOutlined />}
               onClick={this.resetErrorBoundary}
-              className="bg-[#003828] hover:bg-[#00543D] text-xs font-medium"
+              className="bg-[var(--color-primary-950)] hover:bg-[var(--color-primary-850)] text-xs font-medium"
             >
               Thử lại
             </Button>

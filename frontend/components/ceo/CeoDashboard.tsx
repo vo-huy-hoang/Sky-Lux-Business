@@ -31,18 +31,9 @@ import {
   ShopOutlined,
   WalletOutlined,
 } from '@ant-design/icons';
+import dynamic from 'next/dynamic';
 import { useQuery } from '@tanstack/react-query';
-import {
-  CategoryScale,
-  Chart as ChartJS,
-  ChartOptions,
-  Legend,
-  LineElement,
-  LinearScale,
-  PointElement,
-  Tooltip,
-} from 'chart.js';
-import { Line } from 'react-chartjs-2';
+import type { ChartOptions } from 'chart.js';
 import { dossiersService } from '@/services/dossiers.service';
 import { estimatesService } from '@/services/estimates.service';
 import { EstimateItem, EstimateStatus } from '@/types/estimate';
@@ -56,52 +47,41 @@ import { WidgetErrorBoundary } from '@/components/common/widget-error-boundary';
 import { formatCurrency } from '@/lib/financial-calculations';
 import { RevenueBreakdownToggle, RevenueBreakdownMode } from '@/components/ceo/RevenueBreakdownToggle';
 import { getRevenueDonutSlices, RevenueDonutChart } from '@/components/ceo/RevenueDonutChart';
+import { themeTokens } from '@/lib/theme/tokens.config';
 import dayjs from 'dayjs';
-import { utils, writeFile } from 'xlsx';
-
-
-
-
-ChartJS.register(
-  CategoryScale,
-  Legend,
-  LineElement,
-  LinearScale,
-  PointElement,
-  Tooltip,
-);
-
-
+import CeoExportActions from './widgets/CeoExportActions';
+import CeoMetricsGrid from './widgets/CeoMetricsGrid';
+import CeoRevenueTrendWidget from './widgets/CeoRevenueTrendWidget';
+import { CeoSalesRanking, CeoDossiersTable } from './widgets/CeoPerformanceTable';
 
 const STATUS_META: Record<string, { label: string; className: string; color: string }> = {
-  DRAFT: { label: 'Mới nhập', className: 'skylux-status-info', color: '#98A19D' },
-  SUBMITTED: { label: 'Đã gửi', className: 'skylux-status-purple', color: '#7C59C8' },
-  RESUBMITTED: { label: 'Đã gửi lại', className: 'skylux-status-purple', color: '#7C59C8' },
-  IN_REVIEW: { label: 'Đang xử lý', className: 'skylux-status-warning', color: '#E39A16' },
-  NEED_CHANGES: { label: 'Cần bổ sung', className: 'skylux-status-purple', color: '#2E82C4' },
-  EDITING: { label: 'Đang sửa', className: 'skylux-status-warning', color: '#D48806' },
-  APPROVED: { label: 'Đã duyệt', className: 'skylux-status-valid', color: '#0A8A61' },
-  COMPLETED: { label: 'Hoàn thành', className: 'skylux-status-valid', color: '#0F3D2E' },
-  CANCELLED: { label: 'Đã hủy', className: 'skylux-status-danger', color: '#DC3F46' },
-  LOCKED: { label: 'Đã khóa', className: 'skylux-status-danger', color: '#A62D34' },
+  DRAFT: { label: 'Mới nhập', className: 'skylux-status-info', color: themeTokens.neutral.textSoft },
+  SUBMITTED: { label: 'Đã gửi', className: 'skylux-status-purple', color: themeTokens.semantic.purple.main },
+  RESUBMITTED: { label: 'Đã gửi lại', className: 'skylux-status-purple', color: themeTokens.semantic.purple.main },
+  IN_REVIEW: { label: 'Đang xử lý', className: 'skylux-status-warning', color: themeTokens.brand.gold.main },
+  NEED_CHANGES: { label: 'Cần bổ sung', className: 'skylux-status-purple', color: themeTokens.semantic.info.main },
+  EDITING: { label: 'Đang sửa', className: 'skylux-status-warning', color: themeTokens.brand.gold.strong },
+  APPROVED: { label: 'Đã duyệt', className: 'skylux-status-valid', color: themeTokens.semantic.success.main },
+  COMPLETED: { label: 'Hoàn thành', className: 'skylux-status-valid', color: themeTokens.semantic.success.dark },
+  CANCELLED: { label: 'Đã hủy', className: 'skylux-status-danger', color: themeTokens.semantic.danger.main },
+  LOCKED: { label: 'Đã khóa', className: 'skylux-status-danger', color: themeTokens.semantic.danger.strong },
 };
 
 const customerLogoColors = [
-  'bg-[#F97316] text-white',
-  'bg-[#0284C7] text-white',
-  'bg-[#059669] text-white',
-  'bg-[#E11D48] text-white',
-  'bg-[#1E293B] text-white',
+  'bg-amber-600 text-white',
+  'bg-sky-600 text-white',
+  'bg-emerald-600 text-white',
+  'bg-rose-600 text-white',
+  'bg-slate-700 text-white',
 ];
 
 function statusMeta(status?: string) {
   return STATUS_META[status || ''] || {
     label: status || 'Chưa xác định',
     className: 'skylux-status-info',
-    color: '#65706B',
+    color: themeTokens.neutral.textMuted,
   };
 }
-
 
 function formatDateTime(value?: string) {
   if (!value) return '-';
@@ -112,79 +92,6 @@ function formatDateTime(value?: string) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
-}
-
-function MetricCard({
-  label,
-  value,
-  icon,
-  hint,
-  tone = 'green',
-  loading,
-  href,
-}: {
-  label: string;
-  value: React.ReactNode;
-  icon: React.ReactNode;
-  hint?: string;
-  tone?: 'green' | 'gold' | 'blue' | 'purple';
-  loading?: boolean;
-  href?: string;
-}) {
-  const toneClasses = {
-    green: 'bg-[#E8F6ED] text-[#0A8A61] border-[#C8EBD5]',
-    gold: 'bg-[#FFF2E8] text-[#D46B08] border-[#FFD8BF]',
-    blue: 'bg-[#E6F7FF] text-[#0958D9] border-[#BAE0FF]',
-    purple: 'bg-[#F9F0FF] text-[#531DAB] border-[#E8D0FF]',
-  };
-
-  const cardBody = (
-    <div
-      className={`bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5 flex flex-col justify-between h-full transition-all duration-200 ${
-        href ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 hover:border-slate-300 group' : ''
-      }`}
-    >
-      <div className="flex items-center gap-2.5">
-        <div
-          className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${toneClasses[tone]} [&_.anticon]:text-sm transition-transform duration-200 ${
-            href ? 'group-hover:scale-105' : ''
-          }`}
-        >
-          {icon}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-500 font-medium leading-tight line-clamp-2">
-              {label}
-            </span>
-            {href && (
-              <span className="text-[11px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity ml-1 shrink-0 font-mono">
-                ↗
-              </span>
-            )}
-          </div>
-          <div className="text-[15px] xl:text-[15.5px] font-bold text-slate-900 tabular-nums leading-snug mt-0.5 whitespace-nowrap">
-            {loading ? <Skeleton.Input active size="small" /> : value}
-          </div>
-          {hint && (
-            <div className="text-[11px] text-slate-400 mt-1 truncate font-normal">
-              {hint}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
-  if (href) {
-    return (
-      <Link href={href} className="block h-full no-underline text-inherit" aria-label={`Xem chi tiết ${label}`}>
-        {cardBody}
-      </Link>
-    );
-  }
-
-  return cardBody;
 }
 
 export default function CeoDashboard() {
@@ -268,11 +175,11 @@ export default function CeoDashboard() {
   const highestSupplierAmount = supplierRows[0]?.amount || 0;
   const topCustomers = (overview?.vipCustomers || []).slice(0, 5);
   const quickReports = [
-    { title: 'Báo cáo doanh thu chi tiết', icon: <FileTextOutlined />, iconBox: 'bg-[#E8F6ED] text-[#0A8A61] border-[#C8EBD5]', href: '/reports' },
-    { title: 'Báo cáo lợi nhuận theo mảng', icon: <DollarOutlined />, iconBox: 'bg-[#FEF5E7] text-[#D97706] border-[#FDE3B8]', href: '/reports' },
-    { title: 'Báo cáo công nợ phải thu', icon: <WalletOutlined />, iconBox: 'bg-[#EBF5FB] text-[#2E82C4] border-[#D1E8F7]', href: '/reports' },
-    { title: 'Báo cáo theo thị trường', icon: <GlobalOutlined />, iconBox: 'bg-[#E8F6ED] text-[#0A8A61] border-[#C8EBD5]', href: '/reports' },
-    { title: 'Báo cáo hiệu suất Sales', icon: <BarChartOutlined />, iconBox: 'bg-[#E6F8F6] text-[#0D9488] border-[#CCF0ED]', href: '/kpi' },
+    { title: 'Báo cáo doanh thu chi tiết', icon: <FileTextOutlined />, iconBox: 'bg-[var(--color-primary-soft)] text-[var(--color-primary-600)] border-[var(--color-primary-soft-2)]', href: '/reports' },
+    { title: 'Báo cáo lợi nhuận theo mảng', icon: <DollarOutlined />, iconBox: 'bg-[var(--color-warning-soft)] text-[var(--color-warning)] border-[var(--color-warning-soft)]', href: '/reports' },
+    { title: 'Báo cáo công nợ phải thu', icon: <WalletOutlined />, iconBox: 'bg-[var(--color-info-soft)] text-[var(--color-info)] border-[var(--color-info-soft)]', href: '/reports' },
+    { title: 'Báo cáo theo thị trường', icon: <GlobalOutlined />, iconBox: 'bg-[var(--color-primary-soft)] text-[var(--color-primary-600)] border-[var(--color-primary-soft-2)]', href: '/reports' },
+    { title: 'Báo cáo hiệu suất Sales', icon: <BarChartOutlined />, iconBox: 'bg-[var(--color-primary-soft)] text-[var(--color-primary-700)] border-[var(--color-primary-soft-2)]', href: '/kpi' },
   ];
   const notificationsList = notificationsResponse?.data || [];
   const pendingApprovals = React.useMemo(
@@ -298,83 +205,6 @@ export default function CeoDashboard() {
     ...monthlyTrend.map((month: CeoMonthlyTrendItem) => Number(month.totalProfit || 0) / 1_000_000),
   );
 
-  const exportSummary = () => {
-    const rows = [
-      ['Chỉ số', allTime ? 'Tất cả thời gian' : `Tháng ${anchorDate.format('MM/YYYY')}`],
-      ['Tổng doanh thu', overview?.totalRevenue || 0],
-      ['Lợi nhuận', overview?.totalProfit || 0],
-      ['Tổng hồ sơ', totalDossiers],
-      ['Hồ sơ chờ duyệt', pendingCount],
-      ...sortedChartBreakdown.map((item) => [item.name, Number(item.amount || 0)]),
-    ];
-    const workbook = utils.book_new();
-    utils.book_append_sheet(workbook, utils.aoa_to_sheet(rows), 'Tổng quan');
-    writeFile(workbook, `bang-dieu-khien-${allTime ? 'tat-ca-thoi-gian' : anchorDate.format('YYYY-MM')}.xlsx`);
-  };
-
-  const displayLineData = {
-    labels: monthlyTrend.map((month: CeoMonthlyTrendItem) => month.label),
-    datasets: [
-      {
-        label: 'Doanh thu (đ)',
-        data: monthlyTrend.map((month: CeoMonthlyTrendItem) => Number(month.totalRevenue || 0) / 1_000_000),
-        borderColor: '#104E35',
-        backgroundColor: '#104E35',
-        pointBackgroundColor: '#FFFFFF',
-        pointBorderColor: '#104E35',
-        pointBorderWidth: 2,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-        tension: 0.35,
-      },
-      {
-        label: 'Lợi nhuận (đ)',
-        data: monthlyTrend.map((month: CeoMonthlyTrendItem) => Number(month.totalProfit || 0) / 1_000_000),
-        borderColor: '#D48B1E',
-        backgroundColor: '#D48B1E',
-        pointBackgroundColor: '#FFFFFF',
-        pointBorderColor: '#D48B1E',
-        pointBorderWidth: 2,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-        tension: 0.35,
-      },
-    ],
-  };
-
-  const displayLineOptions: ChartOptions<'line'> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { intersect: false, mode: 'index' },
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: (context) => `${context.dataset.label}: ${context.parsed.y} tỷ đ`,
-        },
-      },
-    },
-    scales: {
-      x: {
-        grid: { display: false },
-        border: { display: false },
-        ticks: { color: '#94A3B8', font: { size: 11, weight: 500 } },
-      },
-      y: {
-        min: 0,
-        suggestedMax: Math.ceil(maxMonthlyValue / 10) * 10,
-        grid: { color: '#F1F5F9' },
-        border: { display: false },
-        ticks: {
-          stepSize: 10,
-          color: '#94A3B8',
-          font: { size: 11, weight: 500 },
-          callback: (value) => (value === 0 ? '0' : `${value}B`),
-        },
-      },
-    },
-  };
-
   const statusRows = [
     { key: 'DRAFT', label: 'Mới tạo' },
     { key: 'IN_REVIEW', label: 'Đang xử lý' },
@@ -383,40 +213,6 @@ export default function CeoDashboard() {
     { key: 'COMPLETED', label: 'Đã hoàn thành' },
     { key: 'CANCELLED', label: 'Đã hủy' },
   ].map((row) => ({ ...row, count: funnelMap.get(row.key) || 0, color: statusMeta(row.key).color }));
-
-  const dossierColumns = [
-    {
-      title: 'Mã hồ sơ',
-      dataIndex: 'code',
-      width: 280,
-      render: (value: string, record: DossierItem) => (
-        <Link className="font-semibold text-[var(--ceo-primary-700)] whitespace-nowrap hover:underline" href={`/dossiers/${record.id}`}>
-          {value}
-        </Link>
-      ),
-    },
-    {
-      title: 'Khách hàng',
-      width: 220,
-      render: (_: unknown, record: DossierItem) => (
-        <span className="truncate block" title={record.customer?.displayName || record.name}>
-          {record.customer?.displayName || record.name}
-        </span>
-      ),
-    },
-    { title: 'Sales', width: 160, render: (_: unknown, record: DossierItem) => record.salesUser?.fullName || '-' },
-    { title: 'Điều hành', width: 160, render: (_: unknown, record: DossierItem) => record.operatorUser?.fullName || '-' },
-    {
-      title: 'Trạng thái',
-      dataIndex: 'status',
-      width: 140,
-      render: (value: string) => {
-        const meta = statusMeta(value);
-        return <Tag className={meta.className}>{meta.label}</Tag>;
-      },
-    },
-    { title: 'Cập nhật cuối', dataIndex: 'updatedAt', width: 160, render: formatDateTime },
-  ];
 
   const currentMonthLabel = `Tháng ${anchorDate.format('MM/YYYY')}`;
 
@@ -441,141 +237,42 @@ export default function CeoDashboard() {
 
   return (
     <div className="ceo-dashboard space-y-4">
-      <div className="rounded-xl border border-[#E5E8E6] bg-white p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-1 items-center">
-            <div className="flex min-h-[56px] w-full max-w-[400px] items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 transition-colors hover:border-slate-300">
-              <div className="flex min-w-0 items-center gap-2">
-                <CalendarOutlined className="shrink-0 text-sm text-slate-500" />
-                <div className="min-w-0">
-                  <div className="text-[11px] leading-tight text-slate-600">Kỳ báo cáo</div>
-                  <div className="flex items-center gap-1">
-                    <Select
-                      aria-label="Chế độ kỳ báo cáo"
-                      value={allTime ? 'ALL_TIME' : 'MONTHLY'}
-                      onChange={(value) => setAllTime(value === 'ALL_TIME')}
-                      variant="borderless"
-                      className="!w-[150px] !p-0 !text-sm [&_.ant-select-selection-item]:!font-semibold [&_.ant-select-selection-item]:!text-slate-800"
-                      options={[
-                        { value: 'MONTHLY', label: 'Theo tháng' },
-                        { value: 'ALL_TIME', label: 'Tất cả thời gian' },
-                      ]}
-                    />
-                    {!allTime && (
-                      <DatePicker
-                        picker="month"
-                        value={anchorDate}
-                        onChange={(value) => value && setDateString(value.startOf('month').format('YYYY-MM-DD'))}
-                        format="MM/YYYY"
-                        allowClear={false}
-                        inputReadOnly
-                        variant="borderless"
-                        className="!w-[88px] !p-0 !text-sm !font-semibold [&_.ant-picker-input>input]:!cursor-pointer [&_.ant-picker-input>input]:!font-semibold [&_.ant-picker-input>input]:!text-slate-800"
-                        aria-label="Kỳ báo cáo theo tháng"
-                      />
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="flex shrink-0 justify-end gap-2.5">
-            <Button icon={<FilePdfOutlined />} onClick={() => window.print()} className="!h-9 !rounded-lg !border-[#0B7A5B] !px-3.5 !font-semibold !text-[#0B7A5B] hover:!bg-[#E8F6ED]">
-              Xuất PDF
-            </Button>
-            <Button icon={<FileExcelOutlined />} onClick={exportSummary} className="!h-9 !rounded-lg !border-[#0F3D2E] !bg-[#0F3D2E] !px-3.5 !font-semibold !text-white hover:!border-[#0A2E22] hover:!bg-[#0A2E22]">
-              Xuất Excel
-            </Button>
-          </div>
-        </div>
-      </div>
-      <Row gutter={[12, 12]}>
-        <Col xs={24} sm={12} lg={6}>
-          <MetricCard
-            label={allTime ? 'Tổng doanh thu' : `Doanh thu ${currentMonthLabel}`}
-            value={formatCurrency(overview?.totalRevenue)}
-            hint={revenueHint}
-            icon={<DollarOutlined />}
-            loading={isLoadingOverview}
-            href="/revenue"
-          />
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <MetricCard
-            label={allTime ? 'Tổng lợi nhuận' : `Lợi nhuận ${currentMonthLabel}`}
-            value={formatCurrency(overview?.totalProfit)}
-            hint={profitHint}
-            icon={<LineChartOutlined />}
-            loading={isLoadingOverview}
-            href="/revenue"
-          />
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <MetricCard
-            label="Hồ sơ toàn hệ thống"
-            value={totalDossiers}
-            hint="Tổng theo mọi trạng thái"
-            icon={<FolderOpenOutlined />}
-            tone="blue"
-            loading={isLoadingOverview}
-            href="/dossiers"
-          />
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <MetricCard
-            label="Hồ sơ chờ duyệt"
-            value={pendingCount}
-            hint={pendingCount > 0 ? 'Cần CEO xem xét và duyệt' : 'Không có hồ sơ tồn đọng'}
-            icon={<ClockCircleOutlined />}
-            tone="gold"
-            loading={isLoadingOverview}
-            href="/approvals"
-          />
-        </Col>
-      </Row>
+      <CeoExportActions
+        allTime={allTime}
+        onToggleAllTime={setAllTime}
+        anchorDate={anchorDate}
+        onDateChange={setDateString}
+        overview={overview}
+        totalDossiers={totalDossiers}
+        pendingCount={pendingCount}
+        sortedChartBreakdown={sortedChartBreakdown}
+      />
+
+      <CeoMetricsGrid
+        overview={overview}
+        totalDossiers={totalDossiers}
+        pendingCount={pendingCount}
+        isLoading={isLoadingOverview}
+        allTime={allTime}
+        currentMonthLabel={currentMonthLabel}
+      />
 
       {/* Dashboard charts use the full row in a balanced two-column layout. */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         {/* Monthly revenue */}
         <div className="xl:col-span-6">
-          <WidgetErrorBoundary title="Doanh thu theo tháng">
-            <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
-              <div>
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                  <h2 className="text-[15px] font-bold text-slate-900 m-0">Doanh thu theo tháng</h2>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-1 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-700">
-                      {allTime ? 'Tất cả thời gian' : `Năm ${selectedYear}`}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Legend */}
-                <div className="flex items-center gap-6 mt-2 mb-3">
-                  <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
-                    <span className="w-3.5 h-1.5 rounded-full bg-[#104E35]" />
-                    <span>Doanh thu (đ)</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
-                    <span className="w-3.5 h-1.5 rounded-full bg-[#D48B1E]" />
-                    <span>Lợi nhuận (đ)</span>
-                  </div>
-                </div>
-
-                {/* Chart */}
-                <div className="h-[215px] w-full">
-                  {isLoadingTrend ? <Skeleton active paragraph={{ rows: 5 }} /> : monthlyTrend.length ? <Line data={displayLineData} options={displayLineOptions} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa phát sinh doanh thu khóa sổ trong năm" />}
-                </div>
-              </div>
-            </div>
-          </WidgetErrorBoundary>
+          <CeoRevenueTrendWidget
+            monthlyTrend={monthlyTrend}
+            isLoadingTrend={isLoadingTrend}
+            allTime={allTime}
+            selectedYear={selectedYear}
+          />
         </div>
 
         {/* Revenue composition */}
         <div className="xl:col-span-6">
           <WidgetErrorBoundary title="Cơ cấu doanh thu theo cách phân loại">
-            <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
+            <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div>
                 {/* Header */}
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
@@ -620,7 +317,7 @@ export default function CeoDashboard() {
         {/* CARD 3: Hồ sơ theo trạng thái */}
         <div className="xl:col-span-3">
           <WidgetErrorBoundary title="Hồ sơ theo trạng thái">
-            <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
+            <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div>
                 <h2 className="text-[15px] font-bold text-slate-900 mb-1">Hồ sơ theo trạng thái</h2>
                 <div className="divide-y divide-slate-100 text-xs">
@@ -642,7 +339,7 @@ export default function CeoDashboard() {
         {/* CARD 4: Phê duyệt cần xử lý hôm nay (col-span-5) */}
         <div className="xl:col-span-5">
           <WidgetErrorBoundary title="Phê duyệt cần xử lý hôm nay">
-            <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
+            <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div>
                 <h2 className="text-[15px] font-bold text-slate-900 mb-3">Phê duyệt cần xử lý hôm nay</h2>
                 <div className="space-y-3">
@@ -653,7 +350,7 @@ export default function CeoDashboard() {
                     >
                       <div className="flex min-w-0 items-center gap-2">
                         <span
-                          className={`w-[82px] shrink-0 px-1.5 py-0.5 rounded text-[10.5px] font-medium border text-center truncate ${item.status === EstimateStatus.IN_REVIEW ? 'bg-[#EBF5FB] text-[#2E82C4] border-[#D1E8F7]' : 'bg-[#FEF5E7] text-[#B7791F] border-[#FDE3B8]'}`}
+                          className={`w-[82px] shrink-0 px-1.5 py-0.5 rounded text-[10.5px] font-medium border text-center truncate ${item.status === EstimateStatus.IN_REVIEW ? 'bg-[var(--color-info-soft)] text-[var(--color-info)] border-[var(--color-info-soft)]' : 'bg-[var(--color-warning-soft)] text-[var(--color-warning)] border-[var(--color-warning-soft)]'}`}
                         >
                           {item.status === EstimateStatus.IN_REVIEW ? 'Đang xử lý' : 'Chờ duyệt'}
                         </span>
@@ -679,7 +376,7 @@ export default function CeoDashboard() {
                         <Link href="/approvals">
                           <button
                             type="button"
-                            className="px-2.5 py-0.5 rounded border border-slate-200 text-xs font-medium text-slate-600 hover:text-[#0B7A5B] hover:border-[#0B7A5B] bg-white transition-colors cursor-pointer"
+                            className="px-2.5 py-0.5 rounded border border-slate-200 text-xs font-medium text-slate-600 hover:text-[var(--color-primary-600)] hover:border-[var(--color-primary-600)] bg-white transition-colors cursor-pointer"
                           >
                             Xem
                           </button>
@@ -692,7 +389,7 @@ export default function CeoDashboard() {
 
               <Link
                 href="/approvals"
-                className="flex items-center justify-center gap-1.5 pt-3 mt-3 border-t border-slate-100 text-xs font-semibold text-[#0B7A5B] hover:text-[#08664D] transition-colors"
+                className="flex items-center justify-center gap-1.5 pt-3 mt-3 border-t border-slate-100 text-xs font-semibold text-[var(--color-primary-600)] hover:text-[var(--color-primary-700)] transition-colors"
               >
                 <span>Xem tất cả hồ sơ chờ duyệt</span>
                 <ArrowRightOutlined className="text-[10px]" />
@@ -703,57 +400,19 @@ export default function CeoDashboard() {
 
         {/* Sales revenue ranking (col-span-4) */}
         <div className="xl:col-span-4">
-          <WidgetErrorBoundary title="Doanh thu theo Sales">
-            <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-[15px] font-bold text-slate-900 m-0">Top 5 Sales theo doanh thu</h2>
-                </div>
-
-                <div className="max-h-[520px] space-y-3.5 overflow-y-auto pr-1">
-                  {isLoadingSales ? <Skeleton active paragraph={{ rows: 5 }} /> : topSalesList.length ? topSalesList.map((sales) => (
-                    <div
-                      key={sales.salesUserId}
-                      className="grid grid-cols-[14px_24px_minmax(0,1.2fr)_minmax(35px,1fr)_auto] items-center gap-2 text-xs"
-                    >
-                      <span className={`font-bold text-xs ${sales.rank <= 3 ? 'text-amber-500' : 'text-slate-500'}`}>
-                        {sales.rank}
-                      </span>
-                      <div className="w-6 h-6 rounded-full bg-[var(--ceo-primary-soft)] text-[var(--ceo-primary-700)] flex items-center justify-center text-[10px] font-bold border border-slate-200 shrink-0">
-                        {sales.salesUserName?.charAt(0)?.toUpperCase() || '?'}
-                      </div>
-                      <span className="truncate text-slate-800 font-medium" title={sales.salesUserName}>
-                        {sales.salesUserName}
-                      </span>
-                      <div className="h-1 bg-transparent flex items-center w-full">
-                        <div className="h-0.75 bg-[#D48B1E] rounded-full" style={{ width: `${sales.progress}%` }} />
-                      </div>
-                      <span className="text-xs font-semibold text-slate-800 tabular-nums whitespace-nowrap text-right">
-                        {formatCurrency(sales.totalRevenue)}
-                      </span>
-                    </div>
-                  )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa ghi nhận doanh số khóa sổ của Sales" />}
-                </div>
-              </div>
-
-              <Link
-                href="/reports"
-                className="flex items-center justify-center gap-1.5 pt-3 mt-3 border-t border-slate-100 text-xs font-semibold text-[#0B7A5B] hover:text-[#08664D] transition-colors"
-              >
-                <span>Xem báo cáo hiệu suất Sales</span>
-                <ArrowRightOutlined className="text-[10px]" />
-              </Link>
-            </div>
-          </WidgetErrorBoundary>
+          <CeoSalesRanking
+            topSalesList={topSalesList}
+            isLoadingSales={isLoadingSales}
+          />
         </div>
 
         {/* CARD 6: Thông báo & nhanh chóng (col-span-3) */}
         <div className="xl:col-span-3">
           <WidgetErrorBoundary title="Thông báo & nhanh chóng">
-            <div className="bg-white rounded-xl border border-[#E5E8E6] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
+            <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <ClockCircleOutlined className="text-[#F59E0B] text-base" />
+                  <ClockCircleOutlined className="text-[var(--color-warning)] text-base" />
                   <h2 className="text-[15px] font-bold text-slate-900 m-0">Thông báo & nhanh chóng</h2>
                 </div>
 
@@ -782,7 +441,7 @@ export default function CeoDashboard() {
 
               <Link
                 href="/dashboard"
-                className="flex items-center justify-center gap-1.5 pt-3 mt-3 border-t border-slate-100 text-xs font-semibold text-[#0B7A5B] hover:text-[#08664D] transition-colors"
+                className="flex items-center justify-center gap-1.5 pt-3 mt-3 border-t border-slate-100 text-xs font-semibold text-[var(--color-primary-600)] hover:text-[var(--color-primary-700)] transition-colors"
               >
                 <span>Xem tất cả thông báo</span>
                 <ArrowRightOutlined className="text-[10px]" />
@@ -793,30 +452,16 @@ export default function CeoDashboard() {
       </div>
 
       <div className="grid grid-cols-1 gap-4">
-        <WidgetErrorBoundary title="Hồ sơ toàn hệ thống - Cập nhật gần nhất">
-          <Card
-            className="ceo-card"
-            title="Hồ sơ toàn hệ thống - Cập nhật gần nhất"
-            extra={<Button type="link" href="/dossiers">Xem tất cả</Button>}
-          >
-            <Table
-              rowKey="id"
-              dataSource={latestDossiers}
-              columns={dossierColumns}
-              loading={isLoadingDossiers}
-              pagination={false}
-              className="ceo-table"
-              scroll={{ x: 1080 }}
-              locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hồ sơ phát sinh gần đây" /> }}
-            />
-          </Card>
-        </WidgetErrorBoundary>
+        <CeoDossiersTable
+          latestDossiers={latestDossiers}
+          isLoadingDossiers={isLoadingDossiers}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(280px,1fr)_minmax(380px,1.3fr)_minmax(300px,.9fr)]">
         <WidgetErrorBoundary title="Top khách hàng">
-          <section className="flex h-full flex-col rounded-xl border border-[#E5E8E6] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-            <div className="flex items-center justify-between border-b border-[#E5E8E6] p-4">
+          <section className="flex h-full flex-col rounded-xl border border-[var(--color-border)] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+            <div className="flex items-center justify-between border-b border-[var(--color-border)] p-4">
               <h2 className="text-[15px] font-bold text-slate-900">Top khách hàng</h2>
               <span className="text-xs text-slate-500">Đơn vị: Triệu đ</span>
             </div>
@@ -846,11 +491,11 @@ export default function CeoDashboard() {
         </WidgetErrorBoundary>
 
         <WidgetErrorBoundary title="Doanh thu Nhà cung cấp">
-          <section className="flex h-full flex-col overflow-hidden rounded-xl border border-[#E5E8E6] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-            <div className="flex items-start justify-between gap-3 border-b border-[#E5E8E6] p-4">
+          <section className="flex h-full flex-col overflow-hidden rounded-xl border border-[var(--color-border)] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+            <div className="flex items-start justify-between gap-3 border-b border-[var(--color-border)] p-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#C8EBD5] bg-[#E8F6ED] text-[#0A8A61]"><ShopOutlined /></div>
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-soft-2)] bg-[var(--color-primary-soft)] text-[var(--color-primary-600)]"><ShopOutlined /></div>
                   <h2 className="text-[15px] font-bold text-slate-900">Doanh thu Nhà cung cấp</h2>
                 </div>
                 <p className="ml-9 mt-1.5 text-[11px] text-slate-500">Xếp hạng theo chi phí thuần trong kỳ</p>
@@ -863,7 +508,7 @@ export default function CeoDashboard() {
                   {supplierRows.map((supplier, index) => {
                     const share = supplierTotal > 0 ? (supplier.amount / supplierTotal) * 100 : 0;
                     const width = highestSupplierAmount > 0 ? (supplier.amount / highestSupplierAmount) * 100 : 0;
-                    const barColor = index === 0 ? '#104E35' : index === 1 ? '#2F7D61' : '#A8CDBB';
+                    const barColor = index === 0 ? themeTokens.brand.primary[800] : index === 1 ? themeTokens.brand.primary[600] : themeTokens.brand.primary.hoverBorder;
                     return (
                       <div key={supplier.supplierId} role="listitem" className="group">
                         <div className="mb-1.5 flex items-center justify-between gap-3">
@@ -895,22 +540,22 @@ export default function CeoDashboard() {
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/60 px-4 py-3">
               <span className="text-[11px] text-slate-600">Tổng nhóm đang hiển thị</span>
-              <span className="text-sm font-bold tabular-nums text-[#0A8A61]">{new Intl.NumberFormat('vi-VN').format(Math.round(supplierTotal / 1_000_000))} Tr</span>
+              <span className="text-sm font-bold tabular-nums text-[var(--color-primary-600)]">{new Intl.NumberFormat('vi-VN').format(Math.round(supplierTotal / 1_000_000))} Tr</span>
             </div>
           </section>
         </WidgetErrorBoundary>
 
         <WidgetErrorBoundary title="Báo cáo nhanh">
-          <section className="flex h-full flex-col rounded-xl border border-[#E5E8E6] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-            <div className="border-b border-[#E5E8E6] p-4">
+          <section className="flex h-full flex-col rounded-xl border border-[var(--color-border)] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+            <div className="border-b border-[var(--color-border)] p-4">
               <h2 className="text-[15px] font-bold text-slate-900">Báo cáo nhanh</h2>
             </div>
             <div className="flex flex-1 flex-col gap-2.5 p-4">
               {quickReports.map((report) => (
-                <Link key={report.title} href={report.href} className="group flex items-center gap-3 rounded-lg border border-slate-100 p-2.5 transition-colors hover:border-[#C8EBD5] hover:bg-[#F3FAF5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B7A5B]">
+                <Link key={report.title} href={report.href} className="group flex items-center gap-3 rounded-lg border border-slate-100 p-2.5 transition-colors hover:border-[var(--color-primary-soft-2)] hover:bg-[var(--color-primary-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-600)]">
                   <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${report.iconBox}`}>{report.icon}</span>
-                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-700 group-hover:text-[#0A8A61]">{report.title}</span>
-                  <RightOutlined className="shrink-0 text-[10px] text-slate-500 group-hover:text-[#0A8A61]" />
+                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-700 group-hover:text-[var(--color-primary-600)]">{report.title}</span>
+                  <RightOutlined className="shrink-0 text-[10px] text-slate-500 group-hover:text-[var(--color-primary-600)]" />
                 </Link>
               ))}
             </div>

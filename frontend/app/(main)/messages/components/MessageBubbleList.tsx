@@ -16,6 +16,7 @@ import {
   FileOutlined,
 } from '@ant-design/icons';
 import { Message, ChatAttachment } from '@/types/chat';
+import { themeTokens } from '@/lib/theme/tokens.config';
 import { useTypingUsers } from '@/hooks/chat';
 import {
   formatMessageTime,
@@ -139,7 +140,7 @@ export function MessageBubbleList({
             type="text"
             loading={isLoadingOlder}
             onClick={onLoadOlder}
-            className="text-xs text-slate-500 hover:text-[#007A55] bg-slate-100 hover:bg-slate-200 rounded-full px-4"
+            className="text-xs text-slate-500 hover:text-[var(--color-primary-700)] bg-slate-100 hover:bg-slate-200 rounded-full px-4"
             aria-label="Tải thêm tin nhắn cũ"
           >
             {isLoadingOlder ? 'Đang tải tin nhắn cũ...' : 'Tải thêm tin nhắn cũ'}
@@ -170,7 +171,11 @@ export function MessageBubbleList({
               {!isMe ? (
                 <Avatar
                   size={32}
-                  style={{ backgroundColor: '#0A2540', color: '#fff', fontSize: 12 }}
+                  style={{
+                    backgroundColor: themeTokens.avatar.defaultBg,
+                    color: themeTokens.avatar.defaultText,
+                    fontSize: 12,
+                  }}
                 >
                   {getInitials(msg.sender?.fullName)}
                 </Avatar>
@@ -201,8 +206,8 @@ export function MessageBubbleList({
                         ? 'bg-rose-50 border border-rose-300 text-rose-800 rounded-br-none p-3'
                         : isMe
                         ? msg.status === 'sending'
-                          ? 'bg-[#007A55]/75 text-white/95 rounded-br-none p-3'
-                          : 'bg-[#007A55] text-white rounded-br-none p-3'
+                          ? 'bg-[var(--color-primary-700)]/75 text-white/95 rounded-br-none p-3'
+                          : 'bg-[var(--color-primary-700)] text-white rounded-br-none p-3'
                         : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none p-3'
                     }`}
                   >
@@ -278,7 +283,7 @@ export function MessageBubbleList({
                               className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${
                                 isMe
                                   ? 'text-white hover:bg-white/20'
-                                  : 'text-slate-600 hover:text-[#007A55] hover:bg-slate-200'
+                                  : 'text-slate-600 hover:text-[var(--color-primary-700)] hover:bg-slate-200'
                               }`}
                               title={`Tải xuống ${doc.originalName}`}
                             >
@@ -343,7 +348,10 @@ export function MessageBubbleList({
           <Avatar
             size={56}
             icon={<MessageOutlined />}
-            style={{ backgroundColor: '#EAF5EF', color: '#007A55' }}
+            style={{
+              backgroundColor: themeTokens.avatar.defaultBg,
+              color: themeTokens.avatar.defaultText,
+            }}
           />
           <Text strong className="mt-3 block text-base text-slate-700">
             Bắt đầu cuộc trò chuyện
@@ -358,9 +366,9 @@ export function MessageBubbleList({
       {effectiveTypingUsers.length > 0 ? (
         <div className="flex items-center gap-2 text-xs text-slate-400 italic py-1">
           <div className="flex gap-1">
-            <span className="inline-block w-1.5 h-1.5 bg-[#007A55] rounded-full animate-bounce" />
-            <span className="inline-block w-1.5 h-1.5 bg-[#007A55] rounded-full animate-bounce [animation-delay:0.2s]" />
-            <span className="inline-block w-1.5 h-1.5 bg-[#007A55] rounded-full animate-bounce [animation-delay:0.4s]" />
+            <span className="inline-block w-1.5 h-1.5 bg-[var(--color-primary-700)] rounded-full animate-bounce" />
+            <span className="inline-block w-1.5 h-1.5 bg-[var(--color-primary-700)] rounded-full animate-bounce [animation-delay:0.2s]" />
+            <span className="inline-block w-1.5 h-1.5 bg-[var(--color-primary-700)] rounded-full animate-bounce [animation-delay:0.4s]" />
           </div>
           <span>
             {effectiveTypingUsers.map((u) => u.fullName).join(', ')} đang nhập tin nhắn...

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Avatar, Button, Skeleton, Tag, Tooltip, Typography } from 'antd';
 import { CloseOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { Conversation } from '@/types/chat';
+import { themeTokens } from '@/lib/theme/tokens.config';
 import { useDossierDetail } from '@/hooks/dossiers';
 import { getInitials, statusConfig } from '../types';
 
@@ -58,13 +59,13 @@ export function ConversationInfoSidebar({
             Hồ sơ tour liên quan
           </Text>
           {isLoadingDossier ? (
-            <div className="mt-2.5 rounded-xl border border-slate-200 bg-[#F7FAF8] p-3.5 space-y-2">
+            <div className="mt-2.5 rounded-xl border border-slate-200 bg-[var(--color-surface-muted)] p-3.5 space-y-2">
               <Skeleton active paragraph={{ rows: 2 }} />
             </div>
           ) : relatedDossier ? (
-            <div className="mt-2.5 rounded-xl border border-slate-200 bg-[#F7FAF8] p-3.5 space-y-2">
+            <div className="mt-2.5 rounded-xl border border-slate-200 bg-[var(--color-surface-muted)] p-3.5 space-y-2">
               <div className="flex items-center justify-between">
-                <Text strong className="text-sm text-[#007A55]">
+                <Text strong className="text-sm text-[var(--color-primary-700)]">
                   {relatedDossier.code}
                 </Text>
                 <Tag color={statusConfig[relatedDossier.status]?.color || 'default'}>
@@ -85,7 +86,7 @@ export function ConversationInfoSidebar({
                 </Text>
               ) : null}
               <Link href={`/dossiers/${relatedDossier.id}`} className="block pt-1">
-                <Button block size="small" type="dashed" className="text-xs text-[#007A55]">
+                <Button block size="small" type="dashed" className="text-xs text-[var(--color-primary-700)]">
                   Xem chi tiết hồ sơ
                 </Button>
               </Link>
@@ -111,7 +112,13 @@ export function ConversationInfoSidebar({
           <div className="mt-2.5 divide-y divide-slate-100 rounded-xl border border-slate-200">
             {activeConversation.members?.map((member) => (
               <div key={member.id} className="flex items-center gap-3 p-2.5">
-                <Avatar size={32} style={{ backgroundColor: '#0A2540' }}>
+                <Avatar
+                  size={32}
+                  style={{
+                    backgroundColor: themeTokens.avatar.defaultBg,
+                    color: themeTokens.avatar.defaultText,
+                  }}
+                >
                   {getInitials(member.user?.fullName)}
                 </Avatar>
                 <div className="min-w-0 flex-1">

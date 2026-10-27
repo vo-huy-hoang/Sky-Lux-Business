@@ -4,6 +4,7 @@ import React from 'react';
 import { Avatar, Button, Empty, Input, Skeleton, Typography } from 'antd';
 import { PlusOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons';
 import { Conversation } from '@/types/chat';
+import { themeTokens } from '@/lib/theme/tokens.config';
 import { formatMessageTime, getInitials } from '../types';
 
 const { Text } = Typography;
@@ -50,7 +51,7 @@ export function ConversationList({
             size="small"
             icon={<PlusOutlined />}
             onClick={onOpenCreateModal}
-            className="bg-[#007A55] hover:bg-[#006646]"
+            className="bg-[var(--color-primary-700)] hover:bg-[var(--color-primary-800)]"
           >
             Tạo mới
           </Button>
@@ -86,15 +87,17 @@ export function ConversationList({
                 onClick={() => onSelectConversation(conv.id)}
                 className={`flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors ${
                   isSelected
-                    ? 'bg-[#EAF5EF] border-l-4 border-[#007A55]'
+                    ? 'bg-[var(--color-primary-soft)] border-l-4 border-[var(--color-primary-700)]'
                     : 'hover:bg-slate-50'
                 }`}
               >
                 <Avatar
                   size={40}
                   style={{
-                    backgroundColor: conv.isGroup ? '#2F80ED' : '#007A55',
-                    color: '#FFFFFF',
+                    backgroundColor: conv.isGroup
+                      ? themeTokens.semantic.info.main
+                      : themeTokens.brand.primary[700],
+                    color: themeTokens.neutral.surface,
                     fontWeight: 600,
                   }}
                   icon={conv.isGroup ? <TeamOutlined /> : undefined}
@@ -107,7 +110,7 @@ export function ConversationList({
                     <Text
                       strong
                       className={`truncate text-sm ${
-                        isSelected ? 'text-[#007A55]' : 'text-slate-800'
+                        isSelected ? 'text-[var(--color-primary-700)]' : 'text-slate-800'
                       }`}
                     >
                       {title}
@@ -120,7 +123,7 @@ export function ConversationList({
                   <div className="mt-0.5 flex items-center justify-between">
                     <Text className="truncate text-xs text-slate-500">
                       {conv.dossierId ? (
-                        <span className="text-[#007A55] font-medium mr-1">
+                        <span className="text-[var(--color-primary-700)] font-medium mr-1">
                           [Hồ sơ tour]
                         </span>
                       ) : null}
@@ -147,7 +150,7 @@ export function ConversationList({
                 type="link"
                 size="small"
                 onClick={onOpenCreateModal}
-                className="text-[#007A55]"
+                className="text-[var(--color-primary-700)]"
               >
                 Tạo cuộc trò chuyện đầu tiên
               </Button>

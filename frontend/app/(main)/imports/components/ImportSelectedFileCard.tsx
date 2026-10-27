@@ -4,6 +4,7 @@ import React from 'react';
 import { Card, Popconfirm, Tooltip } from 'antd';
 import { DeleteOutlined, FileExcelFilled } from '@ant-design/icons';
 import { ImportSession } from '@/types/import';
+import { themeTokens } from '@/lib/theme/tokens.config';
 
 export interface ImportSelectedFileCardProps {
   session?: ImportSession;
@@ -41,14 +42,14 @@ export function ImportSelectedFileCard({
 
   return (
     <Card
-      className="skylux-card shadow-xs rounded-xl overflow-hidden border border-[#E5E8E6]"
+      className="skylux-card shadow-xs rounded-xl overflow-hidden border border-[var(--color-border)]"
       styles={{
         header: {
-          borderBottom: '1px solid #EEF1EF',
+          borderBottom: `1px solid ${themeTokens.neutral.divider}`,
           padding: '12px 18px',
           fontWeight: 700,
           fontSize: '14px',
-          color: '#1E293B',
+          color: themeTokens.neutral.text,
         },
         body: { padding: '12px 18px' },
       }}
@@ -70,7 +71,7 @@ export function ImportSelectedFileCard({
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium bg-[#EDF8F4] text-[#007A55] border border-emerald-200/60">
+          <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium bg-[var(--color-primary-soft)] text-[var(--color-primary-700)] border border-emerald-200/60">
             Đã tải lên thành công
           </span>
 

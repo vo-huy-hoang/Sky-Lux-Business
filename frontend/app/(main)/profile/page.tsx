@@ -38,6 +38,7 @@ import {
 import { kpiService, MyKpiItem } from '@/services/kpi.service';
 import { dossiersService } from '@/services/dossiers.service';
 import { DossierItem } from '@/types/dossier';
+import { themeTokens } from '@/lib/theme/tokens.config';
 import { UserProfile } from '@/types/auth';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { queryKeys } from '@/lib/query-keys';
@@ -261,7 +262,7 @@ export default function ProfilePage() {
                 size={96}
                 src={profile?.avatarUrl}
                 icon={<UserOutlined />}
-                style={{ backgroundColor: '#EAF5EF', color: '#00543D' }}
+                style={{ backgroundColor: themeTokens.brand.primary.soft, color: themeTokens.brand.primary[800] }}
               >
                 {profile?.fullName?.charAt(0)}
               </Avatar>
@@ -270,7 +271,7 @@ export default function ProfilePage() {
                   <Text strong className="text-lg text-slate-900">
                     {profile?.fullName || 'Người dùng'}
                   </Text>
-                  <CheckCircleOutlined className="text-[#D6A51F]" />
+                  <CheckCircleOutlined style={{ color: themeTokens.brand.gold.main }} />
                 </div>
                 <div className="mt-2 truncate text-sm text-slate-600">
                   {profile?.email || '-'}
@@ -280,7 +281,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="mt-2 text-sm text-slate-600">
                   Chức vụ:{' '}
-                  <span className="font-semibold text-[#00543D]">
+                  <span className="font-semibold" style={{ color: themeTokens.brand.primary[800] }}>
                     {profile?.roles?.[0] || 'Chưa gán role'}
                   </span>
                 </div>
@@ -307,12 +308,15 @@ export default function ProfilePage() {
                 <Text className="text-sm text-slate-600">KPI tháng</Text>
                 <Statistic
                   value={formatPercent(closeRateKpi?.actualValue)}
-                  styles={{ content: { color: '#00543D', fontSize: 27, fontWeight: 700 } }}
+                  styles={{ content: { color: themeTokens.brand.primary[800], fontSize: 27, fontWeight: 700 } }}
                 />
                 <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
                   <div
-                    className="h-full rounded-full bg-[#D6A51F]"
-                    style={{ width: `${Math.min(closeRateKpi?.achievementRate || 0, 100)}%` }}
+                    className="h-full rounded-full"
+                    style={{
+                      backgroundColor: themeTokens.brand.gold.main,
+                      width: `${Math.min(closeRateKpi?.achievementRate || 0, 100)}%`,
+                    }}
                   />
                 </div>
                 <Text className="mt-2 block text-xs text-slate-500">
@@ -333,9 +337,9 @@ export default function ProfilePage() {
                 <Text className="text-sm text-slate-600">Doanh thu cá nhân</Text>
                 <Statistic
                   value={formatCurrency(revenueKpi?.actualValue, { fallback: '-' })}
-                  styles={{ content: { color: '#00543D', fontSize: 24, fontWeight: 700 } }}
+                  styles={{ content: { color: themeTokens.brand.primary[800], fontSize: 24, fontWeight: 700 } }}
                 />
-                <Text className="mt-3 block text-xs text-[#007A55]">
+                <Text className="mt-3 block text-xs" style={{ color: themeTokens.brand.primary[700] }}>
                   {revenueKpi ? 'Theo KPI tháng hiện tại' : 'Chưa có dữ liệu doanh thu'}
                 </Text>
               </div>
@@ -353,9 +357,9 @@ export default function ProfilePage() {
                 <Text className="text-sm text-slate-600">Hồ sơ đã xử lý</Text>
                 <Statistic
                   value={dossierCountKpi?.actualValue ?? 0}
-                  styles={{ content: { color: '#00543D', fontSize: 27, fontWeight: 700 } }}
+                  styles={{ content: { color: themeTokens.brand.primary[800], fontSize: 27, fontWeight: 700 } }}
                 />
-                <Text className="mt-3 block text-xs text-[#007A55]">
+                <Text className="mt-3 block text-xs" style={{ color: themeTokens.brand.primary[700] }}>
                   {dossierCountKpi ? 'Theo KPI tháng hiện tại' : 'Chưa thiết lập KPI'}
                 </Text>
               </div>

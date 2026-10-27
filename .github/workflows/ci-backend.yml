@@ -13,6 +13,20 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: skylux_test
+          POSTGRES_PASSWORD: local_test_only_password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U skylux_test -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: backend
@@ -30,6 +44,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Create isolated integration databases
+        env:
+          PGPASSWORD: local_test_only_password
+        run: |
+          psql -h 127.0.0.1 -U skylux_test -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE skylux_bootstrap_test'
+          psql -h 127.0.0.1 -U skylux_test -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE skylux_role_unique_test'
+
+      - name: Lint PR bootstrap files
+        run: >-
+          npx eslint
+          src/database/bootstrap/cli-input.ts
+          src/database/bootstrap/cli.ts
+          src/database/bootstrap/integration-test-database.ts
+          src/database/bootstrap/production-admin-bootstrap.ts
+          src/database/bootstrap/production-admin-bootstrap.spec.ts
+          src/database/bootstrap/production-admin-bootstrap.integration.spec.ts
+          src/database/bootstrap/roles-organization-code-unique.integration.spec.ts
+
       - name: Lint (non-blocking - existing lint debt)
         run: npm run lint
         continue-on-error: true
@@ -39,6 +71,9 @@ jobs:
 
       - name: Test
         run: npm run test -- --runInBand
+        env:
+          BOOTSTRAP_TEST_DATABASE_URL: postgresql://skylux_test:local_test_only_password@127.0.0.1:5432/skylux_bootstrap_test
+          ROLE_UNIQUE_TEST_DATABASE_URL: postgresql://skylux_test:local_test_only_password@127.0.0.1:5432/skylux_role_unique_test
 
       - name: Build
         run: npm run build

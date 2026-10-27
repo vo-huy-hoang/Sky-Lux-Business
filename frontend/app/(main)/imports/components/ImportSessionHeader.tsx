@@ -4,6 +4,7 @@ import React from 'react';
 import { Alert, Button, Card, Col, Row, Space, Statistic, Typography } from 'antd';
 import { DeleteOutlined, FileExcelOutlined } from '@ant-design/icons';
 import { ImportSession } from '@/types/import';
+import { themeTokens } from '@/lib/theme/tokens.config';
 import { renderStatusTag } from '../types';
 
 const { Text } = Typography;
@@ -46,7 +47,7 @@ export function ImportSessionHeader({
             <Statistic
               title="Hồ sơ hợp lệ"
               value={session?.validRows || 0}
-              styles={{ content: { color: '#007A55' } }}
+              styles={{ content: { color: themeTokens.brand.primary[700] } }}
             />
           </Col>
           <Col xs={12} sm={6} lg={3}>
@@ -54,7 +55,11 @@ export function ImportSessionHeader({
               title="Hồ sơ lỗi"
               value={session?.errorRows || 0}
               styles={{
-                content: { color: session?.errorRows ? '#D93737' : '#6B7280' },
+                content: {
+                  color: session?.errorRows
+                    ? themeTokens.semantic.danger.main
+                    : themeTokens.neutral.textSecondary,
+                },
               }}
             />
           </Col>
