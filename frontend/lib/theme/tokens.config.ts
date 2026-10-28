@@ -204,6 +204,9 @@ export type ThemeTokens = typeof themeTokens;
 export const antThemeConfig = {
   token: {
     colorPrimary: themeTokens.brand.primary[700],
+    colorLink: themeTokens.brand.primary[700],
+    colorLinkHover: themeTokens.brand.primary[900],
+    colorLinkActive: themeTokens.brand.primary[950],
     colorInfo: themeTokens.semantic.info.main,
     colorSuccess: themeTokens.semantic.success.main,
     colorWarning: themeTokens.brand.gold.strong,

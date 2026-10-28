@@ -5,12 +5,15 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get('access_token')?.value;
 
-  // 1. Root path redirect
-  if (pathname === '/') {
+  // 1. Root path & public client intro gateway
+  if (pathname === '/' || pathname === '/client') {
     if (token) {
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
-    return NextResponse.redirect(new URL('/login', request.url));
+    if (pathname === '/client') {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+    return NextResponse.next();
   }
 
   // 2. Legacy /auth/login redirect to canonical /login

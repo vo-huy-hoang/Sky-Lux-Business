@@ -26,35 +26,13 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { authService } from '@/services/auth.service';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { BrandLogo } from '@/components/ui';
 
 function LoginLogo() {
-  const [failed, setFailed] = useState(false);
-
-  if (!failed) {
-    return (
-      <div className="relative h-[130px] w-[130px]">
-        <Image
-          src="/logo/logo.png"
-          alt="SkyLux Travel"
-          width={130}
-          height={130}
-          className="h-full w-full object-contain drop-shadow-md"
-          onError={() => setFailed(true)}
-          unoptimized
-          priority
-        />
-      </div>
-    );
-  }
-
   return (
-    <div className="flex h-[130px] w-[130px] items-center justify-center rounded-full border-2 border-[var(--color-gold)] bg-[var(--color-primary-950)] text-center shadow-lg">
-      <div>
-        <div className="text-xl font-bold tracking-wider text-[var(--color-gold-strong)]">SKYLUX</div>
-        <div className="mt-0.5 text-[10px] font-semibold tracking-widest text-[var(--color-gold)]">
-          TRAVEL
-        </div>
-      </div>
+    <div className="relative inline-block select-none">
+      <div className="absolute -inset-4 rounded-full bg-emerald-400/15 blur-xl pointer-events-none" />
+      <BrandLogo variant="full" size="xl" theme="dark" asLink={false} priority />
     </div>
   );
 }
@@ -307,10 +285,10 @@ export default function LoginPage() {
                 Chào mừng bạn đến với
               </span>
               <h1 className="text-3xl sm:text-4xl md:text-[42px] font-bold text-white tracking-tight leading-tight mb-2 font-sans">
-                SkyLux Travel
+                OPTRIP Platform
               </h1>
               <p className="text-sm sm:text-base font-normal text-emerald-200/70 mb-0">
-                Phần mềm quản trị nội bộ dành cho Sales
+                Travel Operations Platform • One Platform. Every Trip.
               </p>
 
               {/* Golden Accent Line */}
@@ -318,8 +296,7 @@ export default function LoginPage() {
 
               {/* Description Paragraph */}
               <p className="text-sm sm:text-[15px] font-normal leading-relaxed text-emerald-100/90 max-w-[440px]">
-                Nền tảng quản lý toàn diện giúp đội ngũ Sales vận hành hiệu quả,
-                theo dõi doanh thu, xử lý khách hàng và chốt tour nhanh chóng.
+                Nền tảng quản trị và điều hành tour lữ hành toàn diện. Đồng bộ dữ liệu kinh doanh, tối ưu hóa biên lợi nhuận và kiểm soát chuỗi phê duyệt dự toán khép kín.
               </p>
             </div>
           </div>
@@ -342,7 +319,7 @@ export default function LoginPage() {
 
           {/* Bottom copyright and version */}
           <div className="mt-12 flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 pt-6 text-xs text-slate-400 gap-2">
-            <span>© 2025 SkyLux Travel. All rights reserved.</span>
+            <span>© 2026 OPTRIP Platform. All rights reserved.</span>
             <span>Phiên bản 1.0.0</span>
           </div>
         </div>
