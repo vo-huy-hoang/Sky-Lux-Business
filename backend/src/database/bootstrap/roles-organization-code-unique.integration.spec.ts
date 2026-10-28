@@ -9,21 +9,25 @@ const databaseUrl = isolatedIntegrationDatabaseUrl(
   'skylux_role_unique_test',
 );
 const describeDatabase = databaseUrl ? describe : describe.skip;
+// Reconstruct the deployed schema as it existed immediately before this migration.
 const newMigrationFile = '1793120710000-AddRoleOrganizationCodeUnique.ts';
+const migrationUnderTestTimestamp = Number(newMigrationFile.match(/^\d+/)?.[0]);
 const localRequire = createRequire(__filename);
 
 function loadMigrationClasses(
   excludeNewMigration = false,
 ): Array<new () => MigrationInterface> {
   const migrationDirectory = path.resolve(__dirname, '../migrations');
-  const files = fs
-    .readdirSync(migrationDirectory)
-    .filter(
-      (file) =>
-        file.endsWith('.ts') &&
-        !file.endsWith('.spec.ts') &&
-        file !== newMigrationFile,
+  const files = fs.readdirSync(migrationDirectory).filter((file) => {
+    const timestamp = Number(file.match(/^\d+/)?.[0]);
+    return (
+      file.endsWith('.ts') &&
+      !file.endsWith('.spec.ts') &&
+      file !== newMigrationFile &&
+      Number.isFinite(timestamp) &&
+      timestamp < migrationUnderTestTimestamp
     );
+  });
   const classes = files.flatMap((file) =>
     Object.values(
       localRequire(path.join(migrationDirectory, file)) as Record<

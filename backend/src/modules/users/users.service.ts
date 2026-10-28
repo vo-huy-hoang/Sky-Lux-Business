@@ -21,6 +21,7 @@ import { QueryUserDto } from './dto/query-user.dto';
 import { AssignRolesDto } from './dto/assign-roles.dto';
 import { Organization } from '../organizations/entities/organization.entity';
 import { CreateCeoUserDto } from './dto/create-ceo-user.dto';
+import { UpdateCeoUserDto } from './dto/update-ceo-user.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
   AuditAction,
@@ -99,6 +100,7 @@ export class UsersService {
   async findAll(
     organizationId: string,
     queryDto: QueryUserDto = new QueryUserDto(),
+    actorRoles?: string[],
   ) {
     const {
       page = 1,
@@ -116,6 +118,25 @@ export class UsersService {
       .leftJoinAndSelect('user.department', 'department')
       .leftJoinAndSelect('user.roles', 'role')
       .where('user.organizationId = :organizationId', { organizationId });
+
+    if (
+      actorRoles?.includes('CEO_ADMIN') &&
+      !actorRoles.includes('SUPER_ADMIN')
+    ) {
+      queryBuilder.andWhere('role.code IN (:...staffRoleCodes)', {
+        staffRoleCodes: ['OPERATOR', 'SALES'],
+      });
+      queryBuilder.andWhere(
+        `NOT EXISTS (
+          SELECT 1
+          FROM user_roles elevated_user_role
+          INNER JOIN roles elevated_role ON elevated_role.id = elevated_user_role.role_id
+          WHERE elevated_user_role.user_id = "user"."id"
+            AND elevated_role.code IN (:...restrictedRoleCodes)
+        )`,
+        { restrictedRoleCodes: ['CEO_ADMIN', 'SUPER_ADMIN'] },
+      );
+    }
 
     if (status) {
       queryBuilder.andWhere('user.status = :status', { status });
@@ -156,11 +177,117 @@ export class UsersService {
     };
   }
 
+  async findAllCeo(queryDto: QueryUserDto = new QueryUserDto()) {
+    const { page = 1, pageSize = 20, search, status } = queryDto;
+    const limit = Math.min(Math.max(pageSize, 1), 100);
+    const queryBuilder = this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.department', 'department')
+      .leftJoinAndSelect('user.roles', 'role')
+      .leftJoinAndSelect('user.organization', 'organization')
+      .where('role.code = :roleCode', { roleCode: 'CEO_ADMIN' })
+      .andWhere(
+        `NOT EXISTS (
+          SELECT 1
+          FROM user_roles super_admin_user_role
+          INNER JOIN roles super_admin_role ON super_admin_role.id = super_admin_user_role.role_id
+          WHERE super_admin_user_role.user_id = "user"."id"
+            AND super_admin_role.code = :superAdminRoleCode
+        )`,
+        { superAdminRoleCode: 'SUPER_ADMIN' },
+      );
+
+    if (status) queryBuilder.andWhere('user.status = :status', { status });
+    if (search?.trim()) {
+      const keyword = `%${search.trim()}%`;
+      queryBuilder.andWhere(
+        '(user.fullName ILIKE :keyword OR user.employeeCode ILIKE :keyword OR user.email ILIKE :keyword OR user.phone ILIKE :keyword OR organization.name ILIKE :keyword)',
+        { keyword },
+      );
+    }
+
+    queryBuilder
+      .orderBy('user.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+    const [items, total] = await queryBuilder.getManyAndCount();
+    return {
+      data: items.map((user) => {
+        const { organization, ...safeUser } = this.sanitizeUser(user);
+        return {
+          ...safeUser,
+          organization: organization
+            ? {
+                id: organization.id,
+                name: organization.name,
+                code: organization.code,
+              }
+            : undefined,
+        };
+      }),
+      meta: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  private async findCeoUserOrFail(id: string): Promise<User> {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      relations: { department: true, roles: true, organization: true },
+    });
+    const roleCodes = user?.roles?.map((role) => role.code) ?? [];
+    if (
+      !user ||
+      !roleCodes.includes('CEO_ADMIN') ||
+      roleCodes.includes('SUPER_ADMIN')
+    ) {
+      throw new NotFoundException(
+        `Không tìm thấy tài khoản CEO_ADMIN với ID "${id}"`,
+      );
+    }
+    return user;
+  }
+
+  async updateCeo(
+    id: string,
+    dto: UpdateCeoUserDto,
+    actorUserId: string,
+    actorRoles: string[],
+  ) {
+    if (!actorRoles.includes('SUPER_ADMIN')) {
+      throw new ForbiddenException(
+        'Chỉ SUPER_ADMIN được cập nhật tài khoản CEO_ADMIN',
+      );
+    }
+    const user = await this.findCeoUserOrFail(id);
+    return this.update(user.organizationId, id, dto, actorUserId, actorRoles);
+  }
+
+  async removeCeo(id: string, actorUserId: string, actorRoles: string[]) {
+    if (!actorRoles.includes('SUPER_ADMIN')) {
+      throw new ForbiddenException(
+        'Chỉ SUPER_ADMIN được xóa tài khoản CEO_ADMIN',
+      );
+    }
+    const user = await this.findCeoUserOrFail(id);
+    return this.remove(user.organizationId, id, actorUserId, actorRoles);
+  }
+
   /**
    * API-USERS-002: Lấy chi tiết thông tin người dùng theo ID
    */
-  async findOne(organizationId: string, id: string, actorUserId?: string) {
+  async findOne(
+    organizationId: string,
+    id: string,
+    actorUserId?: string,
+    actorRoles?: string[],
+  ) {
     const user = await this.findUserOrFail(organizationId, id, true);
+    this.assertTenantStaffTarget(user, actorRoles);
 
     if (actorUserId) {
       await this.auditLogsService.record({
@@ -363,6 +490,7 @@ export class UsersService {
     actorRoles?: string[],
   ) {
     const user = await this.findUserOrFail(organizationId, id, true);
+    this.assertTenantStaffTarget(user, actorRoles);
     const beforeData = this.auditSnapshot(user);
     const previousRoleIds = (user.roles ?? []).map((role) => role.id).sort();
     const previousStatus = user.status;
@@ -482,7 +610,9 @@ export class UsersService {
         beforeData,
         afterData: this.auditSnapshot(updatedUser),
       });
-      const savedRoleIds = (updatedUser.roles ?? []).map((role) => role.id).sort();
+      const savedRoleIds = (updatedUser.roles ?? [])
+        .map((role) => role.id)
+        .sort();
       if (JSON.stringify(previousRoleIds) !== JSON.stringify(savedRoleIds)) {
         await this.auditLogsService.record({
           organizationId,
@@ -506,8 +636,14 @@ export class UsersService {
   /**
    * API-USERS-005: Khóa tài khoản người dùng và thu hồi mọi phiên đăng nhập
    */
-  async lockUser(organizationId: string, id: string, actorUserId?: string) {
+  async lockUser(
+    organizationId: string,
+    id: string,
+    actorUserId?: string,
+    actorRoles?: string[],
+  ) {
     const user = await this.findUserOrFail(organizationId, id, true);
+    this.assertTenantStaffTarget(user, actorRoles);
 
     user.status = UserStatus.LOCKED;
     user.authVersion = (user.authVersion ?? 0) + 1;
@@ -542,8 +678,14 @@ export class UsersService {
   /**
    * API-USERS-006: Mở khóa tài khoản người dùng
    */
-  async unlockUser(organizationId: string, id: string, actorUserId?: string) {
+  async unlockUser(
+    organizationId: string,
+    id: string,
+    actorUserId?: string,
+    actorRoles?: string[],
+  ) {
     const user = await this.findUserOrFail(organizationId, id, true);
+    this.assertTenantStaffTarget(user, actorRoles);
 
     user.status = UserStatus.ACTIVE;
     user.authVersion = (user.authVersion ?? 0) + 1;
@@ -572,8 +714,14 @@ export class UsersService {
   /**
    * API-USERS-007: Xóa người dùng (Soft delete)
    */
-  async remove(organizationId: string, id: string, actorUserId?: string) {
-    const user = await this.findUserOrFail(organizationId, id, false);
+  async remove(
+    organizationId: string,
+    id: string,
+    actorUserId?: string,
+    actorRoles?: string[],
+  ) {
+    const user = await this.findUserOrFail(organizationId, id, true);
+    this.assertTenantStaffTarget(user, actorRoles);
     const beforeData = this.auditSnapshot(user);
 
     // Thu hồi toàn bộ phiên đăng nhập trước khi xóa
@@ -616,6 +764,7 @@ export class UsersService {
     actorRoles?: string[],
   ): Promise<{ message: string }> {
     const user = await this.findUserOrFail(organizationId, id, true);
+    this.assertTenantStaffTarget(user, actorRoles);
 
     const roles = await this.roleRepository.find({
       where: {
@@ -671,6 +820,24 @@ export class UsersService {
     if (roles.some((role) => !['OPERATOR', 'SALES'].includes(role.code))) {
       throw new ForbiddenException(
         'CEO_ADMIN chỉ được gán vai trò OPERATOR hoặc SALES',
+      );
+    }
+  }
+
+  private assertTenantStaffTarget(user: User, actorRoles?: string[]) {
+    if (!actorRoles || actorRoles.includes('SUPER_ADMIN')) return;
+    if (!actorRoles.includes('CEO_ADMIN')) {
+      throw new ForbiddenException(
+        'Bạn không được phép quản lý người dùng này',
+      );
+    }
+    const roleCodes = (user.roles ?? []).map((role) => role.code);
+    if (
+      roleCodes.length === 0 ||
+      roleCodes.some((code) => !['OPERATOR', 'SALES'].includes(code))
+    ) {
+      throw new ForbiddenException(
+        'CEO_ADMIN chỉ được xem và quản lý tài khoản OPERATOR hoặc SALES',
       );
     }
   }

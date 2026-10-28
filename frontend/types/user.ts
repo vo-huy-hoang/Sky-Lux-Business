@@ -24,6 +24,7 @@ export interface UserItem {
   status: UserStatus;
   lastLoginAt?: string;
   department?: UserDepartment;
+  organization?: { id: string; name: string; code: string };
   roles?: UserRole[];
   createdAt: string;
   updatedAt?: string;

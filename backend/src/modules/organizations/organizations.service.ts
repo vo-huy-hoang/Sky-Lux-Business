@@ -126,6 +126,26 @@ export class OrganizationsService {
     return this.orgRepository.save(org);
   }
 
+  async updateOrganization(
+    id: string,
+    updateDto: UpdateOrganizationDto,
+  ): Promise<Organization> {
+    const organization = await this.orgRepository.findOne({ where: { id } });
+    if (!organization) {
+      throw new NotFoundException(`Không tìm thấy doanh nghiệp với ID "${id}"`);
+    }
+    Object.assign(organization, updateDto);
+    return this.orgRepository.save(organization);
+  }
+
+  async removeOrganization(id: string) {
+    const result = await this.orgRepository.softDelete(id);
+    if (!result.affected) {
+      throw new NotFoundException(`Không tìm thấy doanh nghiệp với ID "${id}"`);
+    }
+    return { deleted: true, id };
+  }
+
   async getSettings(organizationId: string): Promise<Record<string, any>> {
     await this.getProfile(organizationId); // Verify organization exists
     return this.settingsService.getOrganizationSettings(organizationId);

@@ -8,6 +8,7 @@ import { useRbacStore } from '../store';
 import { useShallow } from 'zustand/react/shallow';
 import { queryKeys } from '@/lib/query-keys';
 import { useUserRoles } from '@/hooks/use-users';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 export default function UserRoleModal() {
   const queryClient = useQueryClient();
@@ -31,6 +32,10 @@ export default function UserRoleModal() {
   // 1. Fetch All Roles (Deep Hook with signal)
   const { data: rolesData } = useUserRoles('');
   const roles = rolesData || [];
+  const isSuperAdmin = useAuthStore((state) => Boolean(state.user?.roles?.includes('SUPER_ADMIN')));
+  const assignableRoles = roles.filter((role) =>
+    isSuperAdmin || ['OPERATOR', 'SALES'].includes(role.code),
+  );
 
   const assignUserRolesMutation = useMutation({
     mutationFn: async ({ userId, roleIds }: { userId: string; roleIds: string[] }) => {
@@ -85,7 +90,7 @@ export default function UserRoleModal() {
             }
             className="w-full space-y-2"
           >
-            {roles.map((r) => (
+            {assignableRoles.map((r) => (
               <div
                 key={r.id}
                 className="flex items-center justify-between p-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"

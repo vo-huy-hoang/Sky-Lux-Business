@@ -30,6 +30,26 @@ export class Organization extends BaseEntity {
   @Column({ type: 'varchar', length: 10, default: 'VND' })
   currency: string;
 
+  @Column({ name: 'tax_code', type: 'varchar', length: 50, nullable: true })
+  taxCode?: string;
+
+  @Column({
+    name: 'contact_email',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  contactEmail?: string;
+
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  phone?: string;
+
+  @Column({ type: 'text', nullable: true })
+  address?: string;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  industry?: string;
+
   @OneToMany(() => OrganizationSetting, (setting) => setting.organization)
   settings: OrganizationSetting[];
 
