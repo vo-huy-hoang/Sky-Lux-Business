@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Layout, Button, Result, Spin } from 'antd';
 import { useAuthStore } from '@/lib/stores/auth-store';
@@ -32,17 +32,27 @@ export default function MainLayout({
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
+  const [hasMounted, setHasMounted] = useState(false);
+
+  // Zustand restores the role from localStorage, which is unavailable during
+  // server rendering. Keep the server and first client render role-neutral,
+  // then choose a shell only after the browser has mounted and auth is ready.
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  const authReady = hasMounted && hasHydrated;
 
   // Kích hoạt lắng nghe luồng SSE thông báo thời gian thực
-  useNotificationsRealtime({ enabled: hasHydrated });
+  useNotificationsRealtime({ enabled: authReady });
 
   // Truy vấn danh sách thông báo và số lượng chưa đọc từ API
   const { data: notificationsData } = useNotificationsQuery(
     { limit: 50 },
-    { enabled: hasHydrated },
+    { enabled: authReady },
   );
   const { data: unreadCountData } = useUnreadNotificationsCountQuery({
-    enabled: hasHydrated,
+    enabled: authReady,
   });
 
   const syncBackendNotifications = useNotificationStore(
@@ -74,13 +84,7 @@ export default function MainLayout({
         const unsub = useAuthStore.persist?.onFinishHydration?.(() => {
           useAuthStore.getState().setHasHydrated(true);
         });
-        const timer = setTimeout(() => {
-          useAuthStore.getState().setHasHydrated(true);
-        }, 100);
-        return () => {
-          unsub?.();
-          clearTimeout(timer);
-        };
+        return () => unsub?.();
       }
     }
   }, [hasHydrated]);
@@ -111,21 +115,16 @@ export default function MainLayout({
   }, [pathname, userCtx]);
 
   useEffect(() => {
+    if (!authReady) return;
+
     if (typeof document !== 'undefined') {
       const pageTitle = routeMeta.title || 'Bảng điều khiển';
       const roleSuffix = isSuperAdmin ? 'SkyLux Super Admin' : isCeoAdmin ? 'SkyLux CEO' : isOperator ? 'SkyLux Điều Hành' : isSales ? 'SkyLux Sales' : 'SkyLux Travel';
       document.title = `${pageTitle} | ${roleSuffix}`;
     }
-  }, [routeMeta.title, isCeoAdmin, isSuperAdmin, isOperator, isSales]);
+  }, [authReady, routeMeta.title, isCeoAdmin, isSuperAdmin, isOperator, isSales]);
 
-  const pageContent = !hasHydrated ? (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-6">
-      <Spin size="large" />
-      <span className="text-sm text-[var(--color-text-muted)]">
-        Đang khôi phục phiên đăng nhập...
-      </span>
-    </div>
-  ) : isAccessible ? (
+  const pageContent = isAccessible ? (
     children
   ) : (
     <div className="flex min-h-[60vh] items-center justify-center p-6">
@@ -145,6 +144,21 @@ export default function MainLayout({
       />
     </div>
   );
+
+  if (!authReady) {
+    return (
+      <div
+        className="flex min-h-[100dvh] items-center justify-center bg-[var(--color-bg)]"
+        role="status"
+        aria-busy="true"
+      >
+        <div className="flex items-center gap-3 text-sm text-[var(--color-text-muted)]">
+          <Spin />
+          <span>Đang khôi phục phiên đăng nhập...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Layout

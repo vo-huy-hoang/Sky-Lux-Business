@@ -31,7 +31,6 @@ const navigation = [
   { label: 'Tổng quan', path: '/dashboard', icon: <DashboardOutlined /> },
   { label: 'Doanh nghiệp', path: '/organizations', icon: <ShopOutlined /> },
   { label: 'Người dùng', path: '/users', icon: <TeamOutlined /> },
-  { label: 'Gói dịch vụ', path: '/settings', icon: <CreditCardOutlined /> },
   { label: 'Thanh toán', path: '/revenue', icon: <CreditCardOutlined /> },
   { label: 'Báo cáo', path: '/reports', icon: <BarChartOutlined /> },
   { label: 'Cài đặt hệ thống', path: '/settings', icon: <SettingOutlined /> },
