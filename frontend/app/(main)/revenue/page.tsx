@@ -50,6 +50,7 @@ import { formatCurrency } from '@/lib/financial-calculations';
 import { RevenueBreakdownToggle, RevenueBreakdownMode } from '@/components/ceo/RevenueBreakdownToggle';
 import { getRevenueDonutSlices, RevenueDonutChart } from '@/components/ceo/RevenueDonutChart';
 import { themeTokens } from '@/lib/theme/tokens.config';
+import SaasBillingOverview from '@/components/super-admin/SaasBillingOverview';
 
 ChartJS.register(
   ArcElement,
@@ -518,5 +519,7 @@ function CeoRevenuePage() {
 
 export default function RevenuePage() {
   const hasRole = useAuthStore((state) => state.hasRole);
+  const isSuperAdmin = useAuthStore((state) => Boolean(state.user?.roles?.includes('SUPER_ADMIN')));
+  if (isSuperAdmin) return <SaasBillingOverview />;
   return hasRole('OPERATOR') ? <OperatorRevenue /> : <CeoRevenuePage />;
 }

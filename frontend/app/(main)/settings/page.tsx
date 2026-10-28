@@ -71,7 +71,7 @@ export default function SettingsPage() {
     <aside className="space-y-4">
       <Card className="ceo-card" title="Thiết lập nhanh">
         <div className="text-sm font-bold">Logo & nhận diện</div>
-        <div className="mt-3 flex justify-center rounded-md border border-[var(--ceo-divider)] bg-[var(--ceo-surface-muted)] p-4"><Image src="/logo/logo.png" alt="Logo SkyLux Travel" width={136} height={136} className="h-[136px] w-[136px] object-contain" /></div>
+        <div className="mt-3 flex justify-center rounded-md border border-[var(--ceo-divider)] bg-[var(--ceo-surface-muted)] p-4"><Image src="/logo/logo.png?v=2" alt="Logo SkyLux Travel" width={180} height={64} unoptimized className="h-[64px] w-[180px] object-contain" /></div>
         <div className="mt-4 space-y-3">
           <div className="flex items-center justify-between"><Text type="secondary">Tổ chức</Text><Text strong>{organization.data?.name || (organization.isLoading ? 'Đang tải...' : 'Chưa có dữ liệu')}</Text></div>
           <div className="flex items-center justify-between"><Text type="secondary">Múi giờ</Text><Text strong>{organization.data?.timezone || '-'}</Text></div>

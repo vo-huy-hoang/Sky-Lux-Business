@@ -8,6 +8,8 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Delete,
+  ParseUUIDPipe,
   ForbiddenException,
 } from '@nestjs/common';
 import {
@@ -41,15 +43,34 @@ export class OrganizationsController {
   }
 
   @Post()
-  @Roles('SUPER_ADMIN')
-  @ApiOperation({ summary: 'Tạo tổ chức mới (chỉ SUPER_ADMIN)' })
+  @RequirePermissions()
+  @ApiOperation({ summary: 'Tạo tổ chức mới (người dùng đã đăng nhập)' })
   @ApiResponse({ status: 201, description: 'Tạo tổ chức thành công' })
-  create(
-    @Body() dto: CreateOrganizationDto,
+  create(@Body() dto: CreateOrganizationDto) {
+    return this.organizationsService.create(dto);
+  }
+
+  @Patch(':id')
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({ summary: 'SUPER_ADMIN cập nhật thông tin doanh nghiệp' })
+  updateOrganization(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateDto: UpdateOrganizationDto,
     @CurrentUser('roles') roles: string[],
   ) {
     this.assertSuperAdmin(roles);
-    return this.organizationsService.create(dto);
+    return this.organizationsService.updateOrganization(id, updateDto);
+  }
+
+  @Delete(':id')
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({ summary: 'SUPER_ADMIN xóa mềm doanh nghiệp' })
+  removeOrganization(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('roles') roles: string[],
+  ) {
+    this.assertSuperAdmin(roles);
+    return this.organizationsService.removeOrganization(id);
   }
 
   @Get()

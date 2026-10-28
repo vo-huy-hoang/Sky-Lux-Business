@@ -55,9 +55,10 @@ describe('UsersController', () => {
       };
       mockUsersService.findAll.mockResolvedValue(expectedResult);
 
-      const result = await controller.findAll(orgId, queryDto);
+      const actorRoles = ['CEO_ADMIN'];
+      const result = await controller.findAll(orgId, queryDto, actorRoles);
 
-      expect(service.findAll).toHaveBeenCalledWith(orgId, queryDto);
+      expect(service.findAll).toHaveBeenCalledWith(orgId, queryDto, actorRoles);
       expect(result).toEqual(expectedResult);
     });
   });
@@ -66,12 +67,24 @@ describe('UsersController', () => {
     it('should call service.findOne with organizationId and id', async () => {
       const orgId = 'org-uuid';
       const userId = 'user-uuid';
+      const actorUserId = 'ceo-user-uuid';
+      const actorRoles = ['CEO_ADMIN'];
       const expectedResult = { data: { id: userId } };
       mockUsersService.findOne.mockResolvedValue(expectedResult);
 
-      const result = await controller.findOne(orgId, userId);
+      const result = await controller.findOne(
+        orgId,
+        userId,
+        actorUserId,
+        actorRoles,
+      );
 
-      expect(service.findOne).toHaveBeenCalledWith(orgId, userId);
+      expect(service.findOne).toHaveBeenCalledWith(
+        orgId,
+        userId,
+        actorUserId,
+        actorRoles,
+      );
       expect(result).toEqual(expectedResult);
     });
   });
@@ -109,13 +122,27 @@ describe('UsersController', () => {
     it('should call service.update with organizationId, id, and dto', async () => {
       const orgId = 'org-uuid';
       const userId = 'user-uuid';
+      const actorUserId = 'ceo-user-uuid';
+      const actorRoles = ['CEO_ADMIN'];
       const dto: UpdateUserDto = { fullName: 'Updated Name' };
       const expectedResult = { data: { id: userId, fullName: 'Updated Name' } };
       mockUsersService.update.mockResolvedValue(expectedResult);
 
-      const result = await controller.update(orgId, userId, dto);
+      const result = await controller.update(
+        orgId,
+        userId,
+        dto,
+        actorUserId,
+        actorRoles,
+      );
 
-      expect(service.update).toHaveBeenCalledWith(orgId, userId, dto);
+      expect(service.update).toHaveBeenCalledWith(
+        orgId,
+        userId,
+        dto,
+        actorUserId,
+        actorRoles,
+      );
       expect(result).toEqual(expectedResult);
     });
   });
@@ -124,11 +151,23 @@ describe('UsersController', () => {
     it('should call service.lockUser with organizationId and id', async () => {
       const orgId = 'org-uuid';
       const userId = 'user-uuid';
+      const actorUserId = 'ceo-user-uuid';
+      const actorRoles = ['CEO_ADMIN'];
       mockUsersService.lockUser.mockResolvedValue({ message: 'Success' });
 
-      const result = await controller.lock(orgId, userId);
+      const result = await controller.lock(
+        orgId,
+        userId,
+        actorUserId,
+        actorRoles,
+      );
 
-      expect(service.lockUser).toHaveBeenCalledWith(orgId, userId);
+      expect(service.lockUser).toHaveBeenCalledWith(
+        orgId,
+        userId,
+        actorUserId,
+        actorRoles,
+      );
       expect(result).toEqual({ message: 'Success' });
     });
   });
@@ -137,11 +176,23 @@ describe('UsersController', () => {
     it('should call service.unlockUser with organizationId and id', async () => {
       const orgId = 'org-uuid';
       const userId = 'user-uuid';
+      const actorUserId = 'ceo-user-uuid';
+      const actorRoles = ['CEO_ADMIN'];
       mockUsersService.unlockUser.mockResolvedValue({ message: 'Success' });
 
-      const result = await controller.unlock(orgId, userId);
+      const result = await controller.unlock(
+        orgId,
+        userId,
+        actorUserId,
+        actorRoles,
+      );
 
-      expect(service.unlockUser).toHaveBeenCalledWith(orgId, userId);
+      expect(service.unlockUser).toHaveBeenCalledWith(
+        orgId,
+        userId,
+        actorUserId,
+        actorRoles,
+      );
       expect(result).toEqual({ message: 'Success' });
     });
   });
@@ -150,14 +201,26 @@ describe('UsersController', () => {
     it('should call service.remove with organizationId and id', async () => {
       const orgId = 'org-uuid';
       const userId = 'user-uuid';
+      const actorUserId = 'ceo-user-uuid';
+      const actorRoles = ['CEO_ADMIN'];
       mockUsersService.remove.mockResolvedValue({
         message: 'Success',
         data: { deleted: true },
       });
 
-      const result = await controller.remove(orgId, userId);
+      const result = await controller.remove(
+        orgId,
+        userId,
+        actorUserId,
+        actorRoles,
+      );
 
-      expect(service.remove).toHaveBeenCalledWith(orgId, userId);
+      expect(service.remove).toHaveBeenCalledWith(
+        orgId,
+        userId,
+        actorUserId,
+        actorRoles,
+      );
       expect(result).toEqual({ message: 'Success', data: { deleted: true } });
     });
   });

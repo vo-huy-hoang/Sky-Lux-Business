@@ -6,6 +6,11 @@ export interface OrganizationItem {
   logoUrl?: string;
   timezone: string;
   currency: string;
+  taxCode?: string;
+  contactEmail?: string;
+  phone?: string;
+  address?: string;
+  industry?: string;
   status: string;
   createdAt: string;
   updatedAt: string;

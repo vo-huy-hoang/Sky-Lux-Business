@@ -30,11 +30,11 @@ const BrandLogo = React.memo(function BrandLogo({ collapsed }: { collapsed: bool
     <div className="flex justify-center">
       {!failed ? (
         <Image
-          src="/logo/logo.png"
+          src="/logo/logo.png?v=2"
           alt="SkyLux Travel"
           width={180}
-          height={180}
-          className="h-[154px] w-[154px] object-contain"
+          height={64}
+          className="h-auto max-h-[64px] w-[180px] object-contain"
           onError={() => setFailed(true)}
           priority
           unoptimized

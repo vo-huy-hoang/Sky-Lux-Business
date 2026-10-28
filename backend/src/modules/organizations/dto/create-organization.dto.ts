@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateOrganizationDto {
   @ApiProperty({ example: 'Công ty Du lịch Skylux' })
@@ -33,4 +39,33 @@ export class CreateOrganizationDto {
   @IsOptional()
   @MaxLength(10)
   currency?: string;
+
+  @ApiPropertyOptional({ example: '0101234567' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(50)
+  taxCode?: string;
+
+  @ApiPropertyOptional({ example: 'lienhe@example.vn' })
+  @IsEmail()
+  @IsOptional()
+  @MaxLength(255)
+  contactEmail?: string;
+
+  @ApiPropertyOptional({ example: '0909 123 456' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(30)
+  phone?: string;
+
+  @ApiPropertyOptional({ example: '123 Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh' })
+  @IsString()
+  @IsOptional()
+  address?: string;
+
+  @ApiPropertyOptional({ example: 'Du lịch' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  industry?: string;
 }
