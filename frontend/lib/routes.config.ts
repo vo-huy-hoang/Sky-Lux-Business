@@ -15,6 +15,7 @@ import {
   SettingOutlined,
   FileTextOutlined,
   HistoryOutlined,
+  BankOutlined,
 } from '@ant-design/icons';
 
 export interface UserContext {
@@ -36,6 +37,7 @@ export interface AppRoute {
   requiredPermissions?: string[];
   allowedRoles?: string[];
   excludeRoles?: string[];
+  superAdminOnly?: boolean;
   hideFromNavigationRoles?: string[];
   order: number;
 }
@@ -54,6 +56,16 @@ export const APP_ROUTES: AppRoute[] = [
         ? 'Tổng quan hiệu suất bán tour và công việc cá nhân'
         : 'Tổng quan hiệu suất toàn công ty và chỉ số vận hành',
     order: 10,
+  },
+  {
+    key: '/organizations',
+    path: '/organizations',
+    icon: React.createElement(BankOutlined),
+    label: 'Doanh nghiệp',
+    title: 'Doanh nghiệp',
+    subtitle: 'Quản lý các doanh nghiệp và tenant trên nền tảng Sky-Lux CRM',
+    superAdminOnly: true,
+    order: 15,
   },
   {
     key: '/approvals',
@@ -119,9 +131,11 @@ export const APP_ROUTES: AppRoute[] = [
     key: '/revenue',
     path: '/revenue',
     icon: React.createElement(BarChartOutlined),
-    label: 'Doanh thu & thống kê',
-    title: 'Doanh thu & thống kê',
-    subtitle: 'Phân tích doanh thu, lợi nhuận và cơ cấu hoạt động',
+    label: (ctx) => ctx.isSuperAdmin ? 'Thanh toán' : 'Doanh thu & thống kê',
+    title: (ctx) => ctx.isSuperAdmin ? 'Thanh toán dịch vụ' : 'Doanh thu & thống kê',
+    subtitle: (ctx) => ctx.isSuperAdmin
+      ? 'Theo dõi phí thuê bao phần mềm và khoản thanh toán của từng doanh nghiệp'
+      : 'Phân tích doanh thu, lợi nhuận và cơ cấu hoạt động',
     allowedRoles: ['OPERATOR', 'SUPER_ADMIN', 'CEO_ADMIN'],
     hideFromNavigationRoles: ['OPERATOR'],
     order: 50,
@@ -246,6 +260,13 @@ export const APP_ROUTES: AppRoute[] = [
  * Kiểm tra xem một người dùng có quyền truy cập vào route hay không
  */
 export function canAccessRoute(route: AppRoute, ctx: UserContext): boolean {
+  // This route must be checked against the actual role code. Super Admin is
+  // also marked as CEO/Admin in the shared context, but that must not broaden
+  // access to the tenant directory for CEO_ADMIN accounts.
+  if (route.superAdminOnly) {
+    return Boolean(ctx.roles?.includes('SUPER_ADMIN'));
+  }
+
   // Nếu route có loại trừ vai trò cụ thể
   if (route.excludeRoles && route.excludeRoles.length > 0) {
     const isExcluded = ctx.roles?.some((r) => route.excludeRoles!.includes(r));
@@ -296,6 +317,11 @@ export function isPathAccessible(
   // Chuẩn hóa đường dẫn legacy nếu bắt đầu bằng /main
   const normalized = pathname.startsWith('/main/') ? pathname.replace(/^\/main/, '') : pathname;
 
+  // Tenant creation is available to authenticated users through a direct entry
+  // point; the organization directory itself remains SUPER_ADMIN-only and is
+  // therefore not added to other roles' sidebars.
+  if (normalized === '/organizations/new') return true;
+
   // Cho phép Operator, Sales, CEO/Admin và Super Admin truy cập trang chi tiết hồ sơ tour
   if (normalized.startsWith('/dossiers/')) {
     return !!(ctx.isOperator || ctx.isSales || ctx.isCeoAdmin || ctx.isSuperAdmin);
@@ -326,6 +352,14 @@ export function getRouteMeta(
 
   // Chuẩn hóa đường dẫn legacy nếu bắt đầu bằng /main
   const normalized = pathname.startsWith('/main/') ? pathname.replace(/^\/main/, '') : pathname;
+
+  if (normalized === '/organizations/new') {
+    return {
+      title: 'Tạo doanh nghiệp mới',
+      subtitle: 'Đăng ký doanh nghiệp mới sử dụng Sky-Lux CRM',
+      icon: React.createElement(BankOutlined),
+    };
+  }
 
   // Trường hợp đặc biệt: Chi tiết hồ sơ
   if (normalized.startsWith('/dossiers/')) {

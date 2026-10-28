@@ -11,6 +11,15 @@ export const usersService = {
   createCeo: (data: CreateCeoUserInput) => {
     return apiClient.post<any, UserItem>('/users/ceo', data);
   },
+  getCeoUsers: (params?: QueryUserParams, options?: RequestOptions) =>
+    apiClient.get<any, PaginatedUsersResponse>('/users/ceos', {
+      params,
+      signal: options?.signal,
+    }),
+  updateCeo: (id: string, data: UpdateCeoUserInput) =>
+    apiClient.patch<any, UserItem>(`/users/ceos/${id}`, data),
+  deleteCeo: (id: string) =>
+    apiClient.delete<any, { message: string; data?: { deleted: boolean } }>(`/users/ceos/${id}`),
   /**
    * API-USERS-001: Lấy danh sách người dùng phân trang và lọc
    */
@@ -88,3 +97,8 @@ export interface CreateCeoUserInput extends Omit<
 > {
   organizationId: string;
 }
+
+export type UpdateCeoUserInput = Omit<
+  UpdateUserInput,
+  'roleIds' | 'departmentId'
+>;

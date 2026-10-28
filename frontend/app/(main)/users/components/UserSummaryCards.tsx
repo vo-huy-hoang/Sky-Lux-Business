@@ -14,6 +14,7 @@ export interface UserSummaryCardsProps {
   ceoAdminUsers: number;
   lockedUsers: number;
   isLoading?: boolean;
+  isSuperAdmin?: boolean;
 }
 
 export default function UserSummaryCards({
@@ -24,8 +25,25 @@ export default function UserSummaryCards({
   ceoAdminUsers,
   lockedUsers,
   isLoading = false,
+  isSuperAdmin = false,
 }: UserSummaryCardsProps) {
-  const metrics = [
+  const metrics = isSuperAdmin ? [
+    {
+      label: 'CEO doanh nghiệp',
+      value: totalUsers,
+      tone: 'bg-[var(--ceo-purple-soft)] text-[var(--ceo-purple)]',
+    },
+    {
+      label: 'Đang hoạt động',
+      value: activeUsers,
+      tone: 'bg-[var(--ceo-primary-soft)] text-[var(--ceo-primary-600)]',
+    },
+    {
+      label: 'Tài khoản tạm khóa',
+      value: lockedUsers,
+      tone: 'bg-[var(--ceo-danger-soft)] text-[var(--ceo-danger)]',
+    },
+  ] : [
     {
       label: 'Tổng người dùng',
       value: totalUsers,

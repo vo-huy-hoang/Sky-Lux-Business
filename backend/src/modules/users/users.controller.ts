@@ -29,6 +29,7 @@ import { RequirePermissions } from '../../common/decorators/require-permissions.
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateCeoUserDto } from './dto/create-ceo-user.dto';
+import { UpdateCeoUserDto } from './dto/update-ceo-user.dto';
 
 @ApiTags('Users')
 @ApiBearerAuth('JWT-auth')
@@ -38,6 +39,7 @@ export class UsersController {
 
   @Get()
   @RequirePermissions('user.view')
+  @Roles('CEO_ADMIN')
   @ApiOperation({
     summary: 'Lấy danh sách người dùng phân trang và lọc (API-USERS-001)',
   })
@@ -48,12 +50,32 @@ export class UsersController {
   findAll(
     @CurrentUser('organizationId') organizationId: string,
     @Query() queryDto: QueryUserDto,
+    @CurrentUser('roles') actorRoles: string[] = [],
   ) {
-    return this.usersService.findAll(organizationId, queryDto);
+    this.assertCeoAdmin(actorRoles);
+    return this.usersService.findAll(organizationId, queryDto, actorRoles);
+  }
+
+  @Get('ceos')
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({
+    summary: 'SUPER_ADMIN xem danh sách CEO_ADMIN toàn hệ thống',
+  })
+  findAllCeo(
+    @Query() queryDto: QueryUserDto,
+    @CurrentUser('roles') actorRoles: string[] = [],
+  ) {
+    if (!actorRoles.includes('SUPER_ADMIN')) {
+      throw new ForbiddenException(
+        'Chỉ SUPER_ADMIN được xem danh sách CEO_ADMIN',
+      );
+    }
+    return this.usersService.findAllCeo(queryDto);
   }
 
   @Get(':id')
   @RequirePermissions('user.view')
+  @Roles('CEO_ADMIN')
   @ApiOperation({
     summary: 'Lấy chi tiết người dùng theo ID (API-USERS-002)',
   })
@@ -67,10 +89,12 @@ export class UsersController {
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('id') actorUserId?: string,
+    @CurrentUser('roles') actorRoles: string[] = [],
   ) {
+    this.assertCeoAdmin(actorRoles);
     return actorUserId
-      ? this.usersService.findOne(organizationId, id, actorUserId)
-      : this.usersService.findOne(organizationId, id);
+      ? this.usersService.findOne(organizationId, id, actorUserId, actorRoles)
+      : this.usersService.findOne(organizationId, id, undefined, actorRoles);
   }
 
   @Post()
@@ -128,8 +152,22 @@ export class UsersController {
     return this.usersService.createCeo(dto, actorUserId, actorRoles);
   }
 
+  @Patch('ceos/:id')
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({ summary: 'SUPER_ADMIN cập nhật thông tin CEO_ADMIN' })
+  updateCeo(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateCeoUserDto,
+    @CurrentUser('id') actorUserId: string,
+    @CurrentUser('roles') actorRoles: string[] = [],
+  ) {
+    this.assertSuperAdmin(actorRoles);
+    return this.usersService.updateCeo(id, dto, actorUserId, actorRoles);
+  }
+
   @Patch(':id')
   @RequirePermissions('user.manage')
+  @Roles('CEO_ADMIN')
   @ApiOperation({
     summary: 'Cập nhật thông tin người dùng (API-USERS-004)',
   })
@@ -154,19 +192,19 @@ export class UsersController {
     @CurrentUser('id') actorUserId?: string,
     @CurrentUser('roles') actorRoles?: string[],
   ) {
-    return actorUserId
-      ? this.usersService.update(
-          organizationId,
-          id,
-          updateUserDto,
-          actorUserId,
-          actorRoles,
-        )
-      : this.usersService.update(organizationId, id, updateUserDto);
+    this.assertCeoAdmin(actorRoles);
+    return this.usersService.update(
+      organizationId,
+      id,
+      updateUserDto,
+      actorUserId,
+      actorRoles,
+    );
   }
 
   @Post(':id/lock')
   @RequirePermissions('user.manage')
+  @Roles('CEO_ADMIN')
   @ApiOperation({
     summary:
       'Khóa tài khoản người dùng và thu hồi mọi phiên đăng nhập (API-USERS-005)',
@@ -181,14 +219,17 @@ export class UsersController {
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('id') actorUserId?: string,
+    @CurrentUser('roles') actorRoles: string[] = [],
   ) {
+    this.assertCeoAdmin(actorRoles);
     return actorUserId
-      ? this.usersService.lockUser(organizationId, id, actorUserId)
-      : this.usersService.lockUser(organizationId, id);
+      ? this.usersService.lockUser(organizationId, id, actorUserId, actorRoles)
+      : this.usersService.lockUser(organizationId, id, undefined, actorRoles);
   }
 
   @Post(':id/unlock')
   @RequirePermissions('user.manage')
+  @Roles('CEO_ADMIN')
   @ApiOperation({
     summary: 'Mở khóa tài khoản người dùng (API-USERS-006)',
   })
@@ -202,14 +243,34 @@ export class UsersController {
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('id') actorUserId?: string,
+    @CurrentUser('roles') actorRoles: string[] = [],
   ) {
+    this.assertCeoAdmin(actorRoles);
     return actorUserId
-      ? this.usersService.unlockUser(organizationId, id, actorUserId)
-      : this.usersService.unlockUser(organizationId, id);
+      ? this.usersService.unlockUser(
+          organizationId,
+          id,
+          actorUserId,
+          actorRoles,
+        )
+      : this.usersService.unlockUser(organizationId, id, undefined, actorRoles);
+  }
+
+  @Delete('ceos/:id')
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({ summary: 'SUPER_ADMIN xóa mềm CEO_ADMIN' })
+  removeCeo(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') actorUserId: string,
+    @CurrentUser('roles') actorRoles: string[] = [],
+  ) {
+    this.assertSuperAdmin(actorRoles);
+    return this.usersService.removeCeo(id, actorUserId, actorRoles);
   }
 
   @Delete(':id')
   @RequirePermissions('user.manage')
+  @Roles('CEO_ADMIN')
   @ApiOperation({ summary: 'Xóa người dùng (API-USERS-007)' })
   @ApiParam({ name: 'id', description: 'User UUID' })
   @ApiResponse({ status: 200, description: 'Xóa người dùng thành công' })
@@ -218,15 +279,18 @@ export class UsersController {
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('id') actorUserId?: string,
+    @CurrentUser('roles') actorRoles: string[] = [],
   ) {
+    this.assertCeoAdmin(actorRoles);
     return actorUserId
-      ? this.usersService.remove(organizationId, id, actorUserId)
-      : this.usersService.remove(organizationId, id);
+      ? this.usersService.remove(organizationId, id, actorUserId, actorRoles)
+      : this.usersService.remove(organizationId, id, undefined, actorRoles);
   }
 
   @Put(':id/roles')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('role.manage')
+  @Roles('CEO_ADMIN')
   @ApiOperation({ summary: 'Gán vai trò cho nhân viên (API-RBAC-006)' })
   @ApiParam({ name: 'id', description: 'User UUID' })
   @ApiResponse({ status: 200, description: 'Gán vai trò thành công' })
@@ -242,6 +306,7 @@ export class UsersController {
     @CurrentUser('id') actorUserId?: string,
     @CurrentUser('roles') actorRoles?: string[],
   ) {
+    this.assertCeoAdmin(actorRoles);
     return actorUserId
       ? this.usersService.assignRoles(
           id,
@@ -257,5 +322,21 @@ export class UsersController {
           undefined,
           actorRoles,
         );
+  }
+
+  private assertCeoAdmin(roles: string[] = []) {
+    if (!roles.includes('CEO_ADMIN') || roles.includes('SUPER_ADMIN')) {
+      throw new ForbiddenException(
+        'API này chỉ dành cho CEO_ADMIN quản lý nhân viên trong doanh nghiệp',
+      );
+    }
+  }
+
+  private assertSuperAdmin(roles: string[] = []) {
+    if (!roles.includes('SUPER_ADMIN')) {
+      throw new ForbiddenException(
+        'Chỉ SUPER_ADMIN được quản lý tài khoản CEO_ADMIN',
+      );
+    }
   }
 }

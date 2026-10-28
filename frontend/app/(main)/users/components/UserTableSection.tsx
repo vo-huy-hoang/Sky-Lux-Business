@@ -11,6 +11,7 @@ import {
   Avatar,
   Tooltip,
   Popconfirm,
+  message,
 } from 'antd';
 import {
   PlusOutlined,
@@ -29,12 +30,16 @@ import { useRbacStore } from '../store';
 import { useShallow } from 'zustand/react/shallow';
 import { useUserMutations } from '@/hooks/use-users';
 import { themeTokens } from '@/lib/theme/tokens.config';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { usersService } from '@/services/users.service';
+import { queryKeys } from '@/lib/query-keys';
 
 export interface UserTableSectionProps {
   users: UserItem[];
   totalUsers: number;
   roles: RoleItem[];
   isLoading: boolean;
+  isSuperAdmin?: boolean;
 }
 
 export default function UserTableSection({
@@ -42,6 +47,7 @@ export default function UserTableSection({
   totalUsers,
   roles,
   isLoading,
+  isSuperAdmin = false,
 }: UserTableSectionProps) {
   const {
     userSearch,
@@ -78,16 +84,25 @@ export default function UserTableSection({
   );
 
   const { lockMutation, unlockMutation, deleteMutation } = useUserMutations();
+  const queryClient = useQueryClient();
+  const deleteCeoMutation = useMutation({
+    mutationFn: usersService.deleteCeo,
+    onSuccess: () => {
+      message.success('Đã xóa tài khoản CEO doanh nghiệp');
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+    },
+    onError: (error: any) => message.error(error.message || 'Không thể xóa tài khoản CEO'),
+  });
 
   const userColumns = [
     {
-      title: 'Nhân viên',
+      title: isSuperAdmin ? 'CEO doanh nghiệp' : 'Nhân viên',
       key: 'user',
       render: (_: any, record: UserItem) => (
         <Space
           size={12}
           className="cursor-pointer group"
-          onClick={() => openUserDetail(record)}
+          onClick={() => !isSuperAdmin && openUserDetail(record)}
         >
           <Avatar
             style={{ backgroundColor: themeTokens.brand.primary[900] }}
@@ -128,13 +143,20 @@ export default function UserTableSection({
         </span>
       ),
     },
+    ...(isSuperAdmin ? [{
+      title: 'Doanh nghiệp',
+      key: 'organization',
+      render: (_: any, record: UserItem) => (
+        <span className="text-slate-700 font-medium">{record.organization?.name || '—'}</span>
+      ),
+    }] : []),
     {
       title: 'Vai trò (Roles)',
       key: 'roles',
       render: (_: any, record: UserItem) => (
         <Space size={4} wrap>
           {record.roles && record.roles.length > 0 ? (
-            record.roles.map((r) => (
+            record.roles.filter((r) => !isSuperAdmin || r.code === 'CEO_ADMIN').map((r) => (
               <Tag
                 key={r.id}
                 color={
@@ -182,7 +204,29 @@ export default function UserTableSection({
         </Tag>
       ),
     },
-    {
+    ...(isSuperAdmin ? [{
+      title: 'Hành động',
+      key: 'actions',
+      width: 110,
+      render: (_: any, record: UserItem) => (
+        <Space size={6}>
+          <Tooltip title="Sửa CEO">
+            <Button size="small" icon={<EditOutlined />} onClick={() => openEditUser(record)} />
+          </Tooltip>
+          <Popconfirm
+            title="Xóa tài khoản CEO này?"
+            description="Tài khoản sẽ bị xóa mềm và các phiên đăng nhập sẽ bị thu hồi."
+            onConfirm={() => deleteCeoMutation.mutate(record.id)}
+            okText="Xóa"
+            cancelText="Hủy"
+            okButtonProps={{ danger: true, loading: deleteCeoMutation.isPending }}
+          >
+            <Button size="small" danger icon={<DeleteOutlined />} loading={deleteCeoMutation.isPending} />
+          </Popconfirm>
+        </Space>
+      ),
+    }] : []),
+    ...(!isSuperAdmin ? [{
       title: 'Hành động',
       key: 'actions',
       render: (_: any, record: UserItem) => (
@@ -271,7 +315,7 @@ export default function UserTableSection({
           </Tooltip>
         </Space>
       ),
-    },
+    }] : []),
   ];
 
   return (
@@ -302,7 +346,7 @@ export default function UserTableSection({
             ]}
           />
 
-          <Select
+          {!isSuperAdmin && <Select
             placeholder="Lọc theo vai trò"
             value={userRoleFilter || undefined}
             onChange={(value) => setUserRoleFilter(value || undefined)}
@@ -312,15 +356,15 @@ export default function UserTableSection({
               label: `${r.name} (${r.code})`,
               value: r.id,
             }))}
-          />
+          />}
 
-          {(userSearch || userStatusFilter || userRoleFilter) && (
+          {(userSearch || userStatusFilter || (!isSuperAdmin && userRoleFilter)) && (
             <Button
               type="link"
               onClick={() => {
                 setUserSearch('');
                 setUserStatusFilter('');
-                setUserRoleFilter(undefined);
+                if (!isSuperAdmin) setUserRoleFilter(undefined);
               }}
               className="text-xs text-slate-500"
             >
@@ -335,7 +379,7 @@ export default function UserTableSection({
           onClick={openCreateUser}
           className="bg-[var(--color-primary-900)] hover:bg-[var(--color-primary-950)] border-none"
         >
-          Thêm người dùng
+          {isSuperAdmin ? 'Thêm CEO doanh nghiệp' : 'Thêm người dùng'}
         </Button>
       </div>
 
@@ -358,7 +402,7 @@ export default function UserTableSection({
           },
         }}
         className="border border-slate-100 rounded-lg overflow-hidden"
-        scroll={{ x: 800 }}
+        scroll={{ x: isSuperAdmin ? 1120 : 800 }}
       />
     </div>
   );

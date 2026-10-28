@@ -152,6 +152,7 @@ export const queryKeys = {
   // 13. ORGANIZATIONS
   organizations: {
     all: ['organizations'] as const,
+    list: () => [...queryKeys.organizations.all, 'list'] as const,
     profile: () => [...queryKeys.organizations.all, 'profile'] as const,
     settings: () => [...queryKeys.organizations.all, 'settings'] as const,
   },

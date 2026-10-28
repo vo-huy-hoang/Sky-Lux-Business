@@ -19,6 +19,7 @@ import { MainSidebar } from '@/components/layout/MainSidebar';
 import { MainHeader } from '@/components/layout/MainHeader';
 import { NotificationDrawer } from '@/components/layout/NotificationDrawer';
 import { RealtimeConnectionIndicator } from '@/components/common/RealtimeConnectionIndicator';
+import { SuperAdminWorkspace } from '@/components/super-admin/SuperAdminWorkspace';
 
 const { Content } = Layout;
 
@@ -112,56 +113,61 @@ export default function MainLayout({
   useEffect(() => {
     if (typeof document !== 'undefined') {
       const pageTitle = routeMeta.title || 'Bảng điều khiển';
-      const roleSuffix = isCeoAdmin ? 'SkyLux CEO' : isOperator ? 'SkyLux Điều Hành' : isSales ? 'SkyLux Sales' : 'SkyLux Travel';
+      const roleSuffix = isSuperAdmin ? 'SkyLux Super Admin' : isCeoAdmin ? 'SkyLux CEO' : isOperator ? 'SkyLux Điều Hành' : isSales ? 'SkyLux Sales' : 'SkyLux Travel';
       document.title = `${pageTitle} | ${roleSuffix}`;
     }
-  }, [routeMeta.title, isCeoAdmin, isOperator, isSales]);
+  }, [routeMeta.title, isCeoAdmin, isSuperAdmin, isOperator, isSales]);
+
+  const pageContent = !hasHydrated ? (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-6">
+      <Spin size="large" />
+      <span className="text-sm text-[var(--color-text-muted)]">
+        Đang khôi phục phiên đăng nhập...
+      </span>
+    </div>
+  ) : isAccessible ? (
+    children
+  ) : (
+    <div className="flex min-h-[60vh] items-center justify-center p-6">
+      <Result
+        status="403"
+        title="Không có quyền truy cập"
+        subTitle="Bạn không có quyền truy cập vào tính năng này với vai trò hiện tại."
+        extra={
+          <Button
+            type="primary"
+            onClick={() => router.push('/dashboard')}
+            className="skylux-primary-button"
+          >
+            Quay về Bảng điều khiển
+          </Button>
+        }
+      />
+    </div>
+  );
 
   return (
     <Layout
       hasSider
-      className={`min-h-[100dvh] bg-[var(--color-bg)] ${isCeoAdmin ? 'ceo-shell' : ''} ${isOperator ? 'operator-shell' : ''}`}
+      className={`min-h-[100dvh] bg-[var(--color-bg)] ${isCeoAdmin && !isSuperAdmin ? 'ceo-shell' : ''} ${isOperator ? 'operator-shell' : ''}`}
     >
-      <MainSidebar userCtx={userCtx} />
-
-      <Layout>
-        <MainHeader routeMeta={routeMeta} userCtx={userCtx} />
-
-        <Content className="skylux-content-shell overflow-y-auto bg-[var(--color-bg)]">
-          <div className="mx-auto max-w-[1540px]">
-            {!hasHydrated ? (
-              <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-6">
-                <Spin size="large" />
-                <span className="text-sm text-[var(--color-text-muted)]">
-                  Đang khôi phục phiên đăng nhập...
-                </span>
-              </div>
-            ) : isAccessible ? (
-              children
-            ) : (
-              <div className="flex min-h-[60vh] items-center justify-center p-6">
-                <Result
-                  status="403"
-                  title="Không có quyền truy cập"
-                  subTitle="Bạn không có quyền truy cập vào tính năng này với vai trò hiện tại."
-                  extra={
-                    <Button
-                      type="primary"
-                      onClick={() => router.push('/dashboard')}
-                      className="skylux-primary-button"
-                    >
-                      Quay về Bảng điều khiển
-                    </Button>
-                  }
-                />
-              </div>
-            )}
-          </div>
-        </Content>
-
-        <NotificationDrawer />
-        <RealtimeConnectionIndicator />
-      </Layout>
+      {isSuperAdmin ? (
+        <SuperAdminWorkspace routeMeta={routeMeta} userCtx={userCtx}>
+          {pageContent}
+        </SuperAdminWorkspace>
+      ) : (
+        <>
+          <MainSidebar userCtx={userCtx} />
+          <Layout>
+            <MainHeader routeMeta={routeMeta} userCtx={userCtx} />
+            <Content className="skylux-content-shell overflow-y-auto bg-[var(--color-bg)]">
+              <div className="mx-auto max-w-[1540px]">{pageContent}</div>
+            </Content>
+          </Layout>
+        </>
+      )}
+      <NotificationDrawer />
+      <RealtimeConnectionIndicator />
     </Layout>
   );
 }
