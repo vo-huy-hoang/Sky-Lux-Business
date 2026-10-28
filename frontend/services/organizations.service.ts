@@ -16,6 +16,12 @@ export const organizationsService = {
     return apiClient.post<any, OrganizationItem>('/organization', data);
   },
 
+  updateOrganization: (id: string, data: Partial<OrganizationItem>) =>
+    apiClient.patch<any, OrganizationItem>(`/organization/${id}`, data),
+
+  deleteOrganization: (id: string) =>
+    apiClient.delete<any, { deleted: boolean; id: string }>(`/organization/${id}`),
+
   /**
    * API-ORG-001: Lấy thông tin chi tiết tổ chức/doanh nghiệp
    */
@@ -60,4 +66,9 @@ export interface CreateOrganizationInput {
   slug: string;
   timezone?: string;
   currency?: string;
+  taxCode?: string;
+  contactEmail?: string;
+  phone?: string;
+  address?: string;
+  industry?: string;
 }

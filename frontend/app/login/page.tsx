@@ -32,13 +32,13 @@ function LoginLogo() {
 
   if (!failed) {
     return (
-      <div className="relative h-[130px] w-[130px]">
+      <div className="relative h-[64px] w-[180px]">
         <Image
-          src="/logo/logo.png"
+          src="/logo/logo.png?v=2"
           alt="SkyLux Travel"
-          width={130}
-          height={130}
-          className="h-full w-full object-contain drop-shadow-md"
+          width={180}
+          height={64}
+          className="h-full w-full object-contain"
           onError={() => setFailed(true)}
           unoptimized
           priority
@@ -307,7 +307,7 @@ export default function LoginPage() {
                 Chào mừng bạn đến với
               </span>
               <h1 className="text-3xl sm:text-4xl md:text-[42px] font-bold text-white tracking-tight leading-tight mb-2 font-sans">
-                SkyLux Travel
+                Optrip
               </h1>
               <p className="text-sm sm:text-base font-normal text-emerald-200/70 mb-0">
                 Phần mềm quản trị nội bộ dành cho Sales

@@ -31,6 +31,7 @@ import { useAuthStore } from '@/lib/stores/auth-store';
 import { themeTokens } from '@/lib/theme/tokens.config';
 import { queryKeys } from '@/lib/query-keys';
 import { WidgetErrorBoundary } from '@/components/common/widget-error-boundary';
+import { SuperAdminDashboard } from '@/components/super-admin/SuperAdminDashboard';
 import dynamic from 'next/dynamic';
 
 const CeoDashboard = dynamic(() => import('@/components/ceo/CeoDashboard'), {
@@ -127,9 +128,11 @@ function RoleDashboard() {
     );
   }
 
-  const isCeoAdmin = hasRole('CEO_ADMIN') || hasRole('SUPER_ADMIN');
+  const isSuperAdmin = hasRole('SUPER_ADMIN');
+  const isCeoAdmin = hasRole('CEO_ADMIN');
   const isOperator = hasRole('OPERATOR');
 
+  if (isSuperAdmin) return <SuperAdminDashboard />;
   if (isCeoAdmin) return <CeoDashboard />;
   if (isOperator) return <OperatorDashboard />;
   return <OperationalDashboard />;
