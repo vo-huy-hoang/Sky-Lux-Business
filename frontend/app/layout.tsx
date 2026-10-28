@@ -3,8 +3,12 @@ import { RootProvider } from '@/components/providers';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Sky-Lux CRM - Hệ Thống Quản Lý Tour & Dự Toán Báo Giá',
-  description: 'Nền tảng quản lý điều hành tour, dự toán chiết tính và CRM chuyên biệt cho Sky-Lux Travel Corporation',
+  title: 'OPTRIP - Nền Tảng Quản Trị & Điều Hành Tour Lữ Hành',
+  description: 'One Platform. Every Trip. Nền tảng quản lý điều hành tour, dự toán chiết tính và tự động hóa vận hành du lịch toàn diện.',
+  icons: {
+    icon: '/brand/optrip-mark.png',
+    apple: '/brand/optrip-mark.png',
+  },
   robots: {
     index: false,
     follow: false,

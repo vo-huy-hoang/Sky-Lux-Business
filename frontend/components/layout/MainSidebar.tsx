@@ -2,7 +2,7 @@
 
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import Image from 'next/image';
+import { BrandLogo } from '@/components/ui';
 import { Layout, Menu } from 'antd';
 import type { MenuProps } from 'antd';
 import { useUIStore } from '@/lib/stores/ui-store';
@@ -15,41 +15,6 @@ import { themeTokens } from '@/lib/theme/tokens.config';
 
 const { Sider } = Layout;
 
-const BrandLogo = React.memo(function BrandLogo({ collapsed }: { collapsed: boolean }) {
-  const [failed, setFailed] = useState(false);
-
-  if (collapsed) {
-    return (
-      <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full border border-[var(--color-gold)]/70 text-sm font-bold text-[var(--color-gold-strong)]">
-        SL
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex justify-center">
-      {!failed ? (
-        <Image
-          src="/logo/logo.png?v=2"
-          alt="SkyLux Travel"
-          width={180}
-          height={64}
-          className="h-auto max-h-[64px] w-[180px] object-contain"
-          onError={() => setFailed(true)}
-          priority
-          unoptimized
-        />
-      ) : (
-        <div className="flex h-[116px] w-[138px] items-center justify-center rounded-full border border-[var(--color-gold)]/70 text-center text-[var(--color-gold-strong)]">
-          <div>
-            <div className="text-xl font-bold leading-none">SKYLUX</div>
-            <div className="mt-1 text-[10px] font-semibold">TRAVEL</div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-});
 
 interface MainSidebarProps {
   userCtx: UserContext;
@@ -141,7 +106,11 @@ export function MainSidebar({ userCtx }: MainSidebarProps) {
         }}
       >
         <div className="px-4 pb-6 pt-5">
-          <BrandLogo collapsed={collapsed} />
+          {collapsed ? (
+            <BrandLogo variant="mark" size="sm" theme="dark" asLink={true} />
+          ) : (
+            <BrandLogo variant="full" size="md" theme="dark" asLink={true} />
+          )}
         </div>
 
         <Menu

@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+html {
+  scroll-behavior: smooth;
+}
+
 :root {
   --background: #f8f9f8;
   --foreground: #171a19;
@@ -19,6 +23,7 @@
   --color-danger: #d94a4a;
   --color-danger-soft: #fdecec;
   --color-info: #3487c8;
+  --color-brand-zalo: #0068ff;
   --color-info-soft: #eaf4fc;
   --color-purple: #8462c7;
   --color-purple-soft: #f2eefb;
@@ -27,6 +32,10 @@
   --color-surface-muted: #fafbfa;
   --color-border: #e5e8e6;
   --color-divider: #eef0ef;
+  --color-border-input: #cbd4d0;
+  --color-success: #0b7a5b;
+  --color-success-border: #c8ebd5;
+  --color-success-soft: #e8f6ed;
   --color-text: #171a19;
   --color-text-muted: #66706c;
   --color-text-soft: #98a09d;
@@ -913,4 +922,51 @@ body {
   border-color: transparent !important;
   box-shadow: none !important;
   outline: none !important;
+}
+
+
+/* Smooth transitions & animations for Client Landing Page */
+@keyframes clientFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes clientSlideUpCenter {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 24px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes clientPulseSlow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.6;
+  }
+}
+
+.animate-fade-in {
+  animation: clientFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-up-center {
+  animation: clientSlideUpCenter 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-pulse-slow {
+  animation: clientPulseSlow 7s ease-in-out infinite;
 }
