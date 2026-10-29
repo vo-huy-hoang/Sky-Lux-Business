@@ -160,26 +160,30 @@ export default function MainLayout({
     );
   }
 
-  return (
-    <Layout
-      hasSider
-      className={`min-h-[100dvh] bg-[var(--color-bg)] ${isCeoAdmin && !isSuperAdmin ? 'ceo-shell' : ''} ${isOperator ? 'operator-shell' : ''}`}
-    >
-      {isSuperAdmin ? (
+  if (isSuperAdmin) {
+    return (
+      <>
         <SuperAdminWorkspace routeMeta={routeMeta} userCtx={userCtx}>
           {pageContent}
         </SuperAdminWorkspace>
-      ) : (
-        <>
-          <MainSidebar userCtx={userCtx} />
-          <Layout>
-            <MainHeader routeMeta={routeMeta} userCtx={userCtx} />
-            <Content className="skylux-content-shell overflow-y-auto bg-[var(--color-bg)]">
-              <div className="mx-auto max-w-[1540px]">{pageContent}</div>
-            </Content>
-          </Layout>
-        </>
-      )}
+        <NotificationDrawer />
+        <RealtimeConnectionIndicator />
+      </>
+    );
+  }
+
+  return (
+    <Layout
+      hasSider
+      className={`min-h-[100dvh] bg-[var(--color-bg)] ${isCeoAdmin ? 'ceo-shell' : ''} ${isOperator ? 'operator-shell' : ''}`}
+    >
+      <MainSidebar userCtx={userCtx} />
+      <Layout>
+        <MainHeader routeMeta={routeMeta} userCtx={userCtx} />
+        <Content className="skylux-content-shell overflow-y-auto bg-[var(--color-bg)]">
+          <div className="mx-auto max-w-[1540px]">{pageContent}</div>
+        </Content>
+      </Layout>
       <NotificationDrawer />
       <RealtimeConnectionIndicator />
     </Layout>

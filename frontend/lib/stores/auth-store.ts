@@ -45,6 +45,9 @@ export const useAuthStore = create<AuthState>()(
           user,
           accessToken,
           isAuthenticated: true,
+          // A successful login is already an authoritative auth state. Do not
+          // keep the protected layout waiting for a persist rehydrate event.
+          hasHydrated: true,
         });
       },
 
