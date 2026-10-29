@@ -65,7 +65,7 @@ export function SuperAdminWorkspace({ children, routeMeta }: SuperAdminWorkspace
       logout();
       // Start a fresh document so Next's App Router cannot reuse a cached
       // login payload from an older deployed build after logout.
-      window.location.replace('/login');
+      window.location.replace('/');
     }
   };
 
