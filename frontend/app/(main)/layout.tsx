@@ -75,9 +75,9 @@ export default function MainLayout({
           const raw = localStorage.getItem('skylux-auth-storage');
           storedAccessToken = raw
             ? JSON.parse(raw)?.state?.accessToken
-            : undefined;
+            : null;
         } catch {
-          storedAccessToken = undefined;
+          storedAccessToken = null;
         }
       }
 
