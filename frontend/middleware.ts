@@ -5,15 +5,13 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get('access_token')?.value;
 
-  // 1. Root path & public client intro gateway
-  if (pathname === '/' || pathname === '/client') {
-    if (token) {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
-    if (pathname === '/client') {
-      return NextResponse.redirect(new URL('/', request.url));
-    }
+  // 1. The public client landing page is the default entry point, even when
+  // an internal user still has a valid session cookie.
+  if (pathname === '/') {
     return NextResponse.next();
+  }
+  if (pathname === '/client') {
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
   // 2. Legacy /auth/login redirect to canonical /login
@@ -30,11 +28,10 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(canonicalPath, request.url));
   }
 
-  // 4. Already authenticated users trying to access login
+  // 4. Keep login reachable even when a stale/expired token cookie exists.
+  // Redirecting based on cookie presence alone can bounce an expired session
+  // between /login and /dashboard indefinitely.
   if (pathname.startsWith('/login')) {
-    if (token) {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
     return NextResponse.next();
   }
 

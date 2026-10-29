@@ -33,6 +33,7 @@ export default function MainLayout({
   const user = useAuthStore((state) => state.user);
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const [hasMounted, setHasMounted] = useState(false);
+  const [authRestoreTimedOut, setAuthRestoreTimedOut] = useState(false);
 
   // Zustand restores the role from localStorage, which is unavailable during
   // server rendering. Keep the server and first client render role-neutral,
@@ -42,6 +43,25 @@ export default function MainLayout({
   }, []);
 
   const authReady = hasMounted && hasHydrated;
+
+  // Do not leave a protected route on the restore spinner forever if persisted
+  // browser state is unavailable or corrupted. Fail closed and let the user
+  // sign in again; the original destination is restored after login.
+  useEffect(() => {
+    if (!hasMounted || hasHydrated) return;
+
+    const timeout = window.setTimeout(() => setAuthRestoreTimedOut(true), 8000);
+    return () => window.clearTimeout(timeout);
+  }, [hasMounted, hasHydrated]);
+
+  useEffect(() => {
+    if (!hasMounted || hasHydrated || !authRestoreTimedOut) return;
+
+    useAuthStore.getState().logout();
+    const loginUrl = new URL('/login', window.location.origin);
+    if (pathname) loginUrl.searchParams.set('redirect', pathname);
+    window.location.replace(loginUrl.toString());
+  }, [authRestoreTimedOut, hasMounted, hasHydrated, pathname]);
 
   // Kích hoạt lắng nghe luồng SSE thông báo thời gian thực
   useNotificationsRealtime({ enabled: authReady });
