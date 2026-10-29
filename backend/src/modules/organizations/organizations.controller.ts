@@ -46,6 +46,11 @@ export class OrganizationsController {
   @RequirePermissions()
   @ApiOperation({ summary: 'Tạo tổ chức mới (người dùng đã đăng nhập)' })
   @ApiResponse({ status: 201, description: 'Tạo tổ chức thành công' })
+  @ApiResponse({
+    status: 409,
+    description:
+      'Mã doanh nghiệp, mã số thuế, email liên hệ hoặc số điện thoại đã tồn tại',
+  })
   create(@Body() dto: CreateOrganizationDto) {
     return this.organizationsService.create(dto);
   }

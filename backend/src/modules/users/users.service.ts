@@ -328,6 +328,7 @@ export class UsersService {
     } = createUserDto;
 
     const normalizedEmail = email.toLowerCase().trim();
+    const normalizedPhone = phone?.trim();
 
     // 1. Kiểm tra tính duy nhất của email
     const existingEmail = await this.userRepository.findOne({
@@ -339,7 +340,19 @@ export class UsersService {
       );
     }
 
-    // 2. Kiểm tra hoặc sinh mã nhân viên
+    // 2. Số điện thoại là định danh liên hệ dùng chung toàn hệ thống.
+    if (normalizedPhone) {
+      const existingPhone = await this.userRepository.findOne({
+        where: { phone: normalizedPhone },
+      });
+      if (existingPhone) {
+        throw new ConflictException(
+          `Số điện thoại "${normalizedPhone}" đã tồn tại trong hệ thống`,
+        );
+      }
+    }
+
+    // 3. Kiểm tra hoặc sinh mã nhân viên trong tổ chức
     let finalEmployeeCode = employeeCode?.trim();
     if (finalEmployeeCode) {
       const existingCode = await this.userRepository.findOne({
@@ -355,7 +368,7 @@ export class UsersService {
       finalEmployeeCode = `EMP${Date.now().toString().slice(-4)}${randomSuffix}`;
     }
 
-    // 3. Xác thực phòng ban nếu có
+    // 4. Xác thực phòng ban nếu có
     if (departmentId) {
       const department = await this.departmentRepository.findOne({
         where: { id: departmentId, organizationId },
@@ -367,7 +380,7 @@ export class UsersService {
       }
     }
 
-    // 4. Xác thực và gán vai trò nếu có
+    // 5. Xác thực và gán vai trò nếu có
     let roles: Role[] = [];
     if (roleIds && roleIds.length > 0) {
       roles = await this.roleRepository.find({
@@ -409,18 +422,18 @@ export class UsersService {
       }
     }
 
-    // 5. Băm mật khẩu (mặc định SkyLux@123 nếu không truyền)
+    // 6. Băm mật khẩu (mặc định SkyLux@123 nếu không truyền)
     const rawPassword = password || 'SkyLux@123';
     const passwordHash = await bcrypt.hash(rawPassword, 10);
 
-    // 6. Tạo và lưu người dùng
+    // 7. Tạo và lưu người dùng
     const user = this.userRepository.create({
       organizationId,
       departmentId,
       employeeCode: finalEmployeeCode,
       fullName: fullName.trim(),
       email: normalizedEmail,
-      phone: phone?.trim(),
+      phone: normalizedPhone || undefined,
       avatarUrl,
       status,
       passwordHash,

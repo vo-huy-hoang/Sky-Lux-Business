@@ -4,7 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, ILike, Repository } from 'typeorm';
 import { Organization } from './entities/organization.entity';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { SettingsService } from '../settings/settings.service';
@@ -32,6 +32,9 @@ export class OrganizationsService {
   async create(dto: CreateOrganizationDto): Promise<Organization> {
     const code = dto.code.trim().toUpperCase();
     const slug = dto.slug.trim().toLowerCase();
+    const taxCode = dto.taxCode?.trim();
+    const contactEmail = dto.contactEmail?.trim().toLowerCase();
+    const phone = dto.phone?.trim();
 
     return this.dataSource.transaction(async (manager) => {
       const orgRepo = manager.getRepository(Organization);
@@ -42,7 +45,50 @@ export class OrganizationsService {
         where: [{ code }, { slug }],
       });
       if (duplicate) {
-        throw new ConflictException('Mã hoặc slug tổ chức đã tồn tại');
+        if (duplicate.code?.toUpperCase() === code) {
+          throw new ConflictException(
+            `Mã doanh nghiệp "${code}" đã tồn tại trong hệ thống`,
+          );
+        }
+        if (duplicate.slug?.toLowerCase() === slug) {
+          throw new ConflictException(
+            `Tenant key "${slug}" đã tồn tại trong hệ thống`,
+          );
+        }
+        throw new ConflictException('Mã doanh nghiệp hoặc tenant key đã tồn tại');
+      }
+
+      if (taxCode) {
+        const duplicateTaxCode = await orgRepo.findOne({
+          where: { taxCode },
+        });
+        if (duplicateTaxCode) {
+          throw new ConflictException(
+            `Mã số thuế "${taxCode}" đã tồn tại trong hệ thống`,
+          );
+        }
+      }
+
+      if (contactEmail) {
+        const duplicateContactEmail = await orgRepo.findOne({
+          where: { contactEmail: ILike(contactEmail) },
+        });
+        if (duplicateContactEmail) {
+          throw new ConflictException(
+            `Email liên hệ "${contactEmail}" đã tồn tại trong hệ thống`,
+          );
+        }
+      }
+
+      if (phone) {
+        const duplicatePhone = await orgRepo.findOne({
+          where: { phone },
+        });
+        if (duplicatePhone) {
+          throw new ConflictException(
+            `Số điện thoại "${phone}" đã tồn tại trong hệ thống`,
+          );
+        }
       }
 
       const organization = await orgRepo.save(
@@ -50,6 +96,9 @@ export class OrganizationsService {
           ...dto,
           code,
           slug,
+          taxCode: taxCode || undefined,
+          contactEmail: contactEmail || undefined,
+          phone: phone || undefined,
           name: dto.name.trim(),
           timezone: dto.timezone ?? 'Asia/Ho_Chi_Minh',
           currency: dto.currency?.trim().toUpperCase() ?? 'VND',
