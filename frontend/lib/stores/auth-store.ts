@@ -13,6 +13,7 @@ interface AuthState {
   setLockoutSeconds: (seconds: number) => void;
   decrementLockoutSeconds: () => void;
   setAuth: (data: LoginResponse) => void;
+  restoreAuth: (user: UserProfile, accessToken: string) => void;
   setUser: (user: UserProfile) => void;
   logout: () => void;
   hasPermission: (permission: string) => boolean;
@@ -47,6 +48,16 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: true,
           // A successful login is already an authoritative auth state. Do not
           // keep the protected layout waiting for a persist rehydrate event.
+          hasHydrated: true,
+        });
+      },
+
+      restoreAuth: (user: UserProfile, accessToken: string) => {
+        Cookies.set('access_token', accessToken, { expires: 1, path: '/' });
+        set({
+          user,
+          accessToken,
+          isAuthenticated: true,
           hasHydrated: true,
         });
       },

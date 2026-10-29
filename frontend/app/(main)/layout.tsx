@@ -3,7 +3,9 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Layout, Button, Result, Spin } from 'antd';
+import Cookies from 'js-cookie';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { authService } from '@/services/auth.service';
 import { useNotificationStore } from '@/lib/stores/notification-store';
 import {
   useNotificationsRealtime,
@@ -31,9 +33,12 @@ export default function MainLayout({
   const pathname = usePathname();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
+  const accessToken = useAuthStore((state) => state.accessToken);
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const [hasMounted, setHasMounted] = useState(false);
   const [authRestoreTimedOut, setAuthRestoreTimedOut] = useState(false);
+  const [authRestoreError, setAuthRestoreError] = useState(false);
+  const [authRestoreRetryKey, setAuthRestoreRetryKey] = useState(0);
 
   // Zustand restores the role from localStorage, which is unavailable during
   // server rendering. Keep the server and first client render role-neutral,
@@ -50,18 +55,95 @@ export default function MainLayout({
   useEffect(() => {
     if (!hasMounted || hasHydrated) return;
 
-    const timeout = window.setTimeout(() => setAuthRestoreTimedOut(true), 8000);
+    const timeout = window.setTimeout(() => setAuthRestoreTimedOut(true), 1500);
     return () => window.clearTimeout(timeout);
-  }, [hasMounted, hasHydrated]);
+  }, [hasMounted, hasHydrated, authRestoreRetryKey]);
 
   useEffect(() => {
-    if (!hasMounted || hasHydrated || !authRestoreTimedOut) return;
+    if (!hasMounted || (hasHydrated && user && accessToken)) return;
+    if (!hasHydrated && !authRestoreTimedOut) return;
 
-    useAuthStore.getState().logout();
-    const loginUrl = new URL('/login', window.location.origin);
-    if (pathname) loginUrl.searchParams.set('redirect', pathname);
-    window.location.replace(loginUrl.toString());
-  }, [authRestoreTimedOut, hasMounted, hasHydrated, pathname]);
+    let active = true;
+
+    const restoreFromCookies = async () => {
+      // Middleware cannot read localStorage. Read the persisted access token
+      // here so the client can restore a valid session before showing login.
+      let storedAccessToken =
+        Cookies.get('access_token') || useAuthStore.getState().accessToken;
+      if (!storedAccessToken) {
+        try {
+          const raw = localStorage.getItem('skylux-auth-storage');
+          storedAccessToken = raw
+            ? JSON.parse(raw)?.state?.accessToken
+            : undefined;
+        } catch {
+          storedAccessToken = undefined;
+        }
+      }
+
+      if (!storedAccessToken && !Cookies.get('refresh_token')) {
+        redirectToLogin();
+        return;
+      }
+
+      if (storedAccessToken && !Cookies.get('access_token')) {
+        Cookies.set('access_token', storedAccessToken, { expires: 1, path: '/' });
+      }
+
+      try {
+        const profile = await authService.getMe();
+        if (!active) return;
+
+        const restoredAccessToken =
+          Cookies.get('access_token') || storedAccessToken;
+        if (!restoredAccessToken) {
+          redirectToLogin();
+          return;
+        }
+
+        useAuthStore.getState().restoreAuth(
+          {
+            id: profile.id,
+            organizationId: profile.organizationId,
+            organizationName: profile.organization?.name,
+            departmentId: profile.departmentId,
+            departmentName: profile.department?.name,
+            employeeCode: profile.employeeCode,
+            fullName: profile.fullName,
+            email: profile.email,
+            phone: profile.phone,
+            avatarUrl: profile.avatarUrl,
+            roles: profile.roles.map((role) => role.code),
+            permissions: profile.permissions,
+          },
+          restoredAccessToken,
+        );
+      } catch (error: any) {
+        if (!active) return;
+
+        if (error?.status === 401) {
+          redirectToLogin();
+          return;
+        }
+
+        // Keep the cookies intact on transient network/API errors so the user
+        // can retry without entering their credentials again.
+        setAuthRestoreError(true);
+      }
+    };
+
+    const redirectToLogin = () => {
+      useAuthStore.getState().logout();
+      const loginUrl = new URL('/login', window.location.origin);
+      if (pathname) loginUrl.searchParams.set('redirect', pathname);
+      window.location.replace(loginUrl.toString());
+    };
+
+    void restoreFromCookies();
+    return () => {
+      active = false;
+    };
+  }, [authRestoreTimedOut, hasMounted, hasHydrated, pathname, user, accessToken]);
 
   // Kích hoạt lắng nghe luồng SSE thông báo thời gian thực
   useNotificationsRealtime({ enabled: authReady });
@@ -166,6 +248,30 @@ export default function MainLayout({
   );
 
   if (!authReady) {
+    if (authRestoreError) {
+      return (
+        <div className="flex min-h-[100dvh] items-center justify-center bg-[var(--color-bg)] p-6">
+          <Result
+            status="error"
+            title="Chưa thể khôi phục phiên đăng nhập"
+            subTitle="Vui lòng kiểm tra kết nối mạng rồi thử lại. Phiên đăng nhập hiện tại vẫn được giữ lại."
+            extra={
+              <Button
+                type="primary"
+                onClick={() => {
+                  setAuthRestoreError(false);
+                  setAuthRestoreTimedOut(false);
+                  setAuthRestoreRetryKey((key) => key + 1);
+                }}
+              >
+                Thử lại
+              </Button>
+            }
+          />
+        </div>
+      );
+    }
+
     return (
       <div
         className="flex min-h-[100dvh] items-center justify-center bg-[var(--color-bg)]"
