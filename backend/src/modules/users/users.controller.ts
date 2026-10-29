@@ -108,7 +108,8 @@ export class UsersController {
   })
   @ApiResponse({
     status: 409,
-    description: 'Email hoặc mã nhân viên đã tồn tại',
+    description:
+      'Email hoặc số điện thoại đã tồn tại trong hệ thống, hoặc mã nhân viên đã tồn tại trong tổ chức',
   })
   create(
     @CurrentUser('organizationId') organizationId: string,
@@ -138,6 +139,11 @@ export class UsersController {
   @ApiResponse({
     status: 201,
     description: 'Tạo tài khoản CEO_ADMIN thành công',
+  })
+  @ApiResponse({
+    status: 409,
+    description:
+      'Email hoặc số điện thoại đã tồn tại trong hệ thống, hoặc mã nhân viên đã tồn tại trong tổ chức',
   })
   createCeo(
     @Body() dto: CreateCeoUserDto,

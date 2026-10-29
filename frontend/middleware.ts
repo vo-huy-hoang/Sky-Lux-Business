@@ -3,7 +3,6 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const token = request.cookies.get('access_token')?.value;
 
   // 1. The public client landing page is the default entry point, even when
   // an internal user still has a valid session cookie.
@@ -35,13 +34,10 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 5. Protected internal routes (any route that is not login or static public asset)
-  if (!token) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('redirect', pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
+  // 5. Protected internal routes are validated by the client auth boundary.
+  // The session is also persisted in localStorage, which middleware cannot
+  // read. Redirecting here when the access cookie is temporarily absent can
+  // discard a valid browser session before the app can restore it.
   return NextResponse.next();
 }
 

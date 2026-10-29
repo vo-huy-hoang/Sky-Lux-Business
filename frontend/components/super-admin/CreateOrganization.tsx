@@ -209,9 +209,9 @@ export function CreateOrganization() {
               {step === 1 ? 'Quay lại chỉnh sửa' : 'Hủy'}
             </Button>
             {step === 0 ? (
-              <Button type="primary" onClick={handleContinue} icon={<ArrowRightOutlined />} iconPosition="end" className={styles.primaryButton}>Tiếp tục</Button>
+              <Button type="primary" onClick={handleContinue} icon={<ArrowRightOutlined />} iconPlacement="end" className={styles.primaryButton}>Tiếp tục</Button>
             ) : (
-              <Button type="primary" onClick={handleCreate} loading={createMutation.isPending} icon={<CheckOutlined />} iconPosition="end" className={styles.primaryButton}>Tạo doanh nghiệp</Button>
+              <Button type="primary" onClick={handleCreate} loading={createMutation.isPending} icon={<CheckOutlined />} iconPlacement="end" className={styles.primaryButton}>Tạo doanh nghiệp</Button>
             )}
           </div>
         </>
