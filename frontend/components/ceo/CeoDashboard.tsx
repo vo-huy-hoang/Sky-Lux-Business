@@ -39,7 +39,7 @@ import { estimatesService } from '@/services/estimates.service';
 import { EstimateItem, EstimateStatus } from '@/types/estimate';
 import { DossierItem } from '@/types/dossier';
 import { CeoMonthlyTrendItem } from '@/types/dashboard';
-import { useCeoDashboard, useCeoMonthlyTrend, useOperatorSalesSummary } from '@/hooks/dashboards';
+import { useCeoDashboard, useCeoMonthlyTrend } from '@/hooks/dashboards';
 import { useNotificationsQuery } from '@/hooks/useNotificationsRealtime';
 import { useFilterStore } from '@/lib/stores/filter-store';
 import { queryKeys } from '@/lib/query-keys';
@@ -52,7 +52,7 @@ import dayjs from 'dayjs';
 import CeoExportActions from './widgets/CeoExportActions';
 import CeoMetricsGrid from './widgets/CeoMetricsGrid';
 import CeoRevenueTrendWidget from './widgets/CeoRevenueTrendWidget';
-import { CeoSalesRanking, CeoDossiersTable } from './widgets/CeoPerformanceTable';
+import { CeoDossiersTable } from './widgets/CeoPerformanceTable';
 
 const STATUS_META: Record<string, { label: string; className: string; color: string }> = {
   DRAFT: { label: 'Mới nhập', className: 'skylux-status-info', color: themeTokens.neutral.textSoft },
@@ -120,7 +120,6 @@ export default function CeoDashboard() {
   });
 
   const { data: monthlyTrend = [], isLoading: isLoadingTrend } = useCeoMonthlyTrend(selectedYear, undefined, allTime);
-  const { data: salesSummary = [], isLoading: isLoadingSales } = useOperatorSalesSummary();
   const { data: notificationsResponse, isLoading: isLoadingNotifications } = useNotificationsQuery({ page: 1, limit: 3 });
   const submittedApprovalsQuery = useQuery({
     queryKey: queryKeys.approvals.submitted({ status: EstimateStatus.SUBMITTED }),
@@ -187,16 +186,6 @@ export default function CeoDashboard() {
       .sort((a, b) => new Date(b.submittedAt || b.createdAt).getTime() - new Date(a.submittedAt || a.createdAt).getTime())
       .slice(0, 5),
     [reviewingApprovalsQuery.data?.data, submittedApprovalsQuery.data?.data],
-  );
-  const topSalesList = React.useMemo(
-    () => [...salesSummary]
-      .sort((a, b) => Number(b.totalRevenue) - Number(a.totalRevenue))
-      .map((sales, index, list) => ({
-        ...sales,
-        rank: index + 1,
-        progress: list[0]?.totalRevenue ? Math.round((Number(sales.totalRevenue) / Number(list[0].totalRevenue)) * 100) : 0,
-      })),
-    [salesSummary],
   );
   const isLoadingApprovals = submittedApprovalsQuery.isLoading || reviewingApprovalsQuery.isLoading;
   const maxMonthlyValue = Math.max(
@@ -315,7 +304,7 @@ export default function CeoDashboard() {
         </div>
 
         {/* CARD 3: Hồ sơ theo trạng thái */}
-        <div className="xl:col-span-3">
+        <div className="xl:col-span-4">
           <WidgetErrorBoundary title="Hồ sơ theo trạng thái">
             <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div>
@@ -336,8 +325,8 @@ export default function CeoDashboard() {
             </div>
           </WidgetErrorBoundary>
         </div>
-        {/* CARD 4: Phê duyệt cần xử lý hôm nay (col-span-5) */}
-        <div className="xl:col-span-5">
+        {/* CARD 4: Phê duyệt cần xử lý hôm nay */}
+        <div className="xl:col-span-4">
           <WidgetErrorBoundary title="Phê duyệt cần xử lý hôm nay">
             <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div>
@@ -398,16 +387,8 @@ export default function CeoDashboard() {
           </WidgetErrorBoundary>
         </div>
 
-        {/* Sales revenue ranking (col-span-4) */}
+        {/* CARD 5: Thông báo & nhanh chóng */}
         <div className="xl:col-span-4">
-          <CeoSalesRanking
-            topSalesList={topSalesList}
-            isLoadingSales={isLoadingSales}
-          />
-        </div>
-
-        {/* CARD 6: Thông báo & nhanh chóng (col-span-3) */}
-        <div className="xl:col-span-3">
           <WidgetErrorBoundary title="Thông báo & nhanh chóng">
             <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-5 flex flex-col justify-between h-full">
               <div>

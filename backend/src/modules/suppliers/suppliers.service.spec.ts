@@ -10,6 +10,7 @@ import { CurrentUserPayload } from '../../common/decorators/current-user.decorat
 import { QuerySupplierDto } from './dto/query-supplier.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
+import { DossierStatus } from '../../common/enums';
 
 describe('SuppliersService', () => {
   let service: SuppliersService;
@@ -61,8 +62,21 @@ describe('SuppliersService', () => {
     findOne: jest.fn(),
   };
 
+  const mockCostLineQB = {
+    select: jest.fn().mockReturnThis(),
+    addSelect: jest.fn().mockReturnThis(),
+    innerJoin: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    setParameters: jest.fn().mockReturnThis(),
+    groupBy: jest.fn().mockReturnThis(),
+    getRawMany: jest.fn().mockResolvedValue([]),
+    getRawOne: jest.fn().mockResolvedValue({ totalAmount: 0 }),
+  };
+
   const mockEstimateCostLineRepository = {
     count: jest.fn(),
+    createQueryBuilder: jest.fn().mockReturnValue(mockCostLineQB),
   };
 
   beforeEach(async () => {
@@ -150,6 +164,27 @@ describe('SuppliersService', () => {
       );
       expect(result.meta.page).toEqual(2);
       expect(result.meta.pageSize).toEqual(10);
+    });
+
+    it('should aggregate totalAmount from completed/locked dossiers for suppliers in current page', async () => {
+      mockCostLineQB.getRawMany.mockResolvedValueOnce([
+        { supplierId: 'sup-uuid', totalAmount: '15000000.00' },
+      ]);
+
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([[{ ...mockSupplier }], 1]);
+
+      const result = await service.findAll(
+        mockUserPayload,
+        new QuerySupplierDto(),
+      );
+
+      expect(mockEstimateCostLineRepository.createQueryBuilder).toHaveBeenCalledWith('line');
+      expect(mockCostLineQB.setParameters).toHaveBeenCalledWith(
+        expect.objectContaining({
+          countableStatuses: [DossierStatus.COMPLETED, DossierStatus.LOCKED],
+        }),
+      );
+      expect(result.data[0].totalAmount).toBe(15000000);
     });
   });
 

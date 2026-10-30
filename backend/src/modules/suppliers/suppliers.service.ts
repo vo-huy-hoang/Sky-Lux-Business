@@ -14,6 +14,11 @@ import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
+import { DossierStatus } from '../../common/enums';
+
+export interface SupplierWithTotalAmount extends Supplier {
+  totalAmount?: number;
+}
 
 @Injectable()
 export class SuppliersService {
@@ -122,6 +127,43 @@ export class SuppliersService {
     const [items, total] = await queryBuilder.getManyAndCount();
     const totalPages = Math.ceil(total / limit) || 1;
 
+    if (items.length > 0 && this.estimateCostLineRepository?.createQueryBuilder) {
+      const supplierIds = items.map((s) => s.id);
+      const rawAmounts = await this.estimateCostLineRepository
+        .createQueryBuilder('line')
+        .select('line.supplierId', 'supplierId')
+        .addSelect(
+          `COALESCE(SUM(CASE
+            WHEN dossier.status IN (:...countableStatuses)
+            THEN line.net_amount
+            ELSE 0
+          END), 0)`,
+          'totalAmount',
+        )
+        .innerJoin('line.estimate', 'estimate')
+        .innerJoin('estimate.dossier', 'dossier')
+        .where('line.supplierId IN (:...supplierIds)', { supplierIds })
+        .andWhere('line.organizationId = :organizationId', { organizationId })
+        .andWhere('dossier.organizationId = :organizationId', { organizationId })
+        .setParameters({
+          countableStatuses: [
+            DossierStatus.COMPLETED,
+            DossierStatus.LOCKED,
+          ],
+        })
+        .groupBy('line.supplierId')
+        .getRawMany();
+
+      const amountMap = new Map<string, number>();
+      rawAmounts.forEach((row) => {
+        amountMap.set(row.supplierId, Number(row.totalAmount || 0));
+      });
+
+      items.forEach((item: SupplierWithTotalAmount) => {
+        item.totalAmount = amountMap.get(item.id) || 0;
+      });
+    }
+
     return {
       data: items,
       meta: {
@@ -143,6 +185,35 @@ export class SuppliersService {
     if (!supplier) {
       throw new NotFoundException(
         `Không tìm thấy nhà cung cấp với ID "${id}" trong tổ chức`,
+      );
+    }
+
+    if (this.estimateCostLineRepository?.createQueryBuilder) {
+      const raw = await this.estimateCostLineRepository
+        .createQueryBuilder('line')
+        .select(
+          `COALESCE(SUM(CASE
+            WHEN dossier.status IN (:...countableStatuses)
+            THEN line.net_amount
+            ELSE 0
+          END), 0)`,
+          'totalAmount',
+        )
+        .innerJoin('line.estimate', 'estimate')
+        .innerJoin('estimate.dossier', 'dossier')
+        .where('line.supplierId = :id', { id })
+        .andWhere('line.organizationId = :organizationId', { organizationId })
+        .andWhere('dossier.organizationId = :organizationId', { organizationId })
+        .setParameters({
+          countableStatuses: [
+            DossierStatus.COMPLETED,
+            DossierStatus.LOCKED,
+          ],
+        })
+        .getRawOne();
+
+      (supplier as SupplierWithTotalAmount).totalAmount = Number(
+        raw?.totalAmount || 0,
       );
     }
 

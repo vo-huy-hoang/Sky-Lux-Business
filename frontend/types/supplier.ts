@@ -24,6 +24,7 @@ export interface SupplierItem {
   address?: string;
   paymentTerms?: string;
   status: SupplierStatus;
+  totalAmount?: number;
   createdAt: string;
   updatedAt: string;
 }
