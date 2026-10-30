@@ -2,6 +2,7 @@
 
 import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import Image from 'next/image';
 import {
   Form,
@@ -19,6 +20,7 @@ import {
   EyeInvisibleOutlined,
   EyeTwoTone,
   ArrowRightOutlined,
+  ArrowLeftOutlined,
   ClockCircleOutlined,
   RightOutlined,
 } from '@ant-design/icons';
@@ -32,7 +34,7 @@ function LoginLogo() {
   return (
     <div className="relative inline-block select-none">
       <div className="absolute -inset-4 rounded-full bg-emerald-400/15 blur-xl pointer-events-none" />
-      <BrandLogo variant="full" size="xl" theme="dark" asLink={false} priority />
+      <BrandLogo variant="full" size="xl" theme="dark" asLink={true} href="/" priority />
     </div>
   );
 }
@@ -226,7 +228,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="relative flex min-h-[100dvh] items-center justify-center bg-[var(--color-bg)] px-4 py-8 sm:px-6 lg:px-8">
+    <div className="relative flex min-h-[100dvh] flex-col items-center justify-center bg-[var(--color-bg)] px-4 py-8 sm:px-6 lg:px-8">
       {/* Background Travel Vector Watermarks */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-[0.04]">
         <svg
@@ -248,7 +250,28 @@ export default function LoginPage() {
         </svg>
       </div>
 
-      {/* Main Login Card Wrapper */}
+      {/* Main Content Layout Container (Anchored directly with Login Card) */}
+      <div className="relative z-10 w-full max-w-[1240px] flex flex-col items-start my-auto">
+        {/* Top Header Bar: High-Visibility Back Button aligned directly with the card */}
+        <div className="w-full mb-3.5 sm:mb-4 flex items-center justify-between px-1">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2.5 h-11 px-4 sm:px-5 rounded-full bg-white text-slate-800 hover:text-[var(--color-primary-900)] text-xs sm:text-sm font-bold shadow-md hover:shadow-lg border border-slate-200/90 active:scale-98 transition-all duration-200 group cursor-pointer"
+            aria-label="Quay lại trang chủ OPTRIP"
+          >
+            <span className="w-7 h-7 rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary-800)] flex items-center justify-center transition-all duration-200 group-hover:bg-[var(--color-primary-800)] group-hover:text-white group-hover:-translate-x-0.5">
+              <ArrowLeftOutlined className="text-xs" />
+            </span>
+            <span>Quay lại trang chủ OPTRIP</span>
+          </Link>
+
+          <div className="hidden sm:flex items-center gap-2 text-xs font-semibold text-slate-500 bg-white/70 backdrop-blur-md px-3.5 py-2 rounded-full border border-slate-200/60 shadow-2xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Nền tảng Quản trị & Điều hành Tour</span>
+          </div>
+        </div>
+
+        {/* Main Login Card Wrapper */}
       <div className="relative z-10 w-full max-w-[1240px] rounded-[28px] md:rounded-[36px] bg-white shadow-2xl shadow-emerald-950/10 border border-slate-100 overflow-hidden grid grid-cols-1 lg:grid-cols-[48%_52%] min-h-[680px]">
         {/* Left Hero Banner */}
         <div className="relative flex flex-col justify-between overflow-hidden bg-[var(--color-primary-950)] p-8 sm:p-10 md:p-12 lg:p-14 text-white">
@@ -325,5 +348,6 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  </div>
   );
 }
