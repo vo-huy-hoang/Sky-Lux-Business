@@ -25,6 +25,7 @@ import { suppliersService } from '@/services/suppliers.service';
 import { SupplierItem, SupplierStatus } from '@/types/supplier';
 import { queryKeys } from '@/lib/query-keys';
 import dayjs from 'dayjs';
+import { formatCurrency } from '@/lib/financial-calculations';
 
 
 const { Title, Text, Paragraph } = Typography;
@@ -146,6 +147,11 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
               ) : (
                 <Text type="secondary">Chưa cập nhật</Text>
               )}
+            </Descriptions.Item>
+            <Descriptions.Item label="Tổng thành tiền đã cung ứng">
+              <Text strong className="text-emerald-700 font-semibold tabular-nums">
+                {formatCurrency(supplier.totalAmount || 0)}
+              </Text>
             </Descriptions.Item>
             <Descriptions.Item label="Loại nhà cung cấp">
               {supplier.supplierType ? (

@@ -315,7 +315,7 @@ export function parseCustomerBudgetWorkbook(
       progress && `Tiến độ: ${progress}`,
     ].filter(Boolean);
     costLines.push({
-      description: description || `${categoryName || 'Dịch vụ'} - dòng ${row}`,
+      description: description || '',
       supplierName: supplierName || undefined,
       categoryName: categoryName || undefined,
       serviceCategoryCode: serviceCategoryCode(categoryName, description),

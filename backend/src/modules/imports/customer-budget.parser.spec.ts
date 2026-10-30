@@ -192,4 +192,47 @@ describe('customer-budget.parser', () => {
     expect(row['Ngày bắt đầu']).toBe('2026-12-30');
     expect(row['Ngày kết thúc']).toBe('2027-01-02');
   });
+  it('parses cost lines with blank descriptions as empty strings instead of generating synthetic text', () => {
+    const sheet = xlsx.utils.aoa_to_sheet([]);
+    const values: Record<string, unknown> = {
+      A9: 'DỰ TRÙ',
+      D9: 'TOUR CÔNG TY ABC',
+      F11: '30/07-02/08/2026',
+      A18: 'STT',
+      A20: 'I',
+      B20: 'DỊCH VỤ ĐẦU VÀO CÓ VAT',
+      A21: '1.2b',
+      B21: 'ĂN UỐNG',
+      B22: 'Trưa ngày 30/07',
+      C22: 'NH MADAM LÂN',
+      D22: 30,
+      E22: 1,
+      F22: 200000,
+      G22: 6000000,
+      // Row 23 has empty description (B23 is blank)
+      D23: 2,
+      E23: 1,
+      F23: 200001,
+      G23: 400002,
+      // Row 24 has empty description (B24 is blank)
+      D24: 2,
+      E24: 1,
+      F24: 200002,
+      G24: 400004,
+    };
+    for (const [address, value] of Object.entries(values)) {
+      sheet[address] = {
+        v: value,
+        t: typeof value === 'number' ? 'n' : 's',
+      };
+    }
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, sheet, 'DỰ TOÁN');
+
+    const row = parseCustomerBudgetWorkbook(workbook);
+    expect(row.__costLines).toHaveLength(3);
+    expect(row.__costLines[0].description).toBe('Trưa ngày 30/07');
+    expect(row.__costLines[1].description).toBe('');
+    expect(row.__costLines[2].description).toBe('');
+  });
 });
