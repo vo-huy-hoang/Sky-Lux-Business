@@ -223,7 +223,6 @@ describe('DashboardsService', () => {
         orderBy: jest.fn().mockReturnThis(),
         limit: jest.fn().mockReturnThis(),
         getRawMany: jest.fn().mockResolvedValue([]),
-        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
         getRawOne: jest.fn().mockResolvedValue({ totalSpend: '0', totalSupplierCount: '0' }),
       };
       costLineRepository.createQueryBuilder.mockReturnValue(mockCostQB);
@@ -454,7 +453,6 @@ describe('DashboardsService', () => {
         orderBy: jest.fn().mockReturnThis(),
         limit: jest.fn().mockReturnThis(),
         getRawMany: jest.fn().mockResolvedValue([]),
-        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
         getRawOne: jest.fn().mockResolvedValue({ sum: '1500000000' }),
       };
       revenueLineRepository.createQueryBuilder.mockReturnValue(mockRevenueQB);
@@ -545,7 +543,6 @@ describe('DashboardsService', () => {
         orderBy: jest.fn().mockReturnThis(),
         limit: jest.fn().mockReturnThis(),
         getRawMany: jest.fn().mockResolvedValue([]),
-        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
         getRawOne: jest.fn().mockResolvedValue({ sum: '0' }),
       });
 
@@ -613,7 +610,6 @@ describe('DashboardsService', () => {
         orderBy: jest.fn().mockReturnThis(),
         limit: jest.fn().mockReturnThis(),
         getRawMany: jest.fn().mockResolvedValue([]),
-        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
         getRawOne: jest.fn().mockResolvedValue({ sum: '0' }),
       });
 
@@ -629,7 +625,6 @@ describe('DashboardsService', () => {
         orderBy: jest.fn().mockReturnThis(),
         limit: jest.fn().mockReturnThis(),
         getRawMany: jest.fn().mockResolvedValue([]),
-        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
         getRawOne: jest.fn().mockResolvedValue({ totalSpend: '0', totalSupplierCount: '0' }),
       });
 
