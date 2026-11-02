@@ -1,12 +1,13 @@
 'use client';
 
 import React from 'react';
-import { Button } from 'antd';
+import { Button, Tag } from 'antd';
 import {
   SaveOutlined,
   SendOutlined,
   CheckCircleOutlined,
   RollbackOutlined,
+  LockOutlined,
 } from '@ant-design/icons';
 
 interface EstimateBottomActionBarProps {
@@ -54,10 +55,18 @@ export const EstimateBottomActionBar: React.FC<
           onClick={onCancel}
           className="h-10 rounded-xl border-slate-200 text-slate-700 font-medium text-xs px-4"
         >
-          Hủy
+          {dossierStatus === 'LOCKED' ? 'Quay lại chi tiết' : 'Hủy'}
         </Button>
 
-        {canOperate ? (
+        {dossierStatus === 'LOCKED' ? (
+          <Tag
+            color="red"
+            icon={<LockOutlined />}
+            className="px-4 py-1.5 text-xs font-semibold rounded-lg m-0"
+          >
+            Hồ sơ đã khóa an toàn (Chỉ đọc)
+          </Tag>
+        ) : canOperate ? (
           <>
             <Button
               icon={<SaveOutlined />}

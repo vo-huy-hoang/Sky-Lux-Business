@@ -14,6 +14,11 @@ import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
+import { DossierStatus } from '../../common/enums';
+
+export interface SupplierWithTotalAmount extends Supplier {
+  totalAmount?: number;
+}
 
 @Injectable()
 export class SuppliersService {
@@ -42,7 +47,11 @@ export class SuppliersService {
         where: { name: ILike(trimmedName), organizationId },
       })) ??
       (await this.supplierTypeRepository.findOne({
-        where: { name: ILike(trimmedName), organizationId: IsNull(), isSystem: true },
+        where: {
+          name: ILike(trimmedName),
+          organizationId: IsNull(),
+          isSystem: true,
+        },
       }));
     if (existingType) return existingType;
 
@@ -82,7 +91,7 @@ export class SuppliersService {
   async findAll(
     user: CurrentUserPayload,
     queryDto: QuerySupplierDto,
-  ): Promise<PaginatedResponse<Supplier>> {
+  ): Promise<PaginatedResponse<SupplierWithTotalAmount>> {
     const page = Math.max(1, queryDto.page || 1);
     const limit = Math.min(
       100,
@@ -122,6 +131,45 @@ export class SuppliersService {
     const [items, total] = await queryBuilder.getManyAndCount();
     const totalPages = Math.ceil(total / limit) || 1;
 
+    if (
+      items.length > 0 &&
+      this.estimateCostLineRepository?.createQueryBuilder
+    ) {
+      const supplierIds = items.map((s) => s.id);
+      const rawAmounts = await this.estimateCostLineRepository
+        .createQueryBuilder('line')
+        .select('line.supplierId', 'supplierId')
+        .addSelect(
+          `COALESCE(SUM(CASE
+            WHEN dossier.status IN (:...countableStatuses)
+            THEN line.net_amount
+            ELSE 0
+          END), 0)`,
+          'totalAmount',
+        )
+        .innerJoin('line.estimate', 'estimate')
+        .innerJoin('estimate.dossier', 'dossier')
+        .where('line.supplierId IN (:...supplierIds)', { supplierIds })
+        .andWhere('line.organizationId = :organizationId', { organizationId })
+        .andWhere('dossier.organizationId = :organizationId', {
+          organizationId,
+        })
+        .setParameters({
+          countableStatuses: [DossierStatus.COMPLETED, DossierStatus.LOCKED],
+        })
+        .groupBy('line.supplierId')
+        .getRawMany();
+
+      const amountMap = new Map<string, number>();
+      rawAmounts.forEach((row) => {
+        amountMap.set(row.supplierId, Number(row.totalAmount || 0));
+      });
+
+      items.forEach((item: SupplierWithTotalAmount) => {
+        item.totalAmount = amountMap.get(item.id) || 0;
+      });
+    }
+
     return {
       data: items,
       meta: {
@@ -133,7 +181,10 @@ export class SuppliersService {
     };
   }
 
-  async findOne(user: CurrentUserPayload, id: string): Promise<Supplier> {
+  async findOne(
+    user: CurrentUserPayload,
+    id: string,
+  ): Promise<SupplierWithTotalAmount> {
     const organizationId = user.organizationId;
     const supplier = await this.supplierRepository.findOne({
       where: { id, organizationId },
@@ -143,6 +194,34 @@ export class SuppliersService {
     if (!supplier) {
       throw new NotFoundException(
         `Không tìm thấy nhà cung cấp với ID "${id}" trong tổ chức`,
+      );
+    }
+
+    if (this.estimateCostLineRepository?.createQueryBuilder) {
+      const raw = await this.estimateCostLineRepository
+        .createQueryBuilder('line')
+        .select(
+          `COALESCE(SUM(CASE
+            WHEN dossier.status IN (:...countableStatuses)
+            THEN line.net_amount
+            ELSE 0
+          END), 0)`,
+          'totalAmount',
+        )
+        .innerJoin('line.estimate', 'estimate')
+        .innerJoin('estimate.dossier', 'dossier')
+        .where('line.supplierId = :id', { id })
+        .andWhere('line.organizationId = :organizationId', { organizationId })
+        .andWhere('dossier.organizationId = :organizationId', {
+          organizationId,
+        })
+        .setParameters({
+          countableStatuses: [DossierStatus.COMPLETED, DossierStatus.LOCKED],
+        })
+        .getRawOne();
+
+      (supplier as SupplierWithTotalAmount).totalAmount = Number(
+        raw?.totalAmount || 0,
       );
     }
 
@@ -169,8 +248,10 @@ export class SuppliersService {
 
     let resolvedSupplierTypeId = supplierTypeId;
     if (supplierTypeName?.trim()) {
-      const supplierType =
-        await this.findOrCreateSupplierType(supplierTypeName, organizationId);
+      const supplierType = await this.findOrCreateSupplierType(
+        supplierTypeName,
+        organizationId,
+      );
       resolvedSupplierTypeId = supplierType.id;
     }
 
@@ -236,8 +317,10 @@ export class SuppliersService {
     );
     if (hasSupplierTypeName) {
       if (supplierTypeName?.trim()) {
-        const supplierType =
-          await this.findOrCreateSupplierType(supplierTypeName, organizationId);
+        const supplierType = await this.findOrCreateSupplierType(
+          supplierTypeName,
+          organizationId,
+        );
         supplier.supplierTypeId = supplierType.id;
       } else {
         supplier.supplierTypeId = null;

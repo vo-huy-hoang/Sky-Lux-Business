@@ -9,7 +9,7 @@ import { Task } from '../tasks/entities/task.entity';
 import { Supplier } from '../suppliers/entities/supplier.entity';
 import { KpiResult } from '../kpis/entities/kpi-result.entity';
 import { User } from '../users/entities/user.entity';
-import { KpiPeriodType } from '../../common/enums';
+import { KpiPeriodType, DossierStatus } from '../../common/enums';
 
 describe('DashboardsService', () => {
   let service: DashboardsService;
@@ -244,6 +244,11 @@ describe('DashboardsService', () => {
       expect(result.priorityBreakdown).toEqual([
         { priority: 'HIGH', count: 2 },
       ]);
+      expect(mockCostQB.setParameters).toHaveBeenCalledWith(
+        expect.objectContaining({
+          countableStatuses: [DossierStatus.COMPLETED, DossierStatus.LOCKED],
+        }),
+      );
     });
   });
 

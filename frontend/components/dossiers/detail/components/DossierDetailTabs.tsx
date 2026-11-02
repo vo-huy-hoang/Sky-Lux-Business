@@ -2,7 +2,9 @@
 
 import React, { useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
-import { Card, Empty, Skeleton, Tabs, Tag, Typography } from "antd";
+import { Card, Empty, Skeleton, Tabs, Tag, Typography, Button } from "antd";
+import { EditOutlined } from "@ant-design/icons";
+import Link from "next/link";
 import dayjs from "dayjs";
 import { useDossierUIStore } from "../stores/useDossierUIStore";
 import { DossierCostTable } from "./DossierCostTable";
@@ -83,7 +85,7 @@ export function DossierDetailTabs({
 
   const classificationTags =
     businessLine || marketType ? (
-      <div className="flex items-center gap-2 pb-1 pr-1">
+      <div className="flex items-center gap-2">
         {businessLine && (
           <Tag color="gold" className="m-0 font-medium">
             Mảng: {businessLine}
@@ -96,6 +98,24 @@ export function DossierDetailTabs({
         )}
       </div>
     ) : null;
+
+  const tabBarExtraContent = (
+    <div className="flex items-center gap-2.5 pb-1 pr-1">
+      {classificationTags}
+      {dossierId && !isLocked && (
+        <Link href={`/dossiers/${dossierId}/edit-import`}>
+          <Button
+            size="small"
+            type="primary"
+            icon={<EditOutlined />}
+            className="skylux-primary-button text-xs font-semibold"
+          >
+            Sửa dự toán
+          </Button>
+        </Link>
+      )}
+    </div>
+  );
 
   // TICKET-55.1: Seam Consolidation - Nhận toàn bộ tính toán costSummaryRows từ hook tập trung useDossierFinancials
   const { costSummaryRows } = useDossierFinancials(estimate);
@@ -126,11 +146,25 @@ export function DossierDetailTabs({
               </div>
             </div>
 
-            <Text>
-              {dossier?.lockedAt
-                ? dayjs(dossier.lockedAt).format("DD/MM/YYYY")
-                : "Chưa khóa"}
-            </Text>
+            <div className="flex items-center gap-3">
+              <Text>
+                {dossier?.lockedAt
+                  ? dayjs(dossier.lockedAt).format("DD/MM/YYYY")
+                  : "Chưa khóa"}
+              </Text>
+              {dossierId && !isLocked && (
+                <Link href={`/dossiers/${dossierId}/edit-import`}>
+                  <Button
+                    size="small"
+                    type="primary"
+                    icon={<EditOutlined />}
+                    className="skylux-primary-button text-xs font-semibold"
+                  >
+                    Sửa dự toán
+                  </Button>
+                </Link>
+              )}
+            </div>
           </div>
         </Card>
         <DossierRevenueTable
@@ -142,7 +176,7 @@ export function DossierDetailTabs({
         <CostSummaryTable rows={costSummaryRows} currency={currency} />
       </div>
     );
-  }, [activeTab, estimateLoading, estimate, dossier, costSummaryRows, currency]);
+  }, [activeTab, estimateLoading, estimate, dossier, costSummaryRows, currency, dossierId, isLocked]);
 
   const revenueContent = useMemo(() => {
     if (activeTab !== "revenue") return null;
@@ -158,13 +192,32 @@ export function DossierDetailTabs({
       );
     }
     return (
-      <DossierRevenueTable
-        revenueLines={estimate?.revenueLines}
-        dossier={dossier}
-        currency={currency}
-      />
+      <div className="space-y-4">
+        {dossierId && !isLocked && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 border border-slate-200/80 px-4 py-2.5">
+            <span className="text-xs text-slate-600 font-medium">
+              Xem chi tiết doanh thu tour. Bạn có thể sửa trực tiếp số lượng, đơn giá, VAT:
+            </span>
+            <Link href={`/dossiers/${dossierId}/edit-import`}>
+              <Button
+                size="small"
+                type="primary"
+                icon={<EditOutlined />}
+                className="skylux-primary-button text-xs font-semibold"
+              >
+                Sửa dự toán
+              </Button>
+            </Link>
+          </div>
+        )}
+        <DossierRevenueTable
+          revenueLines={estimate?.revenueLines}
+          dossier={dossier}
+          currency={currency}
+        />
+      </div>
     );
-  }, [activeTab, estimateLoading, estimate, dossier, currency]);
+  }, [activeTab, estimateLoading, estimate, dossier, currency, dossierId, isLocked]);
 
   const costContent = useMemo(() => {
     if (activeTab !== "cost") return null;
@@ -180,12 +233,29 @@ export function DossierDetailTabs({
       );
     }
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
+        {dossierId && !isLocked && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 border border-slate-200/80 px-4 py-2.5">
+            <span className="text-xs text-slate-600 font-medium">
+              Xem chi tiết chi phí và nhà cung cấp. Bạn có thể sửa trực tiếp đơn giá, nhà cung cấp:
+            </span>
+            <Link href={`/dossiers/${dossierId}/edit-import`}>
+              <Button
+                size="small"
+                type="primary"
+                icon={<EditOutlined />}
+                className="skylux-primary-button text-xs font-semibold"
+              >
+                Sửa dự toán
+              </Button>
+            </Link>
+          </div>
+        )}
         <DossierCostTable costLines={estimate?.costLines} currency={currency} />
         <CostSummaryTable rows={costSummaryRows} currency={currency} />
       </div>
     );
-  }, [activeTab, estimateLoading, estimate, costSummaryRows, currency]);
+  }, [activeTab, estimateLoading, estimate, costSummaryRows, currency, dossierId, isLocked]);
 
   const isDocumentsVisited = Boolean(visitedTabs.documents || activeTab === "documents");
   const documentsContent = isDocumentsVisited ? (
@@ -282,7 +352,7 @@ export function DossierDetailTabs({
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}
-        tabBarExtraContent={classificationTags}
+        tabBarExtraContent={tabBarExtraContent}
         items={tabItems}
       />
     </Card>

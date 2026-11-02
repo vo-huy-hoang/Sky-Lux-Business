@@ -12,7 +12,7 @@ import { CurrentUserPayload } from '../../common/decorators/current-user.decorat
 import { QueryEstimateDto } from './dto/query-estimate.dto';
 import { CreateEstimateDto } from './dto/create-estimate.dto';
 import { UpdateEstimateDto } from './dto/update-estimate.dto';
-import { EstimateStatus } from '../../common/enums';
+import { EstimateStatus, DossierStatus } from '../../common/enums';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 describe('EstimatesService', () => {
@@ -330,6 +330,47 @@ describe('EstimatesService', () => {
       await expect(
         service.update(mockUserPayload, 'est-uuid', updateDto),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if dossier is LOCKED', async () => {
+      const lockedEstimate = {
+        ...mockEstimate,
+        status: EstimateStatus.APPROVED,
+        dossier: { id: 'dossier-uuid', status: DossierStatus.LOCKED },
+      };
+      estimateRepository.findOne.mockResolvedValue(lockedEstimate as any);
+
+      const updateDto: UpdateEstimateDto = { note: 'Try modify locked' };
+
+      await expect(
+        service.update(mockUserPayload, 'est-uuid', updateDto),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should allow modifying estimate when dossier status is COMPLETED', async () => {
+      const completedEstimate = {
+        ...mockEstimate,
+        status: EstimateStatus.APPROVED,
+        dossier: { id: 'dossier-uuid', status: DossierStatus.COMPLETED },
+        revenueLines: [],
+        costLines: [],
+      } as unknown as Estimate;
+
+      estimateRepository.findOne.mockResolvedValue(completedEstimate);
+      estimateRepository.save.mockImplementation((entity) =>
+        Promise.resolve(entity as any),
+      );
+
+      const updateDto: UpdateEstimateDto = { note: 'Updated note on completed dossier' };
+
+      const result = await service.update(
+        mockUserPayload,
+        'est-uuid',
+        updateDto,
+      );
+
+      expect(result.note).toEqual('Updated note on completed dossier');
+      expect(result.status).toEqual(EstimateStatus.APPROVED);
     });
 
     it('should validate status machine transitions and sync nested lines', async () => {

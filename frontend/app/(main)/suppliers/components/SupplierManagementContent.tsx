@@ -29,6 +29,7 @@ import { SupplierItem, SupplierStatus } from '@/types/supplier';
 import { SupplierFormModal } from './SupplierFormModal';
 import { SupplierDetailDrawer } from './SupplierDetailDrawer';
 import dayjs from 'dayjs';
+import { formatCurrency } from '@/lib/financial-calculations';
 import { queryKeys } from '@/lib/query-keys';
 import { useDebounce } from '@/hooks/use-debounce';
 
@@ -179,6 +180,18 @@ export function SupplierManagementContent() {
       width: 140,
       render: (taxCode?: string) =>
         taxCode ? <Text copyable>{taxCode}</Text> : <Text type="secondary">-</Text>,
+    },
+    {
+      title: 'Thành tiền',
+      dataIndex: 'totalAmount',
+      key: 'totalAmount',
+      width: 150,
+      align: 'right' as const,
+      render: (amount?: number) => (
+        <Text strong className="tabular-nums text-slate-800">
+          {formatCurrency(amount || 0)}
+        </Text>
+      ),
     },
     {
       title: 'Trạng thái',

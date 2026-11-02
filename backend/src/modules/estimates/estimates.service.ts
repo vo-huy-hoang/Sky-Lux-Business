@@ -311,21 +311,30 @@ export class EstimatesService {
       await this.validateSuppliersOwnership(costLines, organizationId);
     }
 
+    if (estimate.dossier?.status === DossierStatus.LOCKED) {
+      throw new BadRequestException(
+        'Hồ sơ đã bị khóa an toàn, không thể chỉnh sửa dự toán',
+      );
+    }
+
     const requestedStatus = status ?? estimate.status;
     const wasApproved = estimate.status === EstimateStatus.APPROVED;
     if (
       wasApproved &&
       estimate.dossier?.status !== DossierStatus.APPROVED &&
-      estimate.dossier?.status !== DossierStatus.EDITING
+      estimate.dossier?.status !== DossierStatus.EDITING &&
+      estimate.dossier?.status !== DossierStatus.COMPLETED
     ) {
       throw new BadRequestException(
-        'Chỉ có thể sửa dự toán khi hồ sơ đang ở trạng thái Đã duyệt',
+        'Chỉ có thể sửa dự toán khi hồ sơ đang ở trạng thái Đã duyệt hoặc Hoàn thành',
       );
     }
     const nextStatus = wasApproved
       ? requestedStatus === EstimateStatus.SUBMITTED
         ? EstimateStatus.SUBMITTED
-        : EstimateStatus.EDITING
+        : estimate.dossier?.status === DossierStatus.COMPLETED
+          ? estimate.status
+          : EstimateStatus.EDITING
       : requestedStatus;
 
     if (nextStatus !== estimate.status) {
@@ -450,22 +459,27 @@ export class EstimatesService {
     );
     const dossierStatus = estimate.dossier?.status;
     if (wasApproved || dossierStatus === DossierStatus.EDITING) {
-      const targetDossierStatus =
-        updatedEstimate.status === EstimateStatus.SUBMITTED
-          ? DossierStatus.RESUBMITTED
-          : DossierStatus.EDITING;
       if (
-        dossierStatus === DossierStatus.APPROVED &&
-        targetDossierStatus === DossierStatus.RESUBMITTED
+        dossierStatus !== DossierStatus.COMPLETED ||
+        updatedEstimate.status === EstimateStatus.SUBMITTED
       ) {
-        await this.dossiersService.update(user, estimate.dossierId, {
-          status: DossierStatus.EDITING,
-        });
-      }
-      if (dossierStatus !== targetDossierStatus) {
-        await this.dossiersService.update(user, estimate.dossierId, {
-          status: targetDossierStatus,
-        });
+        const targetDossierStatus =
+          updatedEstimate.status === EstimateStatus.SUBMITTED
+            ? DossierStatus.RESUBMITTED
+            : DossierStatus.EDITING;
+        if (
+          dossierStatus === DossierStatus.APPROVED &&
+          targetDossierStatus === DossierStatus.RESUBMITTED
+        ) {
+          await this.dossiersService.update(user, estimate.dossierId, {
+            status: DossierStatus.EDITING,
+          });
+        }
+        if (dossierStatus !== targetDossierStatus) {
+          await this.dossiersService.update(user, estimate.dossierId, {
+            status: targetDossierStatus,
+          });
+        }
       }
     }
     const afterData = this.auditSnapshot(updatedEstimate);

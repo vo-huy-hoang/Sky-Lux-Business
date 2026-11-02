@@ -232,8 +232,8 @@ export class DashboardsService {
           .addSelect('supplier.name', 'supplierName')
           .addSelect(
             `COALESCE(SUM(CASE
-            WHEN dossier.status = :lockedDossierStatus
-             AND dossier.locked_at BETWEEN :lockedStart AND :lockedEnd
+            WHEN dossier.status IN (:...countableStatuses)
+             AND COALESCE(dossier.locked_at, dossier.updated_at) BETWEEN :lockedStart AND :lockedEnd
             THEN line.net_amount
             ELSE 0
           END), 0)`,
@@ -241,8 +241,8 @@ export class DashboardsService {
           )
           .addSelect(
             `COALESCE(SUM(CASE
-            WHEN dossier.status = :lockedDossierStatus
-             AND dossier.locked_at BETWEEN :lockedStart AND :lockedEnd
+            WHEN dossier.status IN (:...countableStatuses)
+             AND COALESCE(dossier.locked_at, dossier.updated_at) BETWEEN :lockedStart AND :lockedEnd
             THEN line.gross_amount
             ELSE 0
           END), 0)`,
@@ -255,7 +255,7 @@ export class DashboardsService {
           .where('dossier.organizationId = :organizationId', { organizationId })
           .andWhere('line.organizationId = :organizationId', { organizationId })
           .setParameters({
-            lockedDossierStatus: DossierStatus.LOCKED,
+            countableStatuses: [DossierStatus.COMPLETED, DossierStatus.LOCKED],
             lockedStart: new Date(periodStart + 'T00:00:00Z'),
             lockedEnd: new Date(periodEnd + 'T23:59:59Z'),
           })
@@ -638,11 +638,11 @@ export class DashboardsService {
           .addSelect('supplier.code', 'supplierCode')
           .addSelect('supplier.name', 'supplierName')
           // Supplier names come from every dossier. Financial values are
-          // intentionally restricted to dossiers locked by CEO_ADMIN.
+          // counted as soon as CEO_ADMIN completes or locks the dossier.
           .addSelect(
             `COALESCE(SUM(CASE
-            WHEN dossier.status = :lockedDossierStatus
-             AND (:allTime = true OR dossier.locked_at BETWEEN :lockedStart AND :lockedEnd)
+            WHEN dossier.status IN (:...countableStatuses)
+             AND (:allTime = true OR COALESCE(dossier.locked_at, dossier.updated_at) BETWEEN :lockedStart AND :lockedEnd)
             THEN line.net_amount
             ELSE 0
           END), 0)`,
@@ -650,8 +650,8 @@ export class DashboardsService {
           )
           .addSelect(
             `COALESCE(SUM(CASE
-            WHEN dossier.status = :lockedDossierStatus
-             AND (:allTime = true OR dossier.locked_at BETWEEN :lockedStart AND :lockedEnd)
+            WHEN dossier.status IN (:...countableStatuses)
+             AND (:allTime = true OR COALESCE(dossier.locked_at, dossier.updated_at) BETWEEN :lockedStart AND :lockedEnd)
             THEN line.gross_amount
             ELSE 0
           END), 0)`,
@@ -665,7 +665,7 @@ export class DashboardsService {
           .andWhere('line.organizationId = :organizationId', { organizationId })
           .setParameters({
             allTime,
-            lockedDossierStatus: DossierStatus.LOCKED,
+            countableStatuses: [DossierStatus.COMPLETED, DossierStatus.LOCKED],
             lockedStart: new Date(periodStart + 'T00:00:00Z'),
             lockedEnd: new Date(periodEnd + 'T23:59:59Z'),
           })

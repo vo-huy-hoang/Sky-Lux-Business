@@ -2,6 +2,7 @@
 
 import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import Image from 'next/image';
 import {
   Form,
@@ -32,7 +33,7 @@ function LoginLogo() {
   return (
     <div className="relative inline-block select-none">
       <div className="absolute -inset-4 rounded-full bg-emerald-400/15 blur-xl pointer-events-none" />
-      <BrandLogo variant="full" size="xl" theme="dark" asLink={false} priority />
+      <BrandLogo variant="full" size="xl" theme="dark" asLink={true} href="/" priority />
     </div>
   );
 }
@@ -226,7 +227,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="relative flex min-h-[100dvh] items-center justify-center bg-[var(--color-bg)] px-4 py-8 sm:px-6 lg:px-8">
+    <div className="relative flex min-h-[100dvh] flex-col items-center justify-center bg-[var(--color-bg)] px-4 py-8 sm:px-6 lg:px-8">
       {/* Background Travel Vector Watermarks */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-[0.04]">
         <svg
@@ -248,8 +249,10 @@ export default function LoginPage() {
         </svg>
       </div>
 
-      {/* Main Login Card Wrapper */}
-      <div className="relative z-10 w-full max-w-[1240px] rounded-[28px] md:rounded-[36px] bg-white shadow-2xl shadow-emerald-950/10 border border-slate-100 overflow-hidden grid grid-cols-1 lg:grid-cols-[48%_52%] min-h-[680px]">
+      {/* Main Content Layout Container */}
+      <div className="relative z-10 w-full max-w-[1240px] flex flex-col items-center my-auto">
+        {/* Main Login Card Wrapper */}
+        <div className="relative z-10 w-full max-w-[1240px] rounded-[28px] md:rounded-[36px] bg-white shadow-2xl shadow-emerald-950/10 border border-slate-100 overflow-hidden grid grid-cols-1 lg:grid-cols-[48%_52%] min-h-[680px]">
         {/* Left Hero Banner */}
         <div className="relative flex flex-col justify-between overflow-hidden bg-[var(--color-primary-950)] p-8 sm:p-10 md:p-12 lg:p-14 text-white">
           {/* Subtle Ambient Background Watermarks inside the banner */}
@@ -325,5 +328,6 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  </div>
   );
 }
