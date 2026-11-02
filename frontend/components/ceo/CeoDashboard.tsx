@@ -186,11 +186,11 @@ export default function CeoDashboard() {
   );
   const topCustomers = (overview?.vipCustomers || []).slice(0, 5);
   const quickReports = [
-    { title: 'Báo cáo doanh thu chi tiết', icon: <FileTextOutlined />, iconBox: 'bg-[var(--color-primary-soft)] text-[var(--color-primary-600)] border-[var(--color-primary-soft-2)]', href: '/reports' },
-    { title: 'Báo cáo lợi nhuận theo mảng', icon: <DollarOutlined />, iconBox: 'bg-[var(--color-warning-soft)] text-[var(--color-warning)] border-[var(--color-warning-soft)]', href: '/reports' },
-    { title: 'Báo cáo công nợ phải thu', icon: <WalletOutlined />, iconBox: 'bg-[var(--color-info-soft)] text-[var(--color-info)] border-[var(--color-info-soft)]', href: '/reports' },
-    { title: 'Báo cáo theo thị trường', icon: <GlobalOutlined />, iconBox: 'bg-[var(--color-primary-soft)] text-[var(--color-primary-600)] border-[var(--color-primary-soft-2)]', href: '/reports' },
-    { title: 'Báo cáo hiệu suất Sales', icon: <BarChartOutlined />, iconBox: 'bg-[var(--color-primary-soft)] text-[var(--color-primary-700)] border-[var(--color-primary-soft-2)]', href: '/kpi' },
+    { title: 'Báo cáo doanh thu chi tiết', icon: <FileTextOutlined />, iconBox: 'bg-[var(--color-primary-soft)]/70 text-[var(--color-primary-800)]', href: '/reports' },
+    { title: 'Báo cáo lợi nhuận theo mảng', icon: <DollarOutlined />, iconBox: 'bg-[var(--color-warning-soft)]/80 text-[var(--color-warning-strong)]', href: '/reports' },
+    { title: 'Báo cáo công nợ phải thu', icon: <WalletOutlined />, iconBox: 'bg-[var(--color-info-soft)]/80 text-[var(--color-info)]', href: '/reports' },
+    { title: 'Báo cáo theo thị trường', icon: <GlobalOutlined />, iconBox: 'bg-[var(--color-primary-soft)]/70 text-[var(--color-primary-800)]', href: '/reports' },
+    { title: 'Báo cáo hiệu suất Sales', icon: <BarChartOutlined />, iconBox: 'bg-[var(--color-primary-soft)]/70 text-[var(--color-primary-800)]', href: '/kpi' },
   ];
   const notificationsList = notificationsResponse?.data || [];
   const pendingApprovals = React.useMemo(
@@ -488,7 +488,7 @@ export default function CeoDashboard() {
             <div className="flex items-start justify-between gap-3 border-b border-[var(--color-border)] p-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-soft-2)] bg-[var(--color-primary-soft)] text-[var(--color-primary-600)]"><ShopOutlined /></div>
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-primary-soft)]/80 text-[var(--color-primary-800)]"><ShopOutlined /></div>
                   <h2 className="text-[15px] font-bold text-slate-900">Doanh thu Nhà cung cấp</h2>
                 </div>
                 <p className="ml-9 mt-1.5 text-[11px] text-slate-500">Xếp hạng theo chi phí thuần trong kỳ</p>
