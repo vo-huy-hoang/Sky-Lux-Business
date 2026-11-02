@@ -23,6 +23,7 @@ describe('SuppliersController', () => {
     create: jest.fn(),
     update: jest.fn(),
     remove: jest.fn(),
+    getSupplierDossierHistory: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -123,6 +124,40 @@ describe('SuppliersController', () => {
       await controller.remove(mockUserPayload, 'sup-uuid');
 
       expect(service.remove).toHaveBeenCalledWith(mockUserPayload, 'sup-uuid');
+    });
+  });
+  describe('getSupplierDossiers', () => {
+    it('should call service.getSupplierDossierHistory and return tour history', async () => {
+      const queryDto = { page: 1, limit: 20 };
+      const mockResult = {
+        data: [
+          {
+            dossierId: 'dos-1',
+            dossierCode: 'DOS-001',
+            dossierTitle: 'Tour Đà Nẵng 3N2Đ',
+            departureDate: '2026-11-10',
+            status: 'COMPLETED',
+            operatorOrSalesName: 'Nguyễn Văn Minh',
+            lineCount: 3,
+            totalCost: 15000000,
+          },
+        ],
+        meta: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+      };
+      mockSuppliersService.getSupplierDossierHistory.mockResolvedValue(mockResult);
+
+      const result = await controller.getSupplierDossiers(
+        mockUserPayload,
+        'sup-uuid',
+        queryDto,
+      );
+
+      expect(service.getSupplierDossierHistory).toHaveBeenCalledWith(
+        mockUserPayload,
+        'sup-uuid',
+        queryDto,
+      );
+      expect(result).toEqual(mockResult);
     });
   });
 });

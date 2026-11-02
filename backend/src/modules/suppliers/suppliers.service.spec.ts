@@ -66,12 +66,18 @@ describe('SuppliersService', () => {
     select: jest.fn().mockReturnThis(),
     addSelect: jest.fn().mockReturnThis(),
     innerJoin: jest.fn().mockReturnThis(),
+    leftJoin: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     setParameters: jest.fn().mockReturnThis(),
     groupBy: jest.fn().mockReturnThis(),
+    addGroupBy: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
+    offset: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
     getRawMany: jest.fn().mockResolvedValue([]),
-    getRawOne: jest.fn().mockResolvedValue({ totalAmount: 0 }),
+    getRawOne: jest.fn().mockResolvedValue({ totalAmount: 0, count: '0' }),
   };
 
   const mockEstimateCostLineRepository = {
@@ -332,6 +338,89 @@ describe('SuppliersService', () => {
 
       expect(supplierRepository.findOne).toHaveBeenCalled();
       expect(supplierRepository.softRemove).toHaveBeenCalledWith(mockSupplier);
+    });
+  });
+  describe('getSupplierDossierHistory', () => {
+    it('should throw NotFoundException if supplier does not exist in organization', async () => {
+      supplierRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.getSupplierDossierHistory(mockUserPayload, 'non-existent-id', {}),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should query and return paginated dossier history with total cost and line count', async () => {
+      supplierRepository.findOne.mockResolvedValue(mockSupplier);
+
+      mockCostLineQB.getRawOne.mockResolvedValueOnce({ count: '2' });
+      mockCostLineQB.getRawMany.mockResolvedValueOnce([
+        {
+          dossierId: 'dos-1',
+          dossierCode: 'DOS-2026-001',
+          dossierTitle: 'Hà Nội - Hạ Long',
+          departureDate: '2026-11-05',
+          status: DossierStatus.COMPLETED,
+          operatorOrSalesName: 'Trần Điều Hành',
+          lineCount: '4',
+          totalCost: '25000000',
+        },
+        {
+          dossierId: 'dos-2',
+          dossierCode: 'DOS-2026-002',
+          dossierTitle: 'Đà Nẵng - Hội An',
+          departureDate: '2026-11-12',
+          status: DossierStatus.LOCKED,
+          operatorOrSalesName: 'Lê Sales',
+          lineCount: '2',
+          totalCost: '12000000',
+        },
+      ]);
+
+      const result = await service.getSupplierDossierHistory(
+        mockUserPayload,
+        'sup-uuid',
+        { page: 1, limit: 10, search: 'Hạ Long' },
+      );
+
+      expect(supplierRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 'sup-uuid', organizationId: 'org-uuid' },
+      });
+      expect(mockCostLineQB.andWhere).toHaveBeenCalledWith(
+        'estimate.organizationId = :organizationId',
+        { organizationId: 'org-uuid' },
+      );
+      expect(result.data).toHaveLength(2);
+      expect(result.data[0]).toEqual({
+        dossierId: 'dos-1',
+        dossierCode: 'DOS-2026-001',
+        dossierTitle: 'Hà Nội - Hạ Long',
+        departureDate: '2026-11-05',
+        status: DossierStatus.COMPLETED,
+        operatorOrSalesName: 'Trần Điều Hành',
+        lineCount: 4,
+        totalCost: 25000000,
+      });
+      expect(result.meta).toEqual({
+        page: 1,
+        pageSize: 10,
+        total: 2,
+        totalPages: 1,
+      });
+    });
+
+    it('should respect completedOnly = false to include active dossiers', async () => {
+      supplierRepository.findOne.mockResolvedValue(mockSupplier);
+      mockCostLineQB.getRawOne.mockResolvedValueOnce({ count: '0' });
+      mockCostLineQB.getRawMany.mockResolvedValueOnce([]);
+
+      const result = await service.getSupplierDossierHistory(
+        mockUserPayload,
+        'sup-uuid',
+        { completedOnly: false },
+      );
+
+      expect(result.data).toEqual([]);
+      expect(result.meta.total).toBe(0);
     });
   });
 });

@@ -2,6 +2,10 @@ import { Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { QueryDashboardDto } from './dto/query-dashboard.dto';
+export type {
+  SupplierSpendSummaryDto,
+  SupplierSpendItemDto,
+} from './dto/supplier-spend-summary.dto';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { Estimate } from '../estimates/entities/estimate.entity';
 import { EstimateRevenueLine } from '../estimates/entities/estimate-revenue-line.entity';
@@ -143,7 +147,7 @@ export class DashboardsService {
       queryDto.date,
     );
 
-    const cacheKey = `dashboard:operator:v4:${organizationId}:${periodType}:${queryDto.date || 'current'}`;
+    const cacheKey = `dashboard:operator:v5:${organizationId}:${periodType}:${queryDto.date || 'current'}`;
 
     const compute = async () => {
       // Parallel DB queries: operator metrics and approved revenue breakdowns
@@ -155,6 +159,7 @@ export class DashboardsService {
         totalSuppliers,
         revenueBreakdown,
         supplierBreakdown,
+        overallSupplierSpendRaw,
         businessLineBreakdown,
         totalDossiersCount,
         pendingApprovalsCount,
@@ -248,7 +253,14 @@ export class DashboardsService {
           END), 0)`,
             'grossAmount',
           )
-          .addSelect('COUNT(DISTINCT dossier.id)', 'dossierCount')
+          .addSelect(
+            `COALESCE(COUNT(DISTINCT CASE
+            WHEN dossier.status IN (:...countableStatuses)
+             AND COALESCE(dossier.locked_at, dossier.updated_at) BETWEEN :lockedStart AND :lockedEnd
+            THEN dossier.id
+          END), 0)`,
+            'dossierCount',
+          )
           .innerJoin('line.estimate', 'estimate')
           .innerJoin('estimate.dossier', 'dossier')
           .innerJoin('line.supplier', 'supplier')
@@ -265,6 +277,36 @@ export class DashboardsService {
           .orderBy('amount', 'DESC')
           .limit(6)
           .getRawMany(),
+        this.costLineRepository
+          .createQueryBuilder('line')
+          .select(
+            `COALESCE(SUM(CASE
+            WHEN dossier.status IN (:...countableStatuses)
+             AND COALESCE(dossier.locked_at, dossier.updated_at) BETWEEN :lockedStart AND :lockedEnd
+            THEN line.net_amount
+            ELSE 0
+          END), 0)`,
+            'totalSpend',
+          )
+          .addSelect(
+            `COALESCE(COUNT(DISTINCT CASE
+              WHEN dossier.status IN (:...countableStatuses)
+               AND COALESCE(dossier.locked_at, dossier.updated_at) BETWEEN :lockedStart AND :lockedEnd
+              THEN supplier.id
+            END), 0)`,
+            'totalSupplierCount',
+          )
+          .innerJoin('line.estimate', 'estimate')
+          .innerJoin('estimate.dossier', 'dossier')
+          .innerJoin('line.supplier', 'supplier')
+          .where('dossier.organizationId = :organizationId', { organizationId })
+          .andWhere('line.organizationId = :organizationId', { organizationId })
+          .setParameters({
+            countableStatuses: [DossierStatus.COMPLETED, DossierStatus.LOCKED],
+            lockedStart: new Date(periodStart + 'T00:00:00Z'),
+            lockedEnd: new Date(periodEnd + 'T23:59:59Z'),
+          })
+          .getRawOne(),
         this.revenueLineRepository
           .createQueryBuilder('line')
           .select(
@@ -338,14 +380,60 @@ export class DashboardsService {
           businessLineName: row.businessLineName,
           amount: Number(row.amount || 0),
         })),
-        supplierBreakdown: supplierBreakdown.map((row) => ({
-          supplierId: row.supplierId,
-          supplierCode: row.supplierCode,
-          supplierName: row.supplierName,
-          amount: Number(row.amount || 0),
-          grossAmount: Number(row.grossAmount || 0),
-          dossierCount: Number(row.dossierCount || 0),
-        })),
+        ...(() => {
+          const totalSupplierSpend = Number(overallSupplierSpendRaw?.totalSpend || 0);
+          const totalSupplierCount = Number(
+            overallSupplierSpendRaw?.totalSupplierCount || 0,
+          );
+          const topSuppliersSpend = supplierBreakdown.reduce(
+            (sum, s) => sum + Number(s.amount || 0),
+            0,
+          );
+          const otherSuppliersSpend = Math.max(
+            0,
+            Math.round((totalSupplierSpend - topSuppliersSpend) * 100) / 100,
+          );
+          const topSupplierIdsWithSpend = new Set(
+            supplierBreakdown
+              .filter((s) => Number(s.amount || 0) > 0)
+              .map((s) => s.supplierId),
+          );
+          const otherSuppliersCount = Math.max(
+            0,
+            totalSupplierCount - topSupplierIdsWithSpend.size,
+          );
+
+          const items = supplierBreakdown.map((row) => {
+            const amount = Number(row.amount || 0);
+            return {
+              supplierId: row.supplierId,
+              supplierCode: row.supplierCode,
+              supplierName: row.supplierName,
+              amount,
+              grossAmount: Number(row.grossAmount || 0),
+              dossierCount: Number(row.dossierCount || 0),
+              sharePercentage:
+                totalSupplierSpend > 0
+                  ? Math.round((amount / totalSupplierSpend) * 1000) / 10
+                  : 0,
+            };
+          });
+
+          return {
+            supplierBreakdown: items,
+            supplierSpendSummary: {
+              items,
+              totalSpend: totalSupplierSpend,
+              otherSuppliersSpend,
+              otherSuppliersCount,
+              totalSupplierCount,
+            },
+            totalSupplierSpend,
+            otherSuppliersSpend,
+            otherSuppliersCount,
+            totalSupplierCount,
+          };
+        })(),
       };
 
       return result;
@@ -539,7 +627,7 @@ export class DashboardsService {
       queryDto.date,
     );
 
-    const cacheKey = `dashboard:ceo:v7:${organizationId}:${allTime ? 'all-time' : `${periodType}:${queryDto.date || 'current'}`}`;
+    const cacheKey = `dashboard:ceo:v8:${organizationId}:${allTime ? 'all-time' : `${periodType}:${queryDto.date || 'current'}`}`;
 
     const compute = async () => {
       // Parallel DB queries: approved estimates + funnel breakdown + revenue/customer/cost breakdowns + velocity
@@ -550,6 +638,7 @@ export class DashboardsService {
         costBreakdown,
         businessLineBreakdown,
         supplierBreakdown,
+        overallSupplierSpendRaw,
         marketDossierBreakdown,
         marketRevenueBreakdown,
         marketCostBreakdown,
@@ -657,7 +746,14 @@ export class DashboardsService {
           END), 0)`,
             'grossAmount',
           )
-          .addSelect('COUNT(DISTINCT dossier.id)', 'dossierCount')
+          .addSelect(
+            `COALESCE(COUNT(DISTINCT CASE
+            WHEN dossier.status IN (:...countableStatuses)
+             AND (:allTime = true OR COALESCE(dossier.locked_at, dossier.updated_at) BETWEEN :lockedStart AND :lockedEnd)
+            THEN dossier.id
+          END), 0)`,
+            'dossierCount',
+          )
           .innerJoin('line.estimate', 'estimate')
           .innerJoin('estimate.dossier', 'dossier')
           .innerJoin('line.supplier', 'supplier')
@@ -675,6 +771,37 @@ export class DashboardsService {
           .orderBy('amount', 'DESC')
           .limit(6)
           .getRawMany(),
+        this.costLineRepository
+          .createQueryBuilder('line')
+          .select(
+            `COALESCE(SUM(CASE
+            WHEN dossier.status IN (:...countableStatuses)
+             AND (:allTime = true OR COALESCE(dossier.locked_at, dossier.updated_at) BETWEEN :lockedStart AND :lockedEnd)
+            THEN line.net_amount
+            ELSE 0
+          END), 0)`,
+            'totalSpend',
+          )
+          .addSelect(
+            `COALESCE(COUNT(DISTINCT CASE
+              WHEN dossier.status IN (:...countableStatuses)
+               AND (:allTime = true OR COALESCE(dossier.locked_at, dossier.updated_at) BETWEEN :lockedStart AND :lockedEnd)
+              THEN supplier.id
+            END), 0)`,
+            'totalSupplierCount',
+          )
+          .innerJoin('line.estimate', 'estimate')
+          .innerJoin('estimate.dossier', 'dossier')
+          .innerJoin('line.supplier', 'supplier')
+          .where('dossier.organizationId = :organizationId', { organizationId })
+          .andWhere('line.organizationId = :organizationId', { organizationId })
+          .setParameters({
+            allTime,
+            countableStatuses: [DossierStatus.COMPLETED, DossierStatus.LOCKED],
+            lockedStart: new Date(periodStart + 'T00:00:00Z'),
+            lockedEnd: new Date(periodEnd + 'T23:59:59Z'),
+          })
+          .getRawOne(),
         this.dossierRepository
           .createQueryBuilder('dossier')
           .select(
@@ -833,14 +960,60 @@ export class DashboardsService {
           businessLineName: row.businessLineName,
           amount: Number(row.amount || 0),
         })),
-        supplierBreakdown: supplierBreakdown.map((row) => ({
-          supplierId: row.supplierId,
-          supplierCode: row.supplierCode,
-          supplierName: row.supplierName,
-          amount: Number(row.amount || 0),
-          grossAmount: Number(row.grossAmount || 0),
-          dossierCount: Number(row.dossierCount || 0),
-        })),
+        ...(() => {
+          const totalSupplierSpend = Number(overallSupplierSpendRaw?.totalSpend || 0);
+          const totalSupplierCount = Number(
+            overallSupplierSpendRaw?.totalSupplierCount || 0,
+          );
+          const topSuppliersSpend = supplierBreakdown.reduce(
+            (sum, s) => sum + Number(s.amount || 0),
+            0,
+          );
+          const otherSuppliersSpend = Math.max(
+            0,
+            Math.round((totalSupplierSpend - topSuppliersSpend) * 100) / 100,
+          );
+          const topSupplierIdsWithSpend = new Set(
+            supplierBreakdown
+              .filter((s) => Number(s.amount || 0) > 0)
+              .map((s) => s.supplierId),
+          );
+          const otherSuppliersCount = Math.max(
+            0,
+            totalSupplierCount - topSupplierIdsWithSpend.size,
+          );
+
+          const items = supplierBreakdown.map((row) => {
+            const amount = Number(row.amount || 0);
+            return {
+              supplierId: row.supplierId,
+              supplierCode: row.supplierCode,
+              supplierName: row.supplierName,
+              amount,
+              grossAmount: Number(row.grossAmount || 0),
+              dossierCount: Number(row.dossierCount || 0),
+              sharePercentage:
+                totalSupplierSpend > 0
+                  ? Math.round((amount / totalSupplierSpend) * 1000) / 10
+                  : 0,
+            };
+          });
+
+          return {
+            supplierBreakdown: items,
+            supplierSpendSummary: {
+              items,
+              totalSpend: totalSupplierSpend,
+              otherSuppliersSpend,
+              otherSuppliersCount,
+              totalSupplierCount,
+            },
+            totalSupplierSpend,
+            otherSuppliersSpend,
+            otherSuppliersCount,
+            totalSupplierCount,
+          };
+        })(),
         marketBreakdown: Array.from(marketMap.entries())
           .map(([marketName, values]) => ({
             marketName,

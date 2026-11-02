@@ -5,13 +5,17 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, IsNull, Repository } from 'typeorm';
+import { ILike, IsNull, Repository, SelectQueryBuilder } from 'typeorm';
 import { Supplier } from './entities/supplier.entity';
 import { SupplierType } from './entities/supplier-type.entity';
 import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
 import { QuerySupplierDto } from './dto/query-supplier.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
+import {
+  QuerySupplierDossiersDto,
+  SupplierDossierHistoryItem,
+} from './dto/query-supplier-dossiers.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
 import { DossierStatus } from '../../common/enums';
@@ -372,5 +376,136 @@ export class SuppliersService {
     this.logger.log(
       `Supplier soft-deleted: ${supplier.id} (${supplier.code}) by user ${user.id}`,
     );
+  }
+
+  private applySupplierDossierFilters(
+    qb: SelectQueryBuilder<EstimateCostLine>,
+    supplierId: string,
+    organizationId: string,
+    queryDto: QuerySupplierDossiersDto,
+  ): SelectQueryBuilder<EstimateCostLine> {
+    qb.where('line.supplierId = :supplierId', { supplierId })
+      .andWhere('line.organizationId = :organizationId', { organizationId })
+      .andWhere('estimate.organizationId = :organizationId', { organizationId })
+      .andWhere('dossier.organizationId = :organizationId', { organizationId });
+
+    if (queryDto.status) {
+      qb.andWhere('dossier.status = :status', { status: queryDto.status });
+    } else if (queryDto.completedOnly !== false) {
+      qb.andWhere('dossier.status IN (:...countableStatuses)', {
+        countableStatuses: [DossierStatus.COMPLETED, DossierStatus.LOCKED],
+      });
+    } else {
+      qb.andWhere('dossier.status != :cancelledStatus', {
+        cancelledStatus: DossierStatus.CANCELLED,
+      });
+    }
+
+    if (queryDto.search && queryDto.search.trim()) {
+      const keyword = `%${queryDto.search.trim()}%`;
+      qb.andWhere(
+        '(dossier.code ILIKE :keyword OR dossier.name ILIKE :keyword)',
+        { keyword },
+      );
+    }
+
+    return qb;
+  }
+
+  async getSupplierDossierHistory(
+    user: CurrentUserPayload,
+    supplierId: string,
+    queryDto: QuerySupplierDossiersDto,
+  ): Promise<PaginatedResponse<SupplierDossierHistoryItem>> {
+    const organizationId = user.organizationId;
+    const page = Math.max(1, queryDto.page || 1);
+    const limit = Math.min(100, Math.max(1, queryDto.limit || 20));
+
+    // Verify supplier exists within tenant organization
+    const supplier = await this.supplierRepository.findOne({
+      where: { id: supplierId, organizationId },
+    });
+    if (!supplier) {
+      throw new NotFoundException(
+        `Nhà cung cấp với ID "${supplierId}" không tồn tại`,
+      );
+    }
+
+    // 1. Base query for distinct dossiers count
+    const countQb = this.applySupplierDossierFilters(
+      this.estimateCostLineRepository
+        .createQueryBuilder('line')
+        .innerJoin('line.estimate', 'estimate')
+        .innerJoin('estimate.dossier', 'dossier'),
+      supplierId,
+      organizationId,
+      queryDto,
+    );
+
+    const countRaw = await countQb
+      .select('COUNT(DISTINCT dossier.id)', 'count')
+      .getRawOne();
+    const total = Number(countRaw?.count || 0);
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    // 2. Query aggregated dossier history items
+    const dataQb = this.applySupplierDossierFilters(
+      this.estimateCostLineRepository
+        .createQueryBuilder('line')
+        .innerJoin('line.estimate', 'estimate')
+        .innerJoin('estimate.dossier', 'dossier')
+        .leftJoin('dossier.salesUser', 'salesUser')
+        .leftJoin('dossier.operatorUser', 'operatorUser'),
+      supplierId,
+      organizationId,
+      queryDto,
+    );
+
+    const rows = await dataQb
+      .select('dossier.id', 'dossierId')
+      .addSelect('dossier.code', 'dossierCode')
+      .addSelect('dossier.name', 'dossierTitle')
+      .addSelect('dossier.start_date', 'departureDate')
+      .addSelect('dossier.status', 'status')
+      .addSelect(
+        "COALESCE(NULLIF(operatorUser.full_name, ''), salesUser.full_name, '')",
+        'operatorOrSalesName',
+      )
+      .addSelect('COUNT(line.id)', 'lineCount')
+      .addSelect('COALESCE(SUM(line.net_amount), 0)', 'totalCost')
+      .groupBy('dossier.id')
+      .addGroupBy('dossier.code')
+      .addGroupBy('dossier.name')
+      .addGroupBy('dossier.start_date')
+      .addGroupBy('dossier.status')
+      .addGroupBy('operatorUser.full_name')
+      .addGroupBy('salesUser.full_name')
+      .addGroupBy('dossier.created_at')
+      .orderBy('dossier.start_date', 'DESC', 'NULLS LAST')
+      .addOrderBy('dossier.created_at', 'DESC')
+      .offset((page - 1) * limit)
+      .limit(limit)
+      .getRawMany();
+
+    const data: SupplierDossierHistoryItem[] = rows.map((r) => ({
+      dossierId: r.dossierId,
+      dossierCode: r.dossierCode,
+      dossierTitle: r.dossierTitle,
+      departureDate: r.departureDate || undefined,
+      status: r.status,
+      operatorOrSalesName: r.operatorOrSalesName || undefined,
+      lineCount: Number(r.lineCount || 0),
+      totalCost: Number(r.totalCost || 0),
+    }));
+
+    return {
+      data,
+      meta: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages,
+      },
+    };
   }
 }
