@@ -7,7 +7,8 @@ import {
   CheckSquareOutlined,
   UserOutlined,
   MessageOutlined,
-  CustomerServiceOutlined,
+  ShopOutlined,
+  UserSwitchOutlined,
   TeamOutlined,
   AuditOutlined,
   BarChartOutlined,
@@ -175,7 +176,7 @@ export const APP_ROUTES: AppRoute[] = [
   {
     key: '/suppliers',
     path: '/suppliers',
-    icon: React.createElement(CustomerServiceOutlined),
+    icon: React.createElement(ShopOutlined),
     label: 'Nhà cung cấp',
     title: 'Nhà cung cấp',
     subtitle: 'Quản lý danh sách đối tác cung ứng dịch vụ (khách sạn, xe, vé, land tour)',
@@ -218,7 +219,7 @@ export const APP_ROUTES: AppRoute[] = [
   {
     key: '/users',
     path: '/users',
-    icon: React.createElement(TeamOutlined),
+    icon: React.createElement(UserSwitchOutlined),
     label: 'Người dùng & phân quyền',
     title: 'Người dùng & phân quyền',
     subtitle: 'Quản trị tài khoản, phòng ban và vai trò truy cập',

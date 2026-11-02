@@ -22,7 +22,7 @@ function compact(value?: number | null) {
 }
 
 function Metric({ label, value, hint, icon, tone = 'green', loading }: { label: string; value: React.ReactNode; hint: string; icon: React.ReactNode; tone?: 'green' | 'gold' | 'purple' | 'blue'; loading?: boolean }) {
-  const color = tone === 'gold' ? 'bg-[var(--ceo-gold-soft)] text-[var(--ceo-gold-strong)]' : tone === 'purple' ? 'bg-[var(--ceo-purple-soft)] text-[var(--ceo-purple)]' : tone === 'blue' ? 'bg-blue-50 text-blue-600' : 'bg-[var(--ceo-primary-soft)] text-[var(--ceo-primary-600)]';
+  const color = tone === 'gold' ? 'bg-[var(--ceo-gold-soft)] text-[var(--ceo-gold-strong)]' : tone === 'purple' ? 'bg-[var(--ceo-purple-soft)] text-[var(--ceo-purple)]' : tone === 'blue' ? 'bg-[var(--color-info-soft)] text-[var(--color-info)]' : 'bg-[var(--ceo-primary-soft)] text-[var(--ceo-primary-700)]';
   return (
     <Card className="ceo-card ceo-metric-card h-full">
       <div className="flex items-center gap-4">
