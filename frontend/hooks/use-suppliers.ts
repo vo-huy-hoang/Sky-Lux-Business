@@ -6,6 +6,7 @@ import {
   QuerySupplierParams,
   CreateSupplierInput,
   UpdateSupplierInput,
+  QuerySupplierDossiersParams,
 } from '@/types/supplier';
 import { message } from 'antd';
 
@@ -35,6 +36,21 @@ export function useSuppliersList(params?: QuerySupplierParams) {
     suppliers,
     total,
   };
+}
+
+/**
+ * Deep Hook: Lấy danh sách lịch sử tour đã cung ứng của nhà cung cấp
+ */
+export function useSupplierDossiers(
+  supplierId?: string | null,
+  params?: QuerySupplierDossiersParams,
+) {
+  return useQuery({
+    queryKey: queryKeys.suppliers.dossiers(supplierId || '', params),
+    queryFn: ({ signal }) =>
+      suppliersService.getSupplierDossiers(supplierId!, params, { signal }),
+    enabled: Boolean(supplierId),
+  });
 }
 
 /**

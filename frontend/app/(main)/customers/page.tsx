@@ -26,7 +26,6 @@ import {
   EyeOutlined,
   FolderOpenOutlined,
   MoreOutlined,
-  PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
   StarFilled,
@@ -396,11 +395,9 @@ export default function CustomersPage() {
             ]}
           />
           <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
-            Đặt lại
+            Làm mới
           </Button>
-          <Button icon={<PlusOutlined />} className="skylux-primary-button">
-            Thêm khách hàng
-          </Button>
+          {/* Tạm thời ẩn nút thêm khách hàng theo yêu cầu người dùng cho đến khi form modal được hoàn thiện */}
         </div>
       </Card>
 

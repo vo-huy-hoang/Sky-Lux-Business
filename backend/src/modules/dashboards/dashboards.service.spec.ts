@@ -207,6 +207,7 @@ describe('DashboardsService', () => {
         groupBy: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
         getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
       };
       revenueLineRepository.createQueryBuilder.mockReturnValue(mockRevenueQB);
 
@@ -222,6 +223,8 @@ describe('DashboardsService', () => {
         orderBy: jest.fn().mockReturnThis(),
         limit: jest.fn().mockReturnThis(),
         getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
+        getRawOne: jest.fn().mockResolvedValue({ totalSpend: '0', totalSupplierCount: '0' }),
       };
       costLineRepository.createQueryBuilder.mockReturnValue(mockCostQB);
 
@@ -244,6 +247,10 @@ describe('DashboardsService', () => {
       expect(result.priorityBreakdown).toEqual([
         { priority: 'HIGH', count: 2 },
       ]);
+      expect(result.supplierSpendSummary).toBeDefined();
+      expect(result.totalSupplierSpend).toBe(0);
+      expect(result.otherSuppliersSpend).toBe(0);
+      expect(result.otherSuppliersCount).toBe(0);
       expect(mockCostQB.setParameters).toHaveBeenCalledWith(
         expect.objectContaining({
           countableStatuses: [DossierStatus.COMPLETED, DossierStatus.LOCKED],
@@ -332,6 +339,7 @@ describe('DashboardsService', () => {
         groupBy: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
         getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
       };
       dossierRepository.createQueryBuilder.mockReturnValue(mockDossierQB);
 
@@ -343,6 +351,7 @@ describe('DashboardsService', () => {
         andWhere: jest.fn().mockReturnThis(),
         groupBy: jest.fn().mockReturnThis(),
         getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
       };
       revenueLineRepository.createQueryBuilder.mockReturnValue(mockRevenueQB);
 
@@ -380,6 +389,7 @@ describe('DashboardsService', () => {
         andWhere: jest.fn().mockReturnThis(),
         groupBy: jest.fn().mockReturnThis(),
         getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
       };
       dossierRepository.createQueryBuilder.mockReturnValue(mockDossierQB);
 
@@ -390,6 +400,7 @@ describe('DashboardsService', () => {
         andWhere: jest.fn().mockReturnThis(),
         groupBy: jest.fn().mockReturnThis(),
         getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
       };
       taskRepository.createQueryBuilder.mockReturnValue(mockTaskQB);
 
@@ -402,4 +413,236 @@ describe('DashboardsService', () => {
       );
     });
   });
+  describe('getCeoDashboard supplier spend analytics and long-tail aggregation', () => {
+    it('should compute top 6 suppliers, otherSuppliersSpend, and totalSupplierSpend accurately', async () => {
+      const top6Suppliers = [
+        { supplierId: 's1', supplierCode: 'NCC-01', supplierName: 'KS Mường Thanh', amount: '200000000', grossAmount: '220000000', dossierCount: '5' },
+        { supplierId: 's2', supplierCode: 'NCC-02', supplierName: 'Xe Duy Hải', amount: '150000000', grossAmount: '165000000', dossierCount: '4' },
+        { supplierId: 's3', supplierCode: 'NCC-03', supplierName: 'NH Madam Lân', amount: '100000000', grossAmount: '110000000', dossierCount: '3' },
+        { supplierId: 's4', supplierCode: 'NCC-04', supplierName: 'Vé Bà Nà Hills', amount: '80000000', grossAmount: '88000000', dossierCount: '2' },
+        { supplierId: 's5', supplierCode: 'NCC-05', supplierName: 'KS Royal', amount: '50000000', grossAmount: '55000000', dossierCount: '2' },
+        { supplierId: 's6', supplierCode: 'NCC-06', supplierName: 'Cano Cù Lao Chàm', amount: '20000000', grossAmount: '22000000', dossierCount: '1' },
+      ];
+
+      const mockEstimateQB = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+      estimateRepository.createQueryBuilder.mockReturnValue(mockEstimateQB);
+
+      const mockDossierQB = {
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
+      };
+      dossierRepository.createQueryBuilder.mockReturnValue(mockDossierQB);
+
+      const mockRevenueQB = {
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
+        getRawOne: jest.fn().mockResolvedValue({ sum: '1500000000' }),
+      };
+      revenueLineRepository.createQueryBuilder.mockReturnValue(mockRevenueQB);
+
+      let costQBCallCount = 0;
+      const mockCostQB = {
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        setParameters: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        addGroupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockImplementation(() => {
+          costQBCallCount++;
+          // Call 1: category breakdown, Call 2: supplier top 6, Call 3: market cost
+          if (costQBCallCount === 2) {
+            return Promise.resolve(top6Suppliers);
+          }
+          return Promise.resolve([]);
+        }),
+        getRawOne: jest.fn().mockResolvedValue({
+          totalSpend: '1000000000', // 1 Billion total spend
+          totalSupplierCount: '20',  // 20 total active suppliers
+        }),
+      };
+      costLineRepository.createQueryBuilder.mockReturnValue(mockCostQB);
+
+      const result = await service.getCeoDashboard('org-id', {
+        periodType: KpiPeriodType.MONTHLY,
+      });
+
+      // Top 6 sum = 200 + 150 + 100 + 80 + 50 + 20 = 600M
+      // Other suppliers spend = 1,000M - 600M = 400M
+      // Other suppliers count = 20 - 6 = 14
+      expect(result.supplierSpendSummary).toBeDefined();
+      expect(result.supplierSpendSummary.totalSpend).toBe(1000000000);
+      expect(result.supplierSpendSummary.otherSuppliersSpend).toBe(400000000);
+      expect(result.supplierSpendSummary.otherSuppliersCount).toBe(14);
+      expect(result.supplierSpendSummary.totalSupplierCount).toBe(20);
+      expect(result.supplierSpendSummary.items).toHaveLength(6);
+
+      // Verify share percentage calculations relative to 1B
+      expect(result.supplierSpendSummary.items[0].sharePercentage).toBe(20); // 200M / 1B = 20.0%
+      expect(result.supplierSpendSummary.items[1].sharePercentage).toBe(15); // 150M / 1B = 15.0%
+      expect(result.supplierSpendSummary.items[2].sharePercentage).toBe(10); // 100M / 1B = 10.0%
+
+      // Verify mathematical consistency: top items sum + others = totalSpend
+      const topItemsSum = result.supplierSpendSummary.items.reduce((acc, it) => acc + it.amount, 0);
+      expect(topItemsSum + result.supplierSpendSummary.otherSuppliersSpend).toBe(result.supplierSpendSummary.totalSpend);
+    });
+
+    it('should correctly handle <= 6 suppliers with zero otherSuppliersSpend', async () => {
+      const top3Suppliers = [
+        { supplierId: 's1', supplierCode: 'NCC-01', supplierName: 'KS Mường Thanh', amount: '150000000', grossAmount: '165000000', dossierCount: '2' },
+        { supplierId: 's2', supplierCode: 'NCC-02', supplierName: 'Xe Duy Hải', amount: '100000000', grossAmount: '110000000', dossierCount: '2' },
+        { supplierId: 's3', supplierCode: 'NCC-03', supplierName: 'NH Madam Lân', amount: '50000000', grossAmount: '55000000', dossierCount: '1' },
+      ];
+
+      estimateRepository.createQueryBuilder.mockReturnValue({
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      });
+
+      dossierRepository.createQueryBuilder.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
+      });
+
+      revenueLineRepository.createQueryBuilder.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
+        getRawOne: jest.fn().mockResolvedValue({ sum: '0' }),
+      });
+
+      let costQBCount = 0;
+      costLineRepository.createQueryBuilder.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        setParameters: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        addGroupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockImplementation(() => {
+          costQBCount++;
+          if (costQBCount === 2) return Promise.resolve(top3Suppliers);
+          return Promise.resolve([]);
+        }),
+        getRawOne: jest.fn().mockResolvedValue({
+          totalSpend: '300000000',
+          totalSupplierCount: '3',
+        }),
+      });
+
+      const result = await service.getCeoDashboard('org-id', {
+        periodType: KpiPeriodType.MONTHLY,
+      });
+
+      expect(result.supplierSpendSummary.totalSpend).toBe(300000000);
+      expect(result.supplierSpendSummary.otherSuppliersSpend).toBe(0);
+      expect(result.supplierSpendSummary.otherSuppliersCount).toBe(0);
+      expect(result.supplierSpendSummary.totalSupplierCount).toBe(3);
+      expect(result.supplierSpendSummary.items).toHaveLength(3);
+      expect(result.supplierSpendSummary.items[0].sharePercentage).toBe(50); // 150M / 300M = 50.0%
+    });
+
+    it('should handle zero total spend cleanly without division by zero', async () => {
+      estimateRepository.createQueryBuilder.mockReturnValue({
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      });
+
+      dossierRepository.createQueryBuilder.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
+      });
+
+      revenueLineRepository.createQueryBuilder.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
+        getRawOne: jest.fn().mockResolvedValue({ sum: '0' }),
+      });
+
+      costLineRepository.createQueryBuilder.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        setParameters: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        addGroupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ avgDays: '5' }),
+        getRawOne: jest.fn().mockResolvedValue({ totalSpend: '0', totalSupplierCount: '0' }),
+      });
+
+      const result = await service.getCeoDashboard('org-id', {
+        periodType: KpiPeriodType.MONTHLY,
+      });
+
+      expect(result.supplierSpendSummary.totalSpend).toBe(0);
+      expect(result.supplierSpendSummary.otherSuppliersSpend).toBe(0);
+      expect(result.supplierSpendSummary.otherSuppliersCount).toBe(0);
+      expect(result.supplierSpendSummary.totalSupplierCount).toBe(0);
+      expect(result.supplierSpendSummary.items).toEqual([]);
+    });
+  });
+
 });

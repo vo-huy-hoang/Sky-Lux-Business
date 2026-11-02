@@ -22,6 +22,7 @@ import { SuppliersService } from './suppliers.service';
 import { QuerySupplierDto } from './dto/query-supplier.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
+import { QuerySupplierDossiersDto } from './dto/query-supplier-dossiers.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
@@ -45,6 +46,26 @@ export class SuppliersController {
     @Query() queryDto: QuerySupplierDto,
   ) {
     return this.suppliersService.findAll(user, queryDto);
+  }
+
+  @Get(':id/dossiers')
+  @RequirePermissions('supplier.view')
+  @ApiOperation({
+    summary:
+      'Lấy lịch sử các tour/hồ sơ đã phát sinh chi phí với nhà cung cấp (API-SUPPLIER-006)',
+  })
+  @ApiParam({ name: 'id', description: 'Supplier UUID' })
+  @ApiResponse({ status: 200, description: 'Lấy danh sách thành công' })
+  @ApiResponse({ status: 400, description: 'ID không đúng định dạng UUID' })
+  @ApiResponse({ status: 401, description: 'Chưa xác thực JWT' })
+  @ApiResponse({ status: 403, description: 'Không có quyền truy cập' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy nhà cung cấp' })
+  getSupplierDossiers(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() queryDto: QuerySupplierDossiersDto,
+  ) {
+    return this.suppliersService.getSupplierDossierHistory(user, id, queryDto);
   }
 
   @Get(':id')

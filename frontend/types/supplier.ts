@@ -63,3 +63,32 @@ export interface PaginatedSuppliersResponse {
     totalPages: number;
   };
 }
+
+export interface SupplierDossierHistoryItem {
+  dossierId: string;
+  dossierCode: string;
+  dossierTitle: string;
+  departureDate?: string;
+  status: string;
+  operatorOrSalesName?: string;
+  lineCount: number;
+  totalCost: number;
+}
+
+export interface QuerySupplierDossiersParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  completedOnly?: boolean;
+}
+
+export interface PaginatedSupplierDossiersResponse {
+  data: SupplierDossierHistoryItem[];
+  meta: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}

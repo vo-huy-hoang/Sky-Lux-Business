@@ -30,6 +30,7 @@ export const PERMISSION_CATALOG: readonly PermissionDefinition[] = [
   { code: 'document.view', name: 'Xem tài liệu hồ sơ', module: 'DOCUMENT' },
   { code: 'document.manage', name: 'Quản lý tài liệu hồ sơ', module: 'DOCUMENT' },
   { code: 'customer.manage', name: 'Quản lý khách hàng', module: 'CRM' },
+  { code: 'supplier.view', name: 'Xem nhà cung cấp & lịch sử cung ứng', module: 'CRM' },
   { code: 'supplier.manage', name: 'Quản lý nhà cung cấp', module: 'CRM' },
   { code: 'finance.view', name: 'Xem tài chính & công nợ', module: 'FINANCE' },
   { code: 'finance.manage', name: 'Quản lý thanh toán', module: 'FINANCE' },

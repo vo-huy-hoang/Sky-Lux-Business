@@ -1,3 +1,19 @@
+export interface SupplierSpendSummary {
+  items: {
+    supplierId: string;
+    supplierCode: string;
+    supplierName: string;
+    amount: number;
+    grossAmount: number;
+    dossierCount: number;
+    sharePercentage?: number;
+  }[];
+  totalSpend: number;
+  otherSuppliersSpend: number;
+  otherSuppliersCount: number;
+  totalSupplierCount: number;
+}
+
 export interface QueryDashboardParams {
   periodType?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
   date?: string;
@@ -26,7 +42,13 @@ export interface OperatorDashboardData {
     amount: number;
     grossAmount: number;
     dossierCount: number;
+    sharePercentage?: number;
   }[];
+  supplierSpendSummary?: SupplierSpendSummary;
+  totalSupplierSpend?: number;
+  otherSuppliersSpend?: number;
+  otherSuppliersCount?: number;
+  totalSupplierCount?: number;
   totalProfit: number;
   totalDossiersCount: number;
   pendingApprovalsCount: number;
@@ -47,7 +69,13 @@ export interface CeoDashboardData {
     amount: number;
     grossAmount: number;
     dossierCount: number;
+    sharePercentage?: number;
   }[];
+  supplierSpendSummary?: SupplierSpendSummary;
+  totalSupplierSpend?: number;
+  otherSuppliersSpend?: number;
+  otherSuppliersCount?: number;
+  totalSupplierCount?: number;
   marketBreakdown: {
     marketName: string;
     dossiers: number;
