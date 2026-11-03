@@ -32,11 +32,11 @@ export function MetricCard({
 }: MetricCardProps) {
   const toneClasses = {
     green:
-      'bg-[var(--color-primary-soft)] text-[var(--color-primary-600)] border-[var(--color-primary-soft-2)]',
-    gold: 'bg-[var(--color-gold-soft)] text-[var(--color-gold-strong)] border-[var(--color-gold-soft)]',
-    blue: 'bg-[var(--color-info-soft)] text-[var(--color-info)] border-[var(--color-info-soft)]',
+      'bg-[var(--color-primary-soft)]/70 text-[var(--color-primary-800)]',
+    gold: 'bg-[var(--color-gold-soft)]/80 text-[var(--color-gold-strong)]',
+    blue: 'bg-[var(--color-info-soft)]/80 text-[var(--color-info)]',
     purple:
-      'bg-[var(--color-purple-soft)] text-[var(--color-purple)] border-[var(--color-purple-soft)]',
+      'bg-[var(--color-purple-soft)]/80 text-[var(--color-purple)]',
   };
 
   const cardBody = (
@@ -49,7 +49,7 @@ export function MetricCard({
     >
       <div className="flex items-center gap-2.5">
         <div
-          className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${toneClasses[tone]} [&_.anticon]:text-sm transition-transform duration-200 ${
+          className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${toneClasses[tone]} [&_.anticon]:text-[13px] transition-transform duration-200 ${
             href ? 'group-hover:scale-105' : ''
           }`}
         >

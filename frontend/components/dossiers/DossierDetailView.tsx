@@ -22,24 +22,39 @@ import {
   useDossierUIStore,
 } from "./detail";
 
+const VALID_DOSSIER_TABS = new Set([
+  "overview",
+  "revenue",
+  "cost",
+  "documents",
+  "payments",
+  "change-requests",
+  "discussion",
+]);
+
 export interface DossierDetailViewProps {
   dossierId: string;
   isDrawer?: boolean;
+  initialTab?: string;
   onClose?: () => void;
 }
 
 export default function DossierDetailView({
   dossierId,
   isDrawer = false,
+  initialTab,
   onClose,
 }: DossierDetailViewProps) {
-  // TICKET-53.1: Reset UI store state when switching dossiers or unmounting
+  // TICKET-53.1 & Deep-linking: Reset UI store state when switching dossiers or unmounting, and apply initialTab if valid
   React.useEffect(() => {
     useDossierUIStore.getState().resetUIState();
+    if (initialTab && VALID_DOSSIER_TABS.has(initialTab)) {
+      useDossierUIStore.getState().setActiveTab(initialTab);
+    }
     return () => {
       useDossierUIStore.getState().resetUIState();
     };
-  }, [dossierId]);
+  }, [dossierId, initialTab]);
 
   const hasRole = useAuthStore((state) => state.hasRole);
   const isOperator = hasRole("OPERATOR");

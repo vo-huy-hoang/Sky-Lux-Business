@@ -5,6 +5,8 @@ import {
   UpdateSupplierInput,
   QuerySupplierParams,
   PaginatedSuppliersResponse,
+  QuerySupplierDossiersParams,
+  PaginatedSupplierDossiersResponse,
 } from '@/types/supplier';
 
 export const suppliersService = {
@@ -46,5 +48,22 @@ export const suppliersService = {
    */
   deleteSupplier: (id: string) => {
     return apiClient.delete<any, void>(`/suppliers/${id}`);
+  },
+
+  /**
+   * API-SUPPLIER-006: Lấy lịch sử các tour đã cung ứng của nhà cung cấp
+   */
+  getSupplierDossiers: (
+    id: string,
+    params?: QuerySupplierDossiersParams,
+    options?: RequestOptions,
+  ) => {
+    return apiClient.get<any, PaginatedSupplierDossiersResponse>(
+      `/suppliers/${id}/dossiers`,
+      {
+        params,
+        signal: options?.signal,
+      },
+    );
   },
 };

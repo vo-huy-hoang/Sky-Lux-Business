@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useEffect, Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Result, Button, Skeleton } from 'antd';
 import { useAuthStore } from '@/lib/stores/auth-store';
@@ -18,9 +18,11 @@ const DossierDetailView = dynamic(
   },
 );
 
-export default function DossierDetailPage() {
+function DossierDetailPageContent() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tab = searchParams?.get('tab') || undefined;
   const user = useAuthStore((state) => state.user);
   const hasRole = useAuthStore((state) => state.hasRole);
   const isOperator = hasRole('OPERATOR');
@@ -63,5 +65,25 @@ export default function DossierDetailPage() {
     );
   }
 
-  return <DossierDetailView dossierId={params.id} isDrawer={false} />;
+  return (
+    <DossierDetailView
+      dossierId={params.id}
+      initialTab={tab}
+      isDrawer={false}
+    />
+  );
+}
+
+export default function DossierDetailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-6">
+          <Skeleton active paragraph={{ rows: 12 }} />
+        </div>
+      }
+    >
+      <DossierDetailPageContent />
+    </Suspense>
+  );
 }

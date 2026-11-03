@@ -160,25 +160,37 @@ export default function CeoDashboard() {
     () => getRevenueDonutSlices(sortedChartBreakdown),
     [sortedChartBreakdown],
   );
+  const supplierSpendSummary = overview?.supplierSpendSummary;
   const supplierRows = React.useMemo(
-    () => [...(overview?.supplierBreakdown || [])]
-      .map((supplier) => ({ ...supplier, amount: Number(supplier.amount || 0) }))
+    () => [...(supplierSpendSummary?.items || overview?.supplierBreakdown || [])]
+      .map((supplier) => ({
+        ...supplier,
+        amount: Number(supplier.amount || 0),
+        sharePercentage: supplier.sharePercentage !== undefined ? Number(supplier.sharePercentage) : undefined,
+      }))
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 6),
-    [overview?.supplierBreakdown],
+    [overview?.supplierBreakdown, supplierSpendSummary?.items],
   );
-  const supplierTotal = React.useMemo(
+  const top6Spend = React.useMemo(
     () => supplierRows.reduce((total, supplier) => total + supplier.amount, 0),
     [supplierRows],
   );
-  const highestSupplierAmount = supplierRows[0]?.amount || 0;
+  const totalSupplierSpend = supplierSpendSummary?.totalSpend ?? overview?.totalSupplierSpend ?? top6Spend;
+  const otherSuppliersSpend = supplierSpendSummary?.otherSuppliersSpend ?? overview?.otherSuppliersSpend ?? 0;
+  const otherSuppliersCount = supplierSpendSummary?.otherSuppliersCount ?? overview?.otherSuppliersCount ?? 0;
+  const totalSupplierCount = supplierSpendSummary?.totalSupplierCount ?? overview?.totalSupplierCount ?? supplierRows.length;
+  const highestSupplierAmount = Math.max(
+    ...(supplierRows.map((s) => s.amount) || [0]),
+    1,
+  );
   const topCustomers = (overview?.vipCustomers || []).slice(0, 5);
   const quickReports = [
-    { title: 'Báo cáo doanh thu chi tiết', icon: <FileTextOutlined />, iconBox: 'bg-[var(--color-primary-soft)] text-[var(--color-primary-600)] border-[var(--color-primary-soft-2)]', href: '/reports' },
-    { title: 'Báo cáo lợi nhuận theo mảng', icon: <DollarOutlined />, iconBox: 'bg-[var(--color-warning-soft)] text-[var(--color-warning)] border-[var(--color-warning-soft)]', href: '/reports' },
-    { title: 'Báo cáo công nợ phải thu', icon: <WalletOutlined />, iconBox: 'bg-[var(--color-info-soft)] text-[var(--color-info)] border-[var(--color-info-soft)]', href: '/reports' },
-    { title: 'Báo cáo theo thị trường', icon: <GlobalOutlined />, iconBox: 'bg-[var(--color-primary-soft)] text-[var(--color-primary-600)] border-[var(--color-primary-soft-2)]', href: '/reports' },
-    { title: 'Báo cáo hiệu suất Sales', icon: <BarChartOutlined />, iconBox: 'bg-[var(--color-primary-soft)] text-[var(--color-primary-700)] border-[var(--color-primary-soft-2)]', href: '/kpi' },
+    { title: 'Báo cáo doanh thu chi tiết', icon: <FileTextOutlined />, iconBox: 'bg-[var(--color-primary-soft)]/70 text-[var(--color-primary-800)]', href: '/reports' },
+    { title: 'Báo cáo lợi nhuận theo mảng', icon: <DollarOutlined />, iconBox: 'bg-[var(--color-warning-soft)]/80 text-[var(--color-warning-strong)]', href: '/reports' },
+    { title: 'Báo cáo công nợ phải thu', icon: <WalletOutlined />, iconBox: 'bg-[var(--color-info-soft)]/80 text-[var(--color-info)]', href: '/reports' },
+    { title: 'Báo cáo theo thị trường', icon: <GlobalOutlined />, iconBox: 'bg-[var(--color-primary-soft)]/70 text-[var(--color-primary-800)]', href: '/reports' },
+    { title: 'Báo cáo hiệu suất Sales', icon: <BarChartOutlined />, iconBox: 'bg-[var(--color-primary-soft)]/70 text-[var(--color-primary-800)]', href: '/kpi' },
   ];
   const notificationsList = notificationsResponse?.data || [];
   const pendingApprovals = React.useMemo(
@@ -476,41 +488,120 @@ export default function CeoDashboard() {
             <div className="flex items-start justify-between gap-3 border-b border-[var(--color-border)] p-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-soft-2)] bg-[var(--color-primary-soft)] text-[var(--color-primary-600)]"><ShopOutlined /></div>
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-primary-soft)]/80 text-[var(--color-primary-800)]"><ShopOutlined /></div>
                   <h2 className="text-[15px] font-bold text-slate-900">Doanh thu Nhà cung cấp</h2>
                 </div>
                 <p className="ml-9 mt-1.5 text-[11px] text-slate-500">Xếp hạng theo chi phí thuần trong kỳ</p>
               </div>
-              <span className="whitespace-nowrap text-[11px] text-slate-500">Top {supplierRows.length} NCC</span>
+              <span className="whitespace-nowrap text-[11px] text-slate-500">
+                {totalSupplierCount > supplierRows.length
+                  ? `Top ${supplierRows.length} / ${totalSupplierCount} NCC`
+                  : `Top ${supplierRows.length} NCC`}
+              </span>
             </div>
             <div className="flex-1 p-4">
-              {isLoadingOverview ? <Skeleton active paragraph={{ rows: 6 }} /> : supplierRows.length ? (
+              {isLoadingOverview ? (
+                <Skeleton active paragraph={{ rows: 6 }} />
+              ) : supplierRows.length ? (
                 <div className="space-y-4" role="list" aria-label="Doanh thu theo nhà cung cấp">
                   {supplierRows.map((supplier, index) => {
-                    const share = supplierTotal > 0 ? (supplier.amount / supplierTotal) * 100 : 0;
+                    const share =
+                      supplier.sharePercentage !== undefined
+                        ? supplier.sharePercentage
+                        : totalSupplierSpend > 0
+                          ? (supplier.amount / totalSupplierSpend) * 100
+                          : 0;
                     const width = highestSupplierAmount > 0 ? (supplier.amount / highestSupplierAmount) * 100 : 0;
-                    const barColor = index === 0 ? themeTokens.brand.primary[800] : index === 1 ? themeTokens.brand.primary[600] : themeTokens.brand.primary.hoverBorder;
+                    const barColor =
+                      index === 0
+                        ? themeTokens.brand.primary[800]
+                        : index === 1
+                          ? themeTokens.brand.primary[600]
+                          : themeTokens.brand.primary.hoverBorder;
                     return (
                       <div key={supplier.supplierId} role="listitem" className="group">
                         <div className="mb-1.5 flex items-center justify-between gap-3">
                           <div className="flex min-w-0 items-center gap-2.5">
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-100 bg-slate-50 text-[11px] font-bold text-slate-600">{index + 1}</span>
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-100 bg-slate-50 text-[11px] font-bold text-slate-600">
+                              {index + 1}
+                            </span>
                             <div className="min-w-0">
-                              <div className="truncate text-[13px] font-semibold text-slate-800">{supplier.supplierName}</div>
-                              <div className="mt-0.5 truncate text-[10px] text-slate-500">{supplier.supplierCode} · {supplier.dossierCount} hồ sơ</div>
+                              <div className="truncate text-[13px] font-semibold text-slate-800">
+                                {supplier.supplierName}
+                              </div>
+                              <div className="mt-0.5 truncate text-[10px] text-slate-500">
+                                {supplier.supplierCode} · {supplier.dossierCount} hồ sơ
+                              </div>
                             </div>
                           </div>
                           <div className="shrink-0 text-right">
-                            <div className="text-[13px] font-bold tabular-nums text-slate-900">{new Intl.NumberFormat('vi-VN').format(Math.round(supplier.amount / 1_000_000))} Tr</div>
+                            <div className="text-[13px] font-bold tabular-nums text-slate-900">
+                              {new Intl.NumberFormat('vi-VN').format(Math.round(supplier.amount / 1_000_000))} Tr
+                            </div>
                             <div className="text-[10px] tabular-nums text-slate-500">{share.toFixed(1)}%</div>
                           </div>
                         </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label={`${supplier.supplierName}: ${share.toFixed(1)}%`} aria-valuenow={Math.round(width)} aria-valuemin={0} aria-valuemax={100}>
-                          <div className="h-full rounded-full transition-all duration-300 group-hover:brightness-95" style={{ width: `${width}%`, backgroundColor: barColor }} />
+                        <div
+                          className="h-2 overflow-hidden rounded-full bg-slate-100"
+                          role="progressbar"
+                          aria-label={`${supplier.supplierName}: ${share.toFixed(1)}%`}
+                          aria-valuenow={Math.round(width)}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                        >
+                          <div
+                            className="h-full rounded-full transition-all duration-300 group-hover:brightness-95"
+                            style={{ width: `${width}%`, backgroundColor: barColor }}
+                          />
                         </div>
                       </div>
                     );
                   })}
+
+                  {(otherSuppliersCount > 0 || otherSuppliersSpend > 0) && (
+                    <div role="listitem" className="group border-t border-dashed border-slate-200 pt-3">
+                      <div className="mb-1.5 flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-[11px] font-bold text-slate-500">
+                            +
+                          </span>
+                          <div className="min-w-0">
+                            <div className="truncate text-[13px] font-medium text-slate-700">Các nhà cung cấp khác</div>
+                            <div className="mt-0.5 truncate text-[10px] text-slate-500">
+                              {otherSuppliersCount > 0
+                                ? `+${otherSuppliersCount} đối tác ngoài Top 6`
+                                : 'Các chi phí đối tác khác'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <div className="text-[13px] font-semibold tabular-nums text-slate-700">
+                            {new Intl.NumberFormat('vi-VN').format(Math.round(otherSuppliersSpend / 1_000_000))} Tr
+                          </div>
+                          <div className="text-[10px] tabular-nums text-slate-500">
+                            {(totalSupplierSpend > 0 ? (otherSuppliersSpend / totalSupplierSpend) * 100 : 0).toFixed(1)}%
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        className="h-2 overflow-hidden rounded-full bg-slate-100"
+                        role="progressbar"
+                        aria-label={`Các nhà cung cấp khác: ${(totalSupplierSpend > 0 ? (otherSuppliersSpend / totalSupplierSpend) * 100 : 0).toFixed(1)}%`}
+                        aria-valuenow={Math.round(
+                          Math.min(100, Math.max(0, highestSupplierAmount > 0 ? (otherSuppliersSpend / highestSupplierAmount) * 100 : 0)),
+                        )}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                      >
+                        <div
+                          className="h-full rounded-full bg-slate-300 transition-all duration-300 group-hover:bg-slate-400"
+                          style={{
+                            width: `${Math.min(100, Math.max(0, highestSupplierAmount > 0 ? (otherSuppliersSpend / highestSupplierAmount) * 100 : 0))}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex min-h-[170px] flex-col items-center justify-center text-center">
@@ -519,9 +610,20 @@ export default function CeoDashboard() {
                 </div>
               )}
             </div>
-            <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/60 px-4 py-3">
-              <span className="text-[11px] text-slate-600">Tổng nhóm đang hiển thị</span>
-              <span className="text-sm font-bold tabular-nums text-[var(--color-primary-600)]">{new Intl.NumberFormat('vi-VN').format(Math.round(supplierTotal / 1_000_000))} Tr</span>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 border-t border-slate-100 bg-slate-50/60 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-slate-600">Tổng chi phí toàn bộ NCC:</span>
+                <span className="text-sm font-bold tabular-nums text-[var(--color-primary-700)]">
+                  {new Intl.NumberFormat('vi-VN').format(Math.round(totalSupplierSpend / 1_000_000))} Tr
+                </span>
+              </div>
+              <Link
+                href="/suppliers"
+                className="group inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-primary-600)] transition-colors hover:text-[var(--color-primary-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-600)]"
+              >
+                <span>Xem tất cả NCC</span>
+                <ArrowRightOutlined className="text-[10px] transition-transform duration-200 group-hover:translate-x-0.5" />
+              </Link>
             </div>
           </section>
         </WidgetErrorBoundary>

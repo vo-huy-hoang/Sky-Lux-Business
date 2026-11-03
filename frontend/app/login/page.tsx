@@ -2,8 +2,6 @@
 
 import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import Image from 'next/image';
 import {
   Form,
   Input,
@@ -22,6 +20,9 @@ import {
   ArrowRightOutlined,
   ClockCircleOutlined,
   RightOutlined,
+  SafetyCertificateOutlined,
+  SyncOutlined,
+  RiseOutlined,
 } from '@ant-design/icons';
 
 import { useQueryClient } from '@tanstack/react-query';
@@ -32,7 +33,6 @@ import { BrandLogo } from '@/components/ui';
 function LoginLogo() {
   return (
     <div className="relative inline-block select-none">
-      <div className="absolute -inset-4 rounded-full bg-emerald-400/15 blur-xl pointer-events-none" />
       <BrandLogo variant="full" size="xl" theme="dark" asLink={true} href="/" priority />
     </div>
   );
@@ -94,11 +94,11 @@ function LoginForm() {
   return (
     <div className="w-full max-w-[420px] mx-auto">
       <div className="mb-8">
-        <h2 className="text-2xl md:text-[28px] font-bold text-[var(--color-primary-950)] tracking-tight mb-2">
+        <h2 className="text-2xl md:text-[28px] font-bold text-slate-900 tracking-tight mb-2">
           Đăng nhập hệ thống
         </h2>
         <p className="text-slate-500 text-sm font-normal">
-          Vui lòng nhập thông tin để tiếp tục
+          Vui lòng nhập tài khoản doanh nghiệp của bạn để tiếp tục
         </p>
       </div>
 
@@ -118,7 +118,6 @@ function LoginForm() {
         />
       )}
 
-
       <Form
         form={form}
         layout="vertical"
@@ -129,7 +128,7 @@ function LoginForm() {
       >
         <Form.Item
           name="email"
-          label={<span className="text-slate-700 text-sm font-medium">Email</span>}
+          label={<span className="text-slate-700 text-sm font-medium">Email công vụ</span>}
           rules={[
             { required: true, message: 'Vui lòng nhập email của bạn' },
             { type: 'email', message: 'Email không đúng định dạng' },
@@ -138,9 +137,9 @@ function LoginForm() {
         >
           <Input
             prefix={<MailOutlined className="text-slate-400 mr-2 text-base" />}
-            placeholder="Nhập email của bạn"
+            placeholder="name@company.com"
             autoComplete="email"
-            className="h-12 rounded-lg border-slate-200 hover:border-[var(--color-primary-700)] focus:border-[var(--color-primary-700)] text-sm text-slate-800 placeholder:text-slate-400 shadow-sm"
+            className="h-12 rounded-lg border-slate-200 hover:border-[var(--color-primary-700)] focus:border-[var(--color-primary-700)] text-sm text-slate-800 placeholder:text-slate-400 shadow-xs"
           />
         </Form.Item>
 
@@ -155,12 +154,12 @@ function LoginForm() {
         >
           <Input.Password
             prefix={<LockOutlined className="text-slate-400 mr-2 text-base" />}
-            placeholder="Nhập mật khẩu"
+            placeholder="Nhập mật khẩu truy cập"
             autoComplete="current-password"
-            className="h-12 rounded-lg border-slate-200 hover:border-[var(--color-primary-700)] focus:border-[var(--color-primary-700)] text-sm text-slate-800 placeholder:text-slate-400 shadow-sm"
+            className="h-12 rounded-lg border-slate-200 hover:border-[var(--color-primary-700)] focus:border-[var(--color-primary-700)] text-sm text-slate-800 placeholder:text-slate-400 shadow-xs"
             iconRender={(visible) =>
               visible ? (
-                <EyeTwoTone twoToneColor="#10B981" />
+                <EyeTwoTone twoToneColor="#075440" />
               ) : (
                 <EyeInvisibleOutlined className="text-slate-400" />
               )
@@ -183,12 +182,11 @@ function LoginForm() {
             loading={loading}
             disabled={lockoutSeconds > 0}
             block
-            className="h-12 rounded-lg bg-[var(--color-primary-950)] hover:bg-[var(--color-primary-850)] active:bg-[var(--color-primary-950)] border-none text-white font-semibold text-base shadow-md transition-all duration-200 flex items-center justify-center gap-2"
+            className="h-12 rounded-lg bg-[var(--color-primary-950)] hover:bg-[var(--color-primary-850)] active:bg-[var(--color-primary-950)] border-none text-white font-semibold text-base shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2"
           >
-            <span>{loading ? 'Đang xác thực...' : 'Đăng nhập'}</span>
+            <span>{loading ? 'Đang xác thực...' : 'Đăng nhập vào hệ thống'}</span>
             {!loading && <ArrowRightOutlined className="text-sm" />}
           </Button>
-
         </Form.Item>
       </Form>
 
@@ -227,107 +225,146 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="relative flex min-h-[100dvh] flex-col items-center justify-center bg-[var(--color-bg)] px-4 py-8 sm:px-6 lg:px-8">
-      {/* Background Travel Vector Watermarks */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-[0.04]">
-        <svg
-          className="absolute -top-24 -left-24 w-[600px] h-[600px] text-[var(--color-primary-950)]"
-          fill="none"
-          viewBox="0 0 400 400"
-        >
-          <circle cx="200" cy="200" r="180" stroke="currentColor" strokeWidth="2" strokeDasharray="6 6" />
-          <circle cx="200" cy="200" r="130" stroke="currentColor" strokeWidth="1.5" />
-          <path d="M50 200 Q 200 80 350 200" stroke="currentColor" strokeWidth="2" strokeDasharray="8 8" />
-        </svg>
-        <svg
-          className="absolute -bottom-20 -right-20 w-[500px] h-[500px] text-[var(--color-primary-950)]"
-          fill="none"
-          viewBox="0 0 300 300"
-        >
-          <circle cx="150" cy="150" r="140" stroke="currentColor" strokeWidth="2" />
-          <circle cx="150" cy="150" r="90" stroke="currentColor" strokeWidth="1" strokeDasharray="4 4" />
-        </svg>
-      </div>
+    <div className="min-h-[100dvh] w-full grid grid-cols-1 lg:grid-cols-12 bg-white">
+      {/* Left Brand & Hero Column (Full Height Edge-to-Edge) */}
+      <div className="relative flex flex-col justify-between overflow-hidden bg-[var(--color-primary-950)] p-8 sm:p-12 lg:p-16 text-white lg:col-span-6 xl:col-span-7">
+        {/* Subtle Ambient Geographic & Flight Vector Watermarks */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-[0.05]">
+          {/* Orbital Tech Network Circle (Chữ O công nghệ) */}
+          <svg
+            className="absolute -top-16 -left-16 w-[620px] h-[620px] text-white"
+            fill="none"
+            viewBox="0 0 400 400"
+          >
+            <circle cx="200" cy="200" r="170" stroke="currentColor" strokeWidth="1.5" strokeDasharray="6 6" />
+            <circle cx="200" cy="200" r="120" stroke="currentColor" strokeWidth="1" />
+            <circle cx="200" cy="200" r="60" fill="currentColor" fillOpacity="0.2" />
+            {/* Tech nodes */}
+            <circle cx="80" cy="200" r="7" fill="currentColor" />
+            <circle cx="320" cy="200" r="7" fill="currentColor" />
+            <circle cx="200" cy="80" r="7" fill="currentColor" />
+            <circle cx="200" cy="320" r="7" fill="currentColor" />
+            <circle cx="115" cy="115" r="5" fill="currentColor" />
+            <circle cx="285" cy="285" r="5" fill="currentColor" />
+          </svg>
 
-      {/* Main Content Layout Container */}
-      <div className="relative z-10 w-full max-w-[1240px] flex flex-col items-center my-auto">
-        {/* Main Login Card Wrapper */}
-        <div className="relative z-10 w-full max-w-[1240px] rounded-[28px] md:rounded-[36px] bg-white shadow-2xl shadow-emerald-950/10 border border-slate-100 overflow-hidden grid grid-cols-1 lg:grid-cols-[48%_52%] min-h-[680px]">
-        {/* Left Hero Banner */}
-        <div className="relative flex flex-col justify-between overflow-hidden bg-[var(--color-primary-950)] p-8 sm:p-10 md:p-12 lg:p-14 text-white">
-          {/* Subtle Ambient Background Watermarks inside the banner */}
-          <div className="absolute inset-0 pointer-events-none overflow-hidden">
-            {/* Airplane with dotted flight curve */}
-            <svg
-              className="absolute top-10 right-8 w-44 h-44 text-emerald-500/10"
+          {/* Upward Flight Path (Mũi tên vàng chuyển động vươn xa) */}
+          <svg
+            className="absolute -bottom-24 -right-24 w-[580px] h-[580px] text-white"
+            fill="none"
+            viewBox="0 0 300 300"
+          >
+            <path
+              d="M60 220 C 100 240, 160 210, 150 150 C 140 100, 200 80, 260 50"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeDasharray="6 4"
+            />
+            <path
+              d="M250 45 L 265 48 L 260 62 Z"
               fill="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
-            </svg>
-            {/* Globe latitude lines watermark */}
-            <svg
-              className="absolute -bottom-16 -right-16 w-80 h-80 text-emerald-400/[0.06]"
-              fill="none"
-              viewBox="0 0 200 200"
-            >
-              <circle cx="100" cy="100" r="90" stroke="currentColor" strokeWidth="2" />
-              <ellipse cx="100" cy="100" rx="90" ry="40" stroke="currentColor" strokeWidth="1.5" />
-              <line x1="10" y1="100" x2="190" y2="100" stroke="currentColor" strokeWidth="1.5" />
-              <line x1="100" y1="10" x2="100" y2="190" stroke="currentColor" strokeWidth="1.5" />
-            </svg>
+            />
+            <circle cx="150" cy="150" r="130" stroke="currentColor" strokeWidth="1" strokeDasharray="4 4" />
+          </svg>
+        </div>
+
+        {/* Top Header: Logo & Brand Classification */}
+        <div className="relative z-10">
+          <LoginLogo />
+        </div>
+
+        {/* Center Presentation: Authentic Brand Story & Core Promise */}
+        <div className="relative z-10 my-auto py-8 lg:py-12 max-w-[580px]">
+          {/* Brand Concept Label */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/[0.08] border border-white/[0.12] text-xs font-semibold tracking-wider text-emerald-200/90 mb-5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)]" />
+            <span>OPTRIP Platform • One Platform. Every Trip.</span>
           </div>
 
-          <div className="relative z-10">
-            {/* Logo */}
-            <LoginLogo />
+          {/* Main Headline: Brand Core Message */}
+          <h1 className="text-3xl sm:text-4xl xl:text-[42px] font-bold text-white tracking-tight leading-[1.2] mb-4 font-sans">
+            Một nền tảng thống nhất. <br />
+            <span className="text-[var(--color-gold)]">Quản trị mọi hành trình.</span>
+          </h1>
 
-            {/* Headings */}
-            <div className="mt-8 sm:mt-10">
-              <span className="block text-sm sm:text-base font-normal text-emerald-200/80 tracking-wide mb-1">
-                Chào mừng bạn đến với
-              </span>
-              <h1 className="text-3xl sm:text-4xl md:text-[42px] font-bold text-white tracking-tight leading-tight mb-2 font-sans">
-                OPTRIP Platform
-              </h1>
-              <p className="text-sm sm:text-base font-normal text-emerald-200/70 mb-0">
-                Travel Operations Platform • One Platform. Every Trip.
+          {/* Official Brand Narrative */}
+          <p className="text-sm sm:text-base font-normal leading-relaxed text-emerald-100/85 mb-8 max-w-[540px]">
+            Hệ sinh thái công nghệ thông minh kết nối toàn diện từ tiếp nhận khách hàng, báo giá, đặt dịch vụ, điều hành tour đến quyết toán tài chính — giúp doanh nghiệp lữ hành đơn giản hóa quản lý, tối ưu vận hành và bứt phá vươn xa.
+          </p>
+
+          {/* 3 Pillars directly mapped to the 3 Logo Components */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2">
+            {/* Pillar 1: Chữ O - Vận hành khép kín */}
+            <div className="rounded-xl bg-white/[0.04] border border-white/[0.08] p-3.5 backdrop-blur-xs">
+              <div className="flex items-center gap-2 mb-1.5 text-[var(--color-gold)]">
+                <SyncOutlined className="text-sm" />
+                <span className="text-xs font-semibold text-white">Vận hành khép kín</span>
+              </div>
+              <p className="text-[11px] text-emerald-100/70 leading-normal m-0">
+                Biểu tượng chữ O kết nối kinh doanh, booking, điều hành, nhà cung cấp và tài chính.
               </p>
+            </div>
 
-              {/* Golden Accent Line */}
-              <div className="h-[2.5px] w-14 bg-[var(--color-gold)] rounded-full my-5" />
+            {/* Pillar 2: Mũi tên vàng - Tốc độ & Vươn xa */}
+            <div className="rounded-xl bg-white/[0.04] border border-white/[0.08] p-3.5 backdrop-blur-xs">
+              <div className="flex items-center gap-2 mb-1.5 text-[var(--color-gold)]">
+                <RiseOutlined className="text-sm" />
+                <span className="text-xs font-semibold text-white">Tốc độ & Vươn xa</span>
+              </div>
+              <p className="text-[11px] text-emerald-100/70 leading-normal m-0">
+                Mũi tên vàng hướng lên đại diện cho tự động hóa, tốc độ xử lý và khát vọng tăng trưởng.
+              </p>
+            </div>
 
-              {/* Description Paragraph */}
-              <p className="text-sm sm:text-[15px] font-normal leading-relaxed text-emerald-100/90 max-w-[440px]">
-                Nền tảng quản trị và điều hành tour lữ hành toàn diện. Đồng bộ dữ liệu kinh doanh, tối ưu hóa biên lợi nhuận và kiểm soát chuỗi phê duyệt dự toán khép kín.
+            {/* Pillar 3: Nền tảng SaaS tin cậy */}
+            <div className="rounded-xl bg-white/[0.04] border border-white/[0.08] p-3.5 backdrop-blur-xs">
+              <div className="flex items-center gap-2 mb-1.5 text-[var(--color-gold)]">
+                <SafetyCertificateOutlined className="text-sm" />
+                <span className="text-xs font-semibold text-white">Nền tảng tin cậy</span>
+              </div>
+              <p className="text-[11px] text-emerald-100/70 leading-normal m-0">
+                Phần mềm quản trị B2B chuyên nghiệp, ổn định, chính xác và bảo mật đa tầng.
               </p>
             </div>
           </div>
-
         </div>
 
-        {/* Right Form Container */}
-        <div className="flex flex-col justify-between p-8 sm:p-10 md:p-14 lg:p-16 bg-white">
-          <div className="flex-1 flex items-center justify-center">
-            <Suspense
-              fallback={
-                <div className="p-12 text-center">
-                  <Spin size="large" />
-                </div>
-              }
-            >
-              <LoginForm />
-            </Suspense>
-          </div>
-
-          {/* Bottom copyright and version */}
-          <div className="mt-12 flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 pt-6 text-xs text-slate-400 gap-2">
-            <span>© 2026 OPTRIP Platform. All rights reserved.</span>
-            <span>Phiên bản 1.0.0</span>
+        {/* Bottom Trust & Slogan Banner */}
+        <div className="relative z-10 flex items-center justify-between border-t border-white/[0.1] pt-6 text-xs text-emerald-200/70">
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)]" />
+            <span className="font-medium text-emerald-100">
+              Kết nối vận hành – Tối ưu quản trị – Vươn xa cùng công nghệ
+            </span>
           </div>
         </div>
       </div>
+
+      {/* Right Form Column (Full Height Edge-to-Edge) */}
+      <div className="flex flex-col justify-between p-8 sm:p-12 lg:p-16 xl:p-20 bg-white lg:col-span-6 xl:col-span-5 min-h-[100dvh]">
+        {/* Mobile-only brand logo display */}
+        <div className="lg:hidden mb-8">
+          <BrandLogo variant="full" size="lg" theme="light" asLink={true} href="/" priority />
+        </div>
+
+        <div className="flex-1 flex items-center justify-center my-auto w-full">
+          <Suspense
+            fallback={
+              <div className="p-12 text-center">
+                <Spin size="large" />
+              </div>
+            }
+          >
+            <LoginForm />
+          </Suspense>
+        </div>
+
+        {/* Bottom copyright and version */}
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 pt-6 text-xs text-slate-400 gap-2">
+          <span>© 2026 OPTRIP Platform. All rights reserved.</span>
+          <span className="font-mono">Phiên bản 1.0.0</span>
+        </div>
+      </div>
     </div>
-  </div>
   );
 }

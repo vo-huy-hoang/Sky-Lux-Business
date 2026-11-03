@@ -460,16 +460,6 @@ export function InteractiveAppPreview() {
               </div>
             )}
 
-            {/* Bottom Status Ribbon (Responsive wrap on mobile) */}
-            <div className="mt-3 pt-2.5 border-t border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-0 text-[10px] sm:text-[11px] text-slate-400 font-medium">
-              <span className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                <span className="truncate">Hàng đợi BullMQ & Redis 7 kết nối trực tiếp</span>
-              </span>
-              <span className="font-semibold text-(--color-primary-700) shrink-0 self-start sm:self-auto">
-                Bảo toàn số dư NUMERIC(18,2)
-              </span>
-            </div>
           </div>
         </div>
       </div>

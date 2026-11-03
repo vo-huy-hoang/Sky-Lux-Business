@@ -371,11 +371,52 @@ body {
   box-shadow: 0 0 0 3px rgb(0 84 61 / 0.1) !important;
 }
 
+/* Ant Design Tag Luxury Enterprise Standardization */
+.ant-tag {
+  letter-spacing: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+  border-radius: 6px;
+  padding: 1px 8px;
+  line-height: 20px;
+}
+
+.ant-tag-success {
+  color: var(--color-primary-800, #075440) !important;
+  background: var(--color-success-soft, #e8f6ed) !important;
+  border-color: var(--color-success-border, #c8ebd5) !important;
+}
+
+.ant-tag-warning {
+  color: var(--color-warning-strong, #d46b08) !important;
+  background: var(--color-warning-soft, #fff1e6) !important;
+  border-color: var(--color-warning-border, #ffd8bf) !important;
+}
+
+.ant-tag-error {
+  color: var(--color-danger-strong, #dc3f46) !important;
+  background: var(--color-danger-soft, #fdecec) !important;
+  border-color: var(--color-danger-border, #ffccc7) !important;
+}
+
+.ant-tag-info {
+  color: var(--color-info-strong, #0958d9) !important;
+  background: var(--color-info-soft, #eaf4fc) !important;
+  border-color: var(--color-info-border, #bae0ff) !important;
+}
+
+.ant-tag-default {
+  color: var(--color-text-muted, #66706c) !important;
+  background: var(--color-surface-muted, #fafbfa) !important;
+  border-color: var(--color-border, #e5e8e6) !important;
+}
+
 .ant-btn,
 .ant-input,
 .ant-select-selector,
-.ant-card,
-.ant-tag {
+.ant-card {
   letter-spacing: 0;
 }
 
@@ -448,13 +489,13 @@ body {
 
 .ceo-metric-icon {
   display: inline-flex;
-  width: 46px;
-  height: 46px;
+  width: 38px;
+  height: 38px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  font-size: 21px;
+  font-size: 17px;
 }
 
 .ceo-table .ant-table-thead > tr > th {

@@ -102,6 +102,8 @@ export const queryKeys = {
     list: (filters?: Record<string, any>) => [...queryKeys.suppliers.lists(), filters || {}] as const,
     details: () => [...queryKeys.suppliers.all, 'detail'] as const,
     detail: (id?: string) => [...queryKeys.suppliers.details(), id || ''] as const,
+    dossiers: (id?: string, params?: Record<string, any>) =>
+      [...queryKeys.suppliers.detail(id), 'dossiers', params || {}] as const,
   },
 
   // 9. KPIS & PERFORMANCE
