@@ -1,15 +1,48 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowRightOutlined, ThunderboltOutlined, LockOutlined, DatabaseOutlined } from '@ant-design/icons';
-import { themeTokens } from '@/lib/theme/tokens.config';
-import { InteractiveAppPreview } from './InteractiveAppPreview';
+import { ArrowRightOutlined, ArrowDownOutlined } from '@ant-design/icons';
 
 export function ClientHero() {
-  const handleScrollToWorkflow = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  const orbitWrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = orbitWrapperRef.current;
+    if (!el || typeof window === 'undefined') return;
+
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const finePointer = window.matchMedia('(pointer: fine)').matches;
+    if (prefersReduced || !finePointer) return;
+
+    let rafId: number | null = null;
+    let targetX = 0;
+    let targetY = 0;
+
+    const handlePointerMove = (e: PointerEvent) => {
+      const nx = (e.clientX / window.innerWidth - 0.5) * 2;
+      const ny = (e.clientY / window.innerHeight - 0.5) * 2;
+      targetX = nx * 10;
+      targetY = ny * 10;
+
+      if (rafId === null) {
+        rafId = window.requestAnimationFrame(() => {
+          el.style.transform = `translate3d(${targetX.toFixed(1)}px, ${targetY.toFixed(1)}px, 0)`;
+          rafId = null;
+        });
+      }
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: true });
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+    };
+  }, []);
+
+  const scrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
     e.preventDefault();
-    const element = document.getElementById('workflow');
+    const element = document.getElementById(targetId);
     if (element) {
       const headerOffset = 90;
       const elementPosition = element.getBoundingClientRect().top;
@@ -22,103 +55,135 @@ export function ClientHero() {
   };
 
   return (
-    <section className="relative pt-10 pb-20 md:pt-16 md:pb-28 overflow-hidden bg-white select-none">
-      {/* Background Subtle Mesh Dots */}
-      <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:20px_20px] opacity-40 pointer-events-none -z-20" />
+    <section className="relative min-h-[calc(100dvh-92px)] flex items-center justify-center pt-14 pb-24 sm:pt-20 sm:pb-28 px-4 sm:px-6 lg:px-8 overflow-hidden bg-[var(--color-surface)] select-none">
+      {/* Subtle Architectural Dot Matrix */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-[radial-gradient(#cbd4d0_1px,transparent_1px)] [background-size:28px_28px] opacity-40 pointer-events-none"
+      />
 
-      {/* Dynamic Ambient Glow Orbs */}
-      <div className="absolute top-10 right-10 w-[550px] h-[550px] bg-gradient-to-br from-emerald-100/60 via-teal-100/40 to-sky-100/30 rounded-full blur-3xl pointer-events-none -z-10 animate-orb-breathe" />
-      <div className="absolute top-1/2 -left-20 w-96 h-96 bg-gradient-to-tr from-amber-100/40 via-emerald-50/50 to-transparent rounded-full blur-3xl pointer-events-none -z-10 animate-float-slow" />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Main 2-Column Balanced Hero Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
-          {/* Left Column: Eyebrow, Title & CTAs (Span 5.5) */}
-          <div className="lg:col-span-5 flex flex-col items-start text-left">
-            {/* Eyebrow Micro-Tag with Double Bezel */}
-            <div className="p-1 rounded-full bg-emerald-950/[0.04] ring-1 ring-emerald-900/[0.08] mb-6 shadow-2xs">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-50/90 text-(--color-primary-800) text-[11px] font-black uppercase tracking-[0.16em]">
-                <span className="w-2 h-2 rounded-full bg-(--color-primary-600) animate-pulse" />
-                OPTRIP • TRAVEL OPERATIONS PLATFORM
-              </div>
-            </div>
-
-            {/* Giant Title (No orphan words, perfect semantic lines) */}
-            <h1 className="text-2xl sm:text-4xl lg:text-[45px] font-black text-(--color-text) leading-[1.2] sm:leading-[1.18] tracking-tight mb-6">
-              Nền tảng quản trị <br className="hidden sm:inline" />
-              & điều hành tour <br className="hidden sm:inline" />
-              <span
-                className="bg-clip-text text-transparent bg-gradient-to-r"
-                style={{
-                  backgroundImage: `linear-gradient(135deg, ${themeTokens.brand.primary[900]} 0%, ${themeTokens.brand.primary[600]} 100%)`,
-                }}
-              >
-                CHUYÊN BIỆT CHO LỮ HÀNH
-              </span>
-            </h1>
-
-            {/* Subtitle Grounded in Real Travel Operations */}
-            <p className="text-sm sm:text-base lg:text-lg text-slate-600 leading-relaxed max-w-xl mb-8 font-medium">
-              Tự động bóc tách dự toán Excel trong 1.2 giây, kiểm soát biên lợi nhuận gộp từng đoàn tour và đóng băng giá bán thương mại bất biến cho doanh nghiệp lữ hành.
-            </p>
-
-            {/* Nested CTA Buttons (Button-in-Button) */}
-            <div className="flex flex-wrap items-center gap-3 sm:gap-4 w-full sm:w-auto mb-10">
-              <Link href="/login" className="w-full sm:w-auto">
-                <button
-                  className="w-full sm:w-auto h-12 sm:h-13 pl-7 pr-2.5 rounded-full text-white font-extrabold text-sm sm:text-base shadow-lg shadow-(--color-primary-900)/20 hover:shadow-xl hover:shadow-(--color-primary-900)/30 active:scale-[0.98] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] flex items-center justify-between sm:justify-start gap-3.5 group cursor-pointer"
-                  style={{ backgroundColor: themeTokens.brand.primary[900] }}
-                >
-                  <span>Đăng ký Demo</span>
-                  <span className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:translate-x-1 group-hover:-translate-y-[0.5px] group-hover:bg-white/30 group-hover:scale-105">
-                    <ArrowRightOutlined className="text-xs" />
-                  </span>
-                </button>
-              </Link>
-
-              <a href="#workflow" onClick={handleScrollToWorkflow} className="w-full sm:w-auto">
-                <button className="w-full sm:w-auto h-12 sm:h-13 pl-6 pr-2.5 rounded-full font-bold text-sm sm:text-base text-slate-800 border border-slate-300/90 hover:border-(--color-primary-700) hover:text-(--color-primary-700) bg-white shadow-2xs hover:shadow-sm active:scale-[0.98] transition-all duration-300 flex items-center justify-between sm:justify-start gap-3 group cursor-pointer">
-                  <span>Xem quy trình</span>
-                  <span className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:bg-emerald-50">
-                    <span className="text-xs">↗</span>
-                  </span>
-                </button>
-              </a>
-            </div>
-
-            {/* 3 Real Operations Highlights (Triệt tiêu khoảng trống mênh mông dưới chân Hero, responsive stack) */}
-            <div className="w-full pt-6 border-t border-slate-200/70 grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-3 text-left">
-              <div className="space-y-0.5 p-2 sm:p-0 rounded-xl sm:rounded-none bg-slate-50/60 sm:bg-transparent">
-                <div className="flex items-center gap-1.5 text-xs font-black text-(--color-primary-900)">
-                  <ThunderboltOutlined className="text-emerald-600" />
-                  <span>1.2s Bóc Tách</span>
-                </div>
-                <div className="text-[11px] text-slate-400 font-medium">Hàng đợi ngầm BullMQ</div>
-              </div>
-
-              <div className="space-y-0.5 p-2 sm:p-0 rounded-xl sm:rounded-none bg-slate-50/60 sm:bg-transparent">
-                <div className="flex items-center gap-1.5 text-xs font-black text-(--color-gold)">
-                  <LockOutlined className="text-amber-500" />
-                  <span>6 Nấc Duyệt</span>
-                </div>
-                <div className="text-[11px] text-slate-400 font-medium">Đóng băng giá bất biến</div>
-              </div>
-
-              <div className="space-y-0.5 p-2 sm:p-0 rounded-xl sm:rounded-none bg-slate-50/60 sm:bg-transparent">
-                <div className="flex items-center gap-1.5 text-xs font-black text-(--color-primary-700)">
-                  <DatabaseOutlined className="text-(--color-primary-600)" />
-                  <span>NUMERIC(18,2)</span>
-                </div>
-                <div className="text-[11px] text-slate-400 font-medium">Bảo toàn từng xu lẻ</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column: High-Fidelity Tour Workspace Preview (Span 6.5) */}
-          <div id="solutions" className="lg:col-span-7 w-full scroll-mt-24 sm:scroll-mt-28">
-            <InteractiveAppPreview />
-          </div>
+      {/* Kinetic Orbital Rings Layer (Subtle Compass / Globe Motion, Pointer-Reactive) */}
+      <div
+        ref={orbitWrapperRef}
+        aria-hidden="true"
+        className="absolute inset-0 pointer-events-none flex items-center justify-center transition-transform duration-500 ease-out will-change-transform"
+      >
+        {/* Outer Dashed Orbit */}
+        <div className="relative w-[680px] h-[680px] sm:w-[880px] sm:h-[880px] rounded-full border border-dashed border-[var(--color-primary-900)]/[0.11] hero-orbit-ccw">
+          <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-[var(--color-primary-700)]/35" />
+          <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[var(--color-border-input)]" />
         </div>
+
+        {/* Inner Crisp Hairline Orbit */}
+        <div className="absolute w-[460px] h-[460px] sm:w-[620px] sm:h-[620px] rounded-full border border-[var(--color-primary-900)]/[0.09] hero-orbit-cw">
+          <span className="absolute top-1/2 -right-1 -translate-y-1/2 w-2 h-2 rounded-full bg-[var(--color-gold)]/80 ring-4 ring-[var(--color-gold)]/15" />
+          <span className="absolute top-1/2 -left-1 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[var(--color-primary-700)]/45" />
+        </div>
+      </div>
+
+      {/* Gentle Edge Vignette to Blend Seamlessly into Page Edges */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_48%,rgba(248,249,248,0.88)_100%)] pointer-events-none"
+      />
+
+      {/* Centered Editorial Content */}
+      <div className="relative z-10 max-w-4xl mx-auto w-full text-center flex flex-col items-center">
+        {/* Main Editorial Headline with Staggered Line Reveal */}
+        <h1 className="text-3xl sm:text-5xl lg:text-[50px] font-extrabold text-[var(--color-text)] leading-[1.2] tracking-[-0.025em] [text-wrap:balance]">
+          <span
+            className="block hero-reveal"
+            style={{ animationDelay: '40ms' }}
+          >
+            Nền tảng quản trị và điều hành tour
+          </span>
+          <span
+            className="block text-[var(--color-primary-900)] hero-reveal"
+            style={{ animationDelay: '140ms' }}
+          >
+            chuyên biệt dành cho công ty lữ hành
+          </span>
+        </h1>
+
+        {/* Expanding Champagne Gold Accent Rule */}
+        <div
+          aria-hidden="true"
+          className="w-14 h-[2px] bg-[var(--color-gold)] rounded-full my-7 sm:my-8 hero-line-expand"
+          style={{ animationDelay: '240ms' }}
+        />
+
+        {/* Centered Brand Taglines */}
+        <div className="space-y-2 max-w-2xl mx-auto mb-10 sm:mb-12">
+          <p
+            className="text-lg sm:text-xl lg:text-[22px] font-bold tracking-tight text-[var(--color-primary-950)] hero-reveal"
+            style={{ animationDelay: '300ms' }}
+          >
+            OPTRIP <span className="text-[var(--color-gold)] mx-1">–</span> One Platform. Every Trip
+          </p>
+          <p
+            className="text-base sm:text-lg font-medium text-[var(--color-text-muted)] leading-relaxed hero-reveal"
+            style={{ animationDelay: '380ms' }}
+          >
+            Một nền tảng – Quản trị mọi hành trình.
+          </p>
+        </div>
+
+        {/* Centered Dual CTAs with Subtle Tactile Hover Sheen */}
+        <div
+          className="flex flex-col sm:flex-row items-center justify-center gap-3.5 sm:gap-4 w-full sm:w-auto hero-reveal"
+          style={{ animationDelay: '460ms' }}
+        >
+          <Link href="/login" className="w-full sm:w-auto">
+            <button
+              type="button"
+              className="relative overflow-hidden w-full sm:w-auto min-h-[48px] pl-7 pr-2.5 py-2 rounded-full bg-[var(--color-primary-900)] hover:bg-[var(--color-primary-800)] text-white font-bold text-sm sm:text-[15px] shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 inline-flex items-center justify-between sm:justify-center gap-3.5 group cursor-pointer"
+            >
+              {/* Subtle Light Reflection Sweep on Hover */}
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-[linear-gradient(105deg,transparent_25%,rgba(255,255,255,0.16)_50%,transparent_75%)]"
+              />
+              <span className="relative z-10">Đăng ký Demo</span>
+              <span className="relative z-10 w-8 h-8 rounded-full bg-white/15 flex items-center justify-center transition-all duration-200 group-hover:translate-x-0.5 group-hover:bg-white/25">
+                <ArrowRightOutlined className="text-[13px]" aria-hidden="true" />
+              </span>
+            </button>
+          </Link>
+
+          <a
+            href="#workflow"
+            onClick={(e) => scrollToSection(e, 'workflow')}
+            className="w-full sm:w-auto"
+          >
+            <button
+              type="button"
+              className="w-full sm:w-auto min-h-[48px] pl-7 pr-2.5 py-2 rounded-full bg-[var(--color-surface)] hover:bg-[var(--color-surface-muted)] text-[var(--color-text)] hover:text-[var(--color-primary-900)] font-bold text-sm sm:text-[15px] border border-[var(--color-border-input)] hover:border-[var(--color-primary-700)] shadow-2xs hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 inline-flex items-center justify-between sm:justify-center gap-3.5 group cursor-pointer"
+            >
+              <span>Xem quy trình</span>
+              <span className="w-8 h-8 rounded-full bg-[var(--color-surface-muted)] group-hover:bg-[var(--color-primary-soft)] text-[var(--color-text-muted)] group-hover:text-[var(--color-primary-900)] flex items-center justify-center transition-all duration-200 group-hover:translate-y-0.5">
+                <ArrowDownOutlined className="text-[13px]" aria-hidden="true" />
+              </span>
+            </button>
+          </a>
+        </div>
+      </div>
+
+      {/* Subtle Bottom Scroll Cue */}
+      <div className="absolute bottom-5 sm:bottom-7 left-1/2 -translate-x-1/2 z-10">
+        <a
+          href="#features"
+          onClick={(e) => scrollToSection(e, 'features')}
+          className="inline-flex flex-col items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-soft)] hover:text-[var(--color-primary-900)] transition-colors duration-200 hero-reveal"
+          style={{ animationDelay: '600ms' }}
+        >
+          <span>Khám phá</span>
+          <span
+            aria-hidden="true"
+            className="relative w-[1.5px] h-6 rounded-full bg-[var(--color-border)] overflow-hidden"
+          >
+            <span className="absolute top-0 left-0 w-full h-3 rounded-full bg-[var(--color-primary-700)] hero-scroll-drop" />
+          </span>
+        </a>
       </div>
     </section>
   );

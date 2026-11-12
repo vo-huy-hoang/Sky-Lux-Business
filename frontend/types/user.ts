@@ -22,12 +22,17 @@ export interface UserItem {
   phone?: string;
   avatarUrl?: string;
   status: UserStatus;
+  mustChangePassword?: boolean;
   lastLoginAt?: string;
   department?: UserDepartment;
   organization?: { id: string; name: string; code: string };
   roles?: UserRole[];
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface CreateUserResponse extends UserItem {
+  temporaryPassword?: string;
 }
 
 export interface QueryUserParams {

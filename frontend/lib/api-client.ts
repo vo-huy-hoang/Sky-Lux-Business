@@ -9,34 +9,26 @@ export const API_BASE_URL =
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
   timeout: 30000,
 });
 
-// Request Interceptor: Attach JWT Token
+const SAFE_HTTP_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+// Request Interceptor: Attach double-submit CSRF header for state-changing requests
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    let token = Cookies.get('access_token');
-    // Fallback sync from localStorage if cookie is missing or path-isolated
-    if (!token && typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem('skylux-auth-storage');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          token = parsed?.state?.accessToken;
-          if (token) {
-            Cookies.set('access_token', token, { expires: 1, path: '/' });
-          }
-        }
-      } catch {
-        // Ignore localStorage read errors
+    const method = (config.method || 'GET').toUpperCase();
+    if (!SAFE_HTTP_METHODS.has(method)) {
+      const csrfToken = Cookies.get('csrf_token');
+      if (csrfToken && config.headers) {
+        config.headers['X-CSRF-Token'] = csrfToken;
       }
     }
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+
     // For FormData, delete Content-Type so Axios & browser generate proper boundary
     if (typeof window !== 'undefined' && config.data instanceof FormData && config.headers) {
       delete config.headers['Content-Type'];
@@ -58,23 +50,34 @@ export const isCanceledError = (error: unknown): boolean => {
   );
 };
 
-// Response Interceptor: Handle 401 and Token Refresh
+// Response Interceptor: Handle 401 and Silent Cookie Refresh
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (value?: unknown) => void;
   reject: (reason?: any) => void;
 }> = [];
 
-const processQueue = (error: any, token: string | null = null) => {
+const processQueue = (error: any) => {
   failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error);
     } else {
-      prom.resolve(token);
+      prom.resolve(true);
     }
   });
   failedQueue = [];
 };
+
+function clearClientAuthState(): void {
+  Cookies.remove('csrf_token', { path: '/' });
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem('skylux-auth-storage');
+    } catch {
+      // Ignore storage removal errors
+    }
+  }
+}
 
 apiClient.interceptors.response.use(
   (response) => {
@@ -109,7 +112,10 @@ apiClient.interceptors.response.use(
         : false;
 
     if (shouldRefreshToken && originalRequest) {
-      if (originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh')) {
+      if (
+        originalRequest.url?.includes('/auth/login') ||
+        originalRequest.url?.includes('/auth/refresh')
+      ) {
         return Promise.reject(error);
       }
 
@@ -119,65 +125,33 @@ apiClient.interceptors.response.use(
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
-          .then((token) => {
-            if (originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
-            }
-            return apiClient(originalRequest);
-          })
+          .then(() => apiClient(originalRequest))
           .catch((err) => Promise.reject(err));
       }
 
       isRefreshing = true;
 
-      const refreshToken = Cookies.get('refresh_token');
-      if (!refreshToken) {
-        processQueue(error, null);
-        isRefreshing = false;
-        if (error.response?.status === 401) {
-          Cookies.remove('access_token', { path: '/' });
-          Cookies.remove('refresh_token', { path: '/' });
-          Cookies.remove('access_token');
-          Cookies.remove('refresh_token');
-          if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-            // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-            window.location.href = '/login';
-          }
-        }
-        return Promise.reject(error);
-      }
-
       try {
-        const res = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-          refreshToken,
-        });
+        const csrfToken = Cookies.get('csrf_token');
+        await axios.post(
+          `${API_BASE_URL}/auth/refresh`,
+          {},
+          {
+            withCredentials: true,
+            headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : undefined,
+          },
+        );
 
-        const data = res.data?.data || res.data;
-        const newAccessToken = data.accessToken;
-        const newRefreshToken = data.refreshToken;
-
-        Cookies.set('access_token', newAccessToken, { expires: 1, path: '/' });
-        if (newRefreshToken) {
-          Cookies.set('refresh_token', newRefreshToken, { expires: 7, path: '/' });
-        }
         if (typeof window !== 'undefined') {
-          window.dispatchEvent(
-            new CustomEvent('skylux:token-refreshed', { detail: { accessToken: newAccessToken } }),
-          );
+          window.dispatchEvent(new CustomEvent('skylux:token-refreshed'));
         }
 
-        if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-        }
-        processQueue(null, newAccessToken);
+        processQueue(null);
         return apiClient(originalRequest);
       } catch (refreshErr) {
-        processQueue(refreshErr, null);
+        processQueue(refreshErr);
         if (error.response?.status === 401) {
-          Cookies.remove('access_token', { path: '/' });
-          Cookies.remove('refresh_token', { path: '/' });
-          Cookies.remove('access_token');
-          Cookies.remove('refresh_token');
+          clearClientAuthState();
           if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
             // eslint-disable-next-line @next/next/no-location-assign-relative-destination
             window.location.href = '/login';
@@ -187,6 +161,14 @@ apiClient.interceptors.response.use(
       } finally {
         isRefreshing = false;
       }
+    }
+
+    if (
+      error.response?.status === 403 &&
+      errorData?.code === 'PASSWORD_CHANGE_REQUIRED' &&
+      typeof window !== 'undefined'
+    ) {
+      window.dispatchEvent(new CustomEvent('skylux:password-change-required'));
     }
 
     // Extract error message from API response envelope
@@ -199,6 +181,9 @@ apiClient.interceptors.response.use(
     const customError: any = new Error(errorMessage);
     customError.status = error.response?.status;
     customError.response = error.response;
+    if (typeof errorData?.code === 'string') {
+      customError.code = errorData.code;
+    }
     if (error.response?.status === 429) {
       customError.isRateLimited = true;
       customError.lockoutSeconds = errorData?.lockoutSeconds || 60;

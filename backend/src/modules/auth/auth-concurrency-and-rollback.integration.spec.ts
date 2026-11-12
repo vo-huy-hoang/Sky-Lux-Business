@@ -1,4 +1,4 @@
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -56,8 +56,15 @@ describe('Auth Concurrency, 0ms Realtime Revocation & Rollback (Integration)', (
     authVersion: 1,
   };
 
-  function createMockContext(token = validToken): ExecutionContext {
+  function createMockContext(
+    token = validToken,
+    method = 'GET',
+    url = '/api/dossiers',
+  ): ExecutionContext {
     const request = {
+      method,
+      originalUrl: url,
+      url,
       headers: {
         authorization: `Bearer ${token}`,
       },
@@ -324,6 +331,62 @@ describe('Auth Concurrency, 0ms Realtime Revocation & Rollback (Integration)', (
       await expect(guard.canActivate(context)).rejects.toThrow(
         new UnauthorizedException('Token is no longer valid'),
       );
+    });
+
+    it('enforces first-login password rotation before unlocking normal workspace routes and refreshes cache after changePassword', async () => {
+      dbUsers.set(userId, {
+        ...dbUsers.get(userId),
+        mustChangePassword: true,
+        authVersion: 1,
+      });
+
+      // Normal workspace API is blocked while mustChangePassword === true
+      await expect(
+        guard.canActivate(createMockContext(validToken, 'GET', '/api/dossiers')),
+      ).rejects.toThrow(ForbiddenException);
+
+      // Auth self-service endpoints remain reachable for rotation
+      await expect(
+        guard.canActivate(createMockContext(validToken, 'GET', '/api/auth/me')),
+      ).resolves.toBe(true);
+      await expect(
+        guard.canActivate(
+          createMockContext(validToken, 'POST', '/api/auth/change-password'),
+        ),
+      ).resolves.toBe(true);
+
+      // User completes mandatory first-login password change
+      await authService.changePassword(userId, {
+        currentPassword: 'TempGenerated123',
+        newPassword: 'StaffChosenPass123',
+      });
+
+      expect(dbUsers.get(userId).mustChangePassword).toBe(false);
+      expect(dbUsers.get(userId).authVersion).toBe(2);
+      expect(redisMemoryCache.has(`user:auth-meta:${userId}`)).toBe(false);
+
+      // Old token (authVersion 1) is rejected, while rotated session (authVersion 2) unlocks workspace
+      const rotatedToken = `valid-jwt-${userId}-v2`;
+      const mockJwtService = guard['jwtService'] as any;
+      const originalVerifyAsync = mockJwtService.verifyAsync;
+      mockJwtService.verifyAsync = jest.fn(async (token: string) => {
+        if (token === rotatedToken) {
+          return { ...tokenPayload, authVersion: 2 };
+        }
+        return originalVerifyAsync(token);
+      });
+      try {
+        await expect(
+          guard.canActivate(createMockContext(validToken, 'GET', '/api/dossiers')),
+        ).rejects.toThrow();
+        await expect(
+          guard.canActivate(
+            createMockContext(rotatedToken, 'GET', '/api/dossiers'),
+          ),
+        ).resolves.toBe(true);
+      } finally {
+        mockJwtService.verifyAsync = originalVerifyAsync;
+      }
     });
 
     it('immediately evicts cache when role permissions change', async () => {

@@ -24,6 +24,7 @@ import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { UserStatus } from '../../common/enums';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { RedisService } from '../../common/redis/redis.service';
+import { derivePurposeSecret } from '../../common/utils/jwt-purpose.util';
 
 @Injectable()
 export class AuthService {
@@ -86,6 +87,7 @@ export class AuthService {
     permissions: string[],
     ipAddress?: string,
     userAgent?: string,
+    familyId?: string,
   ) {
     const roleCodes = user.roles?.map((r) => r.code) || [];
 
@@ -101,17 +103,25 @@ export class AuthService {
       permissions,
     };
 
-    const secret = this.getJwtSecret();
+    const masterSecret = this.getJwtSecret();
+    const activeFamilyId = familyId || crypto.randomUUID();
+    const jti = crypto.randomUUID();
 
-    const accessToken = await this.jwtService.signAsync(payload, {
-      secret,
-      expiresIn: '1d',
-    });
+    const accessToken = await this.jwtService.signAsync(
+      {
+        ...payload,
+        familyId: activeFamilyId,
+      },
+      {
+        secret: derivePurposeSecret(masterSecret, 'access'),
+        expiresIn: '1d',
+      },
+    );
 
     const refreshToken = await this.jwtService.signAsync(
-      { id: user.id },
+      { id: user.id, familyId: activeFamilyId, jti },
       {
-        secret,
+        secret: derivePurposeSecret(masterSecret, 'refresh'),
         expiresIn: '7d',
       },
     );
@@ -127,15 +137,20 @@ export class AuthService {
 
     const refreshTokenEntity = this.refreshTokenRepository.create({
       userId: user.id,
+      organizationId: user.organizationId,
+      familyId: activeFamilyId,
+      status: 'ACTIVE',
       tokenHash,
       expiresAt,
       isRevoked: false,
       ipAddress,
       userAgent,
     });
-    await this.refreshTokenRepository.save(refreshTokenEntity);
+    const savedToken = await this.refreshTokenRepository.save(
+      refreshTokenEntity,
+    );
 
-    return { accessToken, refreshToken };
+    return { accessToken, refreshToken, tokenRecordId: savedToken?.id };
   }
 
   async login(loginDto: LoginDto, ipAddress?: string, userAgent?: string) {
@@ -170,7 +185,7 @@ export class AuthService {
     await this.userRepository.save(user);
 
     const permissions = await this.extractUserPermissions(user.roles);
-    const tokens = await this.generateTokens(
+    const { accessToken, refreshToken } = await this.generateTokens(
       user,
       permissions,
       ipAddress,
@@ -178,7 +193,8 @@ export class AuthService {
     );
 
     return {
-      ...tokens,
+      accessToken,
+      refreshToken,
       user: {
         id: user.id,
         organizationId: user.organizationId,
@@ -190,13 +206,14 @@ export class AuthService {
         email: user.email,
         phone: user.phone,
         avatarUrl: user.avatarUrl,
+        mustChangePassword: Boolean(user.mustChangePassword),
         roles: user.roles?.map((r) => r.code) || [],
         permissions,
       },
     };
   }
 
-  async logout(userId: string, refreshToken?: string) {
+  async logout(userId: string, refreshToken?: string, familyId?: string) {
     if (refreshToken) {
       const tokenHash = crypto
         .createHash('sha256')
@@ -204,12 +221,17 @@ export class AuthService {
         .digest('hex');
       await this.refreshTokenRepository.update(
         { userId, tokenHash },
-        { isRevoked: true },
+        { isRevoked: true, status: 'REVOKED', revokedReason: 'LOGOUT' },
+      );
+    } else if (familyId) {
+      await this.refreshTokenRepository.update(
+        { userId, familyId, isRevoked: false },
+        { isRevoked: true, status: 'REVOKED', revokedReason: 'LOGOUT' },
       );
     } else {
       await this.refreshTokenRepository.update(
         { userId, isRevoked: false },
-        { isRevoked: true },
+        { isRevoked: true, status: 'REVOKED', revokedReason: 'LOGOUT' },
       );
     }
     return { message: 'Đăng xuất thành công' };
@@ -220,15 +242,21 @@ export class AuthService {
     ipAddress?: string,
     userAgent?: string,
   ) {
-    const { refreshToken } = refreshTokenDto;
-    const secret = this.getJwtSecret();
+    const refreshToken = refreshTokenDto?.refreshToken;
+    if (!refreshToken) {
+      throw new UnauthorizedException(
+        'Refresh token không hợp lệ hoặc đã hết hạn',
+      );
+    }
+
+    const masterSecret = this.getJwtSecret();
 
     try {
       const decoded = await this.jwtService.verifyAsync(refreshToken, {
-        secret,
+        secret: derivePurposeSecret(masterSecret, 'refresh'),
       });
 
-      // Find token in database to check if it's revoked
+      // Find token in database to check if it's active or reused
       const tokenHash = crypto
         .createHash('sha256')
         .update(refreshToken)
@@ -238,13 +266,40 @@ export class AuthService {
         where: { userId: decoded.id, tokenHash },
       });
 
-      if (
-        !tokenRecord ||
-        tokenRecord.isRevoked ||
-        tokenRecord.expiresAt < new Date()
-      ) {
+      if (!tokenRecord) {
         throw new UnauthorizedException(
           'Phiên đăng nhập không hợp lệ hoặc đã bị thu hồi',
+        );
+      }
+
+      if (
+        tokenRecord.isRevoked ||
+        tokenRecord.status === 'ROTATED' ||
+        tokenRecord.status === 'REVOKED'
+      ) {
+        const targetFamilyId = tokenRecord.familyId || decoded.familyId;
+        if (targetFamilyId) {
+          await this.refreshTokenRepository.update(
+            { familyId: targetFamilyId, isRevoked: false },
+            {
+              isRevoked: true,
+              status: 'REVOKED',
+              revokedReason: 'TOKEN_REUSE_DETECTED',
+            },
+          );
+        }
+        throw new UnauthorizedException(
+          'Phát hiện tái sử dụng phiên đăng nhập; toàn bộ chuỗi token đã bị thu hồi',
+        );
+      }
+
+      if (tokenRecord.expiresAt < new Date()) {
+        tokenRecord.isRevoked = true;
+        tokenRecord.status = 'REVOKED';
+        tokenRecord.revokedReason = 'EXPIRED';
+        await this.refreshTokenRepository.save(tokenRecord);
+        throw new UnauthorizedException(
+          'Phiên đăng nhập không hợp lệ hoặc đã hết hạn',
         );
       }
 
@@ -257,13 +312,38 @@ export class AuthService {
         throw new UnauthorizedException('Phiên đăng nhập không hợp lệ');
       }
 
-      // Revoke the old token (rotation)
-      tokenRecord.isRevoked = true;
-      await this.refreshTokenRepository.save(tokenRecord);
+      // Atomically claim the active token before minting a child token pair so
+      // concurrent refreshes cannot double-mint for the same parent token.
+      const claimResult = await this.refreshTokenRepository.update(
+        { id: tokenRecord.id, isRevoked: false, status: 'ACTIVE' },
+        { isRevoked: true, status: 'ROTATED', revokedReason: 'ROTATED' },
+      );
+      if (claimResult && claimResult.affected === 0) {
+        throw new UnauthorizedException(
+          'Phiên đăng nhập đang được làm mới hoặc đã được sử dụng',
+        );
+      }
 
       const permissions = await this.extractUserPermissions(user.roles);
-      // Generate new tokens
-      return await this.generateTokens(user, permissions, ipAddress, userAgent);
+      const nextTokens = await this.generateTokens(
+        user,
+        permissions,
+        ipAddress,
+        userAgent,
+        tokenRecord.familyId || decoded.familyId,
+      );
+
+      // Link the rotated parent token to its replacement child token
+      tokenRecord.isRevoked = true;
+      tokenRecord.status = 'ROTATED';
+      tokenRecord.revokedReason = 'ROTATED';
+      tokenRecord.replacedByTokenId = nextTokens.tokenRecordId;
+      await this.refreshTokenRepository.save(tokenRecord);
+
+      return {
+        accessToken: nextTokens.accessToken,
+        refreshToken: nextTokens.refreshToken,
+      };
     } catch (err) {
       if (err instanceof UnauthorizedException) {
         throw err;
@@ -277,7 +357,7 @@ export class AuthService {
   async revokeUserTokens(userId: string): Promise<void> {
     await this.refreshTokenRepository.update(
       { userId, isRevoked: false },
-      { isRevoked: true },
+      { isRevoked: true, status: 'REVOKED', revokedReason: 'REVOKED' },
     );
     await this.invalidateAuthMetaCache(userId);
   }
@@ -306,6 +386,7 @@ export class AuthService {
       phone: user.phone,
       avatarUrl: user.avatarUrl,
       twoFactorEnabled: user.twoFactorEnabled,
+      mustChangePassword: Boolean(user.mustChangePassword),
       notificationPreferences: this.getNotificationPreferences(
         user.notificationPreferences,
       ),
@@ -359,8 +440,14 @@ export class AuthService {
       throw new NotFoundException('Không tìm thấy thông tin người dùng');
     }
 
-    if (updateUserSettingsDto.twoFactorEnabled !== undefined) {
-      user.twoFactorEnabled = updateUserSettingsDto.twoFactorEnabled;
+    if (updateUserSettingsDto.twoFactorEnabled === true) {
+      throw new BadRequestException(
+        'Tính năng xác thực 2 lớp (2FA) đang được phát triển và chưa thể bật',
+      );
+    }
+
+    if (updateUserSettingsDto.twoFactorEnabled === false) {
+      user.twoFactorEnabled = false;
     }
 
     const notificationPreferences = this.getNotificationPreferences(
@@ -402,7 +489,7 @@ export class AuthService {
     };
 
     const token = await this.jwtService.signAsync(streamPayload, {
-      secret: this.getJwtSecret(),
+      secret: derivePurposeSecret(this.getJwtSecret(), 'stream'),
       expiresIn: '60s',
     });
     return { token };
@@ -421,14 +508,20 @@ export class AuthService {
       throw new BadRequestException('Mật khẩu hiện tại không chính xác');
     }
 
+    if (currentPassword === newPassword) {
+      throw new BadRequestException(
+        'Mật khẩu mới không được trùng với mật khẩu hiện tại',
+      );
+    }
+
     user.passwordHash = await bcrypt.hash(newPassword, 10);
+    user.mustChangePassword = false;
     user.authVersion = (user.authVersion ?? 0) + 1;
     await this.userRepository.save(user);
 
     // A password change invalidates every other active session, including the
     // current refresh token. The client will sign in again with the new secret.
     await this.revokeUserTokens(userId);
-    await this.invalidateAuthMetaCache(userId);
 
     return { message: 'Đổi mật khẩu thành công' };
   }

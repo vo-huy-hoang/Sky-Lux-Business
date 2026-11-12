@@ -26,20 +26,20 @@ export function ClientFooter() {
             </div>
 
             <p className="text-xs sm:text-sm text-white/60 leading-relaxed max-w-sm font-medium">
-              Nền tảng ERP/CRM quản trị điều hành tour, tự động bóc tách dự toán Excel, kiểm soát lợi nhuận gộp và quản lý chuỗi phê duyệt trạng thái khép kín cho doanh nghiệp lữ hành hàng đầu.
+              Nền tảng quản trị toàn diện hoạt động kinh doanh và điều hành du lịch. Tự động bóc tách dự toán, kiểm soát chi phí và lợi nhuận, quản trị toàn diện thông qua Dashboard cho CEO, Điều hành và Sales.
             </p>
 
             <div className="space-y-2.5 text-xs text-white/70 pt-2 font-medium">
-              <div className="flex items-center gap-2.5">
-                <EnvironmentOutlined className="text-(--color-primary-600)" />
-                <span>Trụ sở chính: Tòa nhà OPTRIP Tower, Cầu Giấy, Hà Nội</span>
+              <div className="flex items-start gap-2.5">
+                <EnvironmentOutlined className="text-(--color-primary-600) mt-0.5 shrink-0" />
+                <span>Trụ sở chính: Tầng 3, Thành Quân Building, Thanh Khê, Đà Nẵng</span>
               </div>
               <div className="flex items-center gap-2.5">
-                <PhoneOutlined className="text-(--color-primary-600)" />
-                <span>Hotline: 1900 6868 • Hỗ trợ kỹ thuật 24/7</span>
+                <PhoneOutlined className="text-(--color-primary-600) shrink-0" />
+                <span>Hotline: 19004343 – Hỗ trợ kỹ thuật: 24/24</span>
               </div>
               <div className="flex items-center gap-2.5">
-                <MailOutlined className="text-(--color-primary-600)" />
+                <MailOutlined className="text-(--color-primary-600) shrink-0" />
                 <span>Email: contact@optrip.vn</span>
               </div>
             </div>
@@ -53,32 +53,37 @@ export function ClientFooter() {
             <ul className="space-y-2.5 text-xs text-white/60 font-medium">
               <li>
                 <a href="#features" className="hover:text-white transition-colors duration-200">
-                  Quản Lý Hồ Sơ Tour & Đoàn Khách
+                  Import và bóc tách dự toán Sales
                 </a>
               </li>
               <li>
                 <a href="#features" className="hover:text-white transition-colors duration-200">
-                  Dự Toán Chi Phí & Doanh Thu Đa Phiên Bản
+                  Phê duyệt online
                 </a>
               </li>
               <li>
                 <a href="#features" className="hover:text-white transition-colors duration-200">
-                  Import Bảng Tính Excel & Queue BullMQ
+                  Thống kê chi phí – Doanh thu – Lợi nhuận – Khách hàng
                 </a>
               </li>
               <li>
                 <a href="#features" className="hover:text-white transition-colors duration-200">
-                  Khử Độc Công Thức CSV / Formula Injection
+                  Thiết lập và mã hóa nhà cung cấp – Khách hàng
                 </a>
               </li>
               <li>
                 <a href="#features" className="hover:text-white transition-colors duration-200">
-                  Cỗ Máy Duyệt Giá 6 Nấc Bất Biến
+                  Quản trị mọi thông số qua Dashboard
                 </a>
               </li>
               <li>
                 <a href="#features" className="hover:text-white transition-colors duration-200">
-                  Trò Chuyện & SSE Thời Gian Thực
+                  Chăm sóc khách hàng
+                </a>
+              </li>
+              <li>
+                <a href="#features" className="hover:text-white transition-colors duration-200">
+                  Trao đổi và SSE theo thời gian thực
                 </a>
               </li>
             </ul>
@@ -91,22 +96,22 @@ export function ClientFooter() {
             </h4>
             <ul className="space-y-2.5 text-xs text-white/60 font-medium">
               <li>
-                <a href="#solutions" className="hover:text-white transition-colors duration-200">
+                <a href="#workflow" className="hover:text-white transition-colors duration-200">
                   Ban Giám Đốc (CEO / BOD Oversight)
                 </a>
               </li>
               <li>
-                <a href="#solutions" className="hover:text-white transition-colors duration-200">
+                <a href="#workflow" className="hover:text-white transition-colors duration-200">
                   Bộ Phận Điều Hành (Operator Command)
                 </a>
               </li>
               <li>
-                <a href="#solutions" className="hover:text-white transition-colors duration-200">
+                <a href="#workflow" className="hover:text-white transition-colors duration-200">
                   Chuyên Viên Kinh Doanh (Sales Streamlined)
                 </a>
               </li>
               <li>
-                <a href="#solutions" className="hover:text-white transition-colors duration-200">
+                <a href="#workflow" className="hover:text-white transition-colors duration-200">
                   Kế Toán Doanh Nghiệp (Financial Settlement)
                 </a>
               </li>

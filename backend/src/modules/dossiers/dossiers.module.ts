@@ -12,6 +12,7 @@ import { ApprovalsModule } from '../approvals/approvals.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { DossierAccessModule } from './dossier-access.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
       Customer,
       User,
     ]),
+    DossierAccessModule,
     ApprovalsModule,
     DocumentsModule,
     NotificationsModule,
@@ -30,6 +32,6 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
   ],
   controllers: [DossiersController],
   providers: [DossiersService],
-  exports: [DossiersService, TypeOrmModule],
+  exports: [DossiersService, DossierAccessModule, TypeOrmModule],
 })
 export class DossiersModule {}

@@ -20,7 +20,7 @@ export default function ClientLandingPage() {
 
       {/* 2. Main Showcase Sections */}
       <main className="flex-1">
-        {/* Hero Section with Interactive MacOS Role Preview */}
+        {/* Centered Editorial Brand Hero Section */}
         <ClientHero />
 
         {/* 4 Pillars Bento Grid */}

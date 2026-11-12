@@ -2,18 +2,26 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository, In } from 'typeorm';
+import {
+  DataSource,
+  Repository,
+  In,
+  OptimisticLockVersionMismatchError,
+} from 'typeorm';
 import { Estimate } from './entities/estimate.entity';
 import { EstimateRevenueLine } from './entities/estimate-revenue-line.entity';
 import { EstimateCostLine } from './entities/estimate-cost-line.entity';
 import { Supplier } from '../suppliers/entities/supplier.entity';
+import { Dossier } from '../dossiers/entities/dossier.entity';
 import { QueryEstimateDto } from './dto/query-estimate.dto';
 import { CreateEstimateDto } from './dto/create-estimate.dto';
 import { UpdateEstimateDto } from './dto/update-estimate.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { DossiersService } from '../dossiers/dossiers.service';
+import { DossierAccessPolicyService } from '../dossiers/dossier-access-policy.service';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
 import { DossierStatus, EstimateStatus } from '../../common/enums';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
@@ -67,6 +75,7 @@ export class EstimatesService {
     @InjectRepository(Supplier)
     private readonly supplierRepository: Repository<Supplier>,
     private readonly dossiersService: DossiersService,
+    private readonly dossierAccessPolicy: DossierAccessPolicyService,
     private readonly auditLogsService: AuditLogsService,
     private readonly dataSource: DataSource,
   ) {}
@@ -103,8 +112,15 @@ export class EstimatesService {
 
     const queryBuilder = this.estimateRepository
       .createQueryBuilder('estimate')
-      .leftJoinAndSelect('estimate.dossier', 'dossier')
-      .where('estimate.organizationId = :organizationId', { organizationId });
+      .leftJoinAndSelect(
+        'estimate.dossier',
+        'dossier',
+        'dossier.organizationId = estimate.organizationId',
+      )
+      .where('estimate.organizationId = :organizationId', { organizationId })
+      .andWhere('dossier.organizationId = :organizationId', { organizationId });
+
+    this.dossierAccessPolicy.applyVisibilityScope(queryBuilder, 'dossier', user);
 
     if (dossierId) {
       queryBuilder.andWhere('estimate.dossierId = :dossierId', { dossierId });
@@ -200,6 +216,8 @@ export class EstimatesService {
       throw new NotFoundException(`Không tìm thấy bản báo giá với ID "${id}"`);
     }
 
+    await this.dossierAccessPolicy.assertCanView(user, estimate.dossierId);
+
     if (logSensitiveView) {
       await this.auditLogsService.record({
         organizationId: user.organizationId,
@@ -234,48 +252,75 @@ export class EstimatesService {
       await this.validateSuppliersOwnership(costLines, organizationId);
     }
 
-    // Calculate version number
-    const count = await this.estimateRepository.count({
-      where: { dossierId, organizationId },
-    });
-    const versionNo = count + 1;
+    const savedEstimate = await this.dataSource.transaction(async (manager) => {
+      const txDossierRepo = manager.getRepository(Dossier);
+      const txEstRepo = manager.getRepository(Estimate);
+      const txRevRepo = manager.getRepository(EstimateRevenueLine);
+      const txCostRepo = manager.getRepository(EstimateCostLine);
 
-    // Calculate math values for lines and assign organizationId
-    const processedRevenueLines = revenueLines.map((line) => {
-      const netAmount = calculateLineNetAmount(line);
-      const grossAmount = calculateLineGrossAmount(line);
-      return this.revenueLineRepository.create({
-        ...line,
-        organizationId,
-        netAmount,
-        grossAmount,
+      const lockedDossier = await txDossierRepo
+        .createQueryBuilder('dossier')
+        .setLock('pessimistic_write')
+        .where('dossier.id = :dossierId', { dossierId })
+        .andWhere('dossier.organizationId = :organizationId', {
+          organizationId,
+        })
+        .getOne();
+
+      if (!lockedDossier) {
+        throw new NotFoundException(`Không tìm thấy hồ sơ với ID "${dossierId}"`);
+      }
+
+      // Compute next monotonic revision number under parent Dossier lock
+      const maxVersionRow = await txEstRepo
+        .createQueryBuilder('estimate')
+        .withDeleted()
+        .select('COALESCE(MAX(estimate.versionNo), 0)', 'maxVersionNo')
+        .where('estimate.dossierId = :dossierId', { dossierId })
+        .andWhere('estimate.organizationId = :organizationId', {
+          organizationId,
+        })
+        .getRawOne<{ maxVersionNo?: string | number | null }>();
+      const versionNo = Number(maxVersionRow?.maxVersionNo ?? 0) + 1;
+
+      // Calculate math values for lines and assign organizationId
+      const processedRevenueLines = revenueLines.map((line) => {
+        const netAmount = calculateLineNetAmount(line);
+        const grossAmount = calculateLineGrossAmount(line);
+        return txRevRepo.create({
+          ...line,
+          organizationId,
+          netAmount,
+          grossAmount,
+        });
       });
-    });
 
-    const processedCostLines = costLines.map((line) => {
-      const netAmount = calculateLineNetAmount(line);
-      const grossAmount = calculateLineGrossAmount(line);
-      return this.costLineRepository.create({
-        ...line,
-        organizationId,
-        sourceAmount: line.sourceAmount ?? null,
-        netAmount,
-        grossAmount,
+      const processedCostLines = costLines.map((line) => {
+        const netAmount = calculateLineNetAmount(line);
+        const grossAmount = calculateLineGrossAmount(line);
+        return txCostRepo.create({
+          ...line,
+          organizationId,
+          sourceAmount: line.sourceAmount ?? null,
+          netAmount,
+          grossAmount,
+        });
       });
+
+      const estimate = txEstRepo.create({
+        ...dtoData,
+        dossierId,
+        organizationId,
+        versionNo,
+        status: EstimateStatus.DRAFT,
+        createdBy: user.id,
+        revenueLines: processedRevenueLines,
+        costLines: processedCostLines,
+      });
+
+      return txEstRepo.save(estimate);
     });
 
-    const estimate = this.estimateRepository.create({
-      ...dtoData,
-      dossierId,
-      organizationId,
-      versionNo,
-      status: EstimateStatus.DRAFT,
-      createdBy: user.id,
-      revenueLines: processedRevenueLines,
-      costLines: processedCostLines,
-    });
-
-    const savedEstimate = await this.estimateRepository.save(estimate);
     await this.auditLogsService.record({
       organizationId,
       actorUserId: user.id,
@@ -298,68 +343,114 @@ export class EstimatesService {
     const previousStatus = estimate.status;
     const previousValue = this.totalRevenue(estimate);
 
-    if (estimate.status === EstimateStatus.SUPERSEDED) {
-      throw new BadRequestException(
-        'Bản báo giá đã được thay thế, không thể chỉnh sửa thông tin',
+    const {
+      status,
+      note,
+      currency,
+      revenueLines,
+      costLines,
+      version: expectedVersion,
+    } = updateEstimateDto;
+
+    if (
+      expectedVersion !== undefined &&
+      estimate.version !== expectedVersion
+    ) {
+      throw new ConflictException(
+        'Bản báo giá đã được cập nhật bởi thao tác khác. Vui lòng tải lại trước khi lưu.',
       );
     }
 
-    const { status, note, currency, revenueLines, costLines } =
-      updateEstimateDto;
+    this.resolveUpdateTransition(
+      estimate.status,
+      estimate.dossier?.status,
+      status ?? estimate.status,
+    );
 
     if (costLines && costLines.length > 0) {
       await this.validateSuppliersOwnership(costLines, organizationId);
     }
 
-    if (estimate.dossier?.status === DossierStatus.LOCKED) {
-      throw new BadRequestException(
-        'Hồ sơ đã bị khóa an toàn, không thể chỉnh sửa dự toán',
-      );
-    }
-
-    const requestedStatus = status ?? estimate.status;
-    const wasApproved = estimate.status === EstimateStatus.APPROVED;
-    if (
-      wasApproved &&
-      estimate.dossier?.status !== DossierStatus.APPROVED &&
-      estimate.dossier?.status !== DossierStatus.EDITING &&
-      estimate.dossier?.status !== DossierStatus.COMPLETED
-    ) {
-      throw new BadRequestException(
-        'Chỉ có thể sửa dự toán khi hồ sơ đang ở trạng thái Đã duyệt hoặc Hoàn thành',
-      );
-    }
-    const nextStatus = wasApproved
-      ? requestedStatus === EstimateStatus.SUBMITTED
-        ? EstimateStatus.SUBMITTED
-        : estimate.dossier?.status === DossierStatus.COMPLETED
-          ? estimate.status
-          : EstimateStatus.EDITING
-      : requestedStatus;
-
-    if (nextStatus !== estimate.status) {
-      if (!(wasApproved && nextStatus === EstimateStatus.SUBMITTED)) {
-        this.validateStatusTransition(estimate.status, nextStatus);
-      }
-      estimate.status = nextStatus;
-      if (nextStatus === EstimateStatus.APPROVED) {
-        estimate.approvedBy = user.id;
-        estimate.approvedAt = new Date();
-      } else if (nextStatus === EstimateStatus.SUBMITTED) {
-        estimate.submittedBy = user.id;
-        estimate.submittedAt = new Date();
-      }
-    }
-
-    if (note !== undefined) estimate.note = note;
-    if (currency !== undefined) estimate.currency = currency;
-
-    // Wrap line sync and estimate save in an atomic database transaction
-    const updatedEstimate = await this.dataSource.transaction(
-      async (manager) => {
+    // Wrap validation, line sync, and estimate save in an atomic database transaction with pessimistic_write locks
+    const { updatedEstimate, dossierStatus, wasApproved, lockedDossierVersion } =
+      await this.dataSource.transaction(async (manager) => {
+        const txDossierRepo = manager.getRepository(Dossier);
         const revRepo = manager.getRepository(EstimateRevenueLine);
         const costRepo = manager.getRepository(EstimateCostLine);
         const estRepo = manager.getRepository(Estimate);
+
+        let lockedDossier: Dossier | null = null;
+        if (estimate.dossierId) {
+          lockedDossier = await txDossierRepo
+            .createQueryBuilder('dossier')
+            .setLock('pessimistic_write')
+            .where('dossier.id = :dossierId', {
+              dossierId: estimate.dossierId,
+            })
+            .andWhere('dossier.organizationId = :organizationId', {
+              organizationId,
+            })
+            .getOne();
+          if (!lockedDossier) {
+            throw new NotFoundException(
+              `Không tìm thấy hồ sơ với ID "${estimate.dossierId}"`,
+            );
+          }
+        }
+
+        const lockedEstimate = await estRepo
+          .createQueryBuilder('estimate')
+          .setLock('pessimistic_write')
+          .where('estimate.id = :id', { id })
+          .andWhere('estimate.organizationId = :organizationId', {
+            organizationId,
+          })
+          .getOne();
+        if (!lockedEstimate) {
+          throw new NotFoundException(`Không tìm thấy bản báo giá với ID "${id}"`);
+        }
+
+        if (
+          expectedVersion !== undefined &&
+          lockedEstimate.version !== expectedVersion
+        ) {
+          throw new ConflictException(
+            'Bản báo giá đã được cập nhật bởi thao tác khác. Vui lòng tải lại trước khi lưu.',
+          );
+        }
+
+        if (
+          estimate.version !== undefined &&
+          lockedEstimate.version !== undefined &&
+          lockedEstimate.version !== estimate.version
+        ) {
+          throw new ConflictException(
+            'Bản báo giá đã được cập nhật bởi thao tác khác. Vui lòng tải lại trước khi lưu.',
+          );
+        }
+
+        const currentDossierStatus =
+          lockedDossier?.status ?? estimate.dossier?.status;
+        const currentStatus = lockedEstimate.status;
+        const { isApprovedEstimate, nextStatus } = this.resolveUpdateTransition(
+          currentStatus,
+          currentDossierStatus,
+          status ?? currentStatus,
+        );
+
+        if (nextStatus !== currentStatus) {
+          estimate.status = nextStatus;
+          if (nextStatus === EstimateStatus.APPROVED) {
+            estimate.approvedBy = user.id;
+            estimate.approvedAt = new Date();
+          } else if (nextStatus === EstimateStatus.SUBMITTED) {
+            estimate.submittedBy = user.id;
+            estimate.submittedAt = new Date();
+          }
+        }
+
+        if (note !== undefined) estimate.note = note;
+        if (currency !== undefined) estimate.currency = currency;
 
         // Sync revenue lines
         if (revenueLines) {
@@ -454,10 +545,26 @@ export class EstimatesService {
           });
         }
 
-        return await estRepo.save(estimate);
-      },
-    );
-    const dossierStatus = estimate.dossier?.status;
+        estimate.updatedAt = new Date();
+
+        try {
+          const saved = await estRepo.save(estimate);
+          return {
+            updatedEstimate: saved,
+            dossierStatus: currentDossierStatus,
+            wasApproved: isApprovedEstimate,
+            lockedDossierVersion: lockedDossier?.version,
+          };
+        } catch (err) {
+          if (err instanceof OptimisticLockVersionMismatchError) {
+            throw new ConflictException(
+              'Bản báo giá đã được cập nhật bởi thao tác khác. Vui lòng tải lại trước khi lưu.',
+            );
+          }
+          throw err;
+        }
+      });
+
     if (wasApproved || dossierStatus === DossierStatus.EDITING) {
       if (
         dossierStatus !== DossierStatus.COMPLETED ||
@@ -467,17 +574,29 @@ export class EstimatesService {
           updatedEstimate.status === EstimateStatus.SUBMITTED
             ? DossierStatus.RESUBMITTED
             : DossierStatus.EDITING;
+        let nextDossierVersion = lockedDossierVersion;
         if (
           dossierStatus === DossierStatus.APPROVED &&
           targetDossierStatus === DossierStatus.RESUBMITTED
         ) {
-          await this.dossiersService.update(user, estimate.dossierId, {
-            status: DossierStatus.EDITING,
-          });
+          const editingDossier = await this.dossiersService.update(
+            user,
+            estimate.dossierId,
+            {
+              status: DossierStatus.EDITING,
+              ...(nextDossierVersion !== undefined
+                ? { version: nextDossierVersion }
+                : {}),
+            },
+          );
+          nextDossierVersion = editingDossier?.version;
         }
         if (dossierStatus !== targetDossierStatus) {
           await this.dossiersService.update(user, estimate.dossierId, {
             status: targetDossierStatus,
+            ...(nextDossierVersion !== undefined
+              ? { version: nextDossierVersion }
+              : {}),
           });
         }
       }
@@ -548,6 +667,52 @@ export class EstimatesService {
       revenueLineCount: estimate.revenueLines?.length ?? 0,
       costLineCount: estimate.costLines?.length ?? 0,
     };
+  }
+
+  private resolveUpdateTransition(
+    currentStatus: EstimateStatus,
+    currentDossierStatus: DossierStatus | undefined,
+    requestedStatus: EstimateStatus,
+  ): { isApprovedEstimate: boolean; nextStatus: EstimateStatus } {
+    if (currentStatus === EstimateStatus.SUPERSEDED) {
+      throw new BadRequestException(
+        'Bản báo giá đã được thay thế, không thể chỉnh sửa thông tin',
+      );
+    }
+
+    if (currentDossierStatus === DossierStatus.LOCKED) {
+      throw new BadRequestException(
+        'Hồ sơ đã bị khóa an toàn, không thể chỉnh sửa dự toán',
+      );
+    }
+
+    const isApprovedEstimate = currentStatus === EstimateStatus.APPROVED;
+    if (
+      isApprovedEstimate &&
+      currentDossierStatus !== DossierStatus.APPROVED &&
+      currentDossierStatus !== DossierStatus.EDITING &&
+      currentDossierStatus !== DossierStatus.COMPLETED
+    ) {
+      throw new BadRequestException(
+        'Chỉ có thể sửa dự toán khi hồ sơ đang ở trạng thái Đã duyệt hoặc Hoàn thành',
+      );
+    }
+
+    const nextStatus = isApprovedEstimate
+      ? requestedStatus === EstimateStatus.SUBMITTED
+        ? EstimateStatus.SUBMITTED
+        : currentDossierStatus === DossierStatus.COMPLETED
+          ? currentStatus
+          : EstimateStatus.EDITING
+      : requestedStatus;
+
+    if (nextStatus !== currentStatus) {
+      if (!(isApprovedEstimate && nextStatus === EstimateStatus.SUBMITTED)) {
+        this.validateStatusTransition(currentStatus, nextStatus);
+      }
+    }
+
+    return { isApprovedEstimate, nextStatus };
   }
 
   private validateStatusTransition(

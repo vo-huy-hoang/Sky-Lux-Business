@@ -10,7 +10,7 @@ export function ClientFloatingActions() {
 
   const handlePhoneClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    messageApi.success('Hotline tư vấn triển khai: 1900 6868 (8:00 - 18:00)');
+    messageApi.success('Hotline tư vấn triển khai: 19004343 (Hỗ trợ kỹ thuật 24/24)');
   };
 
   const handleZaloClick = (e: React.MouseEvent) => {
@@ -37,7 +37,7 @@ export function ClientFloatingActions() {
         </Tooltip>
 
         {/* Hotline Call Floating Button with Gentle Pulse Ring */}
-        <Tooltip title="Hotline tư vấn: 1900 6868" placement="left">
+        <Tooltip title="Hotline tư vấn: 19004343" placement="left">
           <div className="relative">
             <span className="absolute inset-0 rounded-full bg-(--color-primary-600) animate-ping opacity-25 pointer-events-none" />
             <button

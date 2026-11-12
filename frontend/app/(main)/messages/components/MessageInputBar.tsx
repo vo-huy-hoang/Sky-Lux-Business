@@ -219,7 +219,7 @@ export function MessageInputBar({
         className="hidden"
         multiple
         onChange={handleFileSelect}
-        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip"
+        accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.docx,.xls,.xlsx,.csv"
         data-testid="chat-file-input"
       />
 
@@ -229,7 +229,7 @@ export function MessageInputBar({
         ref={imageInputRef}
         className="hidden"
         multiple
-        accept="image/*"
+        accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif"
         onChange={handleFileSelect}
         data-testid="chat-image-input"
       />

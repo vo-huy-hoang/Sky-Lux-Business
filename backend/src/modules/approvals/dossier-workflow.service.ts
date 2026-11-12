@@ -8,7 +8,12 @@ import {
   Optional,
 } from '@nestjs/common';
 import { NotificationsService } from '../notifications/notifications.service';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  OptimisticLockVersionMismatchError,
+  Repository,
+} from 'typeorm';
 import {
   ApprovalStatus,
   DossierStatus,
@@ -267,13 +272,23 @@ export class DossierWorkflowService {
         user,
         dossierId,
       );
+      if (dto.version !== undefined && dossier.version !== dto.version) {
+        throw new ConflictException(
+          'Hồ sơ đã được cập nhật bởi thao tác khác. Vui lòng tải lại trước khi thực hiện.',
+        );
+      }
       this.assertActionPermission(user, dossier, action);
       this.assertTransition(dossier.status, action);
 
-      const estimate = await estimates.findOne({
-        where: { dossierId, organizationId: user.organizationId },
-        order: { versionNo: 'DESC' },
-      });
+      const estimate = await estimates
+        .createQueryBuilder('estimate')
+        .setLock('pessimistic_write')
+        .where('estimate.dossierId = :dossierId', { dossierId })
+        .andWhere('estimate.organizationId = :organizationId', {
+          organizationId: user.organizationId,
+        })
+        .orderBy('estimate.versionNo', 'DESC')
+        .getOne();
       if (this.requiresEstimate(action) && !estimate) {
         throw new ConflictException(
           'Hồ sơ cần có dự toán trước khi chuyển workflow',
@@ -283,7 +298,17 @@ export class DossierWorkflowService {
       const previousStatus = dossier.status;
       const previousOperatorUserId = dossier.operatorUserId;
       this.applyDossierAction(dossier, user, dto, action);
-      const savedDossier = await dossiers.save(dossier);
+      let savedDossier: Dossier;
+      try {
+        savedDossier = await dossiers.save(dossier);
+      } catch (err) {
+        if (err instanceof OptimisticLockVersionMismatchError) {
+          throw new ConflictException(
+            'Hồ sơ đã được cập nhật bởi thao tác khác. Vui lòng tải lại trước khi thực hiện.',
+          );
+        }
+        throw err;
+      }
       const savedEstimate = estimate
         ? await this.applyEstimateAction(estimates, estimate, user, action)
         : undefined;
@@ -381,9 +406,14 @@ export class DossierWorkflowService {
     user: CurrentUserPayload,
     dossierId: string,
   ) {
-    const dossier = await repository.findOne({
-      where: { id: dossierId, organizationId: user.organizationId },
-    });
+    const dossier = await repository
+      .createQueryBuilder('dossier')
+      .setLock('pessimistic_write')
+      .where('dossier.id = :dossierId', { dossierId })
+      .andWhere('dossier.organizationId = :organizationId', {
+        organizationId: user.organizationId,
+      })
+      .getOne();
     if (!dossier) throw new NotFoundException('Không tìm thấy hồ sơ');
     return dossier;
   }
@@ -514,7 +544,16 @@ export class DossierWorkflowService {
       estimate.approvedAt = new Date();
       estimate.approvedBy = user.id;
     }
-    return repository.save(estimate);
+    try {
+      return await repository.save(estimate);
+    } catch (err) {
+      if (err instanceof OptimisticLockVersionMismatchError) {
+        throw new ConflictException(
+          'Báo giá đã được cập nhật bởi thao tác khác. Vui lòng tải lại trước khi thực hiện.',
+        );
+      }
+      throw err;
+    }
   }
 
   private async updateApproval(
@@ -607,6 +646,7 @@ export class DossierWorkflowService {
       id: dossier.id,
       code: dossier.code,
       status: dossier.status,
+      version: dossier.version,
       createdAt: dossier.createdAt,
       updatedAt: dossier.updatedAt,
     };

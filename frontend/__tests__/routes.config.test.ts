@@ -204,6 +204,39 @@ describe('routes.config - Permission-Driven Dynamic Navigation', () => {
     expect(isPathAccessible('/main/dossiers/dc6c0291-7bbd-4514', unauthorizedCtx)).toBe(false);
   });
 
+  it('isPathAccessible: allows /organizations/new ONLY for SUPER_ADMIN', () => {
+    const superAdminCtx: UserContext = {
+      isOperator: false,
+      isSales: false,
+      isCeoAdmin: false,
+      isSuperAdmin: true,
+    };
+    const ceoCtx: UserContext = {
+      isOperator: false,
+      isSales: false,
+      isCeoAdmin: true,
+      isSuperAdmin: false,
+    };
+    const salesCtx: UserContext = {
+      isOperator: false,
+      isSales: true,
+      isCeoAdmin: false,
+      isSuperAdmin: false,
+    };
+    const operatorCtx: UserContext = {
+      isOperator: true,
+      isSales: false,
+      isCeoAdmin: false,
+      isSuperAdmin: false,
+    };
+
+    expect(isPathAccessible('/organizations/new', superAdminCtx)).toBe(true);
+    expect(isPathAccessible('/organizations/new', ceoCtx)).toBe(false);
+    expect(isPathAccessible('/organizations/new', salesCtx)).toBe(false);
+    expect(isPathAccessible('/organizations/new', operatorCtx)).toBe(false);
+    expect(isPathAccessible('/main/organizations/new', ceoCtx)).toBe(false);
+  });
+
   it('CEO_ADMIN / SUPER_ADMIN: tasks route is labeled "Lịch trình điều hành"', () => {
     const ceoCtx: UserContext = {
       isOperator: false,

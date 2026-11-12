@@ -8,7 +8,11 @@ import {
 } from '@nestjs/common';
 import { NotificationsService } from '../notifications/notifications.service';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import {
+  DataSource,
+  OptimisticLockVersionMismatchError,
+  Repository,
+} from 'typeorm';
 import { Dossier } from './entities/dossier.entity';
 import { Comment } from './entities/comment.entity';
 import { Customer } from '../customers/entities/customer.entity';
@@ -23,6 +27,7 @@ import { PaginatedResponse } from '../../common/interfaces/api-response.interfac
 import { DossierStatus } from '../../common/enums';
 import { toPublicUser } from '../../common/utils/public-user';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { DossierAccessPolicyService } from './dossier-access-policy.service';
 import {
   AuditAction,
   AuditEntityType,
@@ -42,6 +47,8 @@ export class DossiersService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly auditLogsService: AuditLogsService,
+    private readonly dossierAccessPolicy: DossierAccessPolicyService,
+    private readonly dataSource: DataSource,
     @Optional()
     private readonly notificationsService?: NotificationsService,
   ) {}
@@ -73,37 +80,10 @@ export class DossiersService {
       )
       .where('dossier.organizationId = :organizationId', { organizationId });
 
-    // Enforce own record permission limit if not admin and lacks view all
-    const hasViewAll =
-      user.permissions.includes('dossier.view.all') ||
-      user.permissions.includes('*') ||
-      user.roles.includes('SUPER_ADMIN');
-
-    if (!hasViewAll) {
-      const visibilityClauses: string[] = [];
-      const visibilityParams: Record<string, string> = {};
-
-      if (user.permissions.includes('dossier.view.own')) {
-        visibilityClauses.push(
-          '(dossier.salesUserId = :userId OR dossier.operatorUserId = :userId OR dossier.createdBy = :userId)',
-        );
-        visibilityParams.userId = user.id;
-      }
-
-      if (user.permissions.includes('dossier.view.team') && user.departmentId) {
-        visibilityClauses.push(
-          '(salesUser.departmentId = :departmentId OR operatorUser.departmentId = :departmentId)',
-        );
-        visibilityParams.departmentId = user.departmentId;
-      }
-
-      queryBuilder.andWhere(
-        visibilityClauses.length > 0
-          ? `(${visibilityClauses.join(' OR ')})`
-          : '1 = 0',
-        visibilityParams,
-      );
-    }
+    this.dossierAccessPolicy.applyVisibilityScope(queryBuilder, 'dossier', user, {
+      salesUserAlias: 'salesUser',
+      operatorUserAlias: 'operatorUser',
+    });
 
     if (status) {
       queryBuilder.andWhere('dossier.status = :status', { status });
@@ -188,32 +168,7 @@ export class DossiersService {
       dossier.operatorUser = undefined;
     }
 
-    const hasViewAll =
-      user.permissions.includes('dossier.view.all') ||
-      user.permissions.includes('*') ||
-      user.roles.includes('SUPER_ADMIN');
-    const hasViewTeam = user.permissions.includes('dossier.view.team');
-    const isOwnDossier = [
-      dossier.salesUserId,
-      dossier.operatorUserId,
-      dossier.createdBy,
-    ].includes(user.id);
-    const isTeamDossier =
-      !!user.departmentId &&
-      [
-        dossier.salesUser?.departmentId,
-        dossier.operatorUser?.departmentId,
-      ].includes(user.departmentId);
-
-    if (
-      !hasViewAll &&
-      !(
-        (user.permissions.includes('dossier.view.own') && isOwnDossier) ||
-        (hasViewTeam && isTeamDossier)
-      )
-    ) {
-      throw new NotFoundException(`Không tìm thấy hồ sơ với ID "${id}"`);
-    }
+    this.dossierAccessPolicy.assertCanViewDossierEntity(user, dossier, id);
 
     dossier.salesUser = toPublicUser(
       dossier.salesUser,
@@ -306,58 +261,136 @@ export class DossiersService {
     id: string,
     updateDossierDto: UpdateDossierDto,
   ): Promise<Dossier> {
-    const dossier = await this.findOne(user, id, false);
-    const beforeData = this.auditSnapshot(dossier);
-    const previousStatus = dossier.status;
-    const previousSalesUserId = dossier.salesUserId;
-    const previousOperatorUserId = dossier.operatorUserId;
-    if (dossier.status === DossierStatus.LOCKED) {
+    const initialDossier = await this.findOne(user, id, false);
+    const organizationId = user.organizationId;
+    const {
+      code,
+      status,
+      version: expectedVersion,
+      ...updateData
+    } = updateDossierDto;
+
+    if (
+      expectedVersion !== undefined &&
+      initialDossier.version !== expectedVersion
+    ) {
+      throw new ConflictException(
+        'Hồ sơ đã được cập nhật bởi thao tác khác. Vui lòng tải lại trước khi lưu.',
+      );
+    }
+
+    if (initialDossier.status === DossierStatus.LOCKED) {
       throw new BadRequestException('Không thể chỉnh sửa hồ sơ khi đã bị khóa');
     }
-    const { code, status, ...updateData } = updateDossierDto;
-    const organizationId = user.organizationId;
 
-    if (code && code !== dossier.code) {
-      const existingCode = await this.dossierRepository.findOne({
-        where: { code, organizationId },
-      });
-      if (existingCode) {
-        throw new ConflictException(`Mã hồ sơ "${code}" đã tồn tại`);
-      }
-      dossier.code = code;
-    }
+    const { beforeData, previousStatus, previousSalesUserId, previousOperatorUserId, updatedDossier } =
+      await this.dataSource.transaction(async (manager) => {
+        const txDossierRepo = manager.getRepository(Dossier);
+        const dossier = await txDossierRepo
+          .createQueryBuilder('dossier')
+          .setLock('pessimistic_write')
+          .where('dossier.id = :id', { id })
+          .andWhere('dossier.organizationId = :organizationId', {
+            organizationId,
+          })
+          .getOne();
 
-    if (status && status !== dossier.status) {
-      this.validateStatusTransition(dossier.status, status);
-      dossier.status = status;
-    }
+        if (!dossier) {
+          throw new NotFoundException(`Không tìm thấy hồ sơ với ID "${id}"`);
+        }
 
-    if (updateData.customerId) {
-      const customer = await this.customerRepository.findOne({
-        where: { id: updateData.customerId, organizationId },
-      });
-      if (!customer) {
-        throw new BadRequestException(
-          'Khách hàng không tồn tại hoặc không thuộc tổ chức của bạn',
+        if (
+          expectedVersion !== undefined &&
+          dossier.version !== expectedVersion
+        ) {
+          throw new ConflictException(
+            'Hồ sơ đã được cập nhật bởi thao tác khác. Vui lòng tải lại trước khi lưu.',
+          );
+        }
+
+        if (
+          initialDossier.version !== undefined &&
+          dossier.version !== undefined &&
+          dossier.version !== initialDossier.version
+        ) {
+          throw new ConflictException(
+            'Hồ sơ đã được cập nhật bởi thao tác khác. Vui lòng tải lại trước khi lưu.',
+          );
+        }
+
+        if (dossier.status === DossierStatus.LOCKED) {
+          throw new BadRequestException(
+            'Không thể chỉnh sửa hồ sơ khi đã bị khóa',
+          );
+        }
+
+        const before = this.auditSnapshot(dossier);
+        const prevStatus = dossier.status;
+        const prevSalesUserId = dossier.salesUserId;
+        const prevOperatorUserId = dossier.operatorUserId;
+
+        if (code && code !== dossier.code) {
+          const existingCode = await txDossierRepo.findOne({
+            where: { code, organizationId },
+          });
+          if (existingCode) {
+            throw new ConflictException(`Mã hồ sơ "${code}" đã tồn tại`);
+          }
+          dossier.code = code;
+        }
+
+        if (status && status !== dossier.status) {
+          this.validateStatusTransition(dossier.status, status);
+          dossier.status = status;
+        }
+
+        if (updateData.customerId) {
+          const customer = await this.customerRepository.findOne({
+            where: { id: updateData.customerId, organizationId },
+          });
+          if (!customer) {
+            throw new BadRequestException(
+              'Khách hàng không tồn tại hoặc không thuộc tổ chức của bạn',
+            );
+          }
+        }
+
+        await this.assertAssignedUsersInOrganization(
+          organizationId,
+          updateData.salesUserId,
+          updateData.operatorUserId,
         );
-      }
-    }
 
-    await this.assertAssignedUsersInOrganization(
-      organizationId,
-      updateData.salesUserId,
-      updateData.operatorUserId,
-    );
+        Object.assign(dossier, updateData);
+        if (
+          !dossier.revenueRecognitionDate &&
+          (dossier.endDate || dossier.startDate)
+        ) {
+          dossier.revenueRecognitionDate =
+            dossier.endDate || dossier.startDate;
+        }
 
-    Object.assign(dossier, updateData);
-    if (
-      !dossier.revenueRecognitionDate &&
-      (dossier.endDate || dossier.startDate)
-    ) {
-      dossier.revenueRecognitionDate = dossier.endDate || dossier.startDate;
-    }
+        let saved: Dossier;
+        try {
+          saved = await txDossierRepo.save(dossier);
+        } catch (err) {
+          if (err instanceof OptimisticLockVersionMismatchError) {
+            throw new ConflictException(
+              'Hồ sơ đã được cập nhật bởi thao tác khác. Vui lòng tải lại trước khi lưu.',
+            );
+          }
+          throw err;
+        }
 
-    const updatedDossier = await this.dossierRepository.save(dossier);
+        return {
+          beforeData: before,
+          previousStatus: prevStatus,
+          previousSalesUserId: prevSalesUserId,
+          previousOperatorUserId: prevOperatorUserId,
+          updatedDossier: saved,
+        };
+      });
+
     const afterData = this.auditSnapshot(updatedDossier);
     await this.auditLogsService.record({
       organizationId: user.organizationId,

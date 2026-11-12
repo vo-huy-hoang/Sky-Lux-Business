@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, IsNull } from 'typeorm';
@@ -38,6 +39,8 @@ import {
   ImportSessionStatus,
 } from '../../common/enums';
 import { sanitizeFileName } from '../../common/utils/filename.util';
+import { StorageService } from '../../shared/storage/storage.service';
+import { validateUploadFile } from '../../shared/storage/file-validation.util';
 import {
   CUSTOMER_BUDGET_FORMAT,
   CustomerBudgetLine,
@@ -118,6 +121,8 @@ export class ImportsService {
     private readonly importQueue: Queue,
     private readonly dataSource: DataSource,
     private readonly auditLogsService: AuditLogsService,
+    @Optional()
+    private readonly storageService?: StorageService,
   ) {
     // Ensure upload directory exists
     if (!fs.existsSync(this.uploadDir)) {
@@ -135,6 +140,12 @@ export class ImportsService {
       throw new BadRequestException('Vui lòng tải lên một tệp tin Excel');
     }
 
+    const validated =
+      this.storageService &&
+      typeof this.storageService.validateUpload === 'function'
+        ? this.storageService.validateUpload(file, 'import')
+        : validateUploadFile(file, 'import');
+
     // Check optional template validity if provided
     let template: ImportTemplate | null = null;
     if (uploadImportDto.templateId) {
@@ -148,11 +159,18 @@ export class ImportsService {
       }
     }
 
-    // Save Excel file to local disk for async processing
+    // Save Excel file to tenant-partitioned local disk for async worker processing
     const fileId = crypto.randomUUID();
     const cleanFileName = sanitizeFileName(file.originalname);
-    const extension = path.extname(cleanFileName) || '.xlsx';
-    const filePath = path.join(this.uploadDir, `${fileId}${extension}`);
+    const orgUploadDir = path.resolve(this.uploadDir, organizationId);
+    const baseUploadDir = path.resolve(this.uploadDir);
+    if (!orgUploadDir.startsWith(baseUploadDir + path.sep)) {
+      throw new BadRequestException('Phân vùng lưu trữ tổ chức không hợp lệ');
+    }
+    if (!fs.existsSync(orgUploadDir)) {
+      fs.mkdirSync(orgUploadDir, { recursive: true });
+    }
+    const filePath = path.join(orgUploadDir, `${fileId}${validated.extension}`);
     fs.writeFileSync(filePath, file.buffer);
 
     // Create session entity
@@ -160,8 +178,8 @@ export class ImportsService {
       organizationId,
       templateId: template?.id,
       fileName: cleanFileName,
-      fileUrl: `uploads/imports/${fileId}${extension}`,
-      fileSize: file.size,
+      fileUrl: `imports/${organizationId}/${fileId}${validated.extension}`,
+      fileSize: file.size ?? file.buffer.length,
       status: ImportSessionStatus.UPLOADED,
       uploadedBy: userId,
       totalRows: 0,

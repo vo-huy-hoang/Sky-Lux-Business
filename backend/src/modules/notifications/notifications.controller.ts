@@ -11,6 +11,7 @@ import {
   Sse,
   UseGuards,
   MessageEvent,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import {
@@ -26,6 +27,7 @@ import { QueryNotificationDto } from './dto/query-notification.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtQueryAuthGuard } from '../../common/guards/jwt-query-auth.guard';
 import { Notification } from './entities/notification.entity';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
@@ -81,12 +83,21 @@ export class NotificationsController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Tạo thông báo mới thủ công' })
+  @Roles('CEO_ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Quản trị viên tạo thông báo mới thủ công' })
   @ApiResponse({ status: 201, description: 'Tạo thông báo thành công' })
+  @ApiResponse({ status: 403, description: 'Không có quyền gửi thông báo thủ công' })
   create(
     @Body() createNotificationDto: CreateNotificationDto,
     @CurrentUser() user: CurrentUserPayload,
   ): Promise<Notification> {
+    if (
+      !user?.roles?.some((role) => role === 'CEO_ADMIN' || role === 'SUPER_ADMIN')
+    ) {
+      throw new ForbiddenException(
+        'Chỉ CEO_ADMIN hoặc SUPER_ADMIN được phép tạo thông báo thủ công',
+      );
+    }
     return this.notificationsService.create(createNotificationDto, user);
   }
 

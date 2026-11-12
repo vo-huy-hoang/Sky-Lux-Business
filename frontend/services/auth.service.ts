@@ -1,4 +1,3 @@
-import Cookies from 'js-cookie';
 import { apiClient, RequestOptions } from '@/lib/api-client';
 import { LoginResponse, RefreshTokenResponse } from '@/types/auth';
 
@@ -14,6 +13,7 @@ export interface AuthMeResponse {
   phone?: string;
   avatarUrl?: string;
   twoFactorEnabled: boolean;
+  mustChangePassword?: boolean;
   notificationPreferences: {
     taskAssignments: boolean;
     dossierUpdates: boolean;
@@ -43,19 +43,17 @@ export const authService = {
       signal: options?.signal,
     }),
 
-  logout: (options?: RequestOptions) => {
-    const refreshToken = Cookies.get('refresh_token');
-    return apiClient.post<any, null>(
+  logout: (options?: RequestOptions) =>
+    apiClient.post<any, null>(
       '/auth/logout',
-      refreshToken ? { refreshToken } : {},
+      {},
       { signal: options?.signal },
-    );
-  },
+    ),
 
-  refreshToken: (refreshToken: string, options?: RequestOptions) =>
+  refreshToken: (options?: RequestOptions) =>
     apiClient.post<any, RefreshTokenResponse>(
       '/auth/refresh',
-      { refreshToken },
+      {},
       { signal: options?.signal },
     ),
 

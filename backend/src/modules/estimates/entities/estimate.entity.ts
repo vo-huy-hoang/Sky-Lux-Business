@@ -5,6 +5,7 @@ import {
   OneToMany,
   JoinColumn,
   Index,
+  VersionColumn,
 } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Organization } from '../../organizations/entities/organization.entity';
@@ -26,6 +27,9 @@ export class Estimate extends BaseEntity {
 
   @Column({ name: 'version_no', type: 'int', default: 1 })
   versionNo: number;
+
+  @VersionColumn({ default: 1 })
+  version: number;
 
   @Index()
   @Column({

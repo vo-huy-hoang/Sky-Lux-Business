@@ -28,6 +28,7 @@ import {
   AuditEntityType,
 } from '../audit-logs/audit-event.constants';
 import { RedisService } from '../../common/redis/redis.service';
+import { generateTemporaryPassword } from '../../common/validators/password-policy.validator';
 
 @Injectable()
 export class UsersService {
@@ -422,11 +423,14 @@ export class UsersService {
       }
     }
 
-    // 6. Băm mật khẩu (mặc định SkyLux@123 nếu không truyền)
-    const rawPassword = password || 'SkyLux@123';
+    // 6. Băm mật khẩu (sinh mật khẩu tạm ngẫu nhiên nếu không truyền)
+    const generatedTemporaryPassword = password
+      ? undefined
+      : generateTemporaryPassword();
+    const rawPassword = password || generatedTemporaryPassword!;
     const passwordHash = await bcrypt.hash(rawPassword, 10);
 
-    // 7. Tạo và lưu người dùng
+    // 7. Tạo và lưu người dùng (bắt buộc đổi mật khẩu khi đăng nhập lần đầu)
     const user = this.userRepository.create({
       organizationId,
       departmentId,
@@ -437,6 +441,7 @@ export class UsersService {
       avatarUrl,
       status,
       passwordHash,
+      mustChangePassword: true,
       roles,
     });
 
@@ -453,7 +458,14 @@ export class UsersService {
       });
     }
 
-    return { data: this.sanitizeUser(savedUser) };
+    return {
+      data: {
+        ...this.sanitizeUser(savedUser),
+        ...(generatedTemporaryPassword
+          ? { temporaryPassword: generatedTemporaryPassword }
+          : {}),
+      },
+    };
   }
 
   async createCeo(
@@ -594,6 +606,7 @@ export class UsersService {
     // 5. Cập nhật mật khẩu nếu có
     if (password) {
       user.passwordHash = await bcrypt.hash(password, 10);
+      user.mustChangePassword = true;
     }
 
     // 6. Cập nhật các trường thông tin cơ bản khác
@@ -612,6 +625,13 @@ export class UsersService {
     }
 
     const updatedUser = await this.userRepository.save(user);
+
+    if (password) {
+      await this.refreshTokenRepository.update(
+        { userId: id, isRevoked: false },
+        { isRevoked: true },
+      );
+    }
 
     if (actorUserId) {
       await this.auditLogsService.record({

@@ -46,6 +46,9 @@ export class User extends BaseEntity {
   @Column({ name: 'two_factor_enabled', type: 'boolean', default: false })
   twoFactorEnabled: boolean;
 
+  @Column({ name: 'must_change_password', type: 'boolean', default: false })
+  mustChangePassword: boolean;
+
   @Column({
     name: 'notification_preferences',
     type: 'jsonb',

@@ -8,6 +8,7 @@ import { EstimateCostLine } from './entities/estimate-cost-line.entity';
 import { Supplier } from '../suppliers/entities/supplier.entity';
 
 import { DossiersModule } from '../dossiers/dossiers.module';
+import { DossierAccessModule } from '../dossiers/dossier-access.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
@@ -19,6 +20,7 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
       Supplier,
     ]),
     DossiersModule,
+    DossierAccessModule,
     AuditLogsModule,
   ],
   controllers: [EstimatesController],

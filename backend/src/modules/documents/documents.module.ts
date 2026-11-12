@@ -9,6 +9,7 @@ import { Dossier } from '../dossiers/entities/dossier.entity';
 import { Estimate } from '../estimates/entities/estimate.entity';
 import { StorageModule } from '../../shared/storage/storage.module';
 import { RedisModule } from '../../common/redis/redis.module';
+import { DossierAccessModule } from '../dossiers/dossier-access.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { RedisModule } from '../../common/redis/redis.module';
       Dossier,
       Estimate,
     ]),
+    DossierAccessModule,
     StorageModule,
     RedisModule,
   ],

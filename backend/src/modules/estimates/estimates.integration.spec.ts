@@ -8,7 +8,9 @@ import { Estimate } from './entities/estimate.entity';
 import { EstimateRevenueLine } from './entities/estimate-revenue-line.entity';
 import { EstimateCostLine } from './entities/estimate-cost-line.entity';
 import { Supplier } from '../suppliers/entities/supplier.entity';
+import { Dossier } from '../dossiers/entities/dossier.entity';
 import { DossiersService } from '../dossiers/dossiers.service';
+import { DossierAccessPolicyService } from '../dossiers/dossier-access-policy.service';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { CreateEstimateDto } from './dto/create-estimate.dto';
 import { UpdateEstimateDto } from './dto/update-estimate.dto';
@@ -25,7 +27,12 @@ describe('Estimates Module (Integration)', () => {
   const mockUserOrgA = {
     id: 'user-A-uuid',
     organizationId: orgA,
-    permissions: ['estimate.view', 'estimate.create', 'estimate.update'],
+    permissions: [
+      'dossier.view.all',
+      'estimate.view',
+      'estimate.create',
+      'estimate.update',
+    ],
     roles: [],
   } as unknown as CurrentUserPayload;
 
@@ -51,7 +58,22 @@ describe('Estimates Module (Integration)', () => {
     findOne: jest.fn(),
   };
 
+  const mockDossierRepo = {
+    findOne: jest.fn().mockResolvedValue({
+      id: 'dossier-A-uuid',
+      organizationId: orgA,
+      salesUserId: 'user-A-uuid',
+      createdBy: 'user-A-uuid',
+    }),
+  };
+
   beforeEach(async () => {
+    mockDossierRepo.findOne.mockResolvedValue({
+      id: 'dossier-A-uuid',
+      organizationId: orgA,
+      salesUserId: 'user-A-uuid',
+      createdBy: 'user-A-uuid',
+    });
     const module: TestingModule = await Test.createTestingModule({
       controllers: [EstimatesController],
       providers: [
@@ -116,6 +138,11 @@ describe('Estimates Module (Integration)', () => {
         {
           provide: DossiersService,
           useValue: mockDossiersService,
+        },
+        DossierAccessPolicyService,
+        {
+          provide: getRepositoryToken(Dossier),
+          useValue: mockDossierRepo,
         },
         {
           provide: AuditLogsService,
@@ -189,6 +216,115 @@ describe('Estimates Module (Integration)', () => {
       await expect(
         controller.update(mockUserOrgA, 'est-A-uuid', updateDto),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('3. Bảo vệ BOLA theo phạm vi hồ sơ (Ticket 02: own / team / all)', () => {
+    const salesOwnUser = {
+      id: 'sales-own-uuid',
+      organizationId: orgA,
+      departmentId: 'dept-hcm',
+      permissions: ['estimate.view', 'estimate.update', 'dossier.view.own'],
+      roles: ['SALES'],
+    } as unknown as CurrentUserPayload;
+
+    const salesTeamUser = {
+      id: 'sales-lead-uuid',
+      organizationId: orgA,
+      departmentId: 'dept-hcm',
+      permissions: ['estimate.view', 'dossier.view.team'],
+      roles: ['SALES'],
+    } as unknown as CurrentUserPayload;
+
+    it('SALES scope own KHÔNG THỂ xem hoặc sửa báo giá hồ sơ đồng nghiệp', async () => {
+      estimateRepository.findOne.mockResolvedValue({
+        ...mockEstimateOrgA,
+        dossierId: 'dossier-colleague-uuid',
+      });
+      mockDossierRepo.findOne.mockResolvedValue({
+        id: 'dossier-colleague-uuid',
+        organizationId: orgA,
+        salesUserId: 'sales-other-uuid',
+        operatorUserId: 'operator-uuid',
+        createdBy: 'sales-other-uuid',
+      });
+
+      await expect(
+        controller.findOne(salesOwnUser, 'est-A-uuid'),
+      ).rejects.toThrow(NotFoundException);
+
+      await expect(
+        controller.update(salesOwnUser, 'est-A-uuid', { note: 'Tamper' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('User có quyền dossier.view.team XEM ĐƯỢC báo giá cùng phòng ban và bị TỪ CHỐI khác phòng ban', async () => {
+      estimateRepository.findOne.mockResolvedValue({
+        ...mockEstimateOrgA,
+        dossierId: 'dossier-team-uuid',
+      });
+
+      mockDossierRepo.findOne.mockResolvedValueOnce({
+        id: 'dossier-team-uuid',
+        organizationId: orgA,
+        salesUserId: 'colleague-hcm',
+        salesUser: { organizationId: orgA, departmentId: 'dept-hcm' },
+        operatorUser: null,
+      });
+
+      await expect(
+        controller.findOne(salesTeamUser, 'est-A-uuid'),
+      ).resolves.toMatchObject({ id: 'est-A-uuid' });
+
+      mockDossierRepo.findOne.mockResolvedValueOnce({
+        id: 'dossier-team-uuid',
+        organizationId: orgA,
+        salesUserId: 'colleague-hn',
+        salesUser: { organizationId: orgA, departmentId: 'dept-hn' },
+        operatorUser: { organizationId: orgA, departmentId: 'dept-hn' },
+      });
+
+      await expect(
+        controller.findOne(salesTeamUser, 'est-A-uuid'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('scopes findAll with DossierAccessPolicy and blocks remove for unauthorized scope', async () => {
+      const qb = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        leftJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+      };
+      estimateRepository.createQueryBuilder.mockReturnValue(qb as any);
+
+      await expect(
+        controller.findAll(salesOwnUser, { page: 1, limit: 10 }),
+      ).resolves.toMatchObject({ data: [], meta: { total: 0 } });
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('dossier.salesUserId = :userId'),
+        expect.objectContaining({ userId: salesOwnUser.id }),
+      );
+
+      estimateRepository.findOne.mockResolvedValueOnce({
+        ...mockEstimateOrgA,
+        dossierId: 'dossier-colleague-uuid',
+      });
+      mockDossierRepo.findOne.mockResolvedValueOnce({
+        id: 'dossier-colleague-uuid',
+        organizationId: orgA,
+        salesUserId: 'sales-other-uuid',
+        operatorUserId: 'operator-uuid',
+        createdBy: 'sales-other-uuid',
+      });
+
+      await expect(
+        controller.remove(salesOwnUser, 'est-A-uuid'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

@@ -100,7 +100,7 @@ export function ClientHeader() {
       key: 'ceo',
       icon: <AuditOutlined style={{ color: themeTokens.brand.gold.main }} />,
       label: (
-        <a href="#solutions" onClick={(e) => handleScrollTo(e, 'solutions')} className="py-1.5 block">
+        <a href="#workflow" onClick={(e) => handleScrollTo(e, 'workflow')} className="py-1.5 block">
           <div className="font-bold text-sm text-(--color-text)">Cho Ban Giám Đốc (CEO / BOD)</div>
           <div className="text-xs text-(--color-text-muted)">Kiểm soát biên lợi nhuận gộp, phê duyệt giá thương mại và báo cáo KPI</div>
         </a>
@@ -110,7 +110,7 @@ export function ClientHeader() {
       key: 'operator',
       icon: <CheckCircleOutlined style={{ color: themeTokens.brand.primary[700] }} />,
       label: (
-        <a href="#solutions" onClick={(e) => handleScrollTo(e, 'solutions')} className="py-1.5 block">
+        <a href="#workflow" onClick={(e) => handleScrollTo(e, 'workflow')} className="py-1.5 block">
           <div className="font-bold text-sm text-(--color-text)">Cho Bộ Phận Điều Hành (Operator)</div>
           <div className="text-xs text-(--color-text-muted)">Khảo sát giá Net nhà cung cấp, quản lý checklist công việc và lịch tour</div>
         </a>
@@ -120,7 +120,7 @@ export function ClientHeader() {
       key: 'sales',
       icon: <TeamOutlined style={{ color: themeTokens.semantic.info.main }} />,
       label: (
-        <a href="#solutions" onClick={(e) => handleScrollTo(e, 'solutions')} className="py-1.5 block">
+        <a href="#workflow" onClick={(e) => handleScrollTo(e, 'workflow')} className="py-1.5 block">
           <div className="font-bold text-sm text-(--color-text)">Cho Chuyên Viên Kinh Doanh (Sales)</div>
           <div className="text-xs text-(--color-text-muted)">Tải bảng tính Excel lên trong 2 giây, nộp duyệt báo giá nhanh và chốt hợp đồng</div>
         </a>

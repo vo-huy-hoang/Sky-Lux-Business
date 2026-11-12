@@ -3,6 +3,7 @@ import {
   CanActivate,
   ExecutionContext,
   UnauthorizedException,
+  ForbiddenException,
   Optional,
   Logger,
 } from '@nestjs/common';
@@ -13,6 +14,11 @@ import { User } from '../../modules/users/entities/user.entity';
 import { UserStatus } from '../enums';
 import { RedisService } from '../redis/redis.service';
 import { UserAuthMeta } from './jwt-auth.guard';
+import {
+  ACCESS_TOKEN_COOKIE,
+  parseCookieHeader,
+} from '../utils/cookie.util';
+import { derivePurposeSecret } from '../utils/jwt-purpose.util';
 
 @Injectable()
 export class JwtQueryAuthGuard implements CanActivate {
@@ -28,9 +34,14 @@ export class JwtQueryAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const token = request.query?.token;
+    const queryToken =
+      typeof request.query?.token === 'string'
+        ? request.query.token
+        : undefined;
+    const cookies = parseCookieHeader(request.headers?.['cookie']);
+    const cookieToken = cookies[ACCESS_TOKEN_COOKIE];
 
-    if (!token) {
+    if (!queryToken && !cookieToken) {
       throw new UnauthorizedException('Missing token query parameter');
     }
 
@@ -39,9 +50,19 @@ export class JwtQueryAuthGuard implements CanActivate {
       if (!secret) {
         throw new Error('JWT_SECRET is not configured');
       }
-      const payload = await this.jwtService.verifyAsync(token, { secret });
-      if (payload.stream !== true) {
-        throw new UnauthorizedException('Stream token không hợp lệ');
+
+      let payload: any;
+      if (queryToken) {
+        payload = await this.jwtService.verifyAsync(queryToken, {
+          secret: derivePurposeSecret(secret, 'stream'),
+        });
+        if (payload.stream !== true) {
+          throw new UnauthorizedException('Stream token không hợp lệ');
+        }
+      } else {
+        payload = await this.jwtService.verifyAsync(cookieToken, {
+          secret: derivePurposeSecret(secret, 'access'),
+        });
       }
       const currentUser = await this.getUserAuthMeta(payload.id);
       if (
@@ -52,10 +73,21 @@ export class JwtQueryAuthGuard implements CanActivate {
       ) {
         throw new UnauthorizedException('Stream token không còn hợp lệ');
       }
+      if (currentUser.mustChangePassword) {
+        throw new ForbiddenException({
+          statusCode: 403,
+          code: 'PASSWORD_CHANGE_REQUIRED',
+          message:
+            'Bạn phải đổi mật khẩu lần đầu trước khi sử dụng hệ thống',
+        });
+      }
       request.user = payload;
       return true;
     } catch (err) {
-      if (err instanceof UnauthorizedException) {
+      if (
+        err instanceof UnauthorizedException ||
+        err instanceof ForbiddenException
+      ) {
         throw err;
       }
       throw new UnauthorizedException('Token is invalid or expired');
@@ -85,6 +117,7 @@ export class JwtQueryAuthGuard implements CanActivate {
         organizationId: true,
         status: true,
         authVersion: true,
+        mustChangePassword: true,
       },
     });
 
@@ -97,6 +130,7 @@ export class JwtQueryAuthGuard implements CanActivate {
       organizationId: user.organizationId,
       status: user.status,
       authVersion: user.authVersion,
+      mustChangePassword: Boolean(user.mustChangePassword),
     };
 
     if (this.redisService) {

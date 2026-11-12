@@ -1,4 +1,4 @@
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -7,6 +7,7 @@ import { JwtAuthGuard, UserAuthMeta } from './jwt-auth.guard';
 import { User } from '../../modules/users/entities/user.entity';
 import { UserStatus } from '../enums';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { derivePurposeSecret } from '../utils/jwt-purpose.util';
 
 describe('JwtAuthGuard (with Redis Cache & DB Fallback)', () => {
   let guard: JwtAuthGuard;
@@ -29,12 +30,22 @@ describe('JwtAuthGuard (with Redis Cache & DB Fallback)', () => {
     organizationId: 'org-uuid-1',
     status: UserStatus.ACTIVE,
     authVersion: 1,
+    mustChangePassword: false,
   };
 
-  function createMockContext(authHeader?: string): ExecutionContext {
+  function createMockContext(
+    authHeader?: string,
+    cookieHeader?: string,
+    method = 'GET',
+    url = '/api/dossiers',
+  ): ExecutionContext {
     const request = {
+      method,
+      originalUrl: url,
+      url,
       headers: {
         authorization: authHeader,
+        cookie: cookieHeader,
       },
       user: undefined,
     };
@@ -148,6 +159,7 @@ describe('JwtAuthGuard (with Redis Cache & DB Fallback)', () => {
         organizationId: true,
         status: true,
         authVersion: true,
+        mustChangePassword: true,
       },
     });
     expect(mockRedisService.set).toHaveBeenCalledWith(
@@ -209,6 +221,7 @@ describe('JwtAuthGuard (with Redis Cache & DB Fallback)', () => {
         organizationId: true,
         status: true,
         authVersion: true,
+        mustChangePassword: true,
       },
     });
   });
@@ -226,6 +239,70 @@ describe('JwtAuthGuard (with Redis Cache & DB Fallback)', () => {
     const allowed = await fallbackGuard.canActivate(context);
 
     expect(allowed).toBe(true);
+    expect(jwtService.verifyAsync).toHaveBeenCalledWith('valid-token', {
+      secret: derivePurposeSecret('test-jwt-secret', 'access'),
+    });
     expect(mockUserRepo.findOne).toHaveBeenCalled();
+  });
+
+  it('authenticates from HttpOnly access_token cookie using the access purpose secret using cookie parsing (Ticket 04)', async () => {
+    const context = createMockContext(
+      undefined,
+      'csrf_token=abc; access_token=cookie-jwt-token',
+    );
+
+    const allowed = await guard.canActivate(context);
+
+    expect(allowed).toBe(true);
+    expect(jwtService.verifyAsync).toHaveBeenCalledWith('cookie-jwt-token', {
+      secret: derivePurposeSecret('test-jwt-secret', 'access'),
+    });
+  });
+
+  describe('Forced Password Rotation Gate (Ticket 05)', () => {
+    it('blocks normal workspace endpoints with ForbiddenException when mustChangePassword is true', async () => {
+      mockRedisService.cache.set('user:auth-meta:user-uuid-1', {
+        ...activeUserMeta,
+        mustChangePassword: true,
+      });
+      const context = createMockContext(
+        'Bearer valid-token',
+        undefined,
+        'GET',
+        '/api/dossiers',
+      );
+
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('allows /api/auth/me, /api/auth/change-password, and /api/auth/logout while mustChangePassword is true', async () => {
+      mockRedisService.cache.set('user:auth-meta:user-uuid-1', {
+        ...activeUserMeta,
+        mustChangePassword: true,
+      });
+
+      await expect(
+        guard.canActivate(
+          createMockContext('Bearer valid-token', undefined, 'GET', '/api/auth/me'),
+        ),
+      ).resolves.toBe(true);
+
+      await expect(
+        guard.canActivate(
+          createMockContext(
+            'Bearer valid-token',
+            undefined,
+            'POST',
+            '/api/auth/change-password',
+          ),
+        ),
+      ).resolves.toBe(true);
+
+      await expect(
+        guard.canActivate(
+          createMockContext('Bearer valid-token', undefined, 'POST', '/api/auth/logout'),
+        ),
+      ).resolves.toBe(true);
+    });
   });
 });

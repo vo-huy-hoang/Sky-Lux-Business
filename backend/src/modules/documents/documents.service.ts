@@ -13,7 +13,9 @@ import { DocumentVersion } from './entities/document-version.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { Estimate } from '../estimates/entities/estimate.entity';
 import { StorageService } from '../../shared/storage/storage.service';
+import { validateUploadFile } from '../../shared/storage/file-validation.util';
 import { RedisService } from '../../common/redis/redis.service';
+import { DossierAccessPolicyService } from '../dossiers/dossier-access-policy.service';
 import { sanitizeFileName } from '../../common/utils/filename.util';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
@@ -47,6 +49,7 @@ export class DocumentsService {
     private readonly storageService: StorageService,
     private readonly redisService: RedisService,
     private readonly dataSource: DataSource,
+    private readonly dossierAccessPolicy: DossierAccessPolicyService,
   ) {}
 
   /**
@@ -142,10 +145,11 @@ export class DocumentsService {
       }
     }
 
-    const { objectKey, checksum, size } = await this.uploadBufferToStorage(
-      file,
-      `organizations/${user.organizationId}/dossiers/${dossierId}`,
-    );
+    const { objectKey, checksum, size, mimeType } =
+      await this.uploadBufferToStorage(
+        file,
+        `organizations/${user.organizationId}/dossiers/${dossierId}`,
+      );
 
     const document = this.documentRepository.create({
       organizationId: user.organizationId,
@@ -154,7 +158,7 @@ export class DocumentsService {
       documentTypeId: dto.documentTypeId || undefined,
       originalName: sanitizeFileName(file.originalname),
       objectKey,
-      mimeType: file.mimetype,
+      mimeType,
       fileSize: size,
       checksum,
       versionNo: 1,
@@ -249,6 +253,7 @@ export class DocumentsService {
       targetObjectKey,
       targetFileName,
       expiresIn,
+      user.organizationId,
     );
 
     return {
@@ -347,11 +352,12 @@ export class DocumentsService {
       ? `organizations/${user.organizationId}/dossiers/${document.dossierId}`
       : `organizations/${user.organizationId}/documents/${id}`;
 
-    const { objectKey, checksum, size } = await this.uploadBufferToStorage(
-      file,
-      folderPath,
-      `-v${nextVersionNo}`,
-    );
+    const { objectKey, checksum, size, mimeType } =
+      await this.uploadBufferToStorage(
+        file,
+        folderPath,
+        `-v${nextVersionNo}`,
+      );
 
     const savedDocId = id;
 
@@ -377,7 +383,7 @@ export class DocumentsService {
       document.versionNo = nextVersionNo;
       document.objectKey = objectKey;
       document.originalName = sanitizeFileName(file.originalname);
-      document.mimeType = file.mimetype;
+      document.mimeType = mimeType;
       document.fileSize = size;
       document.checksum = checksum;
       document.uploadedBy = user.id;
@@ -404,8 +410,11 @@ export class DocumentsService {
     dirPrefix: string,
     verSuffix = '',
   ) {
-    const ext = path.extname(file.originalname) || '';
-    const key = `${dirPrefix}/${crypto.randomUUID()}${verSuffix}${ext}`;
+    const validated =
+      typeof this.storageService.validateUpload === 'function'
+        ? this.storageService.validateUpload(file, 'document')
+        : validateUploadFile(file, 'document');
+    const key = `${dirPrefix}/${crypto.randomUUID()}${verSuffix}${validated.extension}`;
     const hash = crypto.createHash('md5').update(file.buffer).digest('hex');
     const bytes = file.size || file.buffer.length;
 
@@ -413,13 +422,19 @@ export class DocumentsService {
       {
         buffer: file.buffer,
         originalname: sanitizeFileName(file.originalname),
-        mimetype: file.mimetype,
+        mimetype: validated.mimeType,
         size: bytes,
       },
       key,
+      'document',
     );
 
-    return { objectKey: key, checksum: hash, size: bytes };
+    return {
+      objectKey: key,
+      checksum: hash,
+      size: bytes,
+      mimeType: validated.mimeType,
+    };
   }
 
   private async checkDossierAccess(
@@ -427,24 +442,10 @@ export class DocumentsService {
     dossierId: string,
     isWrite = false,
   ): Promise<Dossier> {
-    const dossier = await this.dossierRepository.findOne({
-      where: { id: dossierId, organizationId: user.organizationId },
-    });
-
-    if (!dossier) {
-      throw new NotFoundException(`Không tìm thấy hồ sơ với ID "${dossierId}"`);
-    }
-
-    const hasViewPerm =
-      user.permissions.includes('dossier.view.all') ||
-      user.permissions.includes('*') ||
-      user.roles.includes('SUPER_ADMIN') ||
-      (user.permissions.includes('dossier.view.own') &&
-        (dossier.salesUserId === user.id || dossier.createdBy === user.id));
-
-    if (!hasViewPerm) {
-      throw new NotFoundException(`Không tìm thấy hồ sơ với ID "${dossierId}"`);
-    }
+    const dossier = await this.dossierAccessPolicy.assertCanView(
+      user,
+      dossierId,
+    );
 
     if (isWrite && dossier.status === DossierStatus.LOCKED) {
       throw new BadRequestException(

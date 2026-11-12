@@ -1,10 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Cookies from 'js-cookie';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useChatUIStore, TypingUser } from '@/lib/stores/chat-ui-store';
-import { apiClient, API_BASE_URL } from '@/lib/api-client';
+import { API_BASE_URL } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { calculateBackoffWithJitter, calculateSseBackoffWithJitter } from '@/lib/backoff';
 import { appendMessageToCache, removeMessageFromCache } from './cache-reducers';
@@ -49,8 +48,8 @@ export const useChatRealtime = (
   options?: UseChatRealtimeOptions,
 ) => {
   const queryClient = useQueryClient();
-  const authAccessToken = useAuthStore((state) => state.accessToken);
-  const [tokenTrigger, setTokenTrigger] = useState(authAccessToken || Cookies.get('access_token') || '');
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   const activeConversationIdRef = useRef<string | undefined>(conversationId);
   const attemptRef = useRef(0);
@@ -74,18 +73,14 @@ export const useChatRealtime = (
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const handleTokenRefreshed = (e: Event) => {
-      const customEvt = e as CustomEvent<{ accessToken: string }>;
-      const newToken = customEvt.detail?.accessToken || Cookies.get('access_token') || '';
-      if (newToken && newToken !== tokenTrigger) {
-        setTokenTrigger(newToken);
-      }
+    const handleTokenRefreshed = () => {
+      setRefreshTick((t) => t + 1);
     };
     window.addEventListener('skylux:token-refreshed', handleTokenRefreshed);
     return () => {
       window.removeEventListener('skylux:token-refreshed', handleTokenRefreshed);
     };
-  }, [tokenTrigger]);
+  }, []);
 
   // Periodic cleanup of expired typing indicators (Receiver GC) and stale failed messages qua Zustand Store
   useEffect(() => {
@@ -104,22 +99,12 @@ export const useChatRealtime = (
       eventSourceRef.current = null;
     }
 
-    let streamToken = '';
-    try {
-      const response = await apiClient.get<any, { token: string }>('/auth/stream-token');
-      streamToken = response.token;
-    } catch {
-      setChatStatus('idle');
-      setConnectionStatus('connected');
-      return;
-    }
-    if (!streamToken) return;
-
     try {
       setChatStatus('reconnecting');
-      // Khởi tạo luồng kết nối EventSource nhận tin nhắn mới
+      // Khởi tạo luồng kết nối EventSource nhận tin nhắn mới qua HttpOnly cookie session
       const eventSource = new EventSource(
-        `${API_BASE_URL}/conversations/stream?token=${encodeURIComponent(streamToken)}`,
+        `${API_BASE_URL}/conversations/stream`,
+        { withCredentials: true },
       );
       eventSourceRef.current = eventSource;
 
@@ -383,7 +368,7 @@ export const useChatRealtime = (
       setConnectionStatus('connected');
       setReconnectAttempt(0);
     };
-  }, [connect, authAccessToken, tokenTrigger, setConnectionStatus, setChatStatus, setReconnectAttempt]);
+  }, [connect, isAuthenticated, refreshTick, setConnectionStatus, setChatStatus, setReconnectAttempt]);
 
   const subscribedTypingUsers = useTypingUsers(options?.subscribeTyping ? conversationId : undefined);
   return { typingUsers: subscribedTypingUsers };

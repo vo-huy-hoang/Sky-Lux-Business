@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import dayjs from 'dayjs';
 import {
   App,
@@ -43,6 +44,7 @@ import { UserProfile } from '@/types/auth';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { queryKeys } from '@/lib/query-keys';
 import { formatCurrency } from '@/lib/financial-calculations';
+import { getStrongPasswordFormRules } from '@/lib/password-policy';
 
 const { Title, Text } = Typography;
 
@@ -74,6 +76,7 @@ function normalizeProfile(profile: AuthMeResponse): UserProfile {
     avatarUrl: profile.avatarUrl,
     roles: profile.roles?.map((role) => role.code) || [],
     permissions: profile.permissions || [],
+    mustChangePassword: Boolean(profile.mustChangePassword),
   };
 }
 
@@ -101,15 +104,17 @@ function activityStatus(status: string) {
 
 export default function ProfilePage() {
   const { message } = App.useApp();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [profileForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
   const passwordSectionRef = useRef<HTMLDivElement>(null);
   const [isProfileEditing, setIsProfileEditing] = useState(false);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState(defaultNotificationSettings);
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
+  const setAuth = useAuthStore((state) => state.setAuth);
+  const logout = useAuthStore((state) => state.logout);
   const isOperator = user?.roles?.includes('OPERATOR');
 
   const { data: meData, isLoading: isProfileLoading } = useQuery({
@@ -133,11 +138,11 @@ export default function ProfilePage() {
       currentUser.fullName !== normalized.fullName ||
       currentUser.email !== normalized.email ||
       currentUser.phone !== normalized.phone ||
-      currentUser.avatarUrl !== normalized.avatarUrl
+      currentUser.avatarUrl !== normalized.avatarUrl ||
+      Boolean(currentUser.mustChangePassword) !== Boolean(normalized.mustChangePassword)
     ) {
       setUser(normalized);
     }
-    setTwoFactorEnabled(Boolean(meData.twoFactorEnabled));
     setNotificationSettings({
       ...defaultNotificationSettings,
       ...(meData.notificationPreferences || {}),
@@ -167,10 +172,37 @@ export default function ProfilePage() {
 
 
   const changePasswordMutation = useMutation({
-    mutationFn: authService.changePassword,
-    onSuccess: () => {
-      message.success('Đổi mật khẩu thành công');
+    mutationFn: async (values: {
+      currentPassword: string;
+      newPassword: string;
+    }) => {
+      await authService.changePassword(values);
+      const email = profile?.email;
+      if (!email) {
+        return { reauthenticated: false };
+      }
+      try {
+        const refreshedSession = await authService.login({
+          email,
+          password: values.newPassword,
+        });
+        setAuth(refreshedSession);
+        await queryClient.invalidateQueries();
+        return { reauthenticated: true };
+      } catch {
+        return { reauthenticated: false };
+      }
+    },
+    onSuccess: (result) => {
       passwordForm.resetFields();
+      if (result.reauthenticated) {
+        message.success('Đổi mật khẩu thành công');
+        return;
+      }
+      queryClient.clear();
+      logout();
+      message.success('Đổi mật khẩu thành công. Vui lòng đăng nhập lại.');
+      router.replace('/login');
     },
     onError: (error: Error) => {
       message.error(error.message || 'Không thể đổi mật khẩu');
@@ -194,7 +226,6 @@ export default function ProfilePage() {
   const updateSettingsMutation = useMutation({
     mutationFn: authService.updateSettings,
     onSuccess: (updatedProfile) => {
-      setTwoFactorEnabled(Boolean(updatedProfile.twoFactorEnabled));
       setNotificationSettings({
         ...defaultNotificationSettings,
         ...(updatedProfile.notificationPreferences || {}),
@@ -222,8 +253,10 @@ export default function ProfilePage() {
     }, 0);
   };
 
-  const handleChangePassword = async () => {
-    const values = await passwordForm.validateFields();
+  const handleChangePassword = (values: {
+    currentPassword: string;
+    newPassword: string;
+  }) => {
     changePasswordMutation.mutate({
       currentPassword: values.currentPassword,
       newPassword: values.newPassword,
@@ -397,18 +430,10 @@ export default function ProfilePage() {
                 <div className="flex-1">
                   <div className="text-sm font-semibold text-slate-800">Bảo mật 2 lớp</div>
                   <div className="mt-1 text-xs text-slate-500">
-                    {twoFactorEnabled ? 'Đang bật bảo mật 2 lớp' : 'Bật để tăng bảo mật tài khoản'}
+                    Tính năng xác thực 2 lớp (TOTP) đang được phát triển
                   </div>
                 </div>
-                <Switch
-                  size="small"
-                  checked={twoFactorEnabled}
-                  loading={updateSettingsMutation.isPending}
-                  onChange={(checked) =>
-                    updateSettingsMutation.mutate({ twoFactorEnabled: checked })
-                  }
-                  aria-label="Bảo mật 2 lớp"
-                />
+                <Tag color="default">Sắp ra mắt</Tag>
               </div>
             </div>
           </Card>
@@ -421,7 +446,12 @@ export default function ProfilePage() {
             className="skylux-card h-full"
             styles={{ body: { padding: '12px 22px 20px' } }}
           >
-            <Form form={passwordForm} layout="vertical" requiredMark={false}>
+            <Form
+              form={passwordForm}
+              layout="vertical"
+              requiredMark={false}
+              onFinish={handleChangePassword}
+            >
               <Form.Item label="Email đăng nhập">
                 <Input value={profile?.email || ''} readOnly prefix={<UserOutlined />} />
               </Form.Item>
@@ -438,9 +468,19 @@ export default function ProfilePage() {
               <Form.Item
                 name="newPassword"
                 label="Mật khẩu mới"
+                dependencies={['currentPassword']}
                 rules={[
-                  { required: true, message: 'Vui lòng nhập mật khẩu mới' },
-                  { min: 6, message: 'Mật khẩu tối thiểu 6 ký tự' },
+                  ...getStrongPasswordFormRules(true, 'Vui lòng nhập mật khẩu mới'),
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      if (!value || getFieldValue('currentPassword') !== value) {
+                        return Promise.resolve();
+                      }
+                      return Promise.reject(
+                        new Error('Mật khẩu mới không được trùng với mật khẩu hiện tại'),
+                      );
+                    },
+                  }),
                 ]}
               >
                 <Input.Password
@@ -469,11 +509,11 @@ export default function ProfilePage() {
               </Form.Item>
               <Button
                 type="primary"
+                htmlType="submit"
                 block
                 icon={<CheckOutlined />}
                 className="skylux-primary-button"
                 loading={changePasswordMutation.isPending}
-                onClick={handleChangePassword}
               >
                 Cập nhật mật khẩu
               </Button>
