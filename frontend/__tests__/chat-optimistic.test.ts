@@ -29,7 +29,6 @@ describe('Phase 22: Cache-First Optimistic UI & Idempotency Key in Chat', () => 
       },
 
       isAuthenticated: true,
-      accessToken: 'fake-token',
     });
 
     useChatUIStore.setState({

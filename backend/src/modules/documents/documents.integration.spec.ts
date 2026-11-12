@@ -11,6 +11,7 @@ import { Dossier } from '../dossiers/entities/dossier.entity';
 import { Estimate } from '../estimates/entities/estimate.entity';
 import { StorageService } from '../../shared/storage/storage.service';
 import { RedisService } from '../../common/redis/redis.service';
+import { DossierAccessPolicyService } from '../dossiers/dossier-access-policy.service';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { DataSource } from 'typeorm';
 
@@ -74,6 +75,7 @@ describe('Documents Module (Integration)', () => {
       controllers: [DocumentsController],
       providers: [
         DocumentsService,
+        DossierAccessPolicyService,
         {
           provide: getRepositoryToken(Document),
           useValue: mockDocRepo,

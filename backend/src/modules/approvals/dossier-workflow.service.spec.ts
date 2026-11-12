@@ -1,5 +1,9 @@
 import { ConflictException } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  OptimisticLockVersionMismatchError,
+} from 'typeorm';
 import {
   ApprovalStatus,
   DossierStatus,
@@ -42,8 +46,27 @@ describe('DossierWorkflowService', () => {
   } as Estimate;
 
   function createService() {
-    const dossierRepository = { findOne: jest.fn(), save: jest.fn() };
-    const estimateRepository = { findOne: jest.fn(), save: jest.fn() };
+    const dossierRepository = {
+      findOne: jest.fn(),
+      save: jest.fn(),
+      createQueryBuilder: jest.fn(() => ({
+        setLock: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn(async () => dossierRepository.findOne()),
+      })),
+    };
+    const estimateRepository = {
+      findOne: jest.fn(),
+      save: jest.fn(),
+      createQueryBuilder: jest.fn(() => ({
+        setLock: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getOne: jest.fn(async () => estimateRepository.findOne()),
+      })),
+    };
     const approvalRepository = {
       create: jest.fn((value) => value),
       save: jest.fn(),
@@ -170,5 +193,224 @@ describe('DossierWorkflowService', () => {
     expect(context.redisService.delByPattern).toHaveBeenCalledWith(
       `dashboard:*${user.organizationId}*`,
     );
+  });
+
+  describe('Pessimistic & Optimistic Locking (Ticket 06)', () => {
+    it('rejects stale version in workflow transition with 409 Conflict without saving', async () => {
+      const dossierRepository = {
+        createQueryBuilder: jest.fn(() => ({
+          setLock: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          getOne: jest.fn().mockResolvedValue({
+            ...dossier,
+            status: DossierStatus.IN_REVIEW,
+            version: 3,
+          }),
+        })),
+        save: jest.fn(),
+      };
+      const estimateRepository = {
+        createQueryBuilder: jest.fn(() => ({
+          setLock: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          getOne: jest.fn().mockResolvedValue({ ...estimate }),
+        })),
+        save: jest.fn(),
+      };
+      const manager = {
+        getRepository: jest.fn((entity) => {
+          if (entity === Dossier) return dossierRepository;
+          if (entity === Estimate) return estimateRepository;
+          return { create: jest.fn((v) => v), save: jest.fn() };
+        }),
+      } as unknown as EntityManager;
+      const dataSource = {
+        transaction: jest.fn((cb: any) => cb(manager)),
+        getRepository: jest.fn(),
+      } as unknown as DataSource;
+
+      const service = new DossierWorkflowService(
+        dataSource,
+        { record: jest.fn().mockResolvedValue(undefined) } as any,
+      );
+      const operator = { ...user, roles: ['OPERATOR'] };
+
+      await expect(
+        service.approve(operator, dossier.id, { version: 2 } as any),
+      ).rejects.toThrow(ConflictException);
+      expect(dossierRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('serializes two concurrent approve requests via pessimistic_write so only one succeeds and the second fails with 409', async () => {
+      let currentDossier = {
+        ...dossier,
+        status: DossierStatus.IN_REVIEW,
+        version: 1,
+      };
+      let currentEstimate = {
+        ...estimate,
+        status: EstimateStatus.IN_REVIEW,
+        version: 1,
+      };
+
+      let mutexChain: Promise<void> = Promise.resolve();
+      const acquireLock = async () => {
+        let release!: () => void;
+        const previous = mutexChain;
+        mutexChain = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        await previous;
+        return release;
+      };
+
+      const dataSource = {
+        transaction: jest.fn(async (cb: any) => {
+          let release: (() => void) | undefined;
+          let pendingDossier: typeof currentDossier | undefined;
+          let pendingEstimate: typeof currentEstimate | undefined;
+
+          const dossierRepo = {
+            createQueryBuilder: jest.fn(() => ({
+              setLock: jest.fn().mockReturnThis(),
+              where: jest.fn().mockReturnThis(),
+              andWhere: jest.fn().mockReturnThis(),
+              getOne: jest.fn(async () => {
+                release = await acquireLock();
+                return { ...currentDossier };
+              }),
+            })),
+            save: jest.fn(async (d: any) => {
+              await new Promise((r) => setTimeout(r, 15));
+              pendingDossier = { ...d, version: (d.version ?? 1) + 1 };
+              return pendingDossier;
+            }),
+          };
+
+          const estimateRepo = {
+            createQueryBuilder: jest.fn(() => ({
+              setLock: jest.fn().mockReturnThis(),
+              where: jest.fn().mockReturnThis(),
+              andWhere: jest.fn().mockReturnThis(),
+              orderBy: jest.fn().mockReturnThis(),
+              getOne: jest.fn(async () => ({ ...currentEstimate })),
+            })),
+            save: jest.fn(async (e: any) => {
+              pendingEstimate = { ...e, version: (e.version ?? 1) + 1 };
+              return pendingEstimate;
+            }),
+          };
+
+          const approvalRepo = {
+            findOne: jest.fn().mockResolvedValue(null),
+            create: jest.fn((v: any) => v),
+            save: jest.fn(async (v: any) => v),
+          };
+          const historyRepo = {
+            create: jest.fn((v: any) => v),
+            save: jest.fn(async (v: any) => v),
+          };
+
+          const manager = {
+            getRepository: jest.fn((entity) => {
+              if (entity === Dossier) return dossierRepo;
+              if (entity === Estimate) return estimateRepo;
+              if (entity === ApprovalRequest) return approvalRepo;
+              return historyRepo;
+            }),
+          } as unknown as EntityManager;
+
+          try {
+            const res = await cb(manager);
+            if (pendingDossier) currentDossier = pendingDossier;
+            if (pendingEstimate) currentEstimate = pendingEstimate;
+            return res;
+          } finally {
+            release?.();
+          }
+        }),
+        getRepository: jest.fn(),
+      } as unknown as DataSource;
+
+      const service = new DossierWorkflowService(
+        dataSource,
+        { record: jest.fn().mockResolvedValue(undefined) } as any,
+      );
+      const operator = { ...user, roles: ['OPERATOR'] };
+
+      const results = await Promise.allSettled([
+        service.approve(operator, dossier.id, {}),
+        service.approve(operator, dossier.id, {}),
+      ]);
+
+      const fulfilled = results.filter(
+        (r) => r.status === 'fulfilled',
+      ) as PromiseFulfilledResult<any>[];
+      const rejected = results.filter(
+        (r) => r.status === 'rejected',
+      ) as PromiseRejectedResult[];
+
+      expect(fulfilled).toHaveLength(1);
+      expect(fulfilled[0].value.data.status).toBe(DossierStatus.APPROVED);
+      expect(fulfilled[0].value.data.version).toBe(2);
+      expect(rejected).toHaveLength(1);
+      expect(rejected[0].reason).toBeInstanceOf(ConflictException);
+      expect(currentDossier.status).toBe(DossierStatus.APPROVED);
+      expect(currentDossier.version).toBe(2);
+    });
+
+    it('maps OptimisticLockVersionMismatchError to 409 ConflictException during workflow save', async () => {
+      const dossierRepository = {
+        createQueryBuilder: jest.fn(() => ({
+          setLock: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          getOne: jest.fn().mockResolvedValue({
+            ...dossier,
+            status: DossierStatus.IN_REVIEW,
+            version: 1,
+          }),
+        })),
+        save: jest
+          .fn()
+          .mockRejectedValue(
+            new OptimisticLockVersionMismatchError('Dossier', 1, 2),
+          ),
+      };
+      const estimateRepository = {
+        createQueryBuilder: jest.fn(() => ({
+          setLock: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          getOne: jest.fn().mockResolvedValue({ ...estimate }),
+        })),
+        save: jest.fn(),
+      };
+      const manager = {
+        getRepository: jest.fn((entity) => {
+          if (entity === Dossier) return dossierRepository;
+          if (entity === Estimate) return estimateRepository;
+          return { create: jest.fn((v) => v), save: jest.fn() };
+        }),
+      } as unknown as EntityManager;
+      const dataSource = {
+        transaction: jest.fn((cb: any) => cb(manager)),
+        getRepository: jest.fn(),
+      } as unknown as DataSource;
+
+      const service = new DossierWorkflowService(
+        dataSource,
+        { record: jest.fn().mockResolvedValue(undefined) } as any,
+      );
+      const operator = { ...user, roles: ['OPERATOR'] };
+
+      await expect(
+        service.approve(operator, dossier.id, {}),
+      ).rejects.toThrow(ConflictException);
+    });
   });
 });

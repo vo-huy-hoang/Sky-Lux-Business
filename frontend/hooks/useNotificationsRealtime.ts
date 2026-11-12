@@ -2,8 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { App as AntApp } from 'antd';
-import Cookies from 'js-cookie';
-import { apiClient, API_BASE_URL } from '@/lib/api-client';
+import { API_BASE_URL } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { notificationsService } from '@/services/notifications.service';
 import { useNotificationStore } from '@/lib/stores/notification-store';
@@ -34,24 +33,19 @@ export function useNotificationsRealtime(options?: { enabled?: boolean }) {
   const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
   const attemptRef = useRef<number>(0);
   const connectRef = useRef<() => void>(() => {});
-  const authAccessToken = useAuthStore((state) => state.accessToken);
-  const [tokenTrigger, setTokenTrigger] = useState<string>(authAccessToken || Cookies.get('access_token') || '');
-
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const [refreshTick, setRefreshTick] = useState<number>(0);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const handleTokenRefreshed = (e: Event) => {
-      const customEvt = e as CustomEvent<{ accessToken: string }>;
-      const newToken = customEvt.detail?.accessToken || Cookies.get('access_token') || '';
-      if (newToken && newToken !== tokenTrigger) {
-        setTokenTrigger(newToken);
-      }
+    const handleTokenRefreshed = () => {
+      setRefreshTick((t) => t + 1);
     };
     window.addEventListener('skylux:token-refreshed', handleTokenRefreshed);
     return () => {
       window.removeEventListener('skylux:token-refreshed', handleTokenRefreshed);
     };
-  }, [tokenTrigger]);
+  }, []);
 
   const connect = useCallback(async () => {
     if (!enabled || typeof window === 'undefined') return;
@@ -61,19 +55,10 @@ export function useNotificationsRealtime(options?: { enabled?: boolean }) {
       eventSourceRef.current = null;
     }
 
-    let streamToken = '';
-    try {
-      const response = await apiClient.get<any, { token: string }>('/auth/stream-token');
-      streamToken = response.token;
-    } catch {
-      setNotificationsStatus('connected');
-      return;
-    }
-    if (!streamToken) return;
-
     try {
       const eventSource = new EventSource(
-        `${API_BASE_URL}/notifications/stream?token=${encodeURIComponent(streamToken)}`,
+        `${API_BASE_URL}/notifications/stream`,
+        { withCredentials: true },
       );
       eventSourceRef.current = eventSource;
 
@@ -263,7 +248,7 @@ export function useNotificationsRealtime(options?: { enabled?: boolean }) {
       }
       setNotificationsStatus('connected');
     };
-  }, [connect, authAccessToken, tokenTrigger, enabled, queryClient, setNotificationsStatus]);
+  }, [connect, isAuthenticated, refreshTick, enabled, queryClient, setNotificationsStatus]);
 
   return null;
 }

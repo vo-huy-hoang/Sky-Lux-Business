@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  Alert,
+  Button,
   Modal,
   Form,
   Input,
@@ -10,8 +12,10 @@ import {
   Col,
   message,
   Divider,
+  Typography,
 } from 'antd';
 import {
+  CopyOutlined,
   UserOutlined,
   MailOutlined,
   PhoneOutlined,
@@ -27,11 +31,20 @@ import { queryKeys } from '@/lib/query-keys';
 import { useUserRoles } from '@/hooks/use-users';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { organizationsService } from '@/services/organizations.service';
+import { getStrongPasswordFormRules } from '@/lib/password-policy';
+import type { CreateUserResponse } from '@/types/user';
+
+const { Text } = Typography;
 
 
 export default function UserModal() {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
+  const [generatedCredentials, setGeneratedCredentials] = useState<{
+    email: string;
+    fullName: string;
+    temporaryPassword: string;
+  } | null>(null);
 
   const { isUserModalOpen, editingUser, closeUserModal } = useRbacStore(
     useShallow((s) => ({
@@ -123,7 +136,7 @@ export default function UserModal() {
         return usersService.createUser(payload);
       }
     },
-    onSuccess: () => {
+    onSuccess: (response: CreateUserResponse) => {
       message.success(
         isEditing
           ? isSuperAdmin ? 'Cập nhật CEO doanh nghiệp thành công' : 'Cập nhật thông tin người dùng thành công'
@@ -131,6 +144,13 @@ export default function UserModal() {
       );
       closeUserModal();
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+      if (!isEditing && response?.temporaryPassword) {
+        setGeneratedCredentials({
+          email: response.email,
+          fullName: response.fullName,
+          temporaryPassword: response.temporaryPassword,
+        });
+      }
     },
     onError: (err: any) => {
       message.error(err.message || 'Có lỗi xảy ra khi lưu người dùng');
@@ -138,12 +158,18 @@ export default function UserModal() {
   });
 
   const handleOk = () => {
-    form.validateFields().then((values) => {
-      saveUserMutation.mutate(values);
-    });
+    form
+      .validateFields()
+      .then((values) => {
+        saveUserMutation.mutate(values);
+      })
+      .catch(() => {
+        // Validation errors are rendered by AntD Form.Item
+      });
   };
 
   return (
+    <>
     <Modal
       title={
         <div className="text-base font-bold text-slate-800">
@@ -249,22 +275,17 @@ export default function UserModal() {
               name="password"
               label={
                 <span className="font-medium text-slate-700">
-                  {isEditing ? 'Mật khẩu mới (Nếu muốn đổi)' : 'Mật khẩu khởi tạo'}
+                  {isEditing ? 'Mật khẩu mới (Nếu muốn đặt lại)' : 'Mật khẩu khởi tạo'}
                 </span>
               }
-              rules={[
-                {
-                  min: 6,
-                  message: 'Mật khẩu phải có ít nhất 6 ký tự',
-                },
-              ]}
+              rules={getStrongPasswordFormRules(false)}
             >
               <Input.Password
                 prefix={<LockOutlined className="text-slate-400" />}
                 placeholder={
                   isEditing
-                    ? 'Để trống nếu không muốn đổi mật khẩu'
-                    : 'Mặc định: SkyLux@123 nếu để trống'
+                    ? 'Để trống nếu không muốn đặt lại mật khẩu'
+                    : 'Để trống để hệ thống tự sinh mật khẩu tạm ngẫu nhiên'
                 }
               />
             </Form.Item>
@@ -321,5 +342,66 @@ export default function UserModal() {
         </>}
       </Form>
     </Modal>
+
+    <Modal
+      title="Thông tin đăng nhập tạm thời"
+      open={Boolean(generatedCredentials)}
+      onOk={() => setGeneratedCredentials(null)}
+      onCancel={() => setGeneratedCredentials(null)}
+      cancelButtonProps={{ style: { display: 'none' } }}
+      okText="Đã ghi nhận"
+      destroyOnHidden
+    >
+      {generatedCredentials && (
+        <div className="space-y-3 pt-2">
+          <Alert
+            type="info"
+            showIcon
+            title="Mật khẩu tạm thời chỉ hiển thị một lần"
+            description="Hãy sao chép và gửi cho nhân viên qua kênh an toàn. Nhân viên sẽ được yêu cầu đổi mật khẩu ngay khi đăng nhập lần đầu."
+          />
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+            <div>
+              <Text type="secondary">Nhân viên:</Text>{' '}
+              <Text strong>{generatedCredentials.fullName}</Text>
+            </div>
+            <div className="mt-1">
+              <Text type="secondary">Email:</Text>{' '}
+              <Text code>{generatedCredentials.email}</Text>
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <div>
+                <Text type="secondary">Mật khẩu tạm thời:</Text>{' '}
+                <Text
+                  code
+                  strong
+                  data-testid="generated-temp-password"
+                  className="text-base"
+                >
+                  {generatedCredentials.temporaryPassword}
+                </Text>
+              </div>
+              <Button
+                size="small"
+                icon={<CopyOutlined />}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard?.writeText(
+                      generatedCredentials.temporaryPassword,
+                    );
+                    message.success('Đã sao chép mật khẩu tạm thời');
+                  } catch {
+                    message.warning('Không thể tự động sao chép, vui lòng copy thủ công');
+                  }
+                }}
+              >
+                Sao chép
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Modal>
+    </>
   );
 }

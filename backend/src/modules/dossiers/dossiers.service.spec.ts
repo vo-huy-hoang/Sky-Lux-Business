@@ -5,7 +5,11 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import {
+  DataSource,
+  OptimisticLockVersionMismatchError,
+  Repository,
+} from 'typeorm';
 import { DossiersService } from './dossiers.service';
 import { Dossier } from './entities/dossier.entity';
 import { Comment } from './entities/comment.entity';
@@ -19,6 +23,7 @@ import { CreateCommentDto } from './dto/create-comment.dto';
 import { QueryCommentDto } from './dto/query-comment.dto';
 import { DossierStatus } from '../../common/enums';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { DossierAccessPolicyService } from './dossier-access-policy.service';
 
 describe('DossiersService', () => {
   let service: DossiersService;
@@ -43,12 +48,14 @@ describe('DossiersService', () => {
   } as unknown as Dossier;
 
   const mockQueryBuilder = {
+    setLock: jest.fn().mockReturnThis(),
     leftJoinAndSelect: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
     skip: jest.fn().mockReturnThis(),
     take: jest.fn().mockReturnThis(),
+    getOne: jest.fn(),
     getManyAndCount: jest.fn(),
     getMany: jest.fn(),
   };
@@ -72,15 +79,27 @@ describe('DossiersService', () => {
     findOne: jest.fn(),
   };
 
+  const mockDataSource = {
+    transaction: jest.fn(async (cb: any) =>
+      cb({
+        getRepository: jest.fn(() => mockDossierRepository),
+      }),
+    ),
+  };
+
   beforeEach(async () => {
     mockCustomerRepository.findOne.mockResolvedValue({
       id: 'cust-uuid',
       organizationId: 'org-uuid',
     });
+    mockQueryBuilder.getOne.mockImplementation(async () =>
+      mockDossierRepository.findOne(),
+    );
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DossiersService,
+        DossierAccessPolicyService,
         {
           provide: getRepositoryToken(Dossier),
           useValue: mockDossierRepository,
@@ -102,6 +121,10 @@ describe('DossiersService', () => {
         {
           provide: AuditLogsService,
           useValue: { record: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: DataSource,
+          useValue: mockDataSource,
         },
       ],
     }).compile();
@@ -302,6 +325,7 @@ describe('DossiersService', () => {
       repository.findOne
         .mockResolvedValueOnce(mockDossier) // findOne by ID
         .mockResolvedValueOnce({ id: 'other-id' } as any); // code existence check
+      mockQueryBuilder.getOne.mockResolvedValueOnce({ ...mockDossier });
 
       const updateDto: UpdateDossierDto = { code: 'HS_DUPLICATE' };
 
@@ -365,6 +389,38 @@ describe('DossiersService', () => {
       expect(result.businessLineName).toEqual('SỰ KIỆN');
       expect(result.marketTypeName).toEqual('INBOUND');
       expect(result.status).toEqual(DossierStatus.SUBMITTED);
+    });
+
+    it('throws 409 ConflictException when update submits a stale version', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        version: 4,
+      } as Dossier);
+
+      await expect(
+        service.update(mockUserPayload, 'dossier-uuid', {
+          name: 'Stale Name',
+          version: 3,
+        } as UpdateDossierDto),
+      ).rejects.toThrow(ConflictException);
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('maps OptimisticLockVersionMismatchError on save to 409 ConflictException', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        version: 2,
+      } as Dossier);
+      repository.save.mockRejectedValue(
+        new OptimisticLockVersionMismatchError('Dossier', 2, 3),
+      );
+
+      await expect(
+        service.update(mockUserPayload, 'dossier-uuid', {
+          name: 'Concurrent Name',
+          version: 2,
+        } as UpdateDossierDto),
+      ).rejects.toThrow(ConflictException);
     });
   });
 

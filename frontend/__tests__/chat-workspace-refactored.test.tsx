@@ -137,7 +137,7 @@ describe('TICKET-40.2: Chat Workspace Zero-Regression Test Suite', () => {
         roles: ['operator'],
         permissions: ['chat:read', 'chat:write'],
       },
-      accessToken: 'test-token',
+      isAuthenticated: true,
     });
 
     useChatUIStore.setState({

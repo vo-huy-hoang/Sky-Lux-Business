@@ -544,4 +544,70 @@ describe('UsersService', () => {
       expect(mockRedisService.del).toHaveBeenCalledWith(`user:auth-meta:${userId}`);
     });
   });
+
+  describe('Generated Temporary Passwords & Forced First-Login Rotation (Ticket 05)', () => {
+    it('generates unique strong temporary passwords (never SkyLux@123) and flags mustChangePassword on create without password', async () => {
+      const orgId = 'org-uuid';
+      mockUserRepository.findOne.mockResolvedValue(null);
+      mockUserRepository.create.mockImplementation((entityData: any) => ({
+        id: `user-${Math.random().toString(36).slice(2, 8)}`,
+        ...entityData,
+      }));
+      mockUserRepository.save.mockImplementation((u: any) => Promise.resolve(u));
+
+      const res1 = await service.create(orgId, {
+        fullName: 'Staff One',
+        email: 'staff1@skylux.vn',
+      });
+      const res2 = await service.create(orgId, {
+        fullName: 'Staff Two',
+        email: 'staff2@skylux.vn',
+      });
+
+      const temp1 = (res1.data as any).temporaryPassword as string;
+      const temp2 = (res2.data as any).temporaryPassword as string;
+
+      expect(typeof temp1).toBe('string');
+      expect(typeof temp2).toBe('string');
+      expect(temp1).not.toBe('SkyLux@123');
+      expect(temp2).not.toBe('SkyLux@123');
+      expect(temp1).not.toBe(temp2);
+      expect(temp1.length).toBeGreaterThanOrEqual(8);
+      expect(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(temp1)).toBe(true);
+      expect((res1.data as any).mustChangePassword).toBe(true);
+      expect((res1.data as any).passwordHash).toBeUndefined();
+    });
+
+    it('flags mustChangePassword on admin password reset during update without leaking temporaryPassword', async () => {
+      const orgId = 'org-uuid';
+      const userId = 'user-uuid-reset';
+      const existingUser = {
+        id: userId,
+        organizationId: orgId,
+        fullName: 'Staff Reset',
+        email: 'reset@skylux.vn',
+        authVersion: 1,
+        mustChangePassword: false,
+        passwordHash: 'old-hash',
+      };
+      mockUserRepository.findOne.mockResolvedValue(existingUser);
+      mockUserRepository.save.mockImplementation((u: any) => Promise.resolve(u));
+      mockRefreshTokenRepository.update.mockResolvedValue({ affected: 1 });
+
+      const res = await service.update(orgId, userId, {
+        password: 'AdminResetPass123',
+      });
+
+      expect(existingUser.mustChangePassword).toBe(true);
+      expect(existingUser.authVersion).toBe(2);
+      expect(mockRefreshTokenRepository.update).toHaveBeenCalledWith(
+        { userId, isRevoked: false },
+        { isRevoked: true },
+      );
+      expect((res.data as any).mustChangePassword).toBe(true);
+      expect((res.data as any).temporaryPassword).toBeUndefined();
+      expect((res.data as any).passwordHash).toBeUndefined();
+      expect(mockRedisService.del).toHaveBeenCalledWith(`user:auth-meta:${userId}`);
+    });
+  });
 });

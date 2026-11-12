@@ -1,9 +1,11 @@
-import { IsNotEmpty, IsString } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsOptional, IsString } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class RefreshTokenDto {
-  @ApiProperty({ description: 'Refresh token string' })
+  @ApiPropertyOptional({
+    description: 'Refresh token string (tùy chọn nếu đã gửi qua HttpOnly cookie)',
+  })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'Refresh token is required' })
-  refreshToken: string;
+  refreshToken?: string;
 }

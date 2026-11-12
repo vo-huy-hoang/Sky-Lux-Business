@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Card, Form, Input, Select, Steps, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Form, Input, Result, Select, Steps, Tag, Typography, message } from 'antd';
 import { ArrowLeftOutlined, ArrowRightOutlined, CheckCircleFilled, CheckOutlined } from '@ant-design/icons';
 import { organizationsService } from '@/services/organizations.service';
 import type { CreateOrganizationInput } from '@/services/organizations.service';
@@ -51,6 +51,21 @@ export function CreateOrganization() {
       message.error(error?.response?.data?.message || 'Không thể tạo doanh nghiệp. Vui lòng thử lại.');
     },
   });
+
+  if (!isSuperAdmin) {
+    return (
+      <Result
+        status="403"
+        title="403"
+        subTitle="Chỉ quản trị viên nền tảng (SUPER_ADMIN) mới có quyền tạo doanh nghiệp mới."
+        extra={
+          <Button type="primary" onClick={() => router.push('/dashboard')}>
+            Quay về bảng điều khiển
+          </Button>
+        }
+      />
+    );
+  }
 
   const handleContinue = async () => {
     try {

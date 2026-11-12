@@ -3,6 +3,7 @@ import {
   CanActivate,
   ExecutionContext,
   UnauthorizedException,
+  ForbiddenException,
   Optional,
   Logger,
 } from '@nestjs/common';
@@ -14,12 +15,18 @@ import { User } from '../../modules/users/entities/user.entity';
 import { UserStatus } from '../enums';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { RedisService } from '../redis/redis.service';
+import {
+  ACCESS_TOKEN_COOKIE,
+  parseCookieHeader,
+} from '../utils/cookie.util';
+import { derivePurposeSecret } from '../utils/jwt-purpose.util';
 
 export interface UserAuthMeta {
   id: string;
   organizationId: string;
   status: UserStatus;
   authVersion: number;
+  mustChangePassword?: boolean;
 }
 
 @Injectable()
@@ -46,21 +53,31 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const authHeader = request.headers['authorization'];
+    const cookies = parseCookieHeader(request.headers?.['cookie']);
+    const cookieToken = cookies[ACCESS_TOKEN_COOKIE];
+    const authHeader = request.headers?.['authorization'];
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    let token: string | undefined;
+    if (cookieToken) {
+      token = cookieToken;
+    } else if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+      token = authHeader.slice('Bearer '.length).trim();
+    }
+
+    if (!token) {
       throw new UnauthorizedException(
         'Missing or invalid Authorization header',
       );
     }
 
-    const token = authHeader.split(' ')[1];
     try {
       const secret = this.configService.get<string>('JWT_SECRET');
       if (!secret) {
         throw new Error('JWT_SECRET is not configured');
       }
-      const payload = await this.jwtService.verifyAsync(token, { secret });
+      const payload = await this.jwtService.verifyAsync(token, {
+        secret: derivePurposeSecret(secret, 'access'),
+      });
       const currentUser = await this.getUserAuthMeta(payload.id);
       if (
         !currentUser ||
@@ -70,14 +87,52 @@ export class JwtAuthGuard implements CanActivate {
       ) {
         throw new UnauthorizedException('Token is no longer valid');
       }
+      if (
+        currentUser.mustChangePassword &&
+        !this.isAllowedDuringPasswordRotation(request)
+      ) {
+        throw new ForbiddenException({
+          statusCode: 403,
+          code: 'PASSWORD_CHANGE_REQUIRED',
+          message:
+            'Bạn phải đổi mật khẩu lần đầu trước khi sử dụng hệ thống',
+        });
+      }
       request.user = payload;
       return true;
     } catch (err) {
-      if (err instanceof UnauthorizedException) {
+      if (
+        err instanceof UnauthorizedException ||
+        err instanceof ForbiddenException
+      ) {
         throw err;
       }
       throw new UnauthorizedException('Token is invalid or expired');
     }
+  }
+
+  private isAllowedDuringPasswordRotation(request: {
+    method?: string;
+    originalUrl?: string;
+    url?: string;
+  }): boolean {
+    const method = (request.method || 'GET').toUpperCase();
+    const rawUrl = request.originalUrl || request.url || '';
+    const pathname = rawUrl.split('?')[0].replace(/\/+$/, '') || '/';
+
+    if (method === 'GET' && (pathname === '/api/auth/me' || pathname === '/auth/me')) {
+      return true;
+    }
+    if (
+      method === 'POST' &&
+      (pathname === '/api/auth/change-password' ||
+        pathname === '/auth/change-password' ||
+        pathname === '/api/auth/logout' ||
+        pathname === '/auth/logout')
+    ) {
+      return true;
+    }
+    return false;
   }
 
   private async getUserAuthMeta(userId: string): Promise<UserAuthMeta | null> {
@@ -103,6 +158,7 @@ export class JwtAuthGuard implements CanActivate {
         organizationId: true,
         status: true,
         authVersion: true,
+        mustChangePassword: true,
       },
     });
 
@@ -115,6 +171,7 @@ export class JwtAuthGuard implements CanActivate {
       organizationId: user.organizationId,
       status: user.status,
       authVersion: user.authVersion,
+      mustChangePassword: Boolean(user.mustChangePassword),
     };
 
     if (this.redisService) {

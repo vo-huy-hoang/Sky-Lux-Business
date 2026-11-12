@@ -2,47 +2,58 @@ import { renderHook, act } from '@testing-library/react';
 import { useAuthStore } from '../lib/stores/auth-store';
 import Cookies from 'js-cookie';
 
-describe('Phase 1: Reactive Token Synchronization & Multi-Role Support', () => {
+describe('Phase 1: Reactive Session Synchronization & Multi-Role Support', () => {
   beforeEach(() => {
-    Cookies.remove('access_token');
+    Cookies.remove('csrf_token');
+    localStorage.clear();
     useAuthStore.setState({
-      accessToken: null,
       user: null,
       isAuthenticated: false,
     });
   });
 
-  it('should react immediately when accessToken changes in useAuthStore without polling delay', () => {
-    const { result } = renderHook(() => useAuthStore((state) => state.accessToken));
+  it('should update user and isAuthenticated without storing JWTs in store or localStorage (Ticket 04)', () => {
+    const { result } = renderHook(() => useAuthStore((state) => state.isAuthenticated));
 
-    expect(result.current).toBeNull();
+    expect(result.current).toBe(false);
 
     act(() => {
-      useAuthStore.setState({ accessToken: 'fresh-jwt-token-123' });
+      useAuthStore.getState().setAuth({
+        user: {
+          id: 'u-1',
+          organizationId: 'org-1',
+          employeeCode: 'E01',
+          fullName: 'User One',
+          email: 'u1@skylux.vn',
+          roles: ['SALES'],
+          permissions: [],
+        },
+      });
     });
 
-    expect(result.current).toBe('fresh-jwt-token-123');
+    expect(result.current).toBe(true);
+    expect((useAuthStore.getState() as any).accessToken).toBeUndefined();
+    expect(Cookies.get('access_token')).toBeUndefined();
+    expect(Cookies.get('refresh_token')).toBeUndefined();
+    const persisted = localStorage.getItem('skylux-auth-storage') || '';
+    expect(persisted).not.toContain('accessToken');
+    expect(persisted).not.toContain('refreshToken');
   });
 
   it('should react to skylux:token-refreshed custom event with 0ms latency', () => {
-    let capturedToken = '';
+    let refreshedCount = 0;
 
-    const handleRefresh = (e: Event) => {
-      const customEvt = e as CustomEvent<{ accessToken: string }>;
-      capturedToken = customEvt.detail?.accessToken || '';
+    const handleRefresh = () => {
+      refreshedCount += 1;
     };
 
     window.addEventListener('skylux:token-refreshed', handleRefresh);
 
     act(() => {
-      window.dispatchEvent(
-        new CustomEvent('skylux:token-refreshed', {
-          detail: { accessToken: 'token-from-event-456' },
-        }),
-      );
+      window.dispatchEvent(new CustomEvent('skylux:token-refreshed'));
     });
 
-    expect(capturedToken).toBe('token-from-event-456');
+    expect(refreshedCount).toBe(1);
 
     window.removeEventListener('skylux:token-refreshed', handleRefresh);
   });

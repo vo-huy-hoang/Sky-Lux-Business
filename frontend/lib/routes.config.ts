@@ -318,10 +318,8 @@ export function isPathAccessible(
   // Chuẩn hóa đường dẫn legacy nếu bắt đầu bằng /main
   const normalized = pathname.startsWith('/main/') ? pathname.replace(/^\/main/, '') : pathname;
 
-  // Tenant creation is available to authenticated users through a direct entry
-  // point; the organization directory itself remains SUPER_ADMIN-only and is
-  // therefore not added to other roles' sidebars.
-  if (normalized === '/organizations/new') return true;
+  // Only SUPER_ADMIN can access tenant/organization creation routes.
+  if (normalized === '/organizations/new') return !!ctx.isSuperAdmin;
 
   // Cho phép Operator, Sales, CEO/Admin và Super Admin truy cập trang chi tiết hồ sơ tour
   if (normalized.startsWith('/dossiers/')) {

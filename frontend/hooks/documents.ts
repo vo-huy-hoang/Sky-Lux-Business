@@ -111,6 +111,25 @@ export function useDocumentDownloadUrl(
   });
 }
 
+function resolveDownloadHref(url: string): string {
+  if (
+    url.startsWith('http://') ||
+    url.startsWith('https://') ||
+    url.startsWith('blob:')
+  ) {
+    return url;
+  }
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const backendOrigin = apiUrl
+    ? apiUrl.startsWith('/')
+      ? ''
+      : new URL(apiUrl).origin
+    : typeof window !== 'undefined' && window.location.hostname === 'localhost'
+      ? 'http://localhost:3001'
+      : '';
+  return `${backendOrigin}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
 /**
  * API-DOCUMENT-005: Hook kích hoạt tải về tài liệu
  */
@@ -126,9 +145,10 @@ export function useDownloadDocument() {
       const result = await documentsService.getDownloadUrl(id, params);
       if (result && result.downloadUrl && typeof window !== 'undefined') {
         const link = document.createElement('a');
-        link.href = result.downloadUrl;
+        link.href = resolveDownloadHref(result.downloadUrl);
         link.download = result.originalName || 'download';
         link.target = '_blank';
+        link.rel = 'noopener noreferrer';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);

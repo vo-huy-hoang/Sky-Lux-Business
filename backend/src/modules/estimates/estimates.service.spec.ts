@@ -1,13 +1,24 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
+import {
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
+import {
+  DataSource,
+  OptimisticLockVersionMismatchError,
+  Repository,
+  getMetadataArgsStorage,
+} from 'typeorm';
 import { EstimatesService } from './estimates.service';
 import { Estimate } from './entities/estimate.entity';
 import { EstimateRevenueLine } from './entities/estimate-revenue-line.entity';
 import { EstimateCostLine } from './entities/estimate-cost-line.entity';
 import { Supplier } from '../suppliers/entities/supplier.entity';
+import { Dossier } from '../dossiers/entities/dossier.entity';
 import { DossiersService } from '../dossiers/dossiers.service';
+import { DossierAccessPolicyService } from '../dossiers/dossier-access-policy.service';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { QueryEstimateDto } from './dto/query-estimate.dto';
 import { CreateEstimateDto } from './dto/create-estimate.dto';
@@ -28,7 +39,12 @@ describe('EstimatesService', () => {
   const mockUserPayload = {
     id: 'user-uuid',
     organizationId: 'org-uuid',
-    permissions: ['estimate.view', 'estimate.create', 'estimate.update'],
+    permissions: [
+      'dossier.view.all',
+      'estimate.view',
+      'estimate.create',
+      'estimate.update',
+    ],
     roles: [],
   } as unknown as CurrentUserPayload;
 
@@ -43,13 +59,40 @@ describe('EstimatesService', () => {
   } as unknown as Estimate;
 
   const mockQueryBuilder = {
+    setLock: jest.fn().mockReturnThis(),
+    withDeleted: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
     leftJoinAndSelect: jest.fn().mockReturnThis(),
+    leftJoin: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
     skip: jest.fn().mockReturnThis(),
     take: jest.fn().mockReturnThis(),
+    getOne: jest.fn(),
+    getRawOne: jest.fn(),
     getManyAndCount: jest.fn(),
+  };
+
+  const mockDossierRepository = {
+    createQueryBuilder: jest.fn(() => ({
+      setLock: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue({
+        id: 'dossier-uuid',
+        organizationId: 'org-uuid',
+        salesUserId: 'user-uuid',
+        createdBy: 'user-uuid',
+        status: DossierStatus.DRAFT,
+      }),
+    })),
+    findOne: jest.fn().mockResolvedValue({
+      id: 'dossier-uuid',
+      organizationId: 'org-uuid',
+      salesUserId: 'user-uuid',
+      createdBy: 'user-uuid',
+    }),
   };
 
   const mockDossiersService = {
@@ -62,8 +105,11 @@ describe('EstimatesService', () => {
 
   beforeEach(async () => {
     mockSupplierRepository.count.mockResolvedValue(1);
+    mockQueryBuilder.getOne.mockResolvedValue({ ...mockEstimate });
+    mockQueryBuilder.getRawOne.mockResolvedValue({ maxVersionNo: '0' });
     mockTransactionalEntityManager = {
       getRepository: jest.fn((entity: any) => {
+        if (entity === Dossier) return mockDossierRepository;
         if (entity === EstimateRevenueLine) return revenueLineRepository;
         if (entity === EstimateCostLine) return costLineRepository;
         return estimateRepository;
@@ -132,6 +178,11 @@ describe('EstimatesService', () => {
           provide: DossiersService,
           useValue: mockDossiersService,
         },
+        DossierAccessPolicyService,
+        {
+          provide: getRepositoryToken(Dossier),
+          useValue: mockDossierRepository,
+        },
         {
           provide: AuditLogsService,
           useValue: { record: jest.fn().mockResolvedValue(undefined) },
@@ -177,6 +228,22 @@ describe('EstimatesService', () => {
         meta: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
       });
     });
+
+    it('should apply dossier visibility filter when user only has dossier.view.own (Ticket 02)', async () => {
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([[], 0]);
+      const salesOwnUser = {
+        ...mockUserPayload,
+        id: 'sales-1',
+        permissions: ['estimate.view', 'dossier.view.own'],
+      } as unknown as CurrentUserPayload;
+
+      await service.findAll(salesOwnUser, new QueryEstimateDto());
+
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('dossier.salesUserId'),
+        expect.objectContaining({ userId: 'sales-1' }),
+      );
+    });
   });
 
   describe('findOne', () => {
@@ -212,7 +279,7 @@ describe('EstimatesService', () => {
   describe('create', () => {
     it('should verify dossier ownership and calculate financial lines gross/net amounts', async () => {
       dossiersService.findOne.mockResolvedValue({ id: 'dossier-uuid' } as any);
-      estimateRepository.count.mockResolvedValue(2);
+      mockQueryBuilder.getRawOne.mockResolvedValueOnce({ maxVersionNo: '2' });
       estimateRepository.save.mockImplementation((entity) =>
         Promise.resolve(entity as any),
       );
@@ -248,7 +315,6 @@ describe('EstimatesService', () => {
         mockUserPayload,
         'dossier-uuid',
       );
-      expect(estimateRepository.count).toHaveBeenCalled();
       expect(result.versionNo).toEqual(3);
 
       expect(result.revenueLines[0].netAmount).toEqual(600); // 2 * 3 * 100
@@ -357,6 +423,19 @@ describe('EstimatesService', () => {
       } as unknown as Estimate;
 
       estimateRepository.findOne.mockResolvedValue(completedEstimate);
+      mockQueryBuilder.getOne.mockResolvedValueOnce({
+        ...completedEstimate,
+      });
+      mockDossierRepository.createQueryBuilder.mockReturnValueOnce({
+        setLock: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue({
+          id: 'dossier-uuid',
+          organizationId: 'org-uuid',
+          status: DossierStatus.COMPLETED,
+        }),
+      });
       estimateRepository.save.mockImplementation((entity) =>
         Promise.resolve(entity as any),
       );
@@ -541,6 +620,178 @@ describe('EstimatesService', () => {
 
       expect(estimateRepository.findOne).toHaveBeenCalled();
       expect(estimateRepository.softRemove).toHaveBeenCalledWith(mockEstimate);
+    });
+  });
+
+  describe('Concurrency & Optimistic Locking (Ticket 06)', () => {
+    it('defines @VersionColumn on Estimate entity for optimistic locking', () => {
+      const versionColumns = getMetadataArgsStorage().columns.filter(
+        (col) => col.target === Estimate && col.mode === 'version',
+      );
+      expect(versionColumns.length).toBeGreaterThanOrEqual(1);
+      expect(versionColumns[0].propertyName).toBe('version');
+    });
+
+    it('serializes parallel create calls via pessimistic_write on Dossier and computes sequential MAX(versionNo) + 1', async () => {
+      dossiersService.findOne.mockResolvedValue({
+        id: 'dossier-uuid',
+        organizationId: 'org-uuid',
+      } as any);
+
+      const persistedEstimates: Array<{ versionNo: number; id: string }> = [];
+      let mutexChain: Promise<void> = Promise.resolve();
+      const acquireLock = async () => {
+        let release!: () => void;
+        const previous = mutexChain;
+        mutexChain = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        await previous;
+        return release;
+      };
+
+      (dataSource.transaction as jest.Mock).mockImplementation(async (cb: any) => {
+        let release: (() => void) | undefined;
+        const pending: Array<{ versionNo: number; id: string }> = [];
+
+        const txDossierRepo = {
+          createQueryBuilder: jest.fn(() => ({
+            setLock: jest.fn().mockReturnThis(),
+            where: jest.fn().mockReturnThis(),
+            andWhere: jest.fn().mockReturnThis(),
+            getOne: jest.fn(async () => {
+              release = await acquireLock();
+              return { id: 'dossier-uuid', organizationId: 'org-uuid' };
+            }),
+          })),
+        };
+
+        const txEstimateRepo = {
+          createQueryBuilder: jest.fn(() => ({
+            withDeleted: jest.fn().mockReturnThis(),
+            select: jest.fn().mockReturnThis(),
+            where: jest.fn().mockReturnThis(),
+            andWhere: jest.fn().mockReturnThis(),
+            getRawOne: jest.fn(async () => {
+              await new Promise((r) => setTimeout(r, 15));
+              const maxVersion = persistedEstimates.reduce(
+                (max, item) => Math.max(max, item.versionNo),
+                0,
+              );
+              return { maxVersionNo: String(maxVersion) };
+            }),
+          })),
+          create: jest.fn((data: any) => ({ ...data })),
+          save: jest.fn(async (data: any) => {
+            const saved = {
+              ...data,
+              id: `est-${persistedEstimates.length + pending.length + 1}`,
+            };
+            pending.push(saved);
+            return saved;
+          }),
+        };
+
+        const manager = {
+          getRepository: jest.fn((entity: any) => {
+            if (entity === Dossier) return txDossierRepo;
+            if (entity === EstimateRevenueLine) return revenueLineRepository;
+            if (entity === EstimateCostLine) return costLineRepository;
+            return txEstimateRepo;
+          }),
+        };
+
+        try {
+          const res = await cb(manager);
+          persistedEstimates.push(...pending);
+          return res;
+        } finally {
+          release?.();
+        }
+      });
+
+      const created = await Promise.all([
+        service.create(mockUserPayload, { dossierId: 'dossier-uuid' }),
+        service.create(mockUserPayload, { dossierId: 'dossier-uuid' }),
+        service.create(mockUserPayload, { dossierId: 'dossier-uuid' }),
+      ]);
+
+      expect(created.map((e) => e.versionNo).sort((a, b) => a - b)).toEqual([
+        1, 2, 3,
+      ]);
+      expect(dataSource.transaction).toHaveBeenCalledTimes(3);
+    });
+
+    it('rejects update with 409 Conflict when submitted version is stale', async () => {
+      estimateRepository.findOne.mockResolvedValue({
+        ...mockEstimate,
+        version: 3,
+      } as Estimate);
+
+      await expect(
+        service.update(mockUserPayload, 'est-uuid', {
+          note: 'Stale write',
+          version: 2,
+        } as UpdateEstimateDto),
+      ).rejects.toThrow(ConflictException);
+      expect(estimateRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('maps OptimisticLockVersionMismatchError during save to 409 ConflictException', async () => {
+      estimateRepository.findOne.mockResolvedValue({
+        ...mockEstimate,
+        version: 2,
+      } as Estimate);
+      estimateRepository.save.mockRejectedValue(
+        new OptimisticLockVersionMismatchError('Estimate', 2, 3),
+      );
+
+      await expect(
+        service.update(mockUserPayload, 'est-uuid', {
+          note: 'Raced save',
+          version: 2,
+        } as UpdateEstimateDto),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('re-evaluates dossier status after acquiring pessimistic_write lock to prevent stale TOCTOU status transitions', async () => {
+      estimateRepository.findOne.mockResolvedValue({
+        ...mockEstimate,
+        status: EstimateStatus.APPROVED,
+        version: 1,
+        dossier: {
+          id: 'dossier-uuid',
+          status: DossierStatus.APPROVED,
+        },
+        revenueLines: [],
+        costLines: [],
+      } as unknown as Estimate);
+      mockQueryBuilder.getOne.mockResolvedValueOnce({
+        ...mockEstimate,
+        status: EstimateStatus.APPROVED,
+        version: 1,
+      });
+      mockDossierRepository.createQueryBuilder.mockReturnValueOnce({
+        setLock: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue({
+          id: 'dossier-uuid',
+          organizationId: 'org-uuid',
+          status: DossierStatus.COMPLETED,
+          version: 4,
+        }),
+      });
+      estimateRepository.save.mockImplementation((entity) =>
+        Promise.resolve(entity as any),
+      );
+
+      const result = await service.update(mockUserPayload, 'est-uuid', {
+        note: 'Post-complete edit',
+        version: 1,
+      } as UpdateEstimateDto);
+
+      expect(result.status).toBe(EstimateStatus.APPROVED);
     });
   });
 });

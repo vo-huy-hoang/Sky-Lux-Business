@@ -92,7 +92,7 @@ describe('Phase 24: Distributed Throttler & Auth Shield', () => {
       await guard.onModuleInit();
     });
 
-    it('should track IP only when request does not have email in body', async () => {
+    it('should track Express req.ip instead of raw spoofable X-Forwarded-For header (Ticket 04)', async () => {
       const req = {
         headers: { 'x-forwarded-for': '203.113.131.1' },
         ip: '127.0.0.1',
@@ -100,12 +100,13 @@ describe('Phase 24: Distributed Throttler & Auth Shield', () => {
       };
 
       const tracker = await (guard as any).getTracker(req);
-      expect(tracker).toBe('203.113.131.1');
+      expect(tracker).toBe('127.0.0.1');
     });
 
-    it('should combine IP and normalized email when logging in', async () => {
+    it('should combine req.ip and normalized email when logging in', async () => {
       const req = {
-        headers: { 'x-forwarded-for': '203.113.131.1, 10.0.0.1' },
+        headers: { 'x-forwarded-for': '198.51.100.2' },
+        ip: '203.113.131.1',
         body: { email: '  Admin@SkyLux.VN ' },
       };
 
