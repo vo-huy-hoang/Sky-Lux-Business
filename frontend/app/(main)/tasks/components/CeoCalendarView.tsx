@@ -54,7 +54,7 @@ export default function CeoCalendarView() {
           <Alert
             type="error"
             showIcon
-            message="Không thể tải dữ liệu hồ sơ"
+            title="Không thể tải dữ liệu hồ sơ"
             description="Có lỗi khi lấy danh sách hồ sơ đã khóa từ API. Vui lòng thử lại."
             action={
               <Button size="small" onClick={() => refetch()}>

@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { dossiersService } from '@/services/dossiers.service';
 import { estimatesService } from '@/services/estimates.service';
 import { suppliersService } from '@/services/suppliers.service';
+import type { SupplierItem } from '@/types/supplier';
 import { EstimateStatus } from '@/types/estimate';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useUIStore } from '@/lib/stores/ui-store';
@@ -68,11 +69,19 @@ export default function EditImportDossierPage() {
   });
 
   const supplierOptions = useMemo(() => {
-    const list = (suppliersData?.data || []).map((s: any) => ({
-      label: s.name,
-      value: s.name,
-      id: s.id,
-    }));
+    const list = (suppliersData?.data || []).map(
+      (supplier: SupplierItem, index) => {
+        // Legacy/imported rows may not include an id in the API response.
+        // Never let Select fall back to supplier names, which may repeat.
+        const identity = supplier.id || supplier.code || `row-${index}`;
+        return {
+          key: `supplier-${identity}-${index}`,
+          label: supplier.name,
+          value: supplier.id || supplier.code || `supplier-row-${index}`,
+          id: supplier.id,
+        };
+      },
+    );
     if (list.length === 0) {
       return [
         { label: 'Vietnam Airlines', value: 'Vietnam Airlines' },

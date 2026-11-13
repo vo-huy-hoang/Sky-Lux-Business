@@ -263,6 +263,13 @@ describe('SuppliersService', () => {
 
       const result = await service.create(mockUserPayload, createDto);
 
+      expect(supplierRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'SUP002',
+          name: 'XYZ Supplier',
+          organizationId: mockUserPayload.organizationId,
+        }),
+      );
       expect(supplierRepository.save).toHaveBeenCalled();
       expect(result).toEqual(mockSupplier);
     });

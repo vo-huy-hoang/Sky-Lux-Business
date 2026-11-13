@@ -279,6 +279,7 @@ export class SuppliersService {
     }
 
     const supplier = this.supplierRepository.create({
+      code,
       ...supplierData,
       supplierTypeId: resolvedSupplierTypeId,
       organizationId,

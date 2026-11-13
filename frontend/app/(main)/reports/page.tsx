@@ -582,7 +582,7 @@ export default function ReportsPage() {
               <Alert
                 type="error"
                 showIcon
-                message="Không thể tải báo cáo"
+                title="Không thể tải báo cáo"
                 description={
                   reportQuery.error instanceof Error
                     ? reportQuery.error.message
