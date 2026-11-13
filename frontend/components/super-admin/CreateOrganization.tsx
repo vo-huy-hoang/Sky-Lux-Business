@@ -195,7 +195,7 @@ export function CreateOrganization() {
                     <div><dt>Múi giờ mặc định</dt><dd>{timezone}</dd></div>
                     <div><dt>Tiền tệ</dt><dd>{currency}</dd></div>
                   </dl>
-                  <Alert type="info" showIcon message="Doanh nghiệp sẽ được tạo ở trạng thái hoạt động." description="Hệ thống tự khởi tạo các vai trò và quyền mặc định cho tenant mới." />
+                  <Alert type="info" showIcon title="Doanh nghiệp sẽ được tạo ở trạng thái hoạt động." description="Hệ thống tự khởi tạo các vai trò và quyền mặc định cho tenant mới." />
                 </>
               )}
             </Card>

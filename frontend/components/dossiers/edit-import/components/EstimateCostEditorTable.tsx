@@ -73,12 +73,19 @@ const EditableCostRowItem = memo<EditableCostRowItemProps>(
             size="small"
             showSearch
             optionFilterProp="label"
-            value={row.supplierName}
+            value={
+              supplierOptions.find((option) => option.id === row.supplierId)
+                ?.value ??
+              supplierOptions.find((option) => option.label === row.supplierName)
+                ?.value ??
+              row.supplierName ??
+              row.supplierId
+            }
             placeholder="Chọn nhà cung cấp..."
             onChange={(val) => {
               const matched = supplierOptions.find((s) => s.value === val);
               onCellChange(row.id, {
-                supplierName: val,
+                supplierName: matched?.label || val,
                 supplierId: matched?.id,
               });
             }}
