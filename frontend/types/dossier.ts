@@ -90,6 +90,7 @@ export interface DossierItem {
   };
   salesUserId?: string;
   operatorUserId?: string;
+  createdBy?: string;
   route?: string;
   startDate?: string;
   endDate?: string;

@@ -7,6 +7,7 @@ import {
   useDossiersList,
   useDossierDetail,
   useUpdateDossierMetadata,
+  useDeleteDossier,
 } from '@/hooks/dossiers';
 import { dossiersService } from '@/services/dossiers.service';
 import { queryKeys } from '@/lib/query-keys';
@@ -17,6 +18,7 @@ jest.mock('@/services/dossiers.service', () => ({
     getDossiers: jest.fn(),
     getDossier: jest.fn(),
     updateDossier: jest.fn(),
+    deleteDossier: jest.fn(),
     getDossierComments: jest.fn(),
     createDossierComment: jest.fn(),
   },
@@ -180,6 +182,35 @@ describe('useDossiers hooks', () => {
 
     expect(result.current.fetchStatus).toBe('idle');
     expect(dossiersService.getDossier).not.toHaveBeenCalled();
+  });
+
+  it('useDeleteDossier executes mutation and invalidates all dossier queries', async () => {
+    (dossiersService.deleteDossier as jest.Mock).mockResolvedValueOnce(undefined);
+    const { Wrapper, queryClient } = createWrapper();
+    const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
+    const removeQueriesSpy = jest.spyOn(queryClient, 'removeQueries');
+
+    const { result } = renderHook(() => useDeleteDossier(), {
+      wrapper: Wrapper,
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: dossierId,
+        reason: 'Lý do xóa',
+      });
+    });
+
+    expect(dossiersService.deleteDossier).toHaveBeenCalledWith(
+      dossierId,
+      'Lý do xóa',
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: queryKeys.dossiers.all,
+    });
+    expect(removeQueriesSpy).toHaveBeenCalledWith({
+      queryKey: queryKeys.dossiers.detail(dossierId),
+    });
   });
 });
 

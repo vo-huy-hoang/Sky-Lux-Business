@@ -75,4 +75,14 @@ export const dossiersService = {
       payload,
     );
   },
+
+  /**
+   * API-DOSSIER-005: Xóa hồ sơ
+   */
+  deleteDossier: (id: string, reason?: string, options?: RequestOptions) => {
+    return apiClient.delete<any, void>(`/dossiers/${id}`, {
+      params: reason ? { reason } : undefined,
+      signal: options?.signal,
+    });
+  },
 };
