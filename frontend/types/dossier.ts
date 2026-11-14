@@ -79,14 +79,14 @@ export interface DossierItem {
   businessLineName?: string;
   marketTypeName?: string;
   businessLine?: {
-    id: string;
-    code: string;
-    name: string;
+    id?: string;
+    code?: string;
+    name?: string;
   };
   marketType?: {
-    id: string;
-    code: string;
-    name: string;
+    id?: string;
+    code?: string;
+    name?: string;
   };
   salesUserId?: string;
   operatorUserId?: string;
@@ -121,6 +121,8 @@ export interface DossierItem {
     totalCost?: number;
     netProfit?: number;
   }>;
+  hasPayments?: boolean;
+  totalPaid?: number;
   createdAt: string;
   updatedAt: string;
 }

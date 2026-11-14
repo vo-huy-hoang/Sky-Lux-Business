@@ -38,6 +38,7 @@ import { DossierItem } from '@/types/dossier';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useDebounce } from '@/hooks/use-debounce';
 import { DossierDangerDeleteModal } from '@/components/dossiers/DossierDangerDeleteModal';
+import { getDossierDeleteEligibility } from '@/lib/dossier-delete-policy';
 
 const { Title, Text } = Typography;
 
@@ -130,12 +131,14 @@ function DossiersContent() {
         reason: customReason || 'Xóa từ danh sách hồ sơ',
       });
       notify.success('Đã xóa hồ sơ thành công');
+      return true;
     } catch (err: any) {
       notify.error(
         err?.response?.data?.message ||
           err?.message ||
           'Có lỗi xảy ra khi xóa hồ sơ',
       );
+      return false;
     } finally {
       setDeletingId(null);
     }
@@ -284,36 +287,14 @@ function DossiersContent() {
       key: 'actions',
       width: 195,
       render: (_: unknown, record: DossierItem) => {
-        const isOwner =
-          record.salesUserId === currentUser?.id ||
-          record.createdBy === currentUser?.id;
-        const isLocked = record.status === 'LOCKED';
-        const isApprovedOrCompleted =
-          record.status === 'APPROVED' || record.status === 'COMPLETED';
-        const hasRealPayment = Boolean(
-          (record as any).hasPayments ||
-            Number((record as any).totalPaid) > 0,
-        );
-
-        let canDeleteThisDossier = false;
-        let disableReason: string | null = null;
-
-        if (!canDeleteDossier) {
-          disableReason = 'Bạn không có quyền xóa hồ sơ';
-        } else if (hasRealPayment) {
-          disableReason =
-            'Không thể xóa hồ sơ đã phát sinh phiếu thu tiền thực tế';
-        } else if (isLocked && !currentUser?.roles?.includes('SUPER_ADMIN')) {
-          disableReason =
-            'Hồ sơ đã khóa, chỉ Quản trị viên cấp cao mới có thể xóa';
-        } else if (isApprovedOrCompleted && !isCeoAdmin) {
-          disableReason =
-            'Chỉ Ban Giám Đốc mới có quyền xóa hồ sơ đã duyệt hoặc hoàn tất';
-        } else if (!isCeoAdmin && !isOperator && !isOwner) {
-          disableReason = 'Bạn chỉ được xóa hồ sơ do mình phụ trách';
-        } else {
-          canDeleteThisDossier = true;
-        }
+        const {
+          canDelete: canDeleteThisDossier,
+          disableReason,
+          isApprovedOrCompleted,
+        } = getDossierDeleteEligibility(record, currentUser, {
+          hasPermission,
+          hasRole,
+        });
 
         const isDeletingThis = deletingId === record.id;
 
@@ -561,8 +542,10 @@ function DossiersContent() {
         isLoading={deletingId === dangerModalDossier?.id}
         onConfirm={async (reason) => {
           if (!dangerModalDossier) return;
-          await handleDelete(dangerModalDossier, reason);
-          setDangerModalDossier(null);
+          const success = await handleDelete(dangerModalDossier, reason);
+          if (success) {
+            setDangerModalDossier(null);
+          }
         }}
       />
     </div>

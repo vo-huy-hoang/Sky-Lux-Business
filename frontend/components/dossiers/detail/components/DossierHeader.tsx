@@ -14,9 +14,11 @@ import {
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useDeleteDossier } from "@/hooks/dossiers";
 import { DossierDangerDeleteModal } from "@/components/dossiers/DossierDangerDeleteModal";
+import { DossierItem } from "@/types/dossier";
+import { getDossierDeleteEligibility } from "@/lib/dossier-delete-policy";
 
 export interface DossierHeaderProps {
-  dossier: any;
+  dossier: Partial<DossierItem> | null | undefined;
   isDrawer?: boolean;
   isOperator?: boolean;
   isCeoAdmin?: boolean;
@@ -43,42 +45,24 @@ export function DossierHeader({
   const deleteDossierMutation = useDeleteDossier();
 
   const isLocked = dossier?.status === "LOCKED";
-  const canDeleteDossier =
-    typeof hasPermission === "function" ? hasPermission("dossier.delete") : false;
-  const isCeo =
-    typeof hasRole === "function"
-      ? hasRole(["SUPER_ADMIN", "CEO_ADMIN"])
-      : Boolean(isCeoAdmin);
-  const isOp =
-    typeof hasRole === "function" ? hasRole("OPERATOR") : Boolean(isOperator);
 
-  const isOwner =
-    dossier?.salesUserId === currentUser?.id ||
-    dossier?.createdBy === currentUser?.id;
-  const isApprovedOrCompleted =
-    dossier?.status === "APPROVED" || dossier?.status === "COMPLETED";
-  const hasRealPayment = Boolean(
-    hasPayments ||
-      (dossier as any)?.hasPayments ||
-      Number((dossier as any)?.totalPaid) > 0,
-  );
-
-  let canDeleteThisDossier = false;
-  let disableReason: string | null = null;
-
-  if (!canDeleteDossier) {
-    disableReason = "Bạn không có quyền xóa hồ sơ";
-  } else if (hasRealPayment) {
-    disableReason = "Không thể xóa hồ sơ đã phát sinh phiếu thu tiền thực tế";
-  } else if (isLocked && !currentUser?.roles?.includes("SUPER_ADMIN")) {
-    disableReason = "Hồ sơ đã khóa, chỉ Quản trị viên cấp cao mới có thể xóa";
-  } else if (isApprovedOrCompleted && !isCeo) {
-    disableReason = "Chỉ Ban Giám Đốc mới có quyền xóa hồ sơ đã duyệt hoặc hoàn tất";
-  } else if (!isCeo && !isOp && !isOwner) {
-    disableReason = "Bạn chỉ được xóa hồ sơ do mình phụ trách";
-  } else {
-    canDeleteThisDossier = true;
-  }
+  const {
+    canDelete: canDeleteThisDossier,
+    disableReason,
+    isApprovedOrCompleted,
+  } = getDossierDeleteEligibility(dossier, currentUser, {
+    hasPermission,
+    hasRole: (role) => {
+      if (typeof hasRole === "function") {
+        return hasRole(role);
+      }
+      if (Array.isArray(role)) {
+        return Boolean(isCeoAdmin && role.includes("CEO_ADMIN"));
+      }
+      return role === "OPERATOR" ? Boolean(isOperator) : false;
+    },
+    hasPayments,
+  });
 
   const handleDelete = async (reason?: string) => {
     if (!dossier?.id) return;

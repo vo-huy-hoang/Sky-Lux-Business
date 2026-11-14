@@ -9,11 +9,11 @@ const { Text } = Typography;
 export interface DossierDangerDeleteModalProps {
   open: boolean;
   dossier: {
-    id: string;
-    code: string;
+    id?: string;
+    code?: string;
     name?: string;
     status?: string;
-  } | null;
+  } | null | undefined;
   onClose: () => void;
   onConfirm: (reason: string) => Promise<void>;
   isLoading?: boolean;
