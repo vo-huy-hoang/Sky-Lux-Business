@@ -1011,3 +1011,94 @@ body {
 .animate-pulse-slow {
   animation: clientPulseSlow 7s ease-in-out infinite;
 }
+
+/* Subtle Hero Entrance & Orbital Motion (ui-ux-pro-max) */
+@keyframes heroRevealUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes heroLineExpand {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes heroOrbitCw {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes heroOrbitCcw {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes heroScrollDrop {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(220%);
+    opacity: 0;
+  }
+}
+
+.hero-reveal {
+  animation: heroRevealUp 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.hero-line-expand {
+  animation: heroLineExpand 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: center;
+}
+
+.hero-orbit-cw {
+  animation: heroOrbitCw 72s linear infinite;
+}
+
+.hero-orbit-ccw {
+  animation: heroOrbitCcw 96s linear infinite;
+}
+
+.hero-scroll-drop {
+  animation: heroScrollDrop 2.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-reveal,
+  .hero-line-expand,
+  .hero-orbit-cw,
+  .hero-orbit-ccw,
+  .hero-scroll-drop {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

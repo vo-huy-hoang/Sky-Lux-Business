@@ -43,15 +43,20 @@ export class OrganizationsController {
   }
 
   @Post()
-  @RequirePermissions()
-  @ApiOperation({ summary: 'Tạo tổ chức mới (người dùng đã đăng nhập)' })
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({ summary: 'SUPER_ADMIN tạo tổ chức mới' })
   @ApiResponse({ status: 201, description: 'Tạo tổ chức thành công' })
+  @ApiResponse({ status: 403, description: 'Chỉ SUPER_ADMIN được phép tạo tổ chức' })
   @ApiResponse({
     status: 409,
     description:
       'Mã doanh nghiệp, mã số thuế, email liên hệ hoặc số điện thoại đã tồn tại',
   })
-  create(@Body() dto: CreateOrganizationDto) {
+  create(
+    @Body() dto: CreateOrganizationDto,
+    @CurrentUser('roles') roles: string[],
+  ) {
+    this.assertSuperAdmin(roles);
     return this.organizationsService.create(dto);
   }
 

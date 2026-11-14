@@ -7,11 +7,11 @@ import {
   IsArray,
   IsEnum,
   MaxLength,
-  MinLength,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserStatus } from '../../../common/enums';
+import { IsStrongPassword } from '../../../common/validators/password-policy.validator';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -46,11 +46,12 @@ export class CreateUserDto {
 
   @ApiPropertyOptional({
     example: 'Password@123',
-    description: 'Mật khẩu đăng nhập (mặc định SkyLux@123 nếu không truyền)',
+    description:
+      'Mật khẩu khởi tạo (tối thiểu 8 ký tự, gồm chữ hoa, chữ thường và số; để trống để tự sinh mật khẩu tạm)',
   })
   @IsString()
   @IsOptional()
-  @MinLength(6, { message: 'Mật khẩu phải có ít nhất 6 ký tự' })
+  @IsStrongPassword()
   password?: string;
 
   @ApiPropertyOptional({

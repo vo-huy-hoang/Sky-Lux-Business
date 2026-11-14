@@ -25,6 +25,7 @@ import { Dossier } from '../dossiers/entities/dossier.entity';
 import { toPublicUser } from '../../common/utils/public-user';
 import { RedisService } from '../../common/redis/redis.service';
 import { StorageService } from '../../shared/storage/storage.service';
+import { validateUploadFile } from '../../shared/storage/file-validation.util';
 import { sanitizeFileName } from '../../common/utils/filename.util';
 import { ChatPubSubService, ChatEventType } from './chat-pubsub.service';
 
@@ -318,43 +319,10 @@ export class ChatService {
     }
 
     const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
-    if (file.size > MAX_FILE_SIZE) {
+    const fileSize = file.size ?? file.buffer.length;
+    if (fileSize > MAX_FILE_SIZE) {
       throw new BadRequestException(
         'Dung lượng tệp đính kèm không được vượt quá 15MB',
-      );
-    }
-
-    const BLOCKED_EXTENSIONS = new Set([
-      '.exe',
-      '.bat',
-      '.cmd',
-      '.sh',
-      '.ps1',
-      '.msi',
-      '.vbs',
-      '.js',
-      '.scr',
-      '.jar',
-      '.com',
-      '.pif',
-      '.dll',
-      '.app',
-      '.dmg',
-      '.bin',
-      '.iso',
-      '.apk',
-      '.htm',
-      '.html',
-      '.php',
-      '.asp',
-      '.aspx',
-      '.cgi',
-    ]);
-
-    const ext = path.extname(file.originalname || '').toLowerCase();
-    if (BLOCKED_EXTENSIONS.has(ext)) {
-      throw new BadRequestException(
-        'Định dạng tệp này không được phép tải lên vì lý do bảo mật',
       );
     }
 
@@ -362,32 +330,38 @@ export class ChatService {
       throw new BadRequestException('Dịch vụ lưu trữ chưa sẵn sàng');
     }
 
+    const validated =
+      typeof this.storageService.validateUpload === 'function'
+        ? this.storageService.validateUpload(file, 'chat')
+        : validateUploadFile(file, 'chat');
+
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
-    const safeName = sanitizeFileName(file.originalname) || `file${ext}`;
-    const uniqueFileName = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${safeName}`;
-    const objectKey = `chat/${user.organizationId}/${year}/${month}/${uniqueFileName}`;
+    const safeName =
+      sanitizeFileName(file.originalname) || `file${validated.extension}`;
+    const uniqueFileName = `${Date.now()}-${crypto.randomUUID()}${validated.extension}`;
+    const objectKey = `${user.organizationId}/chat/${year}/${month}/${user.id}/${uniqueFileName}`;
 
-    const result = await this.storageService.uploadFile(
+    await this.storageService.uploadFile(
       {
         buffer: file.buffer,
         originalname: safeName,
-        mimetype: file.mimetype,
-        size: file.size,
+        mimetype: validated.mimeType,
+        size: fileSize,
       },
       objectKey,
+      'chat',
     );
 
-    const fileUrl = result.publicUrl || `/uploads/${objectKey}`;
-    const isImage = file.mimetype.startsWith('image/');
+    const fileUrl = `/api/files/chat?key=${encodeURIComponent(objectKey)}`;
 
     return {
       url: fileUrl,
       originalName: safeName,
-      fileSize: file.size,
-      mimeType: file.mimetype,
-      thumbnailUrl: isImage ? fileUrl : undefined,
+      fileSize,
+      mimeType: validated.mimeType,
+      thumbnailUrl: validated.isRasterImage ? fileUrl : undefined,
     };
   }
 

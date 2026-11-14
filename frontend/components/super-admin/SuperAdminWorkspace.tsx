@@ -30,6 +30,7 @@ import styles from './super-admin.module.css';
 const navigation = [
   { label: 'Tổng quan', path: '/dashboard', icon: <DashboardOutlined /> },
   { label: 'Doanh nghiệp', path: '/organizations', icon: <ShopOutlined /> },
+  { label: 'Nhà cung cấp', path: '/suppliers', icon: <ShopOutlined /> },
   { label: 'Người dùng', path: '/users', icon: <TeamOutlined /> },
   { label: 'Thanh toán', path: '/revenue', icon: <CreditCardOutlined /> },
   { label: 'Báo cáo', path: '/reports', icon: <BarChartOutlined /> },

@@ -11,15 +11,13 @@ export interface UserProfile {
   avatarUrl?: string;
   roles: string[];
   permissions: string[];
+  mustChangePassword?: boolean;
 }
 
 export interface LoginResponse {
-  accessToken: string;
-  refreshToken: string;
   user: UserProfile;
 }
 
 export interface RefreshTokenResponse {
-  accessToken: string;
-  refreshToken: string;
+  refreshed: boolean;
 }

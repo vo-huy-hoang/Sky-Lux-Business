@@ -98,7 +98,7 @@ export function DossierChangeRequests({
         <Alert
           type="error"
           showIcon
-          message="Không thể tải yêu cầu bổ sung"
+          title="Không thể tải yêu cầu bổ sung"
           action={<Button onClick={() => refetch()}>Thử lại</Button>}
         />
       ) : requests.length === 0 ? (

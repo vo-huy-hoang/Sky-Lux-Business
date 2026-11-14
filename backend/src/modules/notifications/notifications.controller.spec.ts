@@ -1,9 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ForbiddenException, INestApplication } from '@nestjs/common';
+import { APP_GUARD, Reflector } from '@nestjs/core';
+import request from 'supertest';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { DataSource } from 'typeorm';
 import { of } from 'rxjs';
 
@@ -98,11 +102,83 @@ describe('NotificationsController', () => {
     expect(mockService.findOne).toHaveBeenCalledWith('notif-1', mockUser);
   });
 
-  it('create should call service.create', async () => {
+  it('create should deny non-privileged OPERATOR user with ForbiddenException', () => {
     const dto = { userId: 'user-2', title: 'Test', content: 'Nội dung' };
-    const res = await controller.create(dto, mockUser);
+    expect(() => controller.create(dto, mockUser)).toThrow(ForbiddenException);
+    expect(mockService.create).not.toHaveBeenCalled();
+  });
+
+  it('create should allow CEO_ADMIN and delegate to service.create', async () => {
+    const ceoUser: CurrentUserPayload = {
+      ...mockUser,
+      roles: ['CEO_ADMIN'],
+    };
+    const dto = { userId: 'user-2', title: 'Test', content: 'Nội dung' };
+    const res = await controller.create(dto, ceoUser);
     expect(res.title).toBe('Mới');
-    expect(mockService.create).toHaveBeenCalledWith(dto, mockUser);
+    expect(mockService.create).toHaveBeenCalledWith(dto, ceoUser);
+  });
+
+  describe('POST /notifications HTTP role matrix (Ticket 01)', () => {
+    const createTestAppWithRoles = async (
+      roles: string[],
+    ): Promise<INestApplication> => {
+      const moduleRef: TestingModule = await Test.createTestingModule({
+        controllers: [NotificationsController],
+        providers: [
+          { provide: NotificationsService, useValue: mockService },
+          { provide: JwtService, useValue: {} },
+          { provide: ConfigService, useValue: { get: jest.fn() } },
+          { provide: DataSource, useValue: {} },
+          Reflector,
+          { provide: APP_GUARD, useClass: RolesGuard },
+        ],
+      }).compile();
+
+      const app = moduleRef.createNestApplication();
+      app.use((req: any, _res: any, next: () => void) => {
+        req.user = {
+          ...mockUser,
+          roles,
+        };
+        next();
+      });
+      await app.init();
+      return app;
+    };
+
+    it.each(['OPERATOR', 'SALES', 'ACCOUNTANT'])(
+      'returns 403 Forbidden for non-privileged role %s on POST /notifications',
+      async (role) => {
+        const app = await createTestAppWithRoles([role]);
+        try {
+          await request(app.getHttpServer())
+            .post('/notifications')
+            .send({ userId: 'user-2', title: 'Fake Alert', content: 'Spoofed' })
+            .expect(403);
+          expect(mockService.create).not.toHaveBeenCalled();
+        } finally {
+          await app.close();
+        }
+      },
+    );
+
+    it.each(['CEO_ADMIN', 'SUPER_ADMIN'])(
+      'allows %s on POST /notifications',
+      async (role) => {
+        const app = await createTestAppWithRoles([role]);
+        try {
+          const res = await request(app.getHttpServer())
+            .post('/notifications')
+            .send({ userId: 'user-2', title: 'System Notice', content: 'Valid' })
+            .expect(201);
+          expect(res.body.title).toBe('Mới');
+          expect(mockService.create).toHaveBeenCalled();
+        } finally {
+          await app.close();
+        }
+      },
+    );
   });
 
   it('markAllAsRead should call service.markAllAsRead', async () => {

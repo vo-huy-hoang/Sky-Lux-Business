@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { dossiersService } from '@/services/dossiers.service';
 import { estimatesService } from '@/services/estimates.service';
 import { suppliersService } from '@/services/suppliers.service';
+import type { SupplierItem } from '@/types/supplier';
 import { EstimateStatus } from '@/types/estimate';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useUIStore } from '@/lib/stores/ui-store';
@@ -21,6 +22,7 @@ import {
   EstimateBottomActionBar,
   IssueItem,
 } from '@/components/dossiers/edit-import';
+import { mapSuppliersToOptions } from '@/components/dossiers/edit-import/utils/supplier-options';
 
 export default function EditImportDossierPage() {
   const { message } = App.useApp();
@@ -68,22 +70,8 @@ export default function EditImportDossierPage() {
   });
 
   const supplierOptions = useMemo(() => {
-    const list = (suppliersData?.data || []).map((s: any) => ({
-      label: s.name,
-      value: s.name,
-      id: s.id,
-    }));
-    if (list.length === 0) {
-      return [
-        { label: 'Vietnam Airlines', value: 'Vietnam Airlines' },
-        { label: 'Hotel Boss', value: 'Hotel Boss' },
-        { label: 'Marina Bay Sands', value: 'Marina Bay Sands' },
-        { label: 'TransViet', value: 'TransViet' },
-        { label: 'VN Guide', value: 'VN Guide' },
-      ];
-    }
-    return list;
-  }, [suppliersData?.data]);
+    return mapSuppliersToOptions(suppliersData);
+  }, [suppliersData]);
 
   // 5. Encapsulated Estimate State and Domain Hook
   const {

@@ -19,6 +19,7 @@ import { ServiceCategory } from '../master-data/entities/service-category.entity
 import { Unit } from '../master-data/entities/unit.entity';
 import { ImportProcessor } from './queue/import.processor';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { StorageModule } from '../../shared/storage/storage.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
       name: 'import-queue',
     }),
     AuditLogsModule,
+    StorageModule,
   ],
   controllers: [ImportsController],
   providers: [ImportsService, ImportProcessor],

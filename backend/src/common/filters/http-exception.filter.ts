@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { OptimisticLockVersionMismatchError } from 'typeorm';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -19,10 +20,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
+    let code: string | undefined;
     let errors: any = null;
     let lockoutSeconds: number | undefined;
 
-    if (exception instanceof HttpException) {
+    if (exception instanceof OptimisticLockVersionMismatchError) {
+      status = HttpStatus.CONFLICT;
+      message =
+        'Dữ liệu đã được cập nhật bởi thao tác khác. Vui lòng tải lại trước khi thử lại.';
+    } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       const res = exception.getResponse();
 
@@ -31,6 +37,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       } else if (typeof res === 'object' && res !== null) {
         const resObj = res as Record<string, any>;
         message = resObj.message || exception.message;
+        code = typeof resObj.code === 'string' ? resObj.code : undefined;
         lockoutSeconds = resObj.lockoutSeconds;
         errors =
           resObj.errors ||
@@ -40,7 +47,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
         }
       }
     } else if (exception instanceof Error) {
-      message = exception.message;
+      message =
+        process.env.NODE_ENV === 'production'
+          ? 'Internal server error'
+          : exception.message;
       this.logger.error(
         `Unhandled Exception at ${request.method} ${request.url}`,
         exception.stack,
@@ -50,6 +60,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     response.status(status).json({
       success: false,
       statusCode: status,
+      ...(code !== undefined ? { code } : {}),
       message,
       ...(lockoutSeconds !== undefined ? { lockoutSeconds } : {}),
       errors,

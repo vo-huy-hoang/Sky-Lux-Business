@@ -128,13 +128,36 @@ describe('ImportsService', () => {
         service.upload(
           'org-id',
           'user-id',
-          { originalname: 'file.xlsx', size: 100, buffer: Buffer.from('') },
+          {
+            originalname: 'file.xlsx',
+            mimetype:
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            size: 100,
+            buffer: Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00]),
+          },
           {
             templateType: 'ESTIMATE',
             templateId: 'cb5a125a-45c1-4df2-a9b0-13f56b3e34b9',
           },
         ),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should reject script/SVG/HTML content disguised as .xlsx (Ticket 03)', async () => {
+      await expect(
+        service.upload(
+          'org-id',
+          'user-id',
+          {
+            originalname: 'budget.xlsx',
+            mimetype:
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            size: 64,
+            buffer: Buffer.from('<html><script>alert(1)</script></html>'),
+          },
+          { templateType: 'ESTIMATE' },
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

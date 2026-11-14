@@ -1,6 +1,7 @@
 import { apiClient, RequestOptions } from '@/lib/api-client';
 import {
   UserItem,
+  CreateUserResponse,
   QueryUserParams,
   CreateUserInput,
   UpdateUserInput,
@@ -9,7 +10,7 @@ import {
 
 export const usersService = {
   createCeo: (data: CreateCeoUserInput) => {
-    return apiClient.post<any, UserItem>('/users/ceo', data);
+    return apiClient.post<any, CreateUserResponse>('/users/ceo', data);
   },
   getCeoUsers: (params?: QueryUserParams, options?: RequestOptions) =>
     apiClient.get<any, PaginatedUsersResponse>('/users/ceos', {
@@ -43,7 +44,7 @@ export const usersService = {
    * API-USERS-003: Tạo người dùng mới
    */
   createUser: (data: CreateUserInput) => {
-    return apiClient.post<any, UserItem>('/users', data);
+    return apiClient.post<any, CreateUserResponse>('/users', data);
   },
 
   /**

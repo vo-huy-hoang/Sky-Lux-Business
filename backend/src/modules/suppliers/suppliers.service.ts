@@ -3,14 +3,18 @@ import {
   NotFoundException,
   ConflictException,
   Logger,
+  BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, IsNull, Repository, SelectQueryBuilder } from 'typeorm';
+import { ILike, In, IsNull, Repository, SelectQueryBuilder } from 'typeorm';
 import { Supplier } from './entities/supplier.entity';
 import { SupplierType } from './entities/supplier-type.entity';
 import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { QuerySupplierDto } from './dto/query-supplier.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
+import { BatchCreateSuppliersDto } from './dto/batch-create-suppliers.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import {
   QuerySupplierDossiersDto,
@@ -35,6 +39,8 @@ export class SuppliersService {
     private readonly supplierTypeRepository: Repository<SupplierType>,
     @InjectRepository(EstimateCostLine)
     private readonly estimateCostLineRepository: Repository<EstimateCostLine>,
+    @Optional()
+    private readonly auditLogsService?: AuditLogsService,
   ) {}
 
   /**
@@ -44,13 +50,14 @@ export class SuppliersService {
   private async findOrCreateSupplierType(
     name: string,
     organizationId: string,
+    supplierTypeRepo: Repository<SupplierType> = this.supplierTypeRepository,
   ): Promise<SupplierType> {
     const trimmedName = name.trim();
     const existingType =
-      (await this.supplierTypeRepository.findOne({
+      (await supplierTypeRepo.findOne({
         where: { name: ILike(trimmedName), organizationId },
       })) ??
-      (await this.supplierTypeRepository.findOne({
+      (await supplierTypeRepo.findOne({
         where: {
           name: ILike(trimmedName),
           organizationId: IsNull(),
@@ -71,7 +78,7 @@ export class SuppliersService {
     let code = baseCode;
     let suffix = 1;
     while (
-      await this.supplierTypeRepository.findOne({
+      await supplierTypeRepo.findOne({
         where: [
           { code, organizationId },
           { code, organizationId: IsNull(), isSystem: true },
@@ -82,14 +89,14 @@ export class SuppliersService {
       suffix += 1;
     }
 
-    const supplierType = this.supplierTypeRepository.create({
+    const supplierType = supplierTypeRepo.create({
       code,
       name: trimmedName,
       status: 'ACTIVE',
       sortOrder: 0,
       organizationId,
     });
-    return this.supplierTypeRepository.save(supplierType);
+    return supplierTypeRepo.save(supplierType);
   }
 
   async findAll(
@@ -279,6 +286,7 @@ export class SuppliersService {
     }
 
     const supplier = this.supplierRepository.create({
+      code,
       ...supplierData,
       supplierTypeId: resolvedSupplierTypeId,
       organizationId,
@@ -291,6 +299,167 @@ export class SuppliersService {
     );
 
     return this.findOne(user, savedSupplier.id);
+  }
+
+  async batchCreate(
+    user: CurrentUserPayload,
+    batchDto: BatchCreateSuppliersDto,
+  ): Promise<{
+    total: number;
+    imported: number;
+    items: Supplier[];
+  }> {
+    const { suppliers } = batchDto;
+    const organizationId = user.organizationId;
+
+    if (!suppliers || suppliers.length === 0) {
+      return { total: 0, imported: 0, items: [] };
+    }
+
+    // 1. Check duplicate codes within the payload itself
+    const codeCounts = new Map<string, number>();
+    for (const item of suppliers) {
+      const code = item.code?.trim();
+      if (!code) {
+        throw new BadRequestException('Mã nhà cung cấp không được để trống');
+      }
+      codeCounts.set(code, (codeCounts.get(code) || 0) + 1);
+    }
+
+    const payloadDuplicates = Array.from(codeCounts.entries())
+      .filter(([_, count]) => count > 1)
+      .map(([code]) => code);
+
+    if (payloadDuplicates.length > 0) {
+      throw new ConflictException(
+        `File import chứa mã nhà cung cấp bị trùng lặp: ${payloadDuplicates.join(', ')}`,
+      );
+    }
+
+    // 2. Execute within an atomic transaction
+    return this.supplierRepository.manager.transaction(async (manager) => {
+      const supplierRepo = manager.getRepository(Supplier);
+      const supplierTypeRepo = manager.getRepository(SupplierType);
+
+      // Check duplicates against existing database records for this tenant
+      const allCodes = Array.from(codeCounts.keys());
+      const existingInDb = await supplierRepo.find({
+        where: {
+          organizationId,
+          code: In(allCodes),
+        },
+        select: { id: true, code: true },
+      });
+
+      if (existingInDb.length > 0) {
+        const existingCodes = existingInDb.map((s) => s.code);
+        throw new ConflictException(
+          `Mã nhà cung cấp đã tồn tại trong hệ thống: ${existingCodes.join(', ')}`,
+        );
+      }
+
+      // Pre-resolve all distinct supplier types
+      const supplierTypeCache = new Map<string, string>();
+
+      // Validate any provided legacy supplierTypeIds
+      const distinctTypeIds = Array.from(
+        new Set(
+          suppliers
+            .filter((s) => s.supplierTypeId && !s.supplierTypeName?.trim())
+            .map((s) => s.supplierTypeId as string),
+        ),
+      );
+
+      if (distinctTypeIds.length > 0) {
+        const validTypes = await supplierTypeRepo.find({
+          where: [
+            { id: In(distinctTypeIds), organizationId },
+            {
+              id: In(distinctTypeIds),
+              organizationId: IsNull(),
+              isSystem: true,
+            },
+          ],
+        });
+        const validIds = new Set(validTypes.map((t) => t.id));
+        const invalidIds = distinctTypeIds.filter((id) => !validIds.has(id));
+        if (invalidIds.length > 0) {
+          throw new NotFoundException(
+            `Các loại nhà cung cấp không tồn tại: ${invalidIds.join(', ')}`,
+          );
+        }
+      }
+
+      // Pre-resolve supplierTypeNames
+      for (const item of suppliers) {
+        const typeName = item.supplierTypeName?.trim();
+        if (typeName && !supplierTypeCache.has(typeName)) {
+          const typeEntity = await this.findOrCreateSupplierType(
+            typeName,
+            organizationId,
+            supplierTypeRepo,
+          );
+          supplierTypeCache.set(typeName, typeEntity.id);
+        }
+      }
+
+      // Build entities
+      const entitiesToCreate = suppliers.map((item) => {
+        const { code, supplierTypeId, supplierTypeName, ...rest } = item;
+        let resolvedTypeId = supplierTypeId;
+        if (supplierTypeName?.trim()) {
+          resolvedTypeId =
+            supplierTypeCache.get(supplierTypeName.trim()) || supplierTypeId;
+        }
+
+        return supplierRepo.create({
+          ...rest,
+          code: code.trim(),
+          organizationId,
+          supplierTypeId: resolvedTypeId || null,
+          status: item.status || 'ACTIVE',
+        });
+      });
+
+      // Save in chunks of 100 for optimal batch insert
+      const savedItems = await supplierRepo.save(entitiesToCreate, {
+        chunk: 100,
+      });
+
+      this.logger.log(
+        `Batch created ${savedItems.length} suppliers for org ${organizationId} by user ${user.id}`,
+      );
+
+      if (this.auditLogsService) {
+        await this.auditLogsService.record({
+          organizationId,
+          actorUserId: user.id,
+          action: 'SUPPLIERS_BATCH_IMPORTED',
+          entityType: 'supplier',
+          entityId: savedItems[0]?.id || organizationId,
+          afterData: {
+            total: suppliers.length,
+            imported: savedItems.length,
+            codes: savedItems.map((s) => s.code),
+          },
+        });
+      }
+
+      return {
+        total: suppliers.length,
+        imported: savedItems.length,
+        items: savedItems.map((item) => ({
+          id: item.id,
+          code: item.code,
+          name: item.name,
+          supplierTypeId: item.supplierTypeId,
+          status: item.status,
+          contactName: item.contactName,
+          phone: item.phone,
+          email: item.email,
+        })) as any,
+      };
+    });
   }
 
   async update(

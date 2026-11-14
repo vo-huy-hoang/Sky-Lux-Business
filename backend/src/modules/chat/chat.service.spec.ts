@@ -397,7 +397,7 @@ describe('ChatService', () => {
     it('should successfully upload an image and return attachment payload with thumbnailUrl', async () => {
       const mockFile = {
         originalname: 'ticket-vietnam-airlines.jpg',
-        buffer: Buffer.from('fake-image-bytes'),
+        buffer: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]),
         mimetype: 'image/jpeg',
         size: 204800,
       } as Express.Multer.File;
@@ -408,7 +408,7 @@ describe('ChatService', () => {
       expect(res.originalName).toBe('ticket-vietnam-airlines.jpg');
       expect(res.fileSize).toBe(204800);
       expect(res.mimeType).toBe('image/jpeg');
-      expect(res.url).toContain('/uploads/chat/org-1/');
+      expect(res.url).toContain('/api/files/chat?key=org-1%2Fchat%2F');
       expect(res.thumbnailUrl).toBe(res.url);
       expect(mockStorageService.uploadFile).toHaveBeenCalled();
     });
@@ -416,7 +416,7 @@ describe('ChatService', () => {
     it('should successfully upload a PDF document and return attachment payload without thumbnailUrl', async () => {
       const mockFile = {
         originalname: 'tour-itinerary.pdf',
-        buffer: Buffer.from('fake-pdf-bytes'),
+        buffer: Buffer.from('%PDF-1.4\n%test'),
         mimetype: 'application/pdf',
         size: 512000,
       } as Express.Multer.File;
@@ -426,6 +426,7 @@ describe('ChatService', () => {
       expect(res).toBeDefined();
       expect(res.originalName).toBe('tour-itinerary.pdf');
       expect(res.mimeType).toBe('application/pdf');
+      expect(res.url).toContain('/api/files/chat?key=org-1%2Fchat%2F');
       expect(res.thumbnailUrl).toBeUndefined();
     });
 
@@ -459,6 +460,39 @@ describe('ChatService', () => {
       await expect(
         service.uploadAttachment(mockUser, dangerousFile),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject SVG, HTML, XML, and script payloads disguised as PNG (Ticket 03)', async () => {
+      const svgFile = {
+        originalname: 'xss.svg',
+        buffer: Buffer.from('<svg onload="alert(1)"></svg>'),
+        mimetype: 'image/svg+xml',
+        size: 32,
+      } as Express.Multer.File;
+
+      const spoofedPng = {
+        originalname: 'avatar.png',
+        buffer: Buffer.from('<svg onload="alert(1)"></svg>'),
+        mimetype: 'image/png',
+        size: 32,
+      } as Express.Multer.File;
+
+      const xmlFile = {
+        originalname: 'payload.xml',
+        buffer: Buffer.from('<?xml version="1.0"?><x/>'),
+        mimetype: 'application/xml',
+        size: 24,
+      } as Express.Multer.File;
+
+      await expect(service.uploadAttachment(mockUser, svgFile)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(
+        service.uploadAttachment(mockUser, spoofedPng),
+      ).rejects.toThrow(BadRequestException);
+      await expect(service.uploadAttachment(mockUser, xmlFile)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 

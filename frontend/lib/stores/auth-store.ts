@@ -5,7 +5,6 @@ import { UserProfile, LoginResponse } from '@/types/auth';
 
 interface AuthState {
   user: UserProfile | null;
-  accessToken: string | null;
   isAuthenticated: boolean;
   hasHydrated: boolean;
   lockoutSeconds: number;
@@ -13,7 +12,7 @@ interface AuthState {
   setLockoutSeconds: (seconds: number) => void;
   decrementLockoutSeconds: () => void;
   setAuth: (data: LoginResponse) => void;
-  restoreAuth: (user: UserProfile, accessToken: string) => void;
+  restoreAuth: (user: UserProfile) => void;
   setUser: (user: UserProfile) => void;
   logout: () => void;
   hasPermission: (permission: string) => boolean;
@@ -25,7 +24,6 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       user: null,
-      accessToken: null,
       isAuthenticated: false,
       hasHydrated: false,
       lockoutSeconds: 0,
@@ -35,16 +33,9 @@ export const useAuthStore = create<AuthState>()(
         set((state) => ({ lockoutSeconds: Math.max(0, state.lockoutSeconds - 1) })),
 
       setAuth: (data: LoginResponse) => {
-        const { accessToken, refreshToken, user } = data;
-
-
-        // Save tokens in cookies for Next.js SSR middleware with path: '/'
-        Cookies.set('access_token', accessToken, { expires: 1, path: '/' });
-        Cookies.set('refresh_token', refreshToken, { expires: 7, path: '/' });
-
+        const { user } = data;
         set({
           user,
-          accessToken,
           isAuthenticated: true,
           // A successful login is already an authoritative auth state. Do not
           // keep the protected layout waiting for a persist rehydrate event.
@@ -52,11 +43,9 @@ export const useAuthStore = create<AuthState>()(
         });
       },
 
-      restoreAuth: (user: UserProfile, accessToken: string) => {
-        Cookies.set('access_token', accessToken, { expires: 1, path: '/' });
+      restoreAuth: (user: UserProfile) => {
         set({
           user,
-          accessToken,
           isAuthenticated: true,
           hasHydrated: true,
         });
@@ -67,13 +56,9 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
-        Cookies.remove('access_token', { path: '/' });
-        Cookies.remove('refresh_token', { path: '/' });
-        Cookies.remove('access_token');
-        Cookies.remove('refresh_token');
+        Cookies.remove('csrf_token', { path: '/' });
         set({
           user: null,
-          accessToken: null,
           isAuthenticated: false,
         });
       },
@@ -112,16 +97,15 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'skylux-auth-storage',
       storage: createJSONStorage(() => localStorage),
+      // Persist only non-sensitive profile & UI metadata; JWTs live in HttpOnly cookies.
       partialize: (state) => ({
         user: state.user,
-        accessToken: state.accessToken,
         isAuthenticated: state.isAuthenticated,
         lockoutSeconds: state.lockoutSeconds,
       }),
       onRehydrateStorage: () => () => {
         useAuthStore.getState().setHasHydrated(true);
       },
-
     },
   ),
 );

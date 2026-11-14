@@ -3,7 +3,6 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Layout, Button, Result, Spin } from 'antd';
-import Cookies from 'js-cookie';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { authService } from '@/services/auth.service';
 import { useNotificationStore } from '@/lib/stores/notification-store';
@@ -22,6 +21,7 @@ import { MainHeader } from '@/components/layout/MainHeader';
 import { NotificationDrawer } from '@/components/layout/NotificationDrawer';
 import { RealtimeConnectionIndicator } from '@/components/common/RealtimeConnectionIndicator';
 import { SuperAdminWorkspace } from '@/components/super-admin/SuperAdminWorkspace';
+import { ForceChangePasswordGate } from '@/components/auth/ForceChangePasswordGate';
 
 const { Content } = Layout;
 
@@ -33,7 +33,6 @@ export default function MainLayout({
   const pathname = usePathname();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const accessToken = useAuthStore((state) => state.accessToken);
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const [hasMounted, setHasMounted] = useState(false);
   const [authRestoreTimedOut, setAuthRestoreTimedOut] = useState(false);
@@ -47,7 +46,8 @@ export default function MainLayout({
     setHasMounted(true);
   }, []);
 
-  const authReady = hasMounted && hasHydrated;
+  const authReady = hasMounted && hasHydrated && Boolean(user);
+  const mustChangePassword = Boolean(user?.mustChangePassword);
 
   // Do not leave a protected route on the restore spinner forever if persisted
   // browser state is unavailable or corrupted. Fail closed and let the user
@@ -60,64 +60,32 @@ export default function MainLayout({
   }, [hasMounted, hasHydrated, authRestoreRetryKey]);
 
   useEffect(() => {
-    if (!hasMounted || (hasHydrated && user && accessToken)) return;
+    if (!hasMounted || (hasHydrated && user)) return;
     if (!hasHydrated && !authRestoreTimedOut) return;
 
     let active = true;
 
-    const restoreFromCookies = async () => {
-      // Middleware cannot read localStorage. Read the persisted access token
-      // here so the client can restore a valid session before showing login.
-      let storedAccessToken =
-        Cookies.get('access_token') || useAuthStore.getState().accessToken;
-      if (!storedAccessToken) {
-        try {
-          const raw = localStorage.getItem('skylux-auth-storage');
-          storedAccessToken = raw
-            ? JSON.parse(raw)?.state?.accessToken
-            : null;
-        } catch {
-          storedAccessToken = null;
-        }
-      }
-
-      if (!storedAccessToken && !Cookies.get('refresh_token')) {
-        redirectToLogin();
-        return;
-      }
-
-      if (storedAccessToken && !Cookies.get('access_token')) {
-        Cookies.set('access_token', storedAccessToken, { expires: 1, path: '/' });
-      }
-
+    const restoreSession = async () => {
       try {
+        // Browser attaches HttpOnly access_token cookie automatically via withCredentials.
         const profile = await authService.getMe();
         if (!active) return;
 
-        const restoredAccessToken =
-          Cookies.get('access_token') || storedAccessToken;
-        if (!restoredAccessToken) {
-          redirectToLogin();
-          return;
-        }
-
-        useAuthStore.getState().restoreAuth(
-          {
-            id: profile.id,
-            organizationId: profile.organizationId,
-            organizationName: profile.organization?.name,
-            departmentId: profile.departmentId,
-            departmentName: profile.department?.name,
-            employeeCode: profile.employeeCode,
-            fullName: profile.fullName,
-            email: profile.email,
-            phone: profile.phone,
-            avatarUrl: profile.avatarUrl,
-            roles: profile.roles.map((role) => role.code),
-            permissions: profile.permissions,
-          },
-          restoredAccessToken,
-        );
+        useAuthStore.getState().restoreAuth({
+          id: profile.id,
+          organizationId: profile.organizationId,
+          organizationName: profile.organization?.name,
+          departmentId: profile.departmentId,
+          departmentName: profile.department?.name,
+          employeeCode: profile.employeeCode,
+          fullName: profile.fullName,
+          email: profile.email,
+          phone: profile.phone,
+          avatarUrl: profile.avatarUrl,
+          roles: profile.roles.map((role) => role.code),
+          permissions: profile.permissions,
+          mustChangePassword: Boolean(profile.mustChangePassword),
+        });
       } catch (error: any) {
         if (!active) return;
 
@@ -126,7 +94,7 @@ export default function MainLayout({
           return;
         }
 
-        // Keep the cookies intact on transient network/API errors so the user
+        // Keep cookies intact on transient network/API errors so the user
         // can retry without entering their credentials again.
         setAuthRestoreError(true);
       }
@@ -139,22 +107,45 @@ export default function MainLayout({
       window.location.replace(loginUrl.toString());
     };
 
-    void restoreFromCookies();
+    void restoreSession();
     return () => {
       active = false;
     };
-  }, [authRestoreTimedOut, hasMounted, hasHydrated, pathname, user, accessToken]);
+  }, [authRestoreTimedOut, hasMounted, hasHydrated, pathname, user]);
+
+  useEffect(() => {
+    const handlePasswordChangeRequired = () => {
+      const currentUser = useAuthStore.getState().user;
+      if (currentUser && !currentUser.mustChangePassword) {
+        useAuthStore.getState().setUser({
+          ...currentUser,
+          mustChangePassword: true,
+        });
+      }
+    };
+
+    window.addEventListener(
+      'skylux:password-change-required',
+      handlePasswordChangeRequired,
+    );
+    return () => {
+      window.removeEventListener(
+        'skylux:password-change-required',
+        handlePasswordChangeRequired,
+      );
+    };
+  }, []);
 
   // Kích hoạt lắng nghe luồng SSE thông báo thời gian thực
-  useNotificationsRealtime({ enabled: authReady });
+  useNotificationsRealtime({ enabled: authReady && !mustChangePassword });
 
   // Truy vấn danh sách thông báo và số lượng chưa đọc từ API
   const { data: notificationsData } = useNotificationsQuery(
     { limit: 50 },
-    { enabled: authReady },
+    { enabled: authReady && !mustChangePassword },
   );
   const { data: unreadCountData } = useUnreadNotificationsCountQuery({
-    enabled: authReady,
+    enabled: authReady && !mustChangePassword,
   });
 
   const syncBackendNotifications = useNotificationStore(
@@ -284,6 +275,10 @@ export default function MainLayout({
         </div>
       </div>
     );
+  }
+
+  if (mustChangePassword && user) {
+    return <ForceChangePasswordGate user={user} />;
   }
 
   if (isSuperAdmin) {

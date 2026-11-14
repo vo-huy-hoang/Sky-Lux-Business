@@ -107,7 +107,7 @@ function LoginForm() {
           type="warning"
           showIcon
           icon={<ClockCircleOutlined className="text-amber-600 animate-spin" />}
-          message="Tài khoản tạm thời bị giới hạn đăng nhập"
+          title="Tài khoản tạm thời bị giới hạn đăng nhập"
           description={
             <span>
               Phát hiện nhiều lượt đăng nhập thất bại liên tiếp. Vui lòng thử lại sau{' '}

@@ -10,6 +10,7 @@ import { Dossier } from '../dossiers/entities/dossier.entity';
 import { Estimate } from '../estimates/entities/estimate.entity';
 import { StorageService } from '../../shared/storage/storage.service';
 import { RedisService } from '../../common/redis/redis.service';
+import { DossierAccessPolicyService } from '../dossiers/dossier-access-policy.service';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { DossierStatus } from '../../common/enums';
 import { QueryDocumentDto } from './dto/query-document.dto';
@@ -82,6 +83,7 @@ describe('DocumentsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DocumentsService,
+        DossierAccessPolicyService,
         {
           provide: getRepositoryToken(Document),
           useValue: {
@@ -232,7 +234,7 @@ describe('DocumentsService', () => {
       originalname: 'contract.pdf',
       encoding: '7bit',
       mimetype: 'application/pdf',
-      buffer: Buffer.from('mock pdf content'),
+      buffer: Buffer.from('%PDF-1.4\n%mock pdf content'),
       size: 1024,
     } as any;
 
@@ -282,6 +284,32 @@ describe('DocumentsService', () => {
 
       await expect(
         service.uploadForDossier(mockUser, 'dossier-uuid-1', mockFile, {}),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject SVG or disguised PNG uploads with invalid magic bytes (Ticket 03)', async () => {
+      dossierRepo.findOne.mockResolvedValue(mockDossier);
+
+      const svgFile = {
+        originalname: 'diagram.svg',
+        mimetype: 'image/svg+xml',
+        buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>'),
+        size: 50,
+      } as Express.Multer.File;
+
+      const disguisedPng = {
+        originalname: 'passport.png',
+        mimetype: 'image/png',
+        buffer: Buffer.from('<html xmlns="http://www.w3.org/1999/xhtml"><script>1</script></html>'),
+        size: 72,
+      } as Express.Multer.File;
+
+      await expect(
+        service.uploadForDossier(mockUser, 'dossier-uuid-1', svgFile, {}),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.uploadForDossier(mockUser, 'dossier-uuid-1', disguisedPng, {}),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -359,6 +387,7 @@ describe('DocumentsService', () => {
         mockDoc.objectKey,
         mockDoc.originalName,
         1800,
+        orgId,
       );
       expect(result.downloadUrl).toBe(
         'https://files.skylux.vn/download/signed-url',
@@ -443,7 +472,7 @@ describe('DocumentsService', () => {
       originalname: 'contract-v2.pdf',
       encoding: '7bit',
       mimetype: 'application/pdf',
-      buffer: Buffer.from('v2 content'),
+      buffer: Buffer.from('%PDF-1.4\n%v2 content'),
       size: 2048,
     } as any;
 

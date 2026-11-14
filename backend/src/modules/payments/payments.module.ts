@@ -7,6 +7,7 @@ import { Dossier } from '../dossiers/entities/dossier.entity';
 import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
 import { EstimateRevenueLine } from '../estimates/entities/estimate-revenue-line.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { DossierAccessModule } from '../dossiers/dossier-access.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       EstimateCostLine,
       EstimateRevenueLine,
     ]),
+    DossierAccessModule,
     NotificationsModule,
   ],
   controllers: [PaymentsController],

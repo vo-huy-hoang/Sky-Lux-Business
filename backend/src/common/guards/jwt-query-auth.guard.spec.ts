@@ -1,10 +1,11 @@
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { JwtQueryAuthGuard } from './jwt-query-auth.guard';
 import { UserStatus } from '../enums';
 import { UserAuthMeta } from './jwt-auth.guard';
+import { derivePurposeSecret } from '../utils/jwt-purpose.util';
 
 describe('JwtQueryAuthGuard (with Redis Cache & DB Fallback)', () => {
   let guard: JwtQueryAuthGuard;
@@ -26,12 +27,19 @@ describe('JwtQueryAuthGuard (with Redis Cache & DB Fallback)', () => {
     organizationId: 'org-uuid-1',
     status: UserStatus.ACTIVE,
     authVersion: 1,
+    mustChangePassword: false,
   };
 
-  function createMockContext(queryToken?: string): ExecutionContext {
+  function createMockContext(
+    queryToken?: string,
+    cookieHeader?: string,
+  ): ExecutionContext {
     const request = {
       query: {
         token: queryToken,
+      },
+      headers: {
+        cookie: cookieHeader,
       },
       user: undefined,
     };
@@ -150,6 +158,38 @@ describe('JwtQueryAuthGuard (with Redis Cache & DB Fallback)', () => {
     const allowed = await guard.canActivate(context);
 
     expect(allowed).toBe(true);
+    expect(jwtService.verifyAsync).toHaveBeenCalledWith('valid-token', {
+      secret: derivePurposeSecret('test-jwt-secret', 'stream'),
+    });
     expect(mockUserRepo.findOne).toHaveBeenCalled();
+  });
+
+  it('authenticates SSE stream via HttpOnly access_token cookie using access purpose secret when query token is absent (Ticket 04)', async () => {
+    jwtService.verifyAsync.mockResolvedValueOnce({
+      id: 'user-uuid-1',
+      organizationId: 'org-uuid-1',
+      authVersion: 1,
+    });
+    const context = createMockContext(
+      undefined,
+      'access_token=cookie-sse-access',
+    );
+
+    const allowed = await guard.canActivate(context);
+
+    expect(allowed).toBe(true);
+    expect(jwtService.verifyAsync).toHaveBeenCalledWith('cookie-sse-access', {
+      secret: derivePurposeSecret('test-jwt-secret', 'access'),
+    });
+  });
+
+  it('rejects SSE stream with ForbiddenException when mustChangePassword is true', async () => {
+    mockRedisService.cache.set('user:auth-meta:user-uuid-1', {
+      ...activeUserMeta,
+      mustChangePassword: true,
+    });
+    const context = createMockContext('valid-token');
+
+    await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
   });
 });

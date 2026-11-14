@@ -41,18 +41,10 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
   }
 
   protected getTracker(req: Record<string, any>): Promise<string> {
-    const rawForwarded = req.headers?.['x-forwarded-for'];
-    const forwardedIp = Array.isArray(rawForwarded)
-      ? rawForwarded[0]
-      : typeof rawForwarded === 'string'
-        ? rawForwarded.split(',')[0].trim()
-        : null;
-
     const ip =
-      forwardedIp ||
       req.ip ||
-      req.connection?.remoteAddress ||
       req.socket?.remoteAddress ||
+      req.connection?.remoteAddress ||
       'unknown-ip';
 
     // Nếu endpoint gửi body chứa email (vd đăng nhập), kết hợp IP + Email

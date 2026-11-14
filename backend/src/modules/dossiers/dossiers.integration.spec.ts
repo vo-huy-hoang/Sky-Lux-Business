@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { DossiersController } from './dossiers.controller';
 import { DossiersService } from './dossiers.service';
@@ -16,6 +16,7 @@ import { DossierStatus } from '../../common/enums';
 import { DossierWorkflowService } from '../approvals/dossier-workflow.service';
 import { DocumentsService } from '../documents/documents.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { DossierAccessPolicyService } from './dossier-access-policy.service';
 
 describe('Dossiers Module (Integration)', () => {
   let controller: DossiersController;
@@ -57,8 +58,15 @@ describe('Dossiers Module (Integration)', () => {
     status: DossierStatus.DRAFT,
   } as unknown as Dossier;
 
+  const mockDossierQueryBuilder = {
+    setLock: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    getOne: jest.fn(),
+  };
+
   const mockDossierRepository = {
-    createQueryBuilder: jest.fn(),
+    createQueryBuilder: jest.fn(() => mockDossierQueryBuilder),
     findOne: jest.fn(),
     create: jest.fn((dto) => dto),
     save: jest.fn(),
@@ -73,10 +81,14 @@ describe('Dossiers Module (Integration)', () => {
   };
 
   beforeEach(async () => {
+    mockDossierQueryBuilder.getOne.mockImplementation(async () =>
+      mockDossierRepository.findOne({ where: { id: 'dossier-A-uuid', organizationId: orgA } }),
+    );
     const module: TestingModule = await Test.createTestingModule({
       controllers: [DossiersController],
       providers: [
         DossiersService,
+        DossierAccessPolicyService,
         {
           provide: getRepositoryToken(Dossier),
           useValue: mockDossierRepository,
@@ -115,6 +127,16 @@ describe('Dossiers Module (Integration)', () => {
         {
           provide: AuditLogsService,
           useValue: { record: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: DataSource,
+          useValue: {
+            transaction: jest.fn(async (cb: any) =>
+              cb({
+                getRepository: jest.fn(() => mockDossierRepository),
+              }),
+            ),
+          },
         },
       ],
     }).compile();
