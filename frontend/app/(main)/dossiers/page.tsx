@@ -37,6 +37,7 @@ import { useDossiersList, useDeleteDossier } from '@/hooks/dossiers';
 import { DossierItem } from '@/types/dossier';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useDebounce } from '@/hooks/use-debounce';
+import { DossierDangerDeleteModal } from '@/components/dossiers/DossierDangerDeleteModal';
 
 const { Title, Text } = Typography;
 
@@ -118,14 +119,23 @@ function DossiersContent() {
 
   const { mutateAsync: deleteDossierMutation } = useDeleteDossier();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [dangerModalDossier, setDangerModalDossier] =
+    useState<DossierItem | null>(null);
 
-  const handleDelete = async (record: DossierItem) => {
+  const handleDelete = async (record: DossierItem, customReason?: string) => {
     try {
       setDeletingId(record.id);
-      await deleteDossierMutation({ id: record.id, reason: 'Xóa từ danh sách hồ sơ' });
+      await deleteDossierMutation({
+        id: record.id,
+        reason: customReason || 'Xóa từ danh sách hồ sơ',
+      });
       notify.success('Đã xóa hồ sơ thành công');
     } catch (err: any) {
-      notify.error(err?.response?.data?.message || err?.message || 'Có lỗi xảy ra khi xóa hồ sơ');
+      notify.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          'Có lỗi xảy ra khi xóa hồ sơ',
+      );
     } finally {
       setDeletingId(null);
     }
@@ -280,12 +290,19 @@ function DossiersContent() {
         const isLocked = record.status === 'LOCKED';
         const isApprovedOrCompleted =
           record.status === 'APPROVED' || record.status === 'COMPLETED';
+        const hasRealPayment = Boolean(
+          (record as any).hasPayments ||
+            Number((record as any).totalPaid) > 0,
+        );
 
         let canDeleteThisDossier = false;
         let disableReason: string | null = null;
 
         if (!canDeleteDossier) {
           disableReason = 'Bạn không có quyền xóa hồ sơ';
+        } else if (hasRealPayment) {
+          disableReason =
+            'Không thể xóa hồ sơ đã phát sinh phiếu thu tiền thực tế';
         } else if (isLocked && !currentUser?.roles?.includes('SUPER_ADMIN')) {
           disableReason =
             'Hồ sơ đã khóa, chỉ Quản trị viên cấp cao mới có thể xóa';
@@ -308,28 +325,37 @@ function DossiersContent() {
               </Button>
             </Link>
             {canDeleteThisDossier ? (
-              <Popconfirm
-                title="Xác nhận xóa hồ sơ"
-                description={
-                  isApprovedOrCompleted
-                    ? 'Cảnh báo: Đây là hồ sơ đã duyệt/hoàn tất. Bạn có chắc chắn muốn xóa hồ sơ này? Dự toán kèm theo sẽ bị xóa tạm thời.'
-                    : 'Bạn có chắc chắn muốn xóa hồ sơ này? Dự toán kèm theo sẽ bị xóa tạm thời.'
-                }
-                onConfirm={() => handleDelete(record)}
-                okText="Xóa hồ sơ"
-                cancelText="Hủy"
-                okButtonProps={{ danger: true, loading: isDeletingThis }}
-              >
-                <Tooltip title="Xóa hồ sơ">
+              isApprovedOrCompleted ? (
+                <Tooltip title="Xóa hồ sơ đã duyệt/hoàn tất (Cần xác nhận 2 lớp)">
                   <Button
                     danger
                     icon={<DeleteOutlined />}
                     loading={isDeletingThis}
+                    onClick={() => setDangerModalDossier(record)}
                     className="text-rose-600 hover:text-rose-700 hover:border-rose-400"
                     aria-label={`Xóa hồ sơ ${record.code}`}
                   />
                 </Tooltip>
-              </Popconfirm>
+              ) : (
+                <Popconfirm
+                  title="Xác nhận xóa hồ sơ"
+                  description="Bạn có chắc chắn muốn xóa hồ sơ này? Dự toán kèm theo sẽ bị xóa tạm thời."
+                  onConfirm={() => handleDelete(record)}
+                  okText="Xóa hồ sơ"
+                  cancelText="Hủy"
+                  okButtonProps={{ danger: true, loading: isDeletingThis }}
+                >
+                  <Tooltip title="Xóa hồ sơ">
+                    <Button
+                      danger
+                      icon={<DeleteOutlined />}
+                      loading={isDeletingThis}
+                      className="text-rose-600 hover:text-rose-700 hover:border-rose-400"
+                      aria-label={`Xóa hồ sơ ${record.code}`}
+                    />
+                  </Tooltip>
+                </Popconfirm>
+              )
             ) : (
               <Tooltip title={disableReason || 'Không thể xóa hồ sơ này'}>
                 <Button
@@ -527,6 +553,18 @@ function DossiersContent() {
           }}
         />
       </Card>
+
+      <DossierDangerDeleteModal
+        open={Boolean(dangerModalDossier)}
+        dossier={dangerModalDossier}
+        onClose={() => setDangerModalDossier(null)}
+        isLoading={deletingId === dangerModalDossier?.id}
+        onConfirm={async (reason) => {
+          if (!dangerModalDossier) return;
+          await handleDelete(dangerModalDossier, reason);
+          setDangerModalDossier(null);
+        }}
+      />
     </div>
   );
 }

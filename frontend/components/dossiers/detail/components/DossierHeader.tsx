@@ -1,20 +1,27 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
-import { Breadcrumb, Button, Space, Tag, message } from "antd";
+import { useRouter } from "next/navigation";
+import { Breadcrumb, Button, Space, Tag, Tooltip, Popconfirm, message } from "antd";
 import {
   ArrowLeftOutlined,
   FilePdfOutlined,
   EditOutlined,
   DownloadOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { useDeleteDossier } from "@/hooks/dossiers";
+import { DossierDangerDeleteModal } from "@/components/dossiers/DossierDangerDeleteModal";
 
 export interface DossierHeaderProps {
   dossier: any;
   isDrawer?: boolean;
   isOperator?: boolean;
   isCeoAdmin?: boolean;
+  hasPayments?: boolean;
+  onDeleted?: () => void;
 }
 
 export function DossierHeader({
@@ -22,8 +29,79 @@ export function DossierHeader({
   isDrawer = false,
   isOperator = false,
   isCeoAdmin = false,
+  hasPayments = false,
+  onDeleted,
 }: DossierHeaderProps) {
+  const router = useRouter();
+  const [dangerModalOpen, setDangerModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const currentUser = useAuthStore((state) => state.user);
+  const hasPermission = useAuthStore((state) => state.hasPermission);
+  const hasRole = useAuthStore((state) => state.hasRole);
+
+  const deleteDossierMutation = useDeleteDossier();
+
   const isLocked = dossier?.status === "LOCKED";
+  const canDeleteDossier =
+    typeof hasPermission === "function" ? hasPermission("dossier.delete") : false;
+  const isCeo =
+    typeof hasRole === "function"
+      ? hasRole(["SUPER_ADMIN", "CEO_ADMIN"])
+      : Boolean(isCeoAdmin);
+  const isOp =
+    typeof hasRole === "function" ? hasRole("OPERATOR") : Boolean(isOperator);
+
+  const isOwner =
+    dossier?.salesUserId === currentUser?.id ||
+    dossier?.createdBy === currentUser?.id;
+  const isApprovedOrCompleted =
+    dossier?.status === "APPROVED" || dossier?.status === "COMPLETED";
+  const hasRealPayment = Boolean(
+    hasPayments ||
+      (dossier as any)?.hasPayments ||
+      Number((dossier as any)?.totalPaid) > 0,
+  );
+
+  let canDeleteThisDossier = false;
+  let disableReason: string | null = null;
+
+  if (!canDeleteDossier) {
+    disableReason = "Bạn không có quyền xóa hồ sơ";
+  } else if (hasRealPayment) {
+    disableReason = "Không thể xóa hồ sơ đã phát sinh phiếu thu tiền thực tế";
+  } else if (isLocked && !currentUser?.roles?.includes("SUPER_ADMIN")) {
+    disableReason = "Hồ sơ đã khóa, chỉ Quản trị viên cấp cao mới có thể xóa";
+  } else if (isApprovedOrCompleted && !isCeo) {
+    disableReason = "Chỉ Ban Giám Đốc mới có quyền xóa hồ sơ đã duyệt hoặc hoàn tất";
+  } else if (!isCeo && !isOp && !isOwner) {
+    disableReason = "Bạn chỉ được xóa hồ sơ do mình phụ trách";
+  } else {
+    canDeleteThisDossier = true;
+  }
+
+  const handleDelete = async (reason?: string) => {
+    if (!dossier?.id) return;
+    try {
+      setIsDeleting(true);
+      await deleteDossierMutation.mutateAsync({ id: dossier.id, reason });
+      message.success(`Đã xóa hồ sơ ${dossier.code || ""} thành công`);
+      setDangerModalOpen(false);
+      if (onDeleted) {
+        onDeleted();
+      } else {
+        router.push("/dossiers");
+      }
+    } catch (error: any) {
+      const errorMsg =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Không thể xóa hồ sơ. Vui lòng thử lại sau.";
+      message.error(errorMsg);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   if (isDrawer) {
     return (
@@ -35,15 +113,71 @@ export function DossierHeader({
           {dossier && <Tag color="blue">{dossier.code}</Tag>}
         </div>
 
-        {dossier?.id && !isLocked && (
+        {dossier?.id && (
           <Space size="small">
-            <Link href={`/dossiers/${dossier.id}/edit-import`}>
-              <Button size="small" icon={<EditOutlined />}>
-                Sửa dự toán
-              </Button>
-            </Link>
+            {!isLocked && (
+              <Link href={`/dossiers/${dossier.id}/edit-import`}>
+                <Button size="small" icon={<EditOutlined />}>
+                  Sửa dự toán
+                </Button>
+              </Link>
+            )}
+            {canDeleteThisDossier ? (
+              isApprovedOrCompleted ? (
+                <Button
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  loading={isDeleting}
+                  onClick={() => setDangerModalOpen(true)}
+                  aria-label={`Xóa hồ sơ ${dossier.code || ""}`}
+                >
+                  Xóa
+                </Button>
+              ) : (
+                <Popconfirm
+                  title="Xác nhận xóa hồ sơ"
+                  description="Bạn có chắc chắn muốn xóa hồ sơ này? Dự toán kèm theo sẽ bị xóa tạm thời."
+                  onConfirm={() => handleDelete()}
+                  okText="Xóa"
+                  cancelText="Hủy"
+                  okButtonProps={{ danger: true, loading: isDeleting }}
+                >
+                  <Button
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    loading={isDeleting}
+                    aria-label={`Xóa hồ sơ ${dossier.code || ""}`}
+                  >
+                    Xóa
+                  </Button>
+                </Popconfirm>
+              )
+            ) : (
+              <Tooltip title={disableReason || "Không thể xóa hồ sơ này"}>
+                <Button
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  disabled
+                  className="opacity-50"
+                  aria-label={`Xóa hồ sơ ${dossier.code || ""} (vô hiệu)`}
+                >
+                  Xóa
+                </Button>
+              </Tooltip>
+            )}
           </Space>
         )}
+
+        <DossierDangerDeleteModal
+          open={dangerModalOpen}
+          dossier={dossier}
+          onClose={() => setDangerModalOpen(false)}
+          onConfirm={handleDelete}
+          isLoading={isDeleting}
+        />
       </div>
     );
   }
@@ -107,7 +241,67 @@ export function DossierHeader({
         >
           Xuất PDF
         </Button>
+
+        {dossier?.id && (
+          canDeleteThisDossier ? (
+            isApprovedOrCompleted ? (
+              <Tooltip title="Xóa hồ sơ đã duyệt/hoàn tất (Cần xác nhận 2 lớp)">
+                <Button
+                  danger
+                  icon={<DeleteOutlined />}
+                  loading={isDeleting}
+                  onClick={() => setDangerModalOpen(true)}
+                  className="text-rose-600 hover:text-rose-700 hover:border-rose-400 font-semibold"
+                  aria-label={`Xóa hồ sơ ${dossier.code || ""}`}
+                >
+                  Xóa hồ sơ
+                </Button>
+              </Tooltip>
+            ) : (
+              <Popconfirm
+                title="Xác nhận xóa hồ sơ"
+                description="Bạn có chắc chắn muốn xóa hồ sơ này? Dự toán kèm theo sẽ bị xóa tạm thời."
+                onConfirm={() => handleDelete()}
+                okText="Xóa hồ sơ"
+                cancelText="Hủy"
+                okButtonProps={{ danger: true, loading: isDeleting }}
+              >
+                <Tooltip title="Xóa hồ sơ">
+                  <Button
+                    danger
+                    icon={<DeleteOutlined />}
+                    loading={isDeleting}
+                    className="text-rose-600 hover:text-rose-700 hover:border-rose-400 font-semibold"
+                    aria-label={`Xóa hồ sơ ${dossier.code || ""}`}
+                  >
+                    Xóa hồ sơ
+                  </Button>
+                </Tooltip>
+              </Popconfirm>
+            )
+          ) : (
+            <Tooltip title={disableReason || "Không thể xóa hồ sơ này"}>
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                disabled
+                className="opacity-50 font-semibold"
+                aria-label={`Xóa hồ sơ ${dossier.code || ""} (vô hiệu)`}
+              >
+                Xóa hồ sơ
+              </Button>
+            </Tooltip>
+          )
+        )}
       </Space>
+
+      <DossierDangerDeleteModal
+        open={dangerModalOpen}
+        dossier={dossier}
+        onClose={() => setDangerModalOpen(false)}
+        onConfirm={handleDelete}
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

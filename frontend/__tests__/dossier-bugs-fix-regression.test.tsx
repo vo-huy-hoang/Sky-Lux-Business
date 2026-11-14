@@ -45,6 +45,8 @@ jest.mock('@ant-design/icons', () => ({
   FilePdfOutlined: () => <span data-testid="pdf-icon" />,
   BarChartOutlined: () => <span data-testid="bar-chart-icon" />,
   FileTextOutlined: () => <span data-testid="file-text-icon" />,
+  DeleteOutlined: () => <span data-testid="delete-icon" />,
+  ExclamationCircleOutlined: () => <span data-testid="exclamation-icon" />,
 }));
 
 // Mock dynamic sub-tabs
@@ -95,6 +97,7 @@ jest.mock('@/components/dossiers/detail/components/DossierPaymentsTab', () => {
 jest.mock('@/services/dossiers.service', () => ({
   dossiersService: {
     getDossier: jest.fn(),
+    deleteDossier: jest.fn(),
   },
 }));
 
