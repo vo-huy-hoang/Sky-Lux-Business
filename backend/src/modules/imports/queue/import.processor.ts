@@ -1,3 +1,4 @@
+import { Optional } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -10,9 +11,13 @@ import { ImportRow } from '../entities/import-row.entity';
 import { ImportError } from '../entities/import-error.entity';
 import { ImportSessionStatus, CustomerType } from '../../../common/enums';
 import { Customer } from '../../customers/entities/customer.entity';
+import { Supplier } from '../../suppliers/entities/supplier.entity';
 import {
   CUSTOMER_BUDGET_FORMAT,
+  computeFinancialReconciliation,
+  findCustomerBudgetSheet,
   isCustomerBudgetWorkbook,
+  looksLikeCustomerBudgetWorkbook,
   parseCustomerBudgetWorkbook,
 } from '../customer-budget.parser';
 import {
@@ -40,6 +45,9 @@ export class ImportProcessor extends WorkerHost {
     private readonly errorRepository: Repository<ImportError>,
     @InjectRepository(Customer)
     private readonly customerRepository: Repository<Customer>,
+    @Optional()
+    @InjectRepository(Supplier)
+    private readonly supplierRepository?: Repository<Supplier>,
   ) {
     super();
   }
@@ -83,24 +91,69 @@ export class ImportProcessor extends WorkerHost {
     }
 
     const workbook = xlsx.readFile(filePath, { cellDates: true });
-    const sheetName = workbook.SheetNames[0];
+    const detectedBudgetSheet = findCustomerBudgetSheet(workbook);
+    const sheetName =
+      detectedBudgetSheet || workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
 
-    // Read sheet to JSON format with empty string default values
-    const rowsData: any[] = isCustomerBudgetWorkbook(workbook)
-      ? [parseCustomerBudgetWorkbook(workbook)]
-      : xlsx.utils.sheet_to_json(sheet, { defval: '' });
+    let rowsData: any[] = [];
+    let budgetParsingError: string | null = null;
+    const isBudgetCandidate = looksLikeCustomerBudgetWorkbook(workbook);
+
+    if (isBudgetCandidate) {
+      try {
+        rowsData = [parseCustomerBudgetWorkbook(workbook)];
+      } catch (err: any) {
+        budgetParsingError =
+          err?.message || 'Cấu trúc file Dự toán không hợp lệ';
+      }
+    } else {
+      rowsData = xlsx.utils.sheet_to_json(sheet, { defval: '' });
+    }
 
     // Clear existing raw rows in staging
     await this.rowRepository.delete({ sessionId });
     await this.errorRepository.delete({ sessionId });
+
+    if (budgetParsingError) {
+      const errorRow = this.rowRepository.create({
+        sessionId,
+        sheetName,
+        rowNumber: 1,
+        rawData: { error: budgetParsingError },
+        status: 'ERROR',
+        normalizedData: undefined,
+      });
+      await this.rowRepository.save(errorRow);
+
+      const errorEntity = this.errorRepository.create({
+        sessionId,
+        rowNumber: 1,
+        errorCode: 'BUDGET_FORMAT_ERROR',
+        errorMessage: budgetParsingError,
+      });
+      await this.errorRepository.save(errorEntity);
+
+      try {
+        fs.unlinkSync(filePath);
+      } catch (e) {}
+
+      await this.sessionRepository.update(sessionId, {
+        status: ImportSessionStatus.READY_FOR_REVIEW,
+        totalRows: 1,
+        processedRows: 1,
+        validRows: 0,
+        errorRows: 1,
+      });
+      return;
+    }
 
     // Save staging records
     const importRows = rowsData.map((data, index) => {
       return this.rowRepository.create({
         sessionId,
         sheetName,
-        rowNumber: isCustomerBudgetWorkbook(workbook) ? 1 : index + 2,
+        rowNumber: isBudgetCandidate ? 1 : index + 2,
         rawData: data,
         status: 'PENDING',
       });
@@ -332,6 +385,59 @@ export class ImportProcessor extends WorkerHost {
         // Save normalized data structure for Dossier & Customer migration (with formula sanitization)
         validRowsCount++;
         row.status = 'VALID';
+
+        let supplierResolution: Array<{
+          name: string;
+          status: 'EXISTING' | 'NEW_TO_BE_CREATED';
+          id?: string;
+        }> = [];
+
+        if (
+          isCustomerBudget &&
+          data.__costLines &&
+          Array.isArray(data.__costLines)
+        ) {
+          const rawSupplierNames = Array.from(
+            new Set(
+              data.__costLines
+                .map((l: any) => String(l.supplierName || '').trim())
+                .filter(Boolean),
+            ),
+          ) as string[];
+
+          if (rawSupplierNames.length > 0 && this.supplierRepository) {
+            try {
+              const existingSuppliers = await this.supplierRepository.find({
+                where: { organizationId: session.organizationId },
+              });
+              const existingMap = new Map(
+                existingSuppliers.map((s) => [
+                  s.name.trim().toLowerCase(),
+                  s.id,
+                ]),
+              );
+              supplierResolution = rawSupplierNames.map((name) => {
+                const existingId = existingMap.get(name.toLowerCase());
+                return {
+                  name,
+                  status: existingId ? 'EXISTING' : 'NEW_TO_BE_CREATED',
+                  ...(existingId ? { id: existingId } : {}),
+                };
+              });
+            } catch (supErr) {
+              supplierResolution = rawSupplierNames.map((name) => ({
+                name,
+                status: 'NEW_TO_BE_CREATED',
+              }));
+            }
+          } else if (rawSupplierNames.length > 0) {
+            supplierResolution = rawSupplierNames.map((name) => ({
+              name,
+              status: 'NEW_TO_BE_CREATED',
+            }));
+          }
+        }
+
         row.normalizedData = {
           code: sanitizeCellValue(code),
           name: sanitizeCellValue(name),
@@ -369,6 +475,13 @@ export class ImportProcessor extends WorkerHost {
                 revenueLines: data.__revenueLines,
                 costLines: data.__costLines,
                 sourceSummary: data.__sourceSummary,
+                financialReconciliation: computeFinancialReconciliation(
+                  data.__revenueLines || [],
+                  data.__costLines || [],
+                  data.__sourceSummary,
+                ),
+                reconciliationResolution: data.__reconciliationResolution,
+                supplierResolution,
               }
             : {}),
         };

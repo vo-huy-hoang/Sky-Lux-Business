@@ -650,6 +650,10 @@ export class ImportsService {
                   `Chi phí nguồn: ${formatVnd(sourceSummary.totalCost)}`,
                 sourceSummary?.totalProfit !== undefined &&
                   `Lợi nhuận nguồn: ${formatVnd(sourceSummary.totalProfit)}`,
+                row.normalizedData.financialReconciliation &&
+                  `Đối soát tài chính: ${row.normalizedData.financialReconciliation.status} (Delta DT: ${formatVnd(row.normalizedData.financialReconciliation.revenueDelta || 0)}, Delta CP: ${formatVnd(row.normalizedData.financialReconciliation.costDelta || 0)}, Delta LN: ${formatVnd(row.normalizedData.financialReconciliation.profitDelta || 0)})`,
+                row.normalizedData.reconciliationResolution &&
+                  `Lựa chọn đối soát: ${row.normalizedData.reconciliationResolution === 'PRESERVE_EXCEL_SUMMARY' ? 'Giữ nguyên số tổng Excel' : 'Lấy theo tổng từng dòng thực tế'}`,
               ]
                 .filter(Boolean)
                 .join('\n'),

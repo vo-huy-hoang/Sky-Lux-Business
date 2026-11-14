@@ -1,20 +1,42 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Card, Spin } from "antd";
-import { useImportValidation } from "../hooks/useImportValidation";
+import {
+  Card,
+  Spin,
+  Tag,
+  Select,
+  Button,
+  Radio,
+  App,
+  Input,
+} from "antd";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query-keys";
+import { importsService } from "@/services/imports.service";
+import {
+  calculateImportSummary,
+  useImportValidation,
+} from "../hooks/useImportValidation";
 import {
   BarChartOutlined,
   CalculatorOutlined,
-  CheckCircleFilled,
-  CloseCircleFilled,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  DeleteOutlined,
   DownOutlined,
+  EditOutlined,
+  ExclamationCircleOutlined,
   FileExcelOutlined,
+  PlusCircleOutlined,
+  SafetyCertificateOutlined,
+  SaveOutlined,
   TableOutlined,
   UpOutlined,
-  WarningFilled,
+  WarningOutlined,
 } from "@ant-design/icons";
 import {
+  ImportRow,
   ImportSession,
   PaginatedImportErrorsResponse,
   PaginatedImportRowsResponse,
@@ -29,26 +51,41 @@ export interface ImportPreviewTableProps {
   previewData?: PaginatedImportRowsResponse;
   errorsData?: PaginatedImportErrorsResponse;
   isLoading?: boolean;
+  onEditMetadata?: (row: ImportRow) => void;
 }
 
 function formatVND(num: number | string | undefined | null) {
   if (num === undefined || num === null || num === "") return "-";
   if (typeof num === "number") {
-    return vndFormatter.format(num);
+    return vndFormatter.format(Math.round(num));
   }
   const clean = String(num).trim().replace(/\./g, "").replace(/,/g, ".");
   const parsed = Number(clean);
   if (!isNaN(parsed) && isFinite(parsed)) {
-    return vndFormatter.format(parsed);
+    return vndFormatter.format(Math.round(parsed));
   }
   return String(num);
+}
+
+function vatRateOf(value: unknown): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const normalized = String(value ?? "")
+    .trim()
+    .replace(/%/g, "")
+    .replace(/,/g, ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 export function ImportPreviewTable({
   session,
   previewData: _previewData,
   isLoading,
+  onEditMetadata,
 }: ImportPreviewTableProps) {
+  const { message } = App.useApp();
+  const queryClient = useQueryClient();
+
   const [activeTab, setActiveTab] = useState<
     "ALL" | "REVENUE" | "COST" | "SUMMARY" | "RAW"
   >("ALL");
@@ -56,6 +93,13 @@ export function ImportPreviewTable({
     "ALL" | "ERROR" | "WARNING" | "VALID"
   >("ALL");
   const [isRawExpanded, setIsRawExpanded] = useState(false);
+
+  // Local state for interactive VAT overrides
+  const [vatOverrides, setVatOverrides] = useState<Record<string, number>>({});
+  const [reconciliationChoice, setReconciliationChoice] = useState<
+    "USE_CALCULATED_ITEMS" | "PRESERVE_EXCEL_SUMMARY"
+  >("USE_CALCULATED_ITEMS");
+  const [isSavingChanges, setIsSavingChanges] = useState(false);
 
   const {
     validCount,
@@ -65,18 +109,126 @@ export function ImportPreviewTable({
     revenues: allRevenues,
     costs: allCosts,
     totalRevenue,
-    totalCost,
-    totalProfit,
-    profitMargin,
     totalPax,
-    classification,
-    summary,
+    sourceSummary,
+    rawRow,
+    isCustomerBudget,
+    metadata,
+    financialReconciliation: hookReconciliation,
   } = useImportValidation(_previewData);
 
-  // `errorCount` belongs to the detailed revenue/cost lines shown below.
-  // Session errors (for example, an existing dossier code) are errors for
-  // the imported dossier, not errors in one of those detail lines.
+  // Merge cost items with interactive local VAT overrides
+  const costsWithOverrides = useMemo(() => {
+    return allCosts.map((c) => {
+      if (vatOverrides[c.id] !== undefined) {
+        const newVat = vatOverrides[c.id];
+        return {
+          ...c,
+          vatRate: newVat,
+        };
+      }
+      return c;
+    });
+  }, [allCosts, vatOverrides]);
+
+  const summary = useMemo(() => {
+    return calculateImportSummary(allRevenues, costsWithOverrides);
+  }, [allRevenues, costsWithOverrides]);
+
+  const totalCost = useMemo(() => {
+    return costsWithOverrides.reduce(
+      (sum, item) => sum + (Number(item.totalAmount) || 0),
+      0,
+    );
+  }, [costsWithOverrides]);
+
+  const currentReconciliation = useMemo(() => {
+    const calcRev = totalRevenue;
+    const calcCost = totalCost;
+
+    // Use VAT-adjusted net gross profit from calculateImportSummary (standard travel agency formula)
+    const netGrossProfit = summary.total.grossProfit;
+    const netProfitMargin =
+      summary.total.netRevenue > 0
+        ? Number(
+            ((netGrossProfit / summary.total.netRevenue) * 100).toFixed(2),
+          )
+        : 0;
+
+    const grossProfit = calcRev - calcCost;
+    const grossProfitMargin =
+      calcRev > 0 ? Number(((grossProfit / calcRev) * 100).toFixed(2)) : 0;
+
+    let calcGrossProfit = grossProfit;
+    let calcProfitMargin = grossProfitMargin;
+    let prfDelta = 0;
+
+    if (sourceSummary.totalProfit !== undefined) {
+      const netDelta = Math.abs(netGrossProfit - sourceSummary.totalProfit);
+      const grossDelta = Math.abs(grossProfit - sourceSummary.totalProfit);
+      if (netDelta <= 1000 && netDelta < grossDelta) {
+        calcGrossProfit = netGrossProfit;
+        calcProfitMargin = netProfitMargin;
+        prfDelta = netDelta;
+      } else if (grossDelta <= 1000) {
+        calcGrossProfit = grossProfit;
+        calcProfitMargin = grossProfitMargin;
+        prfDelta = grossDelta;
+      } else {
+        if (netDelta < grossDelta) {
+          calcGrossProfit = netGrossProfit;
+          calcProfitMargin = netProfitMargin;
+          prfDelta = netDelta;
+        } else {
+          calcGrossProfit = grossProfit;
+          calcProfitMargin = grossProfitMargin;
+          prfDelta = grossDelta;
+        }
+      }
+    }
+
+    const revDelta = sourceSummary.totalRevenue
+      ? Math.abs(calcRev - sourceSummary.totalRevenue)
+      : 0;
+    const cstDelta = sourceSummary.totalCost
+      ? Math.abs(calcCost - sourceSummary.totalCost)
+      : 0;
+
+    const hasLineTampering = costsWithOverrides.some((c) => c.isTamperedFormula);
+    let status: "MATCHED" | "ROUNDING_TOLERANCE" | "MISMATCH" = "MATCHED";
+    if (
+      revDelta > 1000 ||
+      cstDelta > 1000 ||
+      prfDelta > 1000 ||
+      hasLineTampering
+    ) {
+      status = "MISMATCH";
+    } else if (revDelta > 1 || cstDelta > 1 || prfDelta > 1) {
+      status = "ROUNDING_TOLERANCE";
+    }
+
+    return {
+      calculatedRevenue: calcRev,
+      calculatedCost: calcCost,
+      calculatedGrossProfit: calcGrossProfit,
+      calculatedProfitMarginPercent: calcProfitMargin,
+      revenueDelta: revDelta,
+      costDelta: cstDelta,
+      profitDelta: prfDelta,
+      status,
+      warnings: hookReconciliation.warnings || [],
+    };
+  }, [
+    totalRevenue,
+    totalCost,
+    summary,
+    sourceSummary,
+    costsWithOverrides,
+    hookReconciliation.warnings,
+  ]);
+
   const importErrorRowCount = session?.errorRows ?? 0;
+  const hasPendingVatChanges = Object.keys(vatOverrides).length > 0;
 
   // Filter revenue items
   const filteredRevenues = useMemo(() => {
@@ -86,13 +238,13 @@ export function ImportPreviewTable({
 
   // Filter cost items
   const filteredCosts = useMemo(() => {
-    if (statusFilter === "ALL") return allCosts;
-    return allCosts.filter((item) => item.status === statusFilter);
-  }, [statusFilter, allCosts]);
+    if (statusFilter === "ALL") return costsWithOverrides;
+    return costsWithOverrides.filter((item) => item.status === statusFilter);
+  }, [statusFilter, costsWithOverrides]);
 
   // Group costs by category
   const costGroups = useMemo(() => {
-    const groups: { [key: string]: typeof allCosts } = {};
+    const groups: { [key: string]: typeof costsWithOverrides } = {};
     filteredCosts.forEach((item) => {
       const g = item.categoryGroup || "DỊCH VỤ";
       if (!groups[g]) groups[g] = [];
@@ -100,6 +252,138 @@ export function ImportPreviewTable({
     });
     return groups;
   }, [filteredCosts]);
+
+  // State for inline description editing
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
+  const [editingDescription, setEditingDescription] = useState<string>("");
+
+  const handleStartEditDescription = (lineId: string, currentText: string) => {
+    setEditingLineId(lineId);
+    setEditingDescription(currentText);
+  };
+
+  const handleSaveDescription = async (lineIdx: number) => {
+    if (!session?.id || !rawRow?.id) return;
+    try {
+      const rawCostLines = [...(rawRow.rawData?.__costLines || [])];
+      if (rawCostLines[lineIdx]) {
+        rawCostLines[lineIdx] = {
+          ...rawCostLines[lineIdx],
+          description: editingDescription.trim(),
+        };
+        const updatedRawData = {
+          ...(rawRow.rawData || {}),
+          __costLines: rawCostLines,
+        };
+        await importsService.updateRowStaging(session.id, rawRow.id, {
+          rawData: updatedRawData,
+        });
+        message.success("Đã cập nhật tên dịch vụ");
+        setEditingLineId(null);
+        await queryClient.invalidateQueries({ queryKey: queryKeys.imports.all });
+      }
+    } catch (err: any) {
+      message.error(err?.message || "Không thể cập nhật tên dịch vụ");
+    }
+  };
+
+  const handleDeleteCostLine = async (lineIdx: number) => {
+    if (!session?.id || !rawRow?.id) return;
+    try {
+      const rawCostLines = [...(rawRow.rawData?.__costLines || [])];
+      rawCostLines.splice(lineIdx, 1);
+      const updatedRawData = {
+        ...(rawRow.rawData || {}),
+        __costLines: rawCostLines,
+      };
+      await importsService.updateRowStaging(session.id, rawRow.id, {
+        rawData: updatedRawData,
+      });
+      message.success("Đã xóa dòng dịch vụ khỏi dự toán");
+      await queryClient.invalidateQueries({ queryKey: queryKeys.imports.all });
+    } catch (err: any) {
+      message.error(err?.message || "Không thể xóa dòng dịch vụ");
+    }
+  };
+
+  // Handler for line VAT change
+  const handleVatChange = (lineId: string, rate: number) => {
+    setVatOverrides((prev) => ({
+      ...prev,
+      [lineId]: rate,
+    }));
+  };
+
+  // Bulk apply VAT to Section I
+  const handleBulkApplyVat = (rate: number) => {
+    const newOverrides = { ...vatOverrides };
+    allCosts.forEach((c) => {
+      if (c.isVatSection || /CÓ\s*VAT/i.test(c.categoryGroup || "")) {
+        newOverrides[c.id] = rate;
+      }
+    });
+    setVatOverrides(newOverrides);
+    message.info(
+      `Đã áp dụng mức thuế VAT ${rate}% cho toàn bộ Mục I (bấm 'Lưu thay đổi thuế' để lưu)`,
+    );
+  };
+
+  // Save VAT changes to backend staging
+  const handleSaveVatChanges = async () => {
+    if (!session?.id || !rawRow?.id) return;
+    setIsSavingChanges(true);
+    try {
+      const rawCostLines = rawRow.rawData?.__costLines || [];
+      const updatedCostLines = rawCostLines.map((line: any, idx: number) => {
+        const lineId = `cost-${idx}`;
+        if (vatOverrides[lineId] !== undefined) {
+          return {
+            ...line,
+            vatRate: vatOverrides[lineId],
+          };
+        }
+        return line;
+      });
+
+      const updatedRawData = {
+        ...(rawRow.rawData || {}),
+        __costLines: updatedCostLines,
+        __reconciliationResolution: reconciliationChoice,
+      };
+
+      await importsService.updateRowStaging(session.id, rawRow.id, {
+        rawData: updatedRawData,
+      });
+      setVatOverrides({});
+      message.success("Đã lưu mức thuế và tự động chạy lại đối soát tài chính");
+      await queryClient.invalidateQueries({ queryKey: queryKeys.imports.all });
+    } catch (err: any) {
+      message.error(err?.message || "Không thể lưu thay đổi thuế");
+    } finally {
+      setIsSavingChanges(false);
+    }
+  };
+
+  // Handle reconciliation choice selection
+  const handleReconciliationChoiceChange = async (
+    choice: "USE_CALCULATED_ITEMS" | "PRESERVE_EXCEL_SUMMARY",
+  ) => {
+    setReconciliationChoice(choice);
+    if (session?.id && rawRow?.id) {
+      try {
+        const updatedRawData = {
+          ...(rawRow.rawData || {}),
+          __reconciliationResolution: choice,
+        };
+        await importsService.updateRowStaging(session.id, rawRow.id, {
+          rawData: updatedRawData,
+        });
+        message.success("Đã ghi nhận phương án giải quyết đối soát");
+      } catch {
+        // Continue with local selection
+      }
+    }
+  };
 
   return (
     <Card
@@ -121,12 +405,12 @@ export function ImportPreviewTable({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-slate-800">
-              4. Xem trước dữ liệu dự toán (Đầy đủ 3 bảng chi tiết)
+              4. Xem trước dữ liệu dự toán (Kiểm soát 3 thẻ chuyên sâu)
             </span>
             {isLoading && <Spin size="small" />}
           </div>
 
-          {/* Tab Selector theo đúng form chi tiết hồ sơ */}
+          {/* Tab Selector */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs">
             <button
               type="button"
@@ -138,7 +422,7 @@ export function ImportPreviewTable({
               }`}
             >
               <TableOutlined className="text-xs" />
-              <span>Tất cả (3 bảng)</span>
+              <span>Tất cả (3 thẻ)</span>
             </button>
 
             <button
@@ -195,17 +479,94 @@ export function ImportPreviewTable({
         </div>
       }
     >
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs">
-        <span className="font-semibold text-slate-500">Phân loại hồ sơ:</span>
-        <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 font-bold text-amber-800">
-          Mảng: {classification.businessLine}
-        </span>
-        <span className="rounded-md border border-sky-200 bg-sky-50 px-2 py-1 font-bold text-sky-800">
-          Loại hình: {classification.marketType}
-        </span>
+      {/* ========================================================================= */}
+      {/* 🟢 THẺ 1: THÔNG TIN TOUR & KHÁCH HÀNG (TOUR & CLIENT METADATA CARD)       */}
+      {/* ========================================================================= */}
+      <div className="bg-white border border-[var(--color-border)] rounded-xl p-5 shadow-xs">
+        <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-[var(--color-divider)]">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-primary-950)] bg-[var(--color-primary-soft)] px-2.5 py-0.5 rounded-full border border-emerald-200/60">
+                Thẻ 1: Thông tin Tour & Khách hàng
+              </span>
+              <Tag className="font-semibold text-xs m-0 border border-emerald-300 bg-[var(--color-primary-soft)] text-[var(--color-primary-900)]">
+                Mảng: {metadata.businessLine || "TOUR"}
+              </Tag>
+              <Tag className="font-semibold text-xs m-0 border border-slate-300 bg-[var(--color-surface-muted)] text-slate-700">
+                Loại hình: {metadata.marketType || "NỘI ĐỊA"}
+              </Tag>
+            </div>
+            <h3 className="text-base font-bold text-slate-900 mb-0 pt-0.5">
+              {metadata.tourName || "Dự toán Tour SkyLux"}
+            </h3>
+          </div>
+
+          {onEditMetadata && rawRow && (
+            <Button
+              type="default"
+              icon={<EditOutlined />}
+              size="small"
+              className="text-xs font-semibold rounded-lg hover:border-emerald-600 hover:text-emerald-700"
+              onClick={() => onEditMetadata(rawRow)}
+            >
+              Chỉnh sửa thông tin
+            </Button>
+          )}
+        </div>
+
+        {/* Surface & Divider Architecture (No Card-in-Card Nesting) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-3.5 text-xs divide-y sm:divide-y-0 sm:divide-x divide-[var(--color-divider)]">
+          <div className="pt-2 sm:pt-0 sm:px-3 first:pl-0">
+            <div className="text-[var(--color-text-muted)] font-medium text-[11px] mb-1 uppercase tracking-wider">
+              Khách hàng
+            </div>
+            <div className="font-bold text-slate-800 text-sm">
+              {metadata.customerName || "-"}
+            </div>
+            <div className="text-[var(--color-text-soft)] mt-0.5">
+              {metadata.phone ? `SĐT: ${metadata.phone}` : "Chưa có SĐT"}
+            </div>
+          </div>
+
+          <div className="pt-2 sm:pt-0 sm:px-3">
+            <div className="text-[var(--color-text-muted)] font-medium text-[11px] mb-1 uppercase tracking-wider">
+              Tuyến hành trình & Thời gian
+            </div>
+            <div className="font-bold text-slate-800">
+              {metadata.route || "-"}
+            </div>
+            <div className="text-[var(--color-primary-700)] font-semibold mt-0.5">
+              {metadata.tourDuration || "-"}
+            </div>
+          </div>
+
+          <div className="pt-2 sm:pt-0 sm:px-3">
+            <div className="text-[var(--color-text-muted)] font-medium text-[11px] mb-1 uppercase tracking-wider">
+              Thời gian khởi hành
+            </div>
+            <div className="font-bold text-slate-800">
+              {metadata.startDate || "Chưa rõ"} &rarr; {metadata.endDate || "Chưa rõ"}
+            </div>
+            <div className="text-[var(--color-text-soft)] mt-0.5 truncate">
+              Email: {metadata.email || "-"}
+            </div>
+          </div>
+
+          <div className="pt-2 sm:pt-0 sm:px-3">
+            <div className="text-[var(--color-text-muted)] font-medium text-[11px] mb-1 uppercase tracking-wider">
+              Quy mô đoàn & Cấu thành
+            </div>
+            <div className="font-bold text-[var(--color-primary-950)] text-sm tabular-nums font-mono">
+              {totalPax} khách (PAX)
+            </div>
+            <div className="text-[var(--color-text-soft)] mt-0.5">
+              {allCosts.length} dịch vụ cấu thành
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* 🔴 THANH CẢNH BÁO NỔI BẬT DÒNG LỖI & CẢNH BÁO ĐỂ NGƯỜI DÙNG DỄ NHÌN THẤY */}
+      {/* THANH CẢNH BÁO NỔI BẬT DÒNG LỖI & CẢNH BÁO */}
       <div className="p-3.5 rounded-xl bg-gradient-to-r from-rose-50/90 via-amber-50/70 to-emerald-50/40 border border-rose-200 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center font-extrabold text-base shadow-xs shrink-0">
@@ -224,20 +585,12 @@ export function ImportPreviewTable({
               trong dữ liệu dự toán
             </div>
             <div className="text-[11px] text-slate-500 mt-0.5">
-              Các dòng chi tiết này đã được{" "}
-              <span className="font-semibold text-rose-700">
-                tô màu hồng viền đỏ
-              </span>{" "}
-              và{" "}
-              <span className="font-semibold text-amber-700">
-                tô màu vàng viền cam
-              </span>{" "}
-              trực quan ngay trong bảng để bạn dễ kiểm tra.
+              Các dòng chi tiết đã được tô màu hồng viền đỏ và vàng viền cam để
+              bạn dễ kiểm tra.
             </div>
             {importErrorRowCount > 0 && (
               <div className="text-[11px] text-rose-700 mt-1 font-medium">
-                Hồ sơ có {importErrorRowCount} lỗi cần xử lý riêng (không phải
-                lỗi của dòng chi tiết).
+                Hồ sơ có {importErrorRowCount} lỗi cần xử lý riêng.
               </div>
             )}
           </div>
@@ -296,7 +649,7 @@ export function ImportPreviewTable({
       </div>
 
       {/* ========================================================================= */}
-      {/* 1. BẢNG 1: CHI TIẾT DOANH THU TOUR */}
+      {/* 1. BẢNG 1: CHI TIẾT DOANH THU TOUR                                        */}
       {/* ========================================================================= */}
       {(activeTab === "ALL" || activeTab === "REVENUE") && (
         <div className="border border-slate-200/90 rounded-2xl p-4 bg-white shadow-xs overflow-hidden">
@@ -370,29 +723,29 @@ export function ImportPreviewTable({
                       <td className="py-2.5 px-2 text-center text-slate-600 text-xs">
                         {row.unit}
                       </td>
-                      <td className="py-2.5 px-2 text-center font-mono font-semibold text-slate-800 text-xs">
+                      <td className="py-2.5 px-2 text-center tabular-nums font-mono font-semibold text-slate-800 text-xs">
                         {row.quantity}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-slate-700 text-xs">
+                      <td className="py-2.5 px-3 text-right tabular-nums font-mono text-slate-700 text-xs">
                         {formatVND(row.unitPrice)}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 text-xs">
+                      <td className="py-2.5 px-3 text-right tabular-nums font-mono font-bold text-slate-900 text-xs">
                         {formatVND(row.grossAmount)}
                       </td>
                       <td className="py-2.5 px-3">
                         {isWarning ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-300">
-                            <WarningFilled className="text-amber-600 text-xs" />
+                            <WarningOutlined className="text-amber-600 text-xs" />
                             {row.statusMessage || "Cảnh báo"}
                           </span>
                         ) : isError ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-100 text-rose-800 border border-rose-300">
-                            <CloseCircleFilled className="text-rose-600 text-xs" />
+                            <CloseCircleOutlined className="text-rose-600 text-xs" />
                             {row.statusMessage || "Lỗi dữ liệu"}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[var(--color-primary-soft)] text-[var(--color-primary-700)] border border-emerald-200/60">
-                            <CheckCircleFilled className="text-emerald-500 text-[10px]" />
+                            <CheckCircleOutlined className="text-emerald-500 text-[10px]" />
                             Hợp lệ
                           </span>
                         )}
@@ -425,7 +778,7 @@ export function ImportPreviewTable({
       )}
 
       {/* ========================================================================= */}
-      {/* 2. BẢNG 2: CHI TIẾT DỰ TOÁN CHI PHÍ DỊCH VỤ TOUR (CÓ HIGHLIGHT 3 DÒNG LỖI) */}
+      {/* 2. BẢNG 2: CHI TIẾT DỰ TOÁN CHI PHÍ DỊCH VỤ TOUR (CÓ BADGE NCC & VAT SELECT)*/}
       {/* ========================================================================= */}
       {(activeTab === "ALL" || activeTab === "COST") && (
         <div className="border border-slate-200/90 rounded-2xl bg-white shadow-xs overflow-hidden">
@@ -446,6 +799,57 @@ export function ImportPreviewTable({
             </div>
           </div>
 
+          {/* Quick Actions Bar for Tax & Bulk Overrides */}
+          <div className="px-4 py-2.5 bg-slate-50/90 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-600">
+                Tác vụ nhanh thuế Mục I:
+              </span>
+              <Button
+                size="small"
+                type="dashed"
+                className="text-xs font-bold border-amber-300 text-amber-900 bg-amber-50 hover:bg-amber-100"
+                onClick={() => handleBulkApplyVat(8)}
+              >
+                Áp dụng VAT 8% cho Mục I
+              </Button>
+              <Button
+                size="small"
+                type="dashed"
+                className="text-xs font-medium text-slate-700 border-slate-300 hover:bg-slate-100"
+                onClick={() => handleBulkApplyVat(10)}
+              >
+                Áp dụng VAT 10%
+              </Button>
+              <Button
+                size="small"
+                type="dashed"
+                className="text-xs font-medium text-slate-700 border-slate-300 hover:bg-slate-100"
+                onClick={() => handleBulkApplyVat(0)}
+              >
+                Áp dụng VAT 0%
+              </Button>
+            </div>
+
+            {hasPendingVatChanges && (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                  Có mức thuế đã thay đổi chưa lưu
+                </span>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<SaveOutlined />}
+                  loading={isSavingChanges}
+                  onClick={handleSaveVatChanges}
+                  className="bg-emerald-700 hover:bg-emerald-800 text-xs font-bold"
+                >
+                  Lưu thay đổi thuế
+                </Button>
+              </div>
+            )}
+          </div>
+
           <div className="w-full overflow-x-auto">
             <table className="w-full text-xs border-collapse">
               <thead>
@@ -456,8 +860,8 @@ export function ImportPreviewTable({
                   <th className="py-2.5 px-3 text-left min-w-[200px] font-bold">
                     Nội dung dịch vụ
                   </th>
-                  <th className="py-2.5 px-3 text-left min-w-[180px] font-bold">
-                    Diễn giải / Nhà cung cấp
+                  <th className="py-2.5 px-3 text-left min-w-[220px] font-bold">
+                    Nhà cung cấp & Trạng thái nhận diện
                   </th>
                   <th className="py-2.5 px-2 text-center w-14 font-bold">SL</th>
                   <th className="py-2.5 px-2 text-center w-24 font-bold">
@@ -466,7 +870,7 @@ export function ImportPreviewTable({
                   <th className="py-2.5 px-3 text-right w-28 font-bold">
                     Đơn giá (VNĐ)
                   </th>
-                  <th className="py-2.5 px-2 text-center w-20 font-bold">
+                  <th className="py-2.5 px-2 text-center w-28 font-bold">
                     VAT (%)
                   </th>
                   <th className="py-2.5 px-3 text-right w-32 font-bold">
@@ -494,6 +898,8 @@ export function ImportPreviewTable({
                     {items.map((row) => {
                       const isError = row.status === "ERROR";
                       const isWarning = row.status === "WARNING";
+                      const isVatOverridden =
+                        vatOverrides[row.id] !== undefined;
 
                       return (
                         <tr
@@ -519,16 +925,96 @@ export function ImportPreviewTable({
 
                           {/* Nội dung dịch vụ */}
                           <td className="py-2 px-3 font-semibold text-slate-800 text-xs">
-                            {row.content}
+                            {editingLineId === row.id ? (
+                              <div className="flex items-center gap-1.5 min-w-[200px]">
+                                <Input
+                                  size="small"
+                                  value={editingDescription}
+                                  autoFocus
+                                  placeholder="Nhập tên dịch vụ..."
+                                  onChange={(e) =>
+                                    setEditingDescription(e.target.value)
+                                  }
+                                  onPressEnter={() =>
+                                    handleSaveDescription(Number(row.stt) - 1)
+                                  }
+                                  className="text-xs"
+                                />
+                                <Button
+                                  size="small"
+                                  type="primary"
+                                  className="bg-emerald-700 text-xs px-2"
+                                  onClick={() =>
+                                    handleSaveDescription(Number(row.stt) - 1)
+                                  }
+                                >
+                                  Lưu
+                                </Button>
+                                <Button
+                                  size="small"
+                                  className="text-xs px-2"
+                                  onClick={() => setEditingLineId(null)}
+                                >
+                                  Hủy
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between gap-1 group">
+                                {row.content ? (
+                                  <span>{row.content}</span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-amber-800 font-bold bg-amber-50 border border-amber-300 px-2 py-0.5 rounded text-[11px]">
+                                    ⚠️ Thiếu tên dịch vụ
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleStartEditDescription(
+                                      row.id,
+                                      row.content || "",
+                                    )
+                                  }
+                                  className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-emerald-700 p-0.5 transition-opacity cursor-pointer"
+                                  title="Chỉnh sửa tên dịch vụ"
+                                >
+                                  <EditOutlined className="text-xs" />
+                                </button>
+                              </div>
+                            )}
                           </td>
 
-                          {/* Nhà cung cấp */}
+                          {/* Nhà cung cấp & Nhận diện tự động */}
                           <td className="py-2 px-3 text-slate-600 text-xs">
-                            {row.supplier}
+                            {row.supplier && row.supplier !== "Tự do" ? (
+                              row.supplierStatus === "EXISTING" ? (
+                                <Tag
+                                  icon={
+                                    <CheckCircleOutlined className="text-[10px]" />
+                                  }
+                                  className="font-medium text-[11px] rounded-md px-2 py-0.5 border border-emerald-300/80 bg-[var(--color-primary-soft)] text-[var(--color-primary-900)]"
+                                >
+                                  {row.supplier} (NCC có sẵn)
+                                </Tag>
+                              ) : (
+                                <Tag
+                                  icon={
+                                    <PlusCircleOutlined className="text-[10px]" />
+                                  }
+                                  className="font-medium text-[11px] rounded-md px-2 py-0.5 border border-amber-300/80 bg-[var(--color-warning-soft)] text-amber-900"
+                                >
+                                  {row.supplier} (Tạo NCC mới)
+                                </Tag>
+                              )
+                            ) : (
+                              <span className="text-slate-400 text-xs">
+                                Tự do
+                              </span>
+                            )}
                           </td>
 
                           {/* SL */}
-                          <td className="py-2 px-2 text-center font-mono font-semibold text-slate-800 text-xs">
+                          <td className="py-2 px-2 text-center tabular-nums font-mono font-semibold text-slate-800 text-xs">
                             {row.quantity}
                           </td>
 
@@ -537,8 +1023,8 @@ export function ImportPreviewTable({
                             {row.unitText}
                           </td>
 
-                          {/* Đơn giá (TÔ ĐỎ NẾU LỖI) */}
-                          <td className="py-2 px-3 text-right font-mono text-xs">
+                          {/* Đơn giá */}
+                          <td className="py-2 px-3 text-right tabular-nums font-mono text-xs">
                             {row.unitPriceError ? (
                               <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-700 font-bold border border-rose-300 inline-block">
                                 {String(row.unitPrice)}
@@ -550,50 +1036,86 @@ export function ImportPreviewTable({
                             )}
                           </td>
 
-                          {/* VAT (TÔ ĐỎ NẾU LỖI) */}
-                          <td className="py-2 px-2 text-center font-mono text-xs">
-                            {row.vatRateError ? (
-                              <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-700 font-bold border border-rose-300 inline-block">
-                                {String(row.vatRate)}
-                              </span>
-                            ) : (
-                              <span className="text-slate-700">
-                                {row.vatRate}%
-                              </span>
-                            )}
+                          {/* VAT (%): Select Dropdown cho phép sửa trực tiếp */}
+                          <td className="py-1.5 px-2 text-center tabular-nums font-mono text-xs">
+                            <Select
+                              size="small"
+                              value={vatRateOf(row.vatRate)}
+                              onChange={(val) => handleVatChange(row.id, val)}
+                              className={`w-20 text-xs tabular-nums font-mono font-semibold ${
+                                isVatOverridden
+                                  ? "border border-amber-400 rounded"
+                                  : ""
+                              }`}
+                              options={[
+                                { value: 0, label: "0%" },
+                                { value: 5, label: "5%" },
+                                { value: 8, label: "8%" },
+                                { value: 10, label: "10%" },
+                              ]}
+                            />
                           </td>
 
-                          {/* Thành tiền (TÔ ĐỎ NẾU LỖI) */}
-                          <td className="py-2 px-3 text-right font-mono text-xs">
+                          {/* Thành tiền */}
+                          <td className="py-2 px-3 text-right tabular-nums font-mono text-xs">
                             {row.totalAmountError ? (
                               <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-700 font-bold border border-rose-300 inline-block">
                                 {String(row.totalAmount)}
                               </span>
                             ) : (
-                              <span className="text-slate-900 font-bold">
-                                {formatVND(row.totalAmount)}
-                              </span>
+                              <div>
+                                <span className="text-slate-900 font-bold">
+                                  {formatVND(row.totalAmount)}
+                                </span>
+                                {row.isTamperedFormula &&
+                                  row.sourceAmount !== undefined && (
+                                    <div
+                                      className="text-[10px] text-amber-700 tabular-nums font-mono mt-0.5"
+                                      title="Excel ghi số khác với SL × HS × Đơn giá"
+                                    >
+                                      Excel: {formatVND(row.sourceAmount)}
+                                    </div>
+                                  )}
+                              </div>
                             )}
                           </td>
 
-                          {/* Trạng thái (HIỂN THỊ CHI TIẾT LÝ DO LỖI) */}
+                          {/* Trạng thái & Thao tác */}
                           <td className="py-2 px-3">
-                            {isError ? (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-700 border border-rose-300">
-                                <CloseCircleFilled className="text-rose-600 text-xs" />
-                                {row.statusMessage}
-                              </span>
-                            ) : isWarning ? (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-300">
-                                <WarningFilled className="text-amber-600 text-xs" />
-                                {row.statusMessage}
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[var(--color-primary-soft)] text-[var(--color-primary-700)] border border-emerald-200/60">
-                                <CheckCircleFilled className="text-emerald-500 text-[10px]" />
-                                Hợp lệ
-                              </span>
-                            )}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                {isError ? (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-700 border border-rose-300">
+                                    <CloseCircleOutlined className="text-rose-600 text-xs shrink-0" />
+                                    <span className="truncate">
+                                      {row.statusMessage}
+                                    </span>
+                                  </span>
+                                ) : isWarning ? (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+                                    <WarningOutlined className="text-amber-600 text-xs shrink-0" />
+                                    <span className="truncate">
+                                      {row.statusMessage}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[var(--color-primary-soft)] text-[var(--color-primary-700)] border border-emerald-200/60">
+                                    <CheckCircleOutlined className="text-emerald-500 text-[10px] shrink-0" />
+                                    Hợp lệ
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleDeleteCostLine(Number(row.stt) - 1)
+                                }
+                                className="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
+                                title="Xóa dòng này khỏi dự toán"
+                              >
+                                <DeleteOutlined className="text-xs" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -618,7 +1140,7 @@ export function ImportPreviewTable({
       )}
 
       {/* ========================================================================= */}
-      {/* 3. BẢNG 3: BẢNG TỔNG HỢP CHI PHÍ & ĐỐI SOÁT HIỆU QUẢ */}
+      {/* 3. BẢNG 3: BẢNG TỔNG HỢP CHI PHÍ & ĐỐI SOÁT HIỆU QUẢ                      */}
       {/* ========================================================================= */}
       {(activeTab === "ALL" || activeTab === "SUMMARY") && (
         <div className="border border-slate-200/90 rounded-2xl p-4 bg-white shadow-xs overflow-hidden">
@@ -631,7 +1153,8 @@ export function ImportPreviewTable({
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
-                Lợi nhuận gộp: {formatVND(totalProfit)} đ ({profitMargin})
+                Lợi nhuận gộp: {formatVND(summary.total.grossProfit)} đ (
+                {summary.profitMargin})
               </span>
             </div>
           </div>
@@ -726,7 +1249,260 @@ export function ImportPreviewTable({
       )}
 
       {/* ========================================================================= */}
-      {/* 4. DỮ LIỆU THÔ EXCEL (8 CỘT GỐC ĐỂ KIỂM TRA LỖI NHẬP) */}
+      {/* 🔴 THẺ 3: ĐỐI SOÁT TÀI CHÍNH & SỨC KHỎE DỰ TOÁN (RECONCILIATION CARD)       */}
+      {/* ========================================================================= */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <SafetyCertificateOutlined className="text-emerald-700 text-base" />
+            <h3 className="text-sm font-bold text-slate-900 mb-0 uppercase tracking-tight">
+              Thẻ 3: Đối soát tài chính & Sức khỏe dự toán
+            </h3>
+          </div>
+          <div>
+            {currentReconciliation.status === "MATCHED" && (
+              <Tag
+                icon={<CheckCircleOutlined className="text-emerald-600" />}
+                className="font-bold text-xs px-3 py-1 rounded-full m-0 border border-emerald-300 bg-[var(--color-primary-soft)] text-[var(--color-primary-900)]"
+              >
+                Khớp dữ liệu hoàn hảo (Delta &le; 1 đ)
+              </Tag>
+            )}
+            {currentReconciliation.status === "ROUNDING_TOLERANCE" && (
+              <Tag
+                icon={<CheckCircleOutlined className="text-blue-600" />}
+                className="font-bold text-xs px-3 py-1 rounded-full m-0 border border-blue-200 bg-blue-50 text-blue-900"
+              >
+                Chênh lệch làm tròn cho phép (&le; 1.000 đ)
+              </Tag>
+            )}
+            {currentReconciliation.status === "MISMATCH" && (
+              <Tag
+                icon={<WarningOutlined className="text-rose-600" />}
+                className="font-bold text-xs px-3 py-1 rounded-full m-0 border border-rose-300 bg-rose-50 text-rose-900"
+              >
+                Phát hiện chênh lệch tài chính (&gt; 1.000 đ)
+              </Tag>
+            )}
+          </div>
+        </div>
+
+        {/* Side-by-side reconciliation table */}
+        <div className="w-full overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50/90 text-slate-700 font-bold text-[11px] uppercase tracking-wider border-b border-slate-200">
+                <th className="py-2.5 px-3 text-left min-w-[160px]">
+                  Chỉ tiêu tài chính
+                </th>
+                <th className="py-2.5 px-3 text-right min-w-[160px]">
+                  Con số trong file Excel (Source)
+                </th>
+                <th className="py-2.5 px-3 text-right min-w-[160px]">
+                  CRM tính toán độc lập
+                </th>
+                <th className="py-2.5 px-3 text-right min-w-[140px]">
+                  Chênh lệch (Delta)
+                </th>
+                <th className="py-2.5 px-3 text-center w-36">
+                  Đánh giá đối soát
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-slate-800">
+              {/* Doanh thu */}
+              <tr className="hover:bg-slate-50/70">
+                <td className="py-2.5 px-3 font-semibold text-slate-800">
+                  Tổng Doanh thu (Gross)
+                </td>
+                <td className="py-2.5 px-3 text-right tabular-nums font-mono font-medium">
+                  {formatVND(sourceSummary.totalRevenue)} đ
+                </td>
+                <td className="py-2.5 px-3 text-right tabular-nums font-mono font-bold text-emerald-800">
+                  {formatVND(currentReconciliation.calculatedRevenue)} đ
+                </td>
+                <td className="py-2.5 px-3 text-right tabular-nums font-mono font-bold">
+                  <span
+                    className={
+                      currentReconciliation.revenueDelta > 1000
+                        ? "text-rose-600 bg-rose-50 px-2 py-0.5 rounded"
+                        : "text-emerald-700"
+                    }
+                  >
+                    {formatVND(currentReconciliation.revenueDelta)} đ
+                  </span>
+                </td>
+                <td className="py-2.5 px-3 text-center">
+                  {currentReconciliation.revenueDelta <= 1000 ? (
+                    <Tag className="font-semibold text-xs m-0 border border-emerald-300 bg-[var(--color-primary-soft)] text-[var(--color-primary-900)]">
+                      Khớp
+                    </Tag>
+                  ) : (
+                    <Tag className="font-bold text-xs m-0 border border-rose-300 bg-rose-50 text-rose-800">
+                      Lệch &gt; 1k
+                    </Tag>
+                  )}
+                </td>
+              </tr>
+
+              {/* Chi phí */}
+              <tr className="hover:bg-slate-50/70">
+                <td className="py-2.5 px-3 font-semibold text-slate-800">
+                  Tổng Chi phí dịch vụ
+                </td>
+                <td className="py-2.5 px-3 text-right tabular-nums font-mono font-medium">
+                  {formatVND(sourceSummary.totalCost)} đ
+                </td>
+                <td className="py-2.5 px-3 text-right tabular-nums font-mono font-bold text-slate-800">
+                  {formatVND(currentReconciliation.calculatedCost)} đ
+                </td>
+                <td className="py-2.5 px-3 text-right tabular-nums font-mono font-bold">
+                  <span
+                    className={
+                      currentReconciliation.costDelta > 1000
+                        ? "text-rose-600 bg-rose-50 px-2 py-0.5 rounded"
+                        : "text-emerald-700"
+                    }
+                  >
+                    {formatVND(currentReconciliation.costDelta)} đ
+                  </span>
+                </td>
+                <td className="py-2.5 px-3 text-center">
+                  {currentReconciliation.costDelta <= 1000 ? (
+                    <Tag className="font-semibold text-xs m-0 border border-emerald-300 bg-[var(--color-primary-soft)] text-[var(--color-primary-900)]">
+                      Khớp
+                    </Tag>
+                  ) : (
+                    <Tag className="font-bold text-xs m-0 border border-rose-300 bg-rose-50 text-rose-800">
+                      Lệch &gt; 1k
+                    </Tag>
+                  )}
+                </td>
+              </tr>
+
+              {/* Lợi nhuận gộp */}
+              <tr className="hover:bg-slate-50/70">
+                <td className="py-2.5 px-3 font-semibold text-slate-800">
+                  Lợi nhuận gộp
+                </td>
+                <td className="py-2.5 px-3 text-right tabular-nums font-mono font-medium">
+                  {formatVND(sourceSummary.totalProfit)} đ
+                </td>
+                <td className="py-2.5 px-3 text-right tabular-nums font-mono font-bold text-emerald-700">
+                  {formatVND(currentReconciliation.calculatedGrossProfit)} đ
+                </td>
+                <td className="py-2.5 px-3 text-right tabular-nums font-mono font-bold">
+                  <span
+                    className={
+                      currentReconciliation.profitDelta > 1000
+                        ? "text-rose-600 bg-rose-50 px-2 py-0.5 rounded"
+                        : "text-emerald-700"
+                    }
+                  >
+                    {formatVND(currentReconciliation.profitDelta)} đ
+                  </span>
+                </td>
+                <td className="py-2.5 px-3 text-center">
+                  {currentReconciliation.profitDelta <= 1000 ? (
+                    <Tag className="font-semibold text-xs m-0 border border-emerald-300 bg-[var(--color-primary-soft)] text-[var(--color-primary-900)]">
+                      Khớp
+                    </Tag>
+                  ) : (
+                    <Tag className="font-bold text-xs m-0 border border-rose-300 bg-rose-50 text-rose-800">
+                      Lệch &gt; 1k
+                    </Tag>
+                  )}
+                </td>
+              </tr>
+
+              {/* Tỷ suất LN */}
+              <tr className="hover:bg-slate-50/70 bg-emerald-50/30 font-semibold">
+                <td className="py-2.5 px-3 text-slate-900">
+                  Tỷ suất lợi nhuận (%)
+                </td>
+                <td className="py-2.5 px-3 text-right tabular-nums font-mono">
+                  {sourceSummary.profitRate
+                    ? `${(sourceSummary.profitRate * 100).toFixed(1)}%`
+                    : "-"}
+                </td>
+                <td className="py-2.5 px-3 text-right tabular-nums font-mono text-emerald-800 font-bold">
+                  {currentReconciliation.calculatedProfitMarginPercent.toFixed(1)}
+                  %
+                </td>
+                <td className="py-2.5 px-3 text-right tabular-nums font-mono text-slate-400">
+                  -
+                </td>
+                <td className="py-2.5 px-3 text-center">
+                  <Tag className="font-semibold text-xs m-0 border border-slate-300 bg-[var(--color-surface-muted)] text-slate-700">
+                    Tự động
+                  </Tag>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Discrepancy warning & Decision radio selector */}
+        {currentReconciliation.status === "MISMATCH" && (
+          <div className="p-4 rounded-xl bg-amber-50/90 border border-amber-300 space-y-3">
+            <div className="flex items-start gap-2.5">
+              <WarningOutlined className="text-amber-600 text-lg mt-0.5 shrink-0" />
+              <div className="space-y-1">
+                <h4 className="text-xs font-bold text-amber-950 mb-0">
+                  CẢNH BÁO: Phát hiện chênh lệch tài chính giữa file Excel và CRM
+                  (&gt; 1.000 đ)
+                </h4>
+                <p className="text-[11px] text-amber-900 mb-0">
+                  Tổng cộng tính theo từng dòng dịch vụ thực tế khác với con số
+                  tóm tắt ghi trong ô Excel. Vui lòng chọn phương án ghi nhận
+                  trước khi bấm Xác nhận nhập:
+                </p>
+                {currentReconciliation.warnings?.length > 0 && (
+                  <ul className="text-[11px] text-amber-800 pl-4 list-disc space-y-0.5 mt-1">
+                    {currentReconciliation.warnings.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-amber-200">
+              <Radio.Group
+                value={reconciliationChoice}
+                onChange={(e) =>
+                  handleReconciliationChoiceChange(e.target.value)
+                }
+                className="flex flex-col gap-2"
+              >
+                <Radio
+                  value="USE_CALCULATED_ITEMS"
+                  className="text-xs font-semibold text-slate-800"
+                >
+                  <span>
+                    <strong>Lấy theo tổng từng dòng thực tế (Khuyến nghị)</strong>{" "}
+                    &mdash; CRM sẽ lưu số liệu chuẩn xác tính từ từng dịch vụ cấu
+                    thành tour.
+                  </span>
+                </Radio>
+                <Radio
+                  value="PRESERVE_EXCEL_SUMMARY"
+                  className="text-xs font-semibold text-slate-800"
+                >
+                  <span>
+                    <strong>Giữ nguyên con số tổng trong file Excel</strong>{" "}
+                    &mdash; CRM ghi nhận số tổng từ ô tóm tắt của file Excel và
+                    lưu chênh lệch vào hồ sơ đối soát.
+                  </span>
+                </Radio>
+              </Radio.Group>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 4. DỮ LIỆU THÔ EXCEL (8 CỘT GỐC ĐỂ KIỂM TRA LỖI NHẬP)                    */}
       {/* ========================================================================= */}
       {activeTab === "RAW" && (
         <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
@@ -776,7 +1552,9 @@ export function ImportPreviewTable({
                         }`}
                       >
                         <td
-                          className={`py-2.5 px-3 text-center font-medium ${isError ? "text-rose-600 font-bold" : "text-slate-500"}`}
+                          className={`py-2.5 px-3 text-center font-medium ${
+                            isError ? "text-rose-600 font-bold" : "text-slate-500"
+                          }`}
                         >
                           {row.stt}
                         </td>
@@ -825,7 +1603,7 @@ export function ImportPreviewTable({
                         <td className="py-2.5 px-3.5">
                           {isError ? (
                             <span className="inline-flex items-center gap-1.5 text-rose-600 font-bold text-xs bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                              <CloseCircleFilled className="text-rose-500 text-xs" />
+                              <CloseCircleOutlined className="text-rose-500 text-xs" />
                               {row.statusMessage}
                             </span>
                           ) : (
