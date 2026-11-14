@@ -5,6 +5,7 @@ import { App as AntdApp } from 'antd';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import DossierDetailView from '@/components/dossiers/DossierDetailView';
+import { DossierHeader } from '@/components/dossiers/detail/components/DossierHeader';
 import { DossierDetailTabs } from '@/components/dossiers/detail/components/DossierDetailTabs';
 import { useDossierUIStore } from '@/components/dossiers/detail/stores/useDossierUIStore';
 import { useDossierActiveEstimate } from '@/components/dossiers/detail/hooks/useDossierActiveEstimate';
@@ -507,6 +508,109 @@ describe('Phase 56: Comprehensive Bugfix & Architecture Regression Suite', () =>
         expect(formatCurrency(500, { compact: true, showSymbol: false })).toBe('500');
         expect(formatCurrency(1000000, { showSymbol: false })).toBe('1.000.000');
         expect(formatCurrency(5000, { currency: 'USD', showSymbol: false })).toBe('5,000.00');
+      });
+    });
+
+    describe('Ticket 04: Dossier Delete Action Role-Based Permissions & Danger Modal Regression', () => {
+      it('nút Xóa hiển thị đúng theo vai trò và mở Modal xác nhận mã hồ sơ đối với hồ sơ hoàn tất', async () => {
+        useAuthStore.setState({
+          user: {
+            id: 'ceo-admin-id',
+            email: 'ceo@optrip.vn',
+            fullName: 'Ban Giám Đốc',
+            roles: ['CEO_ADMIN'],
+            permissions: ['dossier.delete', 'dossier.view'],
+          } as any,
+        });
+
+        const completedDossier = {
+          id: 'dos-completed-1',
+          code: '380604-TOUR-CONG-TY-ABC',
+          status: 'COMPLETED',
+          salesUserId: 'sales-1',
+        };
+
+        (dossiersService.deleteDossier as jest.Mock).mockResolvedValueOnce({
+          success: true,
+          data: { id: 'dos-completed-1', isDeleted: true },
+        });
+
+        const testClient = new QueryClient({
+          defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+        });
+
+        render(
+          <QueryClientProvider client={testClient}>
+            <DossierHeader dossier={completedDossier} isCeoAdmin={true} hasPayments={false} />
+          </QueryClientProvider>,
+        );
+
+        // Nút Xóa hồ sơ khả dụng
+        const deleteBtn = screen.getByRole('button', {
+          name: /Xóa hồ sơ 380604-TOUR-CONG-TY-ABC/i,
+        });
+        expect(deleteBtn).toBeEnabled();
+
+        // Click mở Danger Modal
+        fireEvent.click(deleteBtn);
+
+        // Hiển thị modal nguy cơ cao
+        expect(screen.getByText('Xác nhận xóa hồ sơ nguy cơ cao')).toBeInTheDocument();
+        const confirmBtn = screen.getByRole('button', {
+          name: /Xác nhận xóa vĩnh viễn/i,
+        });
+        expect(confirmBtn).toBeDisabled();
+
+        // Nhập đúng mã hồ sơ và lý do
+        const codeInput = screen.getByLabelText(/Nhập lại mã hồ sơ để xác nhận/i);
+        fireEvent.change(codeInput, { target: { value: '380604-TOUR-CONG-TY-ABC' } });
+        const reasonInput = screen.getByLabelText(/Lý do xóa hồ sơ/i);
+        fireEvent.change(reasonInput, { target: { value: 'Xóa hồ sơ kiểm thử' } });
+
+        expect(confirmBtn).toBeEnabled();
+        fireEvent.click(confirmBtn);
+
+        await waitFor(() => {
+          expect(dossiersService.deleteDossier).toHaveBeenCalledWith(
+            'dos-completed-1',
+            'Xóa hồ sơ kiểm thử',
+          );
+        });
+      });
+
+      it('khóa nút Xóa với Sales thường khi xem hồ sơ của đồng nghiệp', () => {
+        useAuthStore.setState({
+          user: {
+            id: 'sales-user-1',
+            email: 'sales1@optrip.vn',
+            fullName: 'Sales Một',
+            roles: ['SALES'],
+            permissions: ['dossier.delete', 'dossier.view'],
+          } as any,
+        });
+
+        const colleagueDossier = {
+          id: 'dos-colleague-1',
+          code: 'DOS-2026-COLLEAGUE',
+          status: 'DRAFT',
+          salesUserId: 'sales-user-2',
+          createdBy: 'sales-user-2',
+        };
+
+        const testClient = new QueryClient({
+          defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+        });
+
+        render(
+          <QueryClientProvider client={testClient}>
+            <DossierHeader dossier={colleagueDossier} hasPayments={false} />
+          </QueryClientProvider>,
+        );
+
+        const deleteBtn = screen.getByRole('button', {
+          name: /Xóa hồ sơ DOS-2026-COLLEAGUE \(vô hiệu\)/i,
+        });
+        expect(deleteBtn).toBeDisabled();
       });
     });
   });

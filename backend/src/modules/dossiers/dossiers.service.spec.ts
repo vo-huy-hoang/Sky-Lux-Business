@@ -469,6 +469,56 @@ describe('DossiersService', () => {
       );
     });
 
+    it('should allow owner or operator to delete NEED_CHANGES dossier', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        status: DossierStatus.NEED_CHANGES,
+        salesUserId: mockUserPayload.id,
+      });
+
+      await service.remove(mockUserPayload, 'dossier-uuid', 'Xóa hồ sơ cần chỉnh sửa');
+
+      expect(mockEntityManager.softRemove).toHaveBeenCalledWith(
+        Dossier,
+        expect.objectContaining({ id: 'dossier-uuid' }),
+      );
+    });
+
+    it('should allow owner to delete CANCELLED dossier', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        status: DossierStatus.CANCELLED,
+        salesUserId: mockUserPayload.id,
+      });
+
+      await service.remove(mockUserPayload, 'dossier-uuid', 'Xóa hồ sơ đã hủy');
+
+      expect(mockEntityManager.softRemove).toHaveBeenCalledWith(
+        Dossier,
+        expect.objectContaining({ id: 'dossier-uuid' }),
+      );
+    });
+
+    it('should allow operator to delete draft dossier', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        status: DossierStatus.DRAFT,
+        salesUserId: 'another-sales-id',
+      });
+      const operatorPayload = {
+        ...mockUserPayload,
+        id: 'operator-user-id',
+        roles: ['OPERATOR'],
+      };
+
+      await service.remove(operatorPayload, 'dossier-uuid', 'Điều hành dọn dẹp nháp');
+
+      expect(mockEntityManager.softRemove).toHaveBeenCalledWith(
+        Dossier,
+        expect.objectContaining({ id: 'dossier-uuid' }),
+      );
+    });
+
     it('should block deletion and throw ConflictException if dossier has actual collected payments', async () => {
       repository.findOne.mockResolvedValue({
         ...mockDossier,
