@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import {
   Table,
   Button,
@@ -15,6 +15,7 @@ import {
   Tooltip,
   Modal,
   Alert,
+  Progress,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -41,34 +42,17 @@ import dayjs from 'dayjs';
 import { formatCurrency } from '@/lib/financial-calculations';
 import { queryKeys } from '@/lib/query-keys';
 import { useDebounce } from '@/hooks/use-debounce';
-
+import {
+  parseSupplierExcel,
+  SupplierImportParseResult,
+} from '../utils/excel-supplier-parser';
+import {
+  stripVietnameseDiacritics,
+  getCategoryBadgeColor,
+} from '@/components/dossiers/edit-import/utils/supplier-category-matcher';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
-
-interface SupplierImportRow {
-  sourceRow: number;
-  input: CreateSupplierInput;
-}
-
-interface SupplierImportPreview {
-  fileName: string;
-  sheetName: string;
-  rows: SupplierImportRow[];
-  errors: string[];
-}
-
-const normalizeExcelHeader = (value: unknown) =>
-  String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/đ/g, 'd')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-
-const excelCellText = (value: unknown) =>
-  value === null || value === undefined ? '' : String(value).trim();
 
 export function SupplierManagementContent() {
   const { message } = App.useApp();
@@ -89,9 +73,26 @@ export function SupplierManagementContent() {
     null,
   );
   const importFileRef = useRef<HTMLInputElement>(null);
-  const [importPreview, setImportPreview] = useState<SupplierImportPreview | null>(null);
+  const [importPreview, setImportPreview] = useState<SupplierImportParseResult | null>(null);
+  const [previewSearchText, setPreviewSearchText] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [importResultErrors, setImportResultErrors] = useState<string[]>([]);
+
+  const filteredPreviewRows = useMemo(() => {
+    if (!importPreview?.rows) return [];
+    if (!previewSearchText.trim()) return importPreview.rows;
+    const searchLower = stripVietnameseDiacritics(previewSearchText);
+    return importPreview.rows.filter((row) => {
+      const code = stripVietnameseDiacritics(row.input.code || '');
+      const name = stripVietnameseDiacritics(row.input.name || '');
+      const type = stripVietnameseDiacritics(row.input.supplierTypeName || '');
+      return (
+        code.includes(searchLower) ||
+        name.includes(searchLower) ||
+        type.includes(searchLower)
+      );
+    });
+  }, [importPreview?.rows, previewSearchText]);
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: queryKeys.suppliers.list({
@@ -152,128 +153,59 @@ export function SupplierManagementContent() {
     if (!file) return;
 
     try {
-      const XLSX = await import('xlsx');
-      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-      const sheetName = workbook.SheetNames[0];
-      if (!sheetName) {
-        message.error('File Excel không có sheet nào để nhập');
-        return;
-      }
+      const buffer = await file.arrayBuffer();
+      const parseResult = await parseSupplierExcel(buffer, file.name);
 
-      const worksheet = workbook.Sheets[sheetName];
-      const matrix = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
-        header: 1,
-        defval: '',
-        raw: false,
-      });
-      const headerRowIndex = matrix.findIndex((row) => {
-        const normalized = row.map(normalizeExcelHeader);
-        return (
-          normalized.some((value) => ['ma ncc', 'ma nha cung cap', 'code'].includes(value)) &&
-          normalized.some((value) => ['ten nha cung cap', 'ten ncc', 'name'].includes(value))
+      if (parseResult.rows.length === 0) {
+        message.error(
+          parseResult.errors[0] ||
+            'Sheet đầu tiên không có dòng nhà cung cấp hợp lệ',
         );
-      });
-
-      if (headerRowIndex < 0) {
-        message.error('Không tìm thấy dòng tiêu đề có cột Mã NCC và Tên nhà cung cấp');
         return;
       }
 
-      const headers = matrix[headerRowIndex].map(normalizeExcelHeader);
-      const findColumn = (aliases: string[]) =>
-        headers.findIndex((header) => aliases.includes(header));
-      const codeColumn = findColumn(['ma ncc', 'ma nha cung cap', 'code']);
-      const nameColumn = findColumn(['ten nha cung cap', 'ten ncc', 'name']);
-      const typeColumn = findColumn(['loai ncc', 'loai nha cung cap', 'supplier type']);
-      const contactColumn = findColumn(['nguoi lien he', 'contact name', 'contact']);
-      const taxCodeColumn = findColumn(['ma so thue', 'tax code', 'tax id']);
-      const phoneColumn = findColumn(['dien thoai', 'so dien thoai', 'phone']);
-      const emailColumn = findColumn(['email', 'thu dien tu']);
-      const addressColumn = findColumn(['dia chi', 'address']);
-      const paymentTermsColumn = findColumn(['dieu khoan thanh toan', 'payment terms']);
-
-      const rows: SupplierImportRow[] = [];
-      const errors: string[] = [];
-      const seenCodes = new Set<string>();
-      matrix.slice(headerRowIndex + 1).forEach((row, index) => {
-        const sourceRow = headerRowIndex + index + 2;
-        const code = excelCellText(row[codeColumn]);
-        const name = excelCellText(row[nameColumn]);
-        if (!code && !name) return;
-        if (!code || !name) {
-          errors.push(`Dòng ${sourceRow}: thiếu ${!code ? 'Mã NCC' : 'Tên nhà cung cấp'}`);
-          return;
-        }
-        const normalizedCode = code.toLocaleLowerCase();
-        if (seenCodes.has(normalizedCode)) {
-          errors.push(`Dòng ${sourceRow}: mã NCC "${code}" bị lặp trong file`);
-          return;
-        }
-        seenCodes.add(normalizedCode);
-
-        const optionalValue = (column: number) =>
-          column < 0 ? undefined : excelCellText(row[column]) || undefined;
-        rows.push({
-          sourceRow,
-          input: {
-            code,
-            name,
-            supplierTypeName: optionalValue(typeColumn),
-            contactName: optionalValue(contactColumn),
-            taxCode: optionalValue(taxCodeColumn),
-            phone: optionalValue(phoneColumn),
-            email: optionalValue(emailColumn),
-            address: optionalValue(addressColumn),
-            paymentTerms: optionalValue(paymentTermsColumn),
-          },
-        });
-      });
-
-      if (rows.length === 0) {
-        message.error(errors[0] || 'Sheet đầu tiên không có dòng nhà cung cấp hợp lệ');
-        return;
-      }
       setImportResultErrors([]);
-      setImportPreview({ fileName: file.name, sheetName, rows, errors });
+      setPreviewSearchText('');
+      setImportPreview(parseResult);
     } catch {
-      message.error('Không đọc được file Excel. Vui lòng chọn file .xlsx hoặc .xls hợp lệ.');
+      message.error(
+        'Không đọc được file Excel. Vui lòng chọn file .xlsx hoặc .xls hợp lệ.',
+      );
     }
   };
 
   const handleImportSuppliers = async () => {
-    if (!importPreview || isImporting) return;
+    if (!importPreview || isImporting || importPreview.rows.length === 0) return;
     setIsImporting(true);
-    const failedRows: SupplierImportRow[] = [];
-    const errors: string[] = [];
-    let importedCount = 0;
+    setImportResultErrors([]);
 
-    for (const row of importPreview.rows) {
-      try {
-        await suppliersService.createSupplier(row.input);
-        importedCount += 1;
-      } catch (error: any) {
-        failedRows.push(row);
-        const reason =
-          error?.response?.data?.message ||
-          error?.message ||
-          'Không thể tạo nhà cung cấp';
-        errors.push(`Dòng ${row.sourceRow} (${row.input.code}): ${reason}`);
-      }
-    }
+    try {
+      const payload = importPreview.rows.map((row) => row.input);
+      const res = await suppliersService.batchCreateSuppliers({
+        suppliers: payload,
+      });
+      const importedCount = res.imported ?? payload.length;
 
-    await queryClient.invalidateQueries({ queryKey: queryKeys.suppliers.all });
-    setIsImporting(false);
-    setImportResultErrors(errors);
-    if (errors.length === 0) {
-      message.success(`Đã nhập ${importedCount} nhà cung cấp`);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.suppliers.all });
+      setIsImporting(false);
+      setImportResultErrors([]);
+      message.success(
+        `Đã nhập thành công ${importedCount} nhà cung cấp vào hệ thống`,
+      );
       setImportPreview(null);
-      return;
-    }
-    setImportPreview({ ...importPreview, rows: failedRows });
-    if (importedCount > 0) {
-      message.warning(`Đã nhập ${importedCount}; còn ${failedRows.length} dòng cần xử lý`);
-    } else {
-      message.error(`Chưa nhập được dữ liệu; ${failedRows.length} dòng gặp lỗi`);
+      setPreviewSearchText('');
+    } catch (error: any) {
+      setIsImporting(false);
+      const rawMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Có lỗi xảy ra khi nhập danh sách nhà cung cấp';
+
+      const errorList = Array.isArray(rawMessage)
+        ? rawMessage
+        : [String(rawMessage)];
+      setImportResultErrors(errorList);
+      message.error(errorList[0] || 'Nhập danh sách nhà cung cấp thất bại');
     }
   };
 
@@ -568,35 +500,55 @@ export function SupplierManagementContent() {
       <Modal
         title="Import nhà cung cấp từ Excel"
         open={Boolean(importPreview)}
+        destroyOnHidden
         onCancel={() => {
           if (isImporting) return;
           setImportPreview(null);
           setImportResultErrors([]);
+          setPreviewSearchText('');
         }}
         onOk={handleImportSuppliers}
         confirmLoading={isImporting}
         okButtonProps={{ disabled: !importPreview?.rows.length || isImporting }}
         cancelButtonProps={{ disabled: isImporting }}
         mask={{ closable: !isImporting }}
-        okText={importResultErrors.length ? 'Thử nhập lại dòng lỗi' : 'Import nhà cung cấp'}
+        okText={isImporting ? 'Đang import...' : 'Tiến hành import'}
         cancelText="Đóng"
-        width={760}
+        width={860}
       >
         {importPreview && (
           <div className="space-y-3">
-            <Text>
-              File <Text strong>{importPreview.fileName}</Text>, sheet đầu tiên{' '}
-              <Text strong>{importPreview.sheetName}</Text>: {importPreview.rows.length}{' '}
-              {importResultErrors.length ? 'dòng còn lại cần xử lý' : 'dòng hợp lệ'}.
-            </Text>
-            <Text type="secondary" className="block">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Text>
+                File <Text strong>{importPreview.fileName}</Text>, sheet đầu tiên{' '}
+                <Text strong>{importPreview.sheetName}</Text>:{' '}
+                <Text strong className="text-emerald-700">
+                  {importPreview.rows.length}
+                </Text>{' '}
+                dòng hợp lệ sẵn sàng import.
+              </Text>
+              {importPreview.strategyUsed === 'PATTERN_BASED' && (
+                <Tag color="cyan" className="m-0 text-xs">
+                  Tự động nhận diện tiền tố dịch vụ
+                </Tag>
+              )}
+            </div>
+            <Text type="secondary" className="block text-xs">
               Mỗi dòng được tạo thành một nhà cung cấp. Dữ liệu trống được bỏ qua; cột thành tiền không được import.
             </Text>
+            {isImporting && (
+              <div className="py-2">
+                <Text strong className="text-emerald-700 block mb-1 text-xs">
+                  Đang ghi nhận hàng loạt vào cơ sở dữ liệu...
+                </Text>
+                <Progress percent={100} status="active" showInfo={false} />
+              </div>
+            )}
             {!!importPreview.errors.length && (
               <Alert
                 type="warning"
                 showIcon
-                title={`${importPreview.errors.length} dòng không hợp lệ sẽ được bỏ qua`}
+                message={`${importPreview.errors.length} dòng không hợp lệ sẽ được bỏ qua`}
                 description={importPreview.errors.slice(0, 5).join(' · ')}
               />
             )}
@@ -604,29 +556,87 @@ export function SupplierManagementContent() {
               <Alert
                 type="error"
                 showIcon
-                title={`${importResultErrors.length} dòng chưa import được`}
+                message="Nhập dữ liệu không thành công (Giao dịch đã được hoàn tác)"
                 description={(
                   <div style={{ maxHeight: 120, overflowY: 'auto' }}>
-                    {importResultErrors.map((error) => <div key={error}>{error}</div>)}
+                    {importResultErrors.map((error, idx) => (
+                      <div key={idx}>{error}</div>
+                    ))}
                   </div>
                 )}
               />
             )}
+
+            {/* Quick search input */}
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <Input
+                size="small"
+                placeholder="Tìm kiếm nhanh trong danh sách xem trước (Mã, Tên, Loại)..."
+                prefix={<SearchOutlined className="text-slate-400 text-xs" />}
+                value={previewSearchText}
+                onChange={(e) => setPreviewSearchText(e.target.value)}
+                allowClear
+                className="max-w-xs text-xs"
+              />
+              {previewSearchText && (
+                <Text type="secondary" className="text-xs shrink-0">
+                  Tìm thấy {filteredPreviewRows.length} / {importPreview.rows.length} dòng
+                </Text>
+              )}
+            </div>
+
             <Table
               size="small"
-              pagination={false}
               rowKey="sourceRow"
-              dataSource={importPreview.rows.slice(0, 8)}
+              dataSource={filteredPreviewRows}
+              scroll={{ y: 360 }}
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: true,
+                pageSizeOptions: ['10', '20', '50', '100'],
+                showTotal: (total, range) =>
+                  `${range[0]}-${range[1]} của ${total} dòng hợp lệ`,
+                size: 'small',
+              }}
               columns={[
-                { title: 'Dòng', dataIndex: 'sourceRow', key: 'sourceRow', width: 64 },
-                { title: 'Mã NCC', dataIndex: ['input', 'code'], key: 'code', width: 110 },
-                { title: 'Tên nhà cung cấp', dataIndex: ['input', 'name'], key: 'name' },
-                { title: 'Loại NCC', dataIndex: ['input', 'supplierTypeName'], key: 'type', width: 150 },
+                {
+                  title: 'Dòng',
+                  dataIndex: 'sourceRow',
+                  key: 'sourceRow',
+                  width: 68,
+                  align: 'center',
+                },
+                {
+                  title: 'Mã NCC',
+                  dataIndex: ['input', 'code'],
+                  key: 'code',
+                  width: 120,
+                  render: (code: string) => <Text strong>{code}</Text>,
+                },
+                {
+                  title: 'Tên nhà cung cấp',
+                  dataIndex: ['input', 'name'],
+                  key: 'name',
+                },
+                {
+                  title: 'Loại NCC',
+                  dataIndex: ['input', 'supplierTypeName'],
+                  key: 'type',
+                  width: 160,
+                  render: (type?: string) =>
+                    type ? (
+                      <Tag
+                        color={getCategoryBadgeColor(type)}
+                        className="text-[11px] px-1.5 py-0 border-none font-normal"
+                      >
+                        {type}
+                      </Tag>
+                    ) : (
+                      <span className="text-slate-400 italic text-[11px]">-</span>
+                    ),
+                },
               ]}
             />
-            {importPreview.rows.length > 8 && (
-              <Text type="secondary">Đang xem trước 8 dòng đầu tiên.</Text>
-            )}
           </div>
         )}
       </Modal>

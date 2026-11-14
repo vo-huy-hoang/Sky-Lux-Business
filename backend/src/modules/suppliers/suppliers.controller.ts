@@ -21,6 +21,7 @@ import {
 import { SuppliersService } from './suppliers.service';
 import { QuerySupplierDto } from './dto/query-supplier.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
+import { BatchCreateSuppliersDto } from './dto/batch-create-suppliers.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { QuerySupplierDossiersDto } from './dto/query-supplier-dossiers.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -84,6 +85,23 @@ export class SuppliersController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.suppliersService.findOne(user, id);
+  }
+
+  @Post('batch')
+  @RequirePermissions('supplier.manage')
+  @ApiOperation({
+    summary: 'Nhập hàng loạt nhà cung cấp trong một giao dịch (API-SUPPLIER-BATCH)',
+  })
+  @ApiResponse({ status: 201, description: 'Nhập hàng loạt thành công' })
+  @ApiResponse({ status: 400, description: 'Dữ liệu đầu vào không hợp lệ' })
+  @ApiResponse({ status: 401, description: 'Chưa xác thực JWT' })
+  @ApiResponse({ status: 403, description: 'Không có quyền truy cập' })
+  @ApiResponse({ status: 409, description: 'Trùng lặp mã nhà cung cấp' })
+  batchCreate(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() batchCreateSuppliersDto: BatchCreateSuppliersDto,
+  ) {
+    return this.suppliersService.batchCreate(user, batchCreateSuppliersDto);
   }
 
   @Post()

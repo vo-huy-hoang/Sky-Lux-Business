@@ -45,6 +45,16 @@ export interface CreateSupplierInput {
 
 export type UpdateSupplierInput = Partial<CreateSupplierInput>;
 
+export interface BatchCreateSuppliersInput {
+  suppliers: CreateSupplierInput[];
+}
+
+export interface BatchCreateSuppliersResponse {
+  total: number;
+  imported: number;
+  items?: SupplierItem[];
+}
+
 export interface QuerySupplierParams {
   page?: number;
   limit?: number;

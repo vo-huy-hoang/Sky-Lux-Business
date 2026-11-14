@@ -21,6 +21,7 @@ describe('SuppliersController', () => {
     findAll: jest.fn(),
     findOne: jest.fn(),
     create: jest.fn(),
+    batchCreate: jest.fn(),
     update: jest.fn(),
     remove: jest.fn(),
     getSupplierDossierHistory: jest.fn(),
@@ -93,6 +94,34 @@ describe('SuppliersController', () => {
 
       expect(service.create).toHaveBeenCalledWith(mockUserPayload, createDto);
       expect(result).toEqual(mockSupplier);
+    });
+  });
+
+  describe('batchCreate', () => {
+    it('should call service.batchCreate and return summary and created suppliers', async () => {
+      const batchDto = {
+        suppliers: [
+          { code: 'SUP-001', name: 'Supplier One' },
+          { code: 'SUP-002', name: 'Supplier Two' },
+        ],
+      };
+      const mockResult = {
+        total: 2,
+        imported: 2,
+        items: [
+          { id: 'uuid-1', code: 'SUP-001', name: 'Supplier One' },
+          { id: 'uuid-2', code: 'SUP-002', name: 'Supplier Two' },
+        ],
+      };
+      mockSuppliersService.batchCreate.mockResolvedValue(mockResult);
+
+      const result = await controller.batchCreate(mockUserPayload, batchDto);
+
+      expect(service.batchCreate).toHaveBeenCalledWith(
+        mockUserPayload,
+        batchDto,
+      );
+      expect(result).toEqual(mockResult);
     });
   });
 

@@ -50,16 +50,34 @@ describe('SuppliersService', () => {
     getManyAndCount: jest.fn(),
   };
 
+  const resolveRepo = (target: any) => {
+    if (target === Supplier) return mockSupplierRepository;
+    if (target === SupplierType) return mockSupplierTypeRepository;
+    return mockSupplierRepository;
+  };
+
+  const mockTransactionalManager = {
+    getRepository: jest.fn((target: any) => resolveRepo(target)),
+  };
+
   const mockSupplierRepository = {
     createQueryBuilder: jest.fn(() => mockQueryBuilder),
     findOne: jest.fn(),
+    find: jest.fn(),
     create: jest.fn((dto) => dto),
     save: jest.fn(),
     softRemove: jest.fn(),
+    manager: {
+      transaction: jest.fn((cb) => cb(mockTransactionalManager)),
+      getRepository: jest.fn((target: any) => resolveRepo(target)),
+    },
   };
 
   const mockSupplierTypeRepository = {
     findOne: jest.fn(),
+    find: jest.fn(),
+    create: jest.fn((dto) => dto),
+    save: jest.fn(),
   };
 
   const mockCostLineQB = {
@@ -272,6 +290,88 @@ describe('SuppliersService', () => {
       );
       expect(supplierRepository.save).toHaveBeenCalled();
       expect(result).toEqual(mockSupplier);
+    });
+  });
+
+  describe('batchCreate', () => {
+    it('should return empty result when suppliers list is empty', async () => {
+      const result = await service.batchCreate(mockUserPayload, {
+        suppliers: [],
+      });
+      expect(result).toEqual({ total: 0, imported: 0, items: [] });
+    });
+
+    it('should throw ConflictException if duplicate supplier codes exist in payload', async () => {
+      const batchDto = {
+        suppliers: [
+          { code: 'DUPLICATE_CODE', name: 'Supplier A' },
+          { code: 'DUPLICATE_CODE', name: 'Supplier B' },
+        ],
+      };
+
+      await expect(
+        service.batchCreate(mockUserPayload, batchDto),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should throw ConflictException if supplier code already exists in DB for this organization', async () => {
+      supplierRepository.find.mockResolvedValueOnce([
+        { id: 'existing-id', code: 'EXISTING_01' } as any,
+      ]);
+
+      const batchDto = {
+        suppliers: [
+          { code: 'EXISTING_01', name: 'Supplier A' },
+          { code: 'NEW_02', name: 'Supplier B' },
+        ],
+      };
+
+      await expect(
+        service.batchCreate(mockUserPayload, batchDto),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should batch create suppliers in a transaction and auto-create supplier types', async () => {
+      supplierRepository.find.mockResolvedValueOnce([]); // No DB duplicate
+      supplierTypeRepository.findOne
+        .mockResolvedValueOnce(null) // No existing tenant type
+        .mockResolvedValueOnce(null) // No existing system type
+        .mockResolvedValueOnce(null); // Code uniqueness check passes
+      supplierTypeRepository.save.mockResolvedValueOnce({
+        id: 'new-type-uuid',
+        code: 'NHA-HANG',
+        name: 'Nhà hàng',
+      } as any);
+
+      const savedEntities = [
+        {
+          id: 'sup-1',
+          code: 'SUP_BATCH_1',
+          name: 'Nhà hàng Hoa Sen',
+          supplierTypeId: 'new-type-uuid',
+        },
+      ];
+      supplierRepository.save.mockResolvedValueOnce(savedEntities as any);
+
+      const batchDto = {
+        suppliers: [
+          {
+            code: 'SUP_BATCH_1',
+            name: 'Nhà hàng Hoa Sen',
+            supplierTypeName: 'Nhà hàng',
+          },
+        ],
+      };
+
+      const result = await service.batchCreate(mockUserPayload, batchDto);
+
+      expect(result.total).toBe(1);
+      expect(result.imported).toBe(1);
+      expect(result.items).toHaveLength(1);
+      expect(supplierRepository.save).toHaveBeenCalledWith(
+        expect.any(Array),
+        { chunk: 100 },
+      );
     });
   });
 
