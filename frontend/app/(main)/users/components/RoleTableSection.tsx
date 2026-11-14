@@ -1,17 +1,30 @@
 'use client';
 
 import React from 'react';
-import { Table, Button, Tag, Space, Input, Badge, Tooltip } from 'antd';
+import {
+  App,
+  Table,
+  Button,
+  Tag,
+  Space,
+  Input,
+  Badge,
+  Tooltip,
+  Popconfirm,
+} from 'antd';
 import {
   SafetyCertificateOutlined,
   PlusOutlined,
   EditOutlined,
   SearchOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
-import { RoleItem } from '@/services/rbac.service';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { rbacService, type RoleItem } from '@/services/rbac.service';
 import { useRbacStore } from '../store';
 import { useShallow } from 'zustand/react/shallow';
 import { themeTokens } from '@/lib/theme/tokens.config';
+import { queryKeys } from '@/lib/query-keys';
 
 export interface RoleTableSectionProps {
   roles: RoleItem[];
@@ -22,6 +35,8 @@ export default function RoleTableSection({
   roles,
   isLoading,
 }: RoleTableSectionProps) {
+  const { message, modal } = App.useApp();
+  const queryClient = useQueryClient();
   const {
     roleSearch,
     setRoleSearch,
@@ -37,6 +52,32 @@ export default function RoleTableSection({
       openPermMatrix: s.openPermMatrix,
     })),
   );
+
+  const deleteRoleMutation = useMutation({
+    mutationFn: ({ id, force = false }: { id: string; force?: boolean }) =>
+      rbacService.deleteRole(id, force),
+    onSuccess: () => {
+      message.success('Đã xóa vai trò');
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.roles() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+    },
+    onError: (error: any, variables) => {
+      if (error?.code === 'ROLE_HAS_ASSIGNED_USERS' && !variables.force) {
+        const assignedCount = error?.response?.data?.details?.count;
+        modal.confirm({
+          title: 'Vai trò đang được gán cho nhân viên',
+          content: `Xóa vai trò sẽ gỡ vai trò này khỏi ${assignedCount ?? 'các'} nhân viên đang được gán. Bạn có muốn tiếp tục không?`,
+          okText: 'Xóa và gỡ vai trò',
+          cancelText: 'Hủy',
+          okButtonProps: { danger: true },
+          onOk: () => deleteRoleMutation.mutateAsync({ id: variables.id, force: true }),
+        });
+        return;
+      }
+
+      message.error(error?.message || 'Không thể xóa vai trò');
+    },
+  });
 
   const roleColumns = [
     {
@@ -110,6 +151,29 @@ export default function RoleTableSection({
           >
             Phân quyền
           </Button>
+          {!record.isSystem && (
+            <Popconfirm
+              title="Xóa vai trò này?"
+              description="Vai trò sẽ bị xóa mềm. Nếu đang được gán, hệ thống sẽ hỏi xác nhận trước khi gỡ khỏi nhân viên."
+              onConfirm={() => deleteRoleMutation.mutate({ id: record.id })}
+              okText="Xóa"
+              cancelText="Hủy"
+              okButtonProps={{ danger: true }}
+            >
+              <Tooltip title="Xóa vai trò">
+                <Button
+                  size="small"
+                  danger
+                  aria-label={`Xóa vai trò ${record.name}`}
+                  icon={<DeleteOutlined />}
+                  loading={
+                    deleteRoleMutation.isPending &&
+                    deleteRoleMutation.variables?.id === record.id
+                  }
+                />
+              </Tooltip>
+            </Popconfirm>
+          )}
         </Space>
       ),
     },
