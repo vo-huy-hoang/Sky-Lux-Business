@@ -39,13 +39,33 @@ export class RolesService {
     organizationId: string,
     actorUserId?: string,
   ): Promise<Role> {
-    const exists = await this.roleRepository.findOne({
+    const existingRole = await this.roleRepository.findOne({
       where: { organizationId, code: createRoleDto.code },
+      withDeleted: true,
     });
-    if (exists) {
+
+    if (existingRole && !existingRole.deletedAt) {
       throw new ConflictException(
         `Mã vai trò "${createRoleDto.code}" đã tồn tại trong tổ chức`,
       );
+    }
+
+    if (existingRole?.deletedAt) {
+      // Role codes remain unique across soft-deleted rows. Restore the prior role
+      // so canonical codes such as SALES can be reused without a DB constraint error.
+      existingRole.name = createRoleDto.name;
+      existingRole.description = createRoleDto.description;
+      const restoredRole = await this.roleRepository.recover(existingRole);
+      const savedRole = await this.roleRepository.save(restoredRole);
+      await this.auditLogsService.record({
+        organizationId,
+        actorUserId,
+        action: AuditAction.ROLE_CREATED,
+        entityType: AuditEntityType.ROLE,
+        entityId: savedRole.id,
+        afterData: this.auditSnapshot(savedRole),
+      });
+      return savedRole;
     }
 
     const role = this.roleRepository.create({
@@ -54,7 +74,21 @@ export class RolesService {
       isSystem: false,
     });
 
-    const savedRole = await this.roleRepository.save(role);
+    let savedRole: Role;
+    try {
+      savedRole = await this.roleRepository.save(role);
+    } catch (error: any) {
+      // The unique constraint is the final guard against concurrent create requests.
+      if (
+        error?.code === '23505' &&
+        error?.constraint === 'uq_roles_org_code'
+      ) {
+        throw new ConflictException(
+          `Mã vai trò "${createRoleDto.code}" đã tồn tại trong tổ chức`,
+        );
+      }
+      throw error;
+    }
     await this.auditLogsService.record({
       organizationId,
       actorUserId,
@@ -166,8 +200,30 @@ export class RolesService {
 
     // Nếu đồng ý xóa bắt buộc (force), gỡ liên kết trong bảng trung gian user_roles trước
     if (count > 0 && force) {
+      const affectedUserIds = role.users.map((user) => user.id);
       role.users = [];
       await this.roleRepository.save(role);
+
+      // Revoke existing sessions so the removed role's permissions stop applying immediately.
+      await this.dataSource.query(
+        `UPDATE "users" SET "auth_version" = "auth_version" + 1
+         WHERE "id" = ANY($1::uuid[])`,
+        [affectedUserIds],
+      );
+
+      if (this.redisService) {
+        try {
+          await Promise.all(
+            affectedUserIds.map((userId) =>
+              this.redisService!.del(`user:auth-meta:${userId}`),
+            ),
+          );
+        } catch (err: any) {
+          this.logger.warn(
+            `Failed to invalidate auth-meta cache for users after deleting role ${role.id}: ${err?.message || err}`,
+          );
+        }
+      }
     }
 
     // Tiến hành xóa mềm vai trò

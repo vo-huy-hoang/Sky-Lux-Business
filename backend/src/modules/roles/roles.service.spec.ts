@@ -29,6 +29,7 @@ describe('RolesService', () => {
   const mockRepository = {
     create: jest.fn(),
     save: jest.fn(),
+    recover: jest.fn(),
     find: jest.fn(),
     findOne: jest.fn(),
     softRemove: jest.fn(),
@@ -113,6 +114,7 @@ describe('RolesService', () => {
 
       expect(repository.findOne).toHaveBeenCalledWith({
         where: { organizationId: orgId, code: dto.code },
+        withDeleted: true,
       });
       expect(repository.create).toHaveBeenCalled();
       expect(repository.save).toHaveBeenCalled();
@@ -124,6 +126,52 @@ describe('RolesService', () => {
         id: 'existing-uuid',
         ...dto,
       } as Role);
+
+      await expect(service.create(dto, orgId)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('should restore a soft-deleted role when its code is reused', async () => {
+      const deletedRole = {
+        id: roleId,
+        organizationId: orgId,
+        code: dto.code,
+        name: 'Old name',
+        description: 'Old description',
+        isSystem: false,
+        deletedAt: new Date(),
+      } as Role;
+      repository.findOne.mockResolvedValue(deletedRole);
+      repository.recover.mockImplementation(async (role) => ({
+        ...role,
+        deletedAt: undefined,
+      } as Role));
+      repository.save.mockImplementation(async (role) => role as Role);
+
+      const result = await service.create(dto, orgId);
+
+      expect(repository.recover).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: roleId,
+          name: dto.name,
+          description: dto.description,
+        }),
+      );
+      expect(result).toMatchObject({
+        id: roleId,
+        code: dto.code,
+        name: dto.name,
+      });
+    });
+
+    it('should return ConflictException when the database rejects a concurrent duplicate code', async () => {
+      repository.findOne.mockResolvedValue(null);
+      repository.create.mockReturnValue({ ...dto, organizationId: orgId } as Role);
+      repository.save.mockRejectedValue({
+        code: '23505',
+        constraint: 'uq_roles_org_code',
+      });
 
       await expect(service.create(dto, orgId)).rejects.toThrow(
         ConflictException,
