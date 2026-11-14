@@ -9,7 +9,7 @@ import * as xlsx from 'xlsx';
 import { ImportSession } from '../entities/import-session.entity';
 import { ImportRow } from '../entities/import-row.entity';
 import { ImportError } from '../entities/import-error.entity';
-import { ImportSessionStatus, CustomerType } from '../../../common/enums';
+import { ImportSessionStatus } from '../../../common/enums';
 import { Customer } from '../../customers/entities/customer.entity';
 import { Supplier } from '../../suppliers/entities/supplier.entity';
 import {
@@ -23,6 +23,8 @@ import {
 import {
   CustomerIdentity,
   CustomerIdentityIndex,
+  normalizeCustomerPhone,
+  normalizeCustomerEmail,
 } from './customer-identity-index';
 
 function sanitizeCellValue(value: any): string {
@@ -296,37 +298,39 @@ export class ImportProcessor extends WorkerHost {
         }
       }
 
-      // Check customer exist in organization, or auto-create if new
+      // Check customer exist in organization (strictly read-only validation)
       let customer: Customer | null = null;
+      let customerStatus: 'EXISTING' | 'NEW_TO_BE_CREATED' = 'NEW_TO_BE_CREATED';
       if (customerCode) {
         customer = await this.customerRepository.findOne({
           where: { code: customerCode, organizationId: session.organizationId },
         });
-        if (!customer) {
-          // Tự động tạo mới khách hàng từ thông tin trong file Excel
-          try {
-            const nameToUse = customerName || `Khách hàng ${customerCode}`;
-            const newCustomer = this.customerRepository.create({
-              organizationId: session.organizationId,
-              code: customerCode,
-              displayName: nameToUse,
-              customerType: CustomerType.INDIVIDUAL,
-              phone: phone || undefined,
-              email: email || undefined,
-              dateOfBirth:
-                dob && !isNaN(Date.parse(dob))
-                  ? new Date(dob).toISOString().slice(0, 10)
-                  : undefined,
-              status: 'ACTIVE',
-            });
-            customer = await this.customerRepository.save(newCustomer);
-          } catch (createErr: any) {
-            errors.push(
-              `Không thể tự động tạo mới khách hàng "${customerCode}": ${createErr?.message || 'Lỗi lưu dữ liệu'}`,
-            );
+        if (customer) {
+          customerStatus = 'EXISTING';
+        } else {
+          customerStatus = 'NEW_TO_BE_CREATED';
+        }
+      } else if (isCustomerBudget && (phone || email)) {
+        const phoneMatches = phone ? identityIndex.getPhoneMatches(phone) : [];
+        const emailMatches = email ? identityIndex.getEmailMatches(email) : [];
+        const matched = phoneMatches[0] || emailMatches[0];
+        if (matched) {
+          const isExistingMaster = !matched.id.startsWith('import-');
+          if (isExistingMaster) {
+            customer = matched as any;
+            customerStatus = 'EXISTING';
+          } else {
+            customerStatus = 'NEW_TO_BE_CREATED';
           }
+        } else {
+          customerStatus = 'NEW_TO_BE_CREATED';
         }
       }
+
+      const effectiveCustomerName =
+        customer?.displayName ||
+        customerName ||
+        (customerCode ? `Khách hàng ${customerCode}` : '');
 
       // Date parsing & logical order validation
       let validStartDate = false;
@@ -441,7 +445,15 @@ export class ImportProcessor extends WorkerHost {
         row.normalizedData = {
           code: sanitizeCellValue(code),
           name: sanitizeCellValue(name),
-          customerId: customer?.id,
+          customerId: customer?.id || undefined,
+          customerStatus,
+          customerCode: customer?.code || customerCode || undefined,
+          customerResolution: {
+            status: customerStatus,
+            ...(customer?.id ? { id: customer.id } : {}),
+            code: customer?.code || customerCode || undefined,
+            name: effectiveCustomerName || undefined,
+          },
           route: sanitizeCellValue(String(data[routeKey] || '').trim()),
           startDate: startDate
             ? new Date(startDate).toISOString().slice(0, 10)
@@ -457,8 +469,8 @@ export class ImportProcessor extends WorkerHost {
               }
             : {}),
           priority: data[priorityKey] || 'MEDIUM',
-          ...(customerName
-            ? { customerName: sanitizeCellValue(customerName) }
+          ...(effectiveCustomerName
+            ? { customerName: sanitizeCellValue(effectiveCustomerName) }
             : {}),
           ...(phone ? { phone: sanitizeCellValue(phone) } : {}),
           ...(email ? { email: sanitizeCellValue(email) } : {}),

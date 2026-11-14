@@ -108,15 +108,19 @@ describe('ImportProcessor', () => {
       expect(rowRepository.save).toHaveBeenCalled();
       const savedRow = rowRepository.save.mock.calls[0][0];
       expect(savedRow.status).toBe('VALID');
-      expect(savedRow.normalizedData).toEqual({
-        code: 'D-001',
-        name: 'My Dossier',
-        customerId: 'cust-uuid',
-        route: '',
-        startDate: undefined,
-        endDate: undefined,
-        priority: 'MEDIUM',
-      });
+      expect(savedRow.normalizedData).toEqual(
+        expect.objectContaining({
+          code: 'D-001',
+          name: 'My Dossier',
+          customerId: 'cust-uuid',
+          customerStatus: 'EXISTING',
+          customerCode: 'KH001',
+          route: '',
+          startDate: undefined,
+          endDate: undefined,
+          priority: 'MEDIUM',
+        }),
+      );
     });
 
     it('should validate using custom English column headers from template mappingConfig', async () => {
@@ -222,7 +226,7 @@ describe('ImportProcessor', () => {
       expect(errorRepository.save).toHaveBeenCalled();
     });
 
-    it('should auto-create customer when customer code does not exist in CRM', async () => {
+    it('should NOT create customer in database during validation when customer code does not exist in CRM (read-only validation)', async () => {
       const mockSession = {
         id: 'session-autocreate',
         organizationId: 'org-id',
@@ -250,19 +254,15 @@ describe('ImportProcessor', () => {
 
       await (processor as any).handleValidateRows('session-autocreate');
 
-      expect(customerRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          code: 'KH-BRAND-NEW',
-          displayName: 'Le Thi C',
-          phone: '0933445566',
-          email: 'lethic@gmail.com',
-        }),
-      );
-      expect(customerRepository.save).toHaveBeenCalled();
+      // Crucial: Customer table must NOT be mutated during validation!
+      expect(customerRepository.save).not.toHaveBeenCalled();
 
       const savedRow = rowRepository.save.mock.calls[0][0];
       expect(savedRow.status).toBe('VALID');
-      expect(savedRow.normalizedData.customerId).toBe('auto-cust-uuid');
+      expect(savedRow.normalizedData.customerId).toBeUndefined();
+      expect(savedRow.normalizedData.customerStatus).toBe('NEW_TO_BE_CREATED');
+      expect(savedRow.normalizedData.customerCode).toBe('KH-BRAND-NEW');
+      expect(savedRow.normalizedData.customerName).toBe('Le Thi C');
     });
 
     it('should allow duplicate dossier codes during import validation', async () => {

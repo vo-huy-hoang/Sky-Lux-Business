@@ -39,6 +39,8 @@ export interface ValidatedLine {
 export interface BudgetMetadata {
   tourName: string;
   customerName: string;
+  customerCode?: string;
+  customerStatus?: "EXISTING" | "NEW_TO_BE_CREATED";
   phone: string;
   email: string;
   route: string;
@@ -233,9 +235,16 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
         ),
       };
 
+      const rawCustomerStatus =
+        normalized.customerStatus ||
+        normalized.customerResolution?.status ||
+        (normalized.customerId ? "EXISTING" : "NEW_TO_BE_CREATED");
+
       metadata = {
         tourName: String(normalized.name || data["Tên hồ sơ"] || data.tourName || "").trim() || "-",
         customerName: String(normalized.customerName || data["Tên khách hàng"] || data.customerName || "").trim() || "-",
+        customerCode: String(normalized.customerCode || data["Mã khách hàng"] || data.customerCode || "").trim() || undefined,
+        customerStatus: rawCustomerStatus,
         phone: String(normalized.phone || data["Số điện thoại"] || data["Số ĐT"] || data.phone || "").trim() || "-",
         email: String(normalized.email || data["Email"] || data.email || "").trim() || "-",
         route: String(normalized.route || data["Tuyến đường"] || data.route || "").trim() || "-",
