@@ -2,6 +2,8 @@ import { apiClient, RequestOptions } from '@/lib/api-client';
 import {
   SupplierItem,
   CreateSupplierInput,
+  BatchCreateSuppliersInput,
+  BatchCreateSuppliersResponse,
   UpdateSupplierInput,
   QuerySupplierParams,
   PaginatedSuppliersResponse,
@@ -34,6 +36,16 @@ export const suppliersService = {
    */
   createSupplier: (data: CreateSupplierInput) => {
     return apiClient.post<any, SupplierItem>('/suppliers', data);
+  },
+
+  /**
+   * API-SUPPLIER-BATCH: Nhập hàng loạt nhà cung cấp trong 1 giao dịch
+   */
+  batchCreateSuppliers: (data: BatchCreateSuppliersInput) => {
+    return apiClient.post<any, BatchCreateSuppliersResponse>(
+      '/suppliers/batch',
+      data,
+    );
   },
 
   /**

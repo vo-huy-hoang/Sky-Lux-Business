@@ -22,6 +22,7 @@ import {
   EstimateBottomActionBar,
   IssueItem,
 } from '@/components/dossiers/edit-import';
+import { mapSuppliersToOptions } from '@/components/dossiers/edit-import/utils/supplier-options';
 
 export default function EditImportDossierPage() {
   const { message } = App.useApp();
@@ -69,30 +70,8 @@ export default function EditImportDossierPage() {
   });
 
   const supplierOptions = useMemo(() => {
-    const list = (suppliersData?.data || []).map(
-      (supplier: SupplierItem, index) => {
-        // Legacy/imported rows may not include an id in the API response.
-        // Never let Select fall back to supplier names, which may repeat.
-        const identity = supplier.id || supplier.code || `row-${index}`;
-        return {
-          key: `supplier-${identity}-${index}`,
-          label: supplier.name,
-          value: supplier.id || supplier.code || `supplier-row-${index}`,
-          id: supplier.id,
-        };
-      },
-    );
-    if (list.length === 0) {
-      return [
-        { label: 'Vietnam Airlines', value: 'Vietnam Airlines' },
-        { label: 'Hotel Boss', value: 'Hotel Boss' },
-        { label: 'Marina Bay Sands', value: 'Marina Bay Sands' },
-        { label: 'TransViet', value: 'TransViet' },
-        { label: 'VN Guide', value: 'VN Guide' },
-      ];
-    }
-    return list;
-  }, [suppliersData?.data]);
+    return mapSuppliersToOptions(suppliersData);
+  }, [suppliersData]);
 
   // 5. Encapsulated Estimate State and Domain Hook
   const {
