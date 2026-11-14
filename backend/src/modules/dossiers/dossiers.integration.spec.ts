@@ -134,6 +134,8 @@ describe('Dossiers Module (Integration)', () => {
             transaction: jest.fn(async (cb: any) =>
               cb({
                 getRepository: jest.fn(() => mockDossierRepository),
+                find: jest.fn().mockResolvedValue([]),
+                softRemove: jest.fn().mockImplementation(async (target, entity) => entity || target),
               }),
             ),
           },
@@ -379,6 +381,26 @@ describe('Dossiers Module (Integration)', () => {
       expect(result.data.id).toEqual('new-comm-uuid');
       expect((result.data.user as any).passwordHash).toBeUndefined();
       expect((result.data.user as any).refreshTokenHash).toBeUndefined();
+    });
+  });
+
+  describe('DELETE /api/dossiers/:id (remove)', () => {
+    it('Chặn người dùng xóa hồ sơ của tổ chức khác (404/Cross-tenant)', async () => {
+      dossierRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        controller.remove(mockUserOrgAAll, 'dossier-B-uuid'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('Cho phép chủ quản xóa hồ sơ nháp thành công', async () => {
+      dossierRepository.findOne.mockResolvedValue(mockDossierOfOrgA);
+
+      await expect(
+        controller.remove(mockUserOrgAOwn, 'dossier-A-uuid', {
+          reason: 'Xóa nháp kiểm thử',
+        }),
+      ).resolves.toBeUndefined();
     });
   });
 });
