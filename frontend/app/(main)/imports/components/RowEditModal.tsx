@@ -40,6 +40,8 @@ export const RowEditModal: React.FC<RowEditModalProps> = ({
     if (!row || !visible) return;
 
     const raw = row.rawData || {};
+    const isBudget = raw.__importFormat === 'SKYLUX_CUSTOMER_BUDGET' || row.normalizedData?.importFormat === 'SKYLUX_CUSTOMER_BUDGET';
+
     form.setFieldsValue({
       code: raw['Mã hồ sơ'] || raw.code || '',
       name: raw['Tên hồ sơ'] || raw.name || '',
@@ -51,6 +53,7 @@ export const RowEditModal: React.FC<RowEditModalProps> = ({
       startDate: raw['Ngày bắt đầu'] || raw.startDate || '',
       endDate: raw['Ngày kết thúc'] || raw.endDate || '',
       route: raw['Tuyến đường'] || raw.route || '',
+      tourDuration: raw['Thời gian'] || raw.tourDuration || '',
       priority: raw['Mức độ ưu tiên'] || raw.priority || 'MEDIUM',
     });
   }, [row, visible, form]);
@@ -59,9 +62,9 @@ export const RowEditModal: React.FC<RowEditModalProps> = ({
     mutationFn: (values: any) => {
       const rawData = {
         ...(row?.rawData || {}),
-        'Mã hồ sơ': values.code,
+        'Mã hồ sơ': values.code || '',
         'Tên hồ sơ': values.name,
-        'Mã khách hàng': values.customerCode,
+        'Mã khách hàng': values.customerCode || '',
         'Tên khách hàng': values.customerName,
         'Số điện thoại': values.phone,
         'Email': values.email,
@@ -69,6 +72,8 @@ export const RowEditModal: React.FC<RowEditModalProps> = ({
         'Ngày bắt đầu': values.startDate,
         'Ngày kết thúc': values.endDate,
         'Tuyến đường': values.route,
+        'Thời gian': values.tourDuration,
+        tourDuration: values.tourDuration,
         'Mức độ ưu tiên': values.priority,
       };
 
@@ -93,11 +98,15 @@ export const RowEditModal: React.FC<RowEditModalProps> = ({
     }
   };
 
+  const isBudget =
+    row?.rawData?.__importFormat === 'SKYLUX_CUSTOMER_BUDGET' ||
+    row?.normalizedData?.importFormat === 'SKYLUX_CUSTOMER_BUDGET';
+
   return (
     <Modal
       title={
         <Space>
-          <span>Chỉnh sửa dữ liệu dòng #{row?.rowNumber}</span>
+          <span>Chỉnh sửa thông tin hồ sơ #{row?.rowNumber}</span>
           <Text type="secondary">(Sheet: {row?.sheetName || 'Sheet1'})</Text>
         </Space>
       }
@@ -124,17 +133,17 @@ export const RowEditModal: React.FC<RowEditModalProps> = ({
           <Form.Item
             name="code"
             label="Mã hồ sơ"
-            rules={[{ required: true, message: 'Vui lòng nhập mã hồ sơ' }]}
+            rules={[{ required: !isBudget, message: 'Vui lòng nhập mã hồ sơ' }]}
           >
-            <Input placeholder="Ví dụ: TOUR-2026-001" />
+            <Input placeholder={isBudget ? 'Hệ thống tự tạo' : 'Ví dụ: TOUR-2026-001'} disabled={isBudget} />
           </Form.Item>
 
           <Form.Item
             name="customerCode"
             label="Mã khách hàng"
-            rules={[{ required: true, message: 'Vui lòng nhập mã khách hàng' }]}
+            rules={[{ required: !isBudget, message: 'Vui lòng nhập mã khách hàng' }]}
           >
-            <Input placeholder="Ví dụ: KH001" />
+            <Input placeholder={isBudget ? 'Tự tạo/Nhận diện theo SĐT' : 'Ví dụ: KH001'} disabled={isBudget} />
           </Form.Item>
         </div>
 
@@ -147,7 +156,7 @@ export const RowEditModal: React.FC<RowEditModalProps> = ({
         </Form.Item>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Form.Item name="customerName" label="Tên khách hàng">
+          <Form.Item name="customerName" label="Tên khách hàng" rules={[{ required: isBudget, message: 'Vui lòng nhập tên khách hàng' }]}>
             <Input placeholder="Ví dụ: Nguyễn Văn A" />
           </Form.Item>
 
@@ -161,8 +170,8 @@ export const RowEditModal: React.FC<RowEditModalProps> = ({
             <Input placeholder="Ví dụ: customer@example.com" />
           </Form.Item>
 
-          <Form.Item name="dob" label="Ngày sinh nhật (YYYY-MM-DD)">
-            <Input placeholder="Ví dụ: 1990-05-15" />
+          <Form.Item name="tourDuration" label="Thời gian tour">
+            <Input placeholder="Ví dụ: 3 ngày 2 đêm" />
           </Form.Item>
         </div>
 

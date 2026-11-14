@@ -635,5 +635,142 @@ describe('ImportProcessor', () => {
       expect(savedRow.status).toBe('VALID');
       expect(errorRepository.save).not.toHaveBeenCalled();
     });
+
+    it('persists financialReconciliation and resolves suppliers in normalizedData for budget imports', () => {
+      const mockSession = {
+        id: 'session-budget-norm',
+        organizationId: 'org-id',
+        template: null,
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+
+      const mockRows = [
+        {
+          id: 'row-budget-norm',
+          rowNumber: 1,
+          rawData: {
+            'Mã hồ sơ': 'IMP-300726-TOUR-ABC',
+            'Tên hồ sơ': 'TOUR CÔNG TY ABC',
+            'Tên khách hàng': 'Nguyễn Văn A',
+            'Số điện thoại': '0974231555',
+            'Ngày bắt đầu': '2026-07-30',
+            'Ngày kết thúc': '2026-08-02',
+            __importFormat: CUSTOMER_BUDGET_FORMAT,
+            __businessLineCode: 'TOUR_DOMESTIC',
+            __businessLineName: 'TOUR',
+            __marketTypeCode: 'DOMESTIC',
+            __marketTypeName: 'NỘI ĐỊA',
+            __revenueLines: [
+              {
+                description: 'Người lớn',
+                quantity: 30,
+                unitPrice: 4500000,
+                sortOrder: 0,
+              },
+            ],
+            __costLines: [
+              {
+                description: 'Khách sạn Mường Thanh',
+                supplierName: 'Mường Thanh',
+                quantity: 10,
+                multiplier: 3,
+                unitPrice: 1000000,
+                sourceAmount: 30000000,
+                vatRate: 10,
+                sortOrder: 0,
+              },
+            ],
+            __sourceSummary: {
+              totalRevenue: 135000000,
+              totalCost: 30000000,
+            },
+            __financialReconciliation: {
+              calculatedRevenue: 135000000,
+              calculatedCost: 30000000,
+              calculatedGrossProfit: 105000000,
+              calculatedProfitMarginPercent: 77.78,
+              revenueDelta: 0,
+              costDelta: 0,
+              profitDelta: 0,
+              status: 'MATCHED',
+              warnings: [],
+            },
+          },
+          status: 'PENDING',
+        },
+      ];
+      rowRepository.find.mockResolvedValue(mockRows);
+
+      return (processor as any)
+        .handleValidateRows('session-budget-norm')
+        .then(() => {
+          const savedRow = rowRepository.save.mock.calls[0][0];
+          expect(savedRow.status).toBe('VALID');
+          expect(savedRow.normalizedData.financialReconciliation).toBeDefined();
+          expect(savedRow.normalizedData.financialReconciliation.status).toBe(
+            'MATCHED',
+          );
+          expect(savedRow.normalizedData.supplierResolution).toBeDefined();
+          expect(savedRow.normalizedData.supplierResolution).toHaveLength(1);
+          expect(savedRow.normalizedData.supplierResolution[0].name).toBe(
+            'Mường Thanh',
+          );
+        });
+    });
+  });
+
+  describe('handleParseExcel error boundary for Customer Budget', () => {
+    it('captures BUDGET_FORMAT_ERROR and avoids silent fallback to dossier rows when budget header is missing', async () => {
+      // Create a mock workbook with DỰ TRÙ title but no STT header
+      const xlsx = require('xlsx');
+      const fs = require('fs');
+      const sheet = xlsx.utils.aoa_to_sheet([]);
+      sheet['A9'] = { v: 'DỰ TRÙ DOANH THU', t: 's' };
+      sheet['D9'] = { v: 'TOUR MALFORMED', t: 's' };
+      // Note: deliberately NO STT cell
+      const workbook = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(workbook, sheet, 'DỰ TOÁN');
+
+      const mockFilePath = 'temp-malformed-budget.xlsx';
+      xlsx.writeFile(workbook, mockFilePath);
+
+      try {
+        sessionRepository.findOne.mockResolvedValue({
+          id: 'session-malformed-budget',
+          organizationId: 'org-id',
+        });
+
+        const mockJob: any = {
+          data: {
+            sessionId: 'session-malformed-budget',
+            filePath: mockFilePath,
+          },
+        };
+
+        await (processor as any).handleParseExcel(mockJob);
+
+        // Verify error boundary: Exactly 1 error row saved with BUDGET_FORMAT_ERROR
+        expect(errorRepository.save).toHaveBeenCalled();
+        const savedError = errorRepository.save.mock.calls[0][0];
+        expect(savedError.errorCode).toBe('BUDGET_FORMAT_ERROR');
+        expect(savedError.errorMessage).toContain(
+          'Đã nhận diện file Dự toán tour',
+        );
+
+        // Verify session updated to READY_FOR_REVIEW with errorRows = 1
+        expect(sessionRepository.update).toHaveBeenCalledWith(
+          'session-malformed-budget',
+          expect.objectContaining({
+            errorRows: 1,
+            validRows: 0,
+            totalRows: 1,
+          }),
+        );
+      } finally {
+        if (fs.existsSync(mockFilePath)) {
+          fs.unlinkSync(mockFilePath);
+        }
+      }
+    });
   });
 });

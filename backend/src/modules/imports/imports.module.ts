@@ -17,6 +17,7 @@ import { MarketType } from '../master-data/entities/market-type.entity';
 import { PassengerType } from '../master-data/entities/passenger-type.entity';
 import { ServiceCategory } from '../master-data/entities/service-category.entity';
 import { Unit } from '../master-data/entities/unit.entity';
+import { Supplier } from '../suppliers/entities/supplier.entity';
 import { ImportProcessor } from './queue/import.processor';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { StorageModule } from '../../shared/storage/storage.module';
@@ -38,6 +39,7 @@ import { StorageModule } from '../../shared/storage/storage.module';
       PassengerType,
       ServiceCategory,
       Unit,
+      Supplier,
     ]),
     BullModule.registerQueue({
       name: 'import-queue',
