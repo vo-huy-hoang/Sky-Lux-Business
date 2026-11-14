@@ -140,6 +140,7 @@ describe('useImportValidation hook with budget enhancements', () => {
     expect(result.current.isCustomerBudget).toBe(true);
     expect(result.current.metadata.tourName).toBe('Tour Nha Trang 4N3D');
     expect(result.current.metadata.customerName).toBe('Nguyễn Hoàng Long');
+    expect(result.current.metadata.customerStatus).toBe('NEW_TO_BE_CREATED');
     expect(result.current.metadata.phone).toBe('0901234567');
     expect(result.current.metadata.route).toBe('Hà Nội - Nha Trang');
     expect(result.current.metadata.tourDuration).toBe('4 ngày 3 đêm');

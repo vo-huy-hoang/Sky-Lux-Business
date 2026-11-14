@@ -2,23 +2,28 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  App,
   Avatar,
   Button,
   Card,
   Col,
   Empty,
   Input,
+  Popconfirm,
   Row,
   Select,
   Skeleton,
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
+  message as staticMessage,
 } from 'antd';
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
+  DeleteOutlined,
   EyeOutlined,
   FileExcelOutlined,
   FolderOpenOutlined,
@@ -28,10 +33,12 @@ import {
 } from '@ant-design/icons';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useDossiersList } from '@/hooks/dossiers';
+import { useDossiersList, useDeleteDossier } from '@/hooks/dossiers';
 import { DossierItem } from '@/types/dossier';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useDebounce } from '@/hooks/use-debounce';
+import { DossierDangerDeleteModal } from '@/components/dossiers/DossierDangerDeleteModal';
+import { getDossierDeleteEligibility } from '@/lib/dossier-delete-policy';
 
 const { Title, Text } = Typography;
 
@@ -98,9 +105,44 @@ function DossiersContent() {
   const statusParam = searchParams.get('status') || undefined;
   const priorityParam = searchParams.get('priority') || undefined;
 
+  const antdApp = typeof App?.useApp === 'function' ? App.useApp() : null;
+  const notify = antdApp?.message?.success ? antdApp.message : staticMessage;
+
   const hasRole = useAuthStore((state) => state.hasRole);
-  const isCeoAdmin = hasRole(['CEO_ADMIN', 'SUPER_ADMIN']);
-  const isOperator = hasRole('OPERATOR');
+  const hasPermission = useAuthStore((state) => state.hasPermission);
+  const currentUser = useAuthStore((state) => state.user);
+  const isCeoAdmin =
+    typeof hasRole === 'function' ? hasRole(['CEO_ADMIN', 'SUPER_ADMIN']) : false;
+  const isOperator =
+    typeof hasRole === 'function' ? hasRole('OPERATOR') : false;
+  const canDeleteDossier =
+    typeof hasPermission === 'function' ? hasPermission('dossier.delete') : false;
+
+  const { mutateAsync: deleteDossierMutation } = useDeleteDossier();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [dangerModalDossier, setDangerModalDossier] =
+    useState<DossierItem | null>(null);
+
+  const handleDelete = async (record: DossierItem, customReason?: string) => {
+    try {
+      setDeletingId(record.id);
+      await deleteDossierMutation({
+        id: record.id,
+        reason: customReason || 'Xóa từ danh sách hồ sơ',
+      });
+      notify.success('Đã xóa hồ sơ thành công');
+      return true;
+    } catch (err: any) {
+      notify.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          'Có lỗi xảy ra khi xóa hồ sơ',
+      );
+      return false;
+    } finally {
+      setDeletingId(null);
+    }
+  };
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState('');
@@ -243,14 +285,72 @@ function DossiersContent() {
     {
       title: 'Thao tác',
       key: 'actions',
-      width: 150,
-      render: (_: unknown, record: DossierItem) => (
-        <Link href={`/dossiers/${record.id}`}>
-          <Button icon={<EyeOutlined />} className="skylux-outline-button">
-            Xem chi tiết
-          </Button>
-        </Link>
-      ),
+      width: 195,
+      render: (_: unknown, record: DossierItem) => {
+        const {
+          canDelete: canDeleteThisDossier,
+          disableReason,
+          isApprovedOrCompleted,
+        } = getDossierDeleteEligibility(record, currentUser, {
+          hasPermission,
+          hasRole,
+        });
+
+        const isDeletingThis = deletingId === record.id;
+
+        return (
+          <Space size={8}>
+            <Link href={`/dossiers/${record.id}`}>
+              <Button icon={<EyeOutlined />} className="skylux-outline-button">
+                Xem chi tiết
+              </Button>
+            </Link>
+            {canDeleteThisDossier ? (
+              isApprovedOrCompleted ? (
+                <Tooltip title="Xóa hồ sơ đã duyệt/hoàn tất (Cần xác nhận 2 lớp)">
+                  <Button
+                    danger
+                    icon={<DeleteOutlined />}
+                    loading={isDeletingThis}
+                    onClick={() => setDangerModalDossier(record)}
+                    className="text-rose-600 hover:text-rose-700 hover:border-rose-400"
+                    aria-label={`Xóa hồ sơ ${record.code}`}
+                  />
+                </Tooltip>
+              ) : (
+                <Popconfirm
+                  title="Xác nhận xóa hồ sơ"
+                  description="Bạn có chắc chắn muốn xóa hồ sơ này? Dự toán kèm theo sẽ bị xóa tạm thời."
+                  onConfirm={() => handleDelete(record)}
+                  okText="Xóa hồ sơ"
+                  cancelText="Hủy"
+                  okButtonProps={{ danger: true, loading: isDeletingThis }}
+                >
+                  <Tooltip title="Xóa hồ sơ">
+                    <Button
+                      danger
+                      icon={<DeleteOutlined />}
+                      loading={isDeletingThis}
+                      className="text-rose-600 hover:text-rose-700 hover:border-rose-400"
+                      aria-label={`Xóa hồ sơ ${record.code}`}
+                    />
+                  </Tooltip>
+                </Popconfirm>
+              )
+            ) : (
+              <Tooltip title={disableReason || 'Không thể xóa hồ sơ này'}>
+                <Button
+                  danger
+                  icon={<DeleteOutlined />}
+                  disabled
+                  className="opacity-50"
+                  aria-label={`Xóa hồ sơ ${record.code} (vô hiệu)`}
+                />
+              </Tooltip>
+            )}
+          </Space>
+        );
+      },
     },
   ];
 
@@ -419,7 +519,7 @@ function DossiersContent() {
           loading={isLoading}
           className={isOperator ? 'op-table' : 'skylux-table'}
           locale={{ emptyText: <Empty description="Chưa có hồ sơ nào trong hệ thống" /> }}
-          scroll={{ x: 1380 }}
+          scroll={{ x: 1425 }}
           pagination={{
             current: page,
             pageSize,
@@ -434,6 +534,20 @@ function DossiersContent() {
           }}
         />
       </Card>
+
+      <DossierDangerDeleteModal
+        open={Boolean(dangerModalDossier)}
+        dossier={dangerModalDossier}
+        onClose={() => setDangerModalDossier(null)}
+        isLoading={deletingId === dangerModalDossier?.id}
+        onConfirm={async (reason) => {
+          if (!dangerModalDossier) return;
+          const success = await handleDelete(dangerModalDossier, reason);
+          if (success) {
+            setDangerModalDossier(null);
+          }
+        }}
+      />
     </div>
   );
 }

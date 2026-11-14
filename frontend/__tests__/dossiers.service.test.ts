@@ -126,4 +126,26 @@ describe('DossiersService (Frontend)', () => {
     );
     expect(result).toEqual(mockUpdated);
   });
+
+  it('API-DOSSIER-005: deleteDossier calls DELETE /dossiers/:id without reason', async () => {
+    (apiClient.delete as jest.Mock).mockResolvedValueOnce(undefined);
+
+    await dossiersService.deleteDossier(dossierId);
+
+    expect(apiClient.delete).toHaveBeenCalledWith(
+      `/dossiers/${dossierId}`,
+      { params: undefined },
+    );
+  });
+
+  it('API-DOSSIER-005: deleteDossier calls DELETE /dossiers/:id with reason query param', async () => {
+    (apiClient.delete as jest.Mock).mockResolvedValueOnce(undefined);
+
+    await dossiersService.deleteDossier(dossierId, 'Xóa thử nghiệm');
+
+    expect(apiClient.delete).toHaveBeenCalledWith(
+      `/dossiers/${dossierId}`,
+      { params: { reason: 'Xóa thử nghiệm' } },
+    );
+  });
 });

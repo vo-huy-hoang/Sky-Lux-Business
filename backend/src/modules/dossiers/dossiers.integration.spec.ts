@@ -1,18 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { DossiersController } from './dossiers.controller';
 import { DossiersService } from './dossiers.service';
 import { Dossier } from './entities/dossier.entity';
 import { Comment } from './entities/comment.entity';
 import { Customer } from '../customers/entities/customer.entity';
 import { User } from '../users/entities/user.entity';
+import { Estimate } from '../estimates/entities/estimate.entity';
+import { Payment } from '../payments/entities/payment.entity';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { QueryCommentDto } from './dto/query-comment.dto';
-import { DossierStatus } from '../../common/enums';
+import { DossierStatus, PaymentStatus } from '../../common/enums';
 import { DossierWorkflowService } from '../approvals/dossier-workflow.service';
 import { DocumentsService } from '../documents/documents.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
@@ -36,8 +38,15 @@ describe('Dossiers Module (Integration)', () => {
   const mockUserOrgAOwn = {
     id: 'user-A-own-uuid',
     organizationId: orgA,
-    permissions: ['dossier.view.own', 'dossier.create', 'dossier.update'],
+    permissions: ['dossier.view.own', 'dossier.create', 'dossier.update', 'dossier.delete'],
     roles: [],
+  } as unknown as CurrentUserPayload;
+
+  const mockUserOrgACeo = {
+    id: 'user-A-ceo-uuid',
+    organizationId: orgA,
+    permissions: ['dossier.view.all', 'dossier.create', 'dossier.update', 'dossier.delete'],
+    roles: ['CEO_ADMIN'],
   } as unknown as CurrentUserPayload;
 
   const mockDossierOfOrgB = {
@@ -80,7 +89,15 @@ describe('Dossiers Module (Integration)', () => {
     save: jest.fn(),
   };
 
+  const mockTxManager = {
+    getRepository: jest.fn(() => mockDossierRepository),
+    find: jest.fn().mockResolvedValue([]),
+    softRemove: jest.fn().mockImplementation(async (target, entity) => entity || target),
+  };
+
   beforeEach(async () => {
+    mockTxManager.find.mockResolvedValue([]);
+    mockTxManager.softRemove.mockClear();
     mockDossierQueryBuilder.getOne.mockImplementation(async () =>
       mockDossierRepository.findOne({ where: { id: 'dossier-A-uuid', organizationId: orgA } }),
     );
@@ -131,11 +148,7 @@ describe('Dossiers Module (Integration)', () => {
         {
           provide: DataSource,
           useValue: {
-            transaction: jest.fn(async (cb: any) =>
-              cb({
-                getRepository: jest.fn(() => mockDossierRepository),
-              }),
-            ),
+            transaction: jest.fn(async (cb: any) => cb(mockTxManager)),
           },
         },
       ],
@@ -379,6 +392,100 @@ describe('Dossiers Module (Integration)', () => {
       expect(result.data.id).toEqual('new-comm-uuid');
       expect((result.data.user as any).passwordHash).toBeUndefined();
       expect((result.data.user as any).refreshTokenHash).toBeUndefined();
+    });
+  });
+
+  describe('DELETE /api/dossiers/:id (remove)', () => {
+    it('Chặn người dùng xóa hồ sơ của tổ chức khác (404/Cross-tenant)', async () => {
+      dossierRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        controller.remove(mockUserOrgAAll, 'dossier-B-uuid'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('Cho phép chủ quản xóa hồ sơ nháp thành công và kích hoạt softRemove', async () => {
+      dossierRepository.findOne.mockResolvedValue(mockDossierOfOrgA);
+
+      await expect(
+        controller.remove(mockUserOrgAOwn, 'dossier-A-uuid', {
+          reason: 'Xóa nháp kiểm thử',
+        }),
+      ).resolves.toBeUndefined();
+
+      expect(mockTxManager.softRemove).toHaveBeenCalledWith(
+        Dossier,
+        expect.objectContaining({ id: 'dossier-A-uuid' }),
+      );
+    });
+
+    it('Cho phép CEO_ADMIN xóa hồ sơ COMPLETED khi không có thanh toán', async () => {
+      dossierRepository.findOne.mockResolvedValue({
+        ...mockDossierOfOrgA,
+        status: DossierStatus.COMPLETED,
+        salesUserId: 'another-sales-id',
+      } as Dossier);
+
+      await expect(
+        controller.remove(mockUserOrgACeo, 'dossier-A-uuid', {
+          reason: 'CEO xóa hồ sơ hoàn tất kiểm thử',
+        }),
+      ).resolves.toBeUndefined();
+
+      expect(mockTxManager.softRemove).toHaveBeenCalledWith(
+        Dossier,
+        expect.objectContaining({ id: 'dossier-A-uuid' }),
+      );
+    });
+
+    it('Chặn Sales xóa hồ sơ COMPLETED (400 BadRequestException)', async () => {
+      dossierRepository.findOne.mockResolvedValue({
+        ...mockDossierOfOrgA,
+        status: DossierStatus.COMPLETED,
+      } as Dossier);
+
+      await expect(
+        controller.remove(mockUserOrgAOwn, 'dossier-A-uuid'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('Chặn tuyệt đối xóa hồ sơ khi có phiếu thu tiền thực tế (409 ConflictException)', async () => {
+      dossierRepository.findOne.mockResolvedValue(mockDossierOfOrgA);
+      mockTxManager.find.mockResolvedValueOnce([
+        {
+          id: 'pay-actual-1',
+          dossierId: 'dossier-A-uuid',
+          amount: 5000000,
+          status: PaymentStatus.PAID,
+        },
+      ]);
+
+      await expect(
+        controller.remove(mockUserOrgAOwn, 'dossier-A-uuid'),
+      ).rejects.toThrow(ConflictException);
+      expect(mockTxManager.softRemove).not.toHaveBeenCalled();
+    });
+
+    it('Xác nhận cascade softRemove thực thi trên cả Dossier và Estimate trong cùng transaction', async () => {
+      dossierRepository.findOne.mockResolvedValue(mockDossierOfOrgA);
+      const mockEstimates = [
+        { id: 'est-1', dossierId: 'dossier-A-uuid', versionNo: 1 },
+      ];
+      mockTxManager.find.mockImplementation(async (entity) => {
+        if (entity === Estimate) return mockEstimates;
+        return [];
+      });
+
+      await controller.remove(mockUserOrgAOwn, 'dossier-A-uuid');
+
+      expect(mockTxManager.softRemove).toHaveBeenCalledWith(
+        Estimate,
+        mockEstimates,
+      );
+      expect(mockTxManager.softRemove).toHaveBeenCalledWith(
+        Dossier,
+        expect.objectContaining({ id: 'dossier-A-uuid' }),
+      );
     });
   });
 });

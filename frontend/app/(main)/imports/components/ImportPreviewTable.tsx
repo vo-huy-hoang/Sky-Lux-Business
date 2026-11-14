@@ -526,6 +526,21 @@ export function ImportPreviewTable({
             <div className="text-[var(--color-text-soft)] mt-0.5">
               {metadata.phone ? `SĐT: ${metadata.phone}` : "Chưa có SĐT"}
             </div>
+            {metadata.customerStatus === "EXISTING" ? (
+              <Tag
+                icon={<CheckCircleOutlined className="text-[11px]" />}
+                className="font-medium text-[11px] rounded-md px-2 py-0.5 border border-[var(--color-primary-300)] bg-[var(--color-primary-soft)] text-[var(--color-primary-900)] mt-1.5 inline-flex items-center gap-1"
+              >
+                Khách hàng có sẵn (Tái sử dụng)
+              </Tag>
+            ) : (
+              <Tag
+                icon={<PlusCircleOutlined className="text-[11px]" />}
+                className="font-medium text-[11px] rounded-md px-2 py-0.5 border border-[var(--color-warning-300)] bg-[var(--color-warning-soft)] text-[var(--color-warning-900)] mt-1.5 inline-flex items-center gap-1"
+              >
+                Tạo KH mới khi xác nhận
+              </Tag>
+            )}
           </div>
 
           <div className="pt-2 sm:pt-0 sm:px-3">
@@ -990,18 +1005,18 @@ export function ImportPreviewTable({
                               row.supplierStatus === "EXISTING" ? (
                                 <Tag
                                   icon={
-                                    <CheckCircleOutlined className="text-[10px]" />
+                                    <CheckCircleOutlined className="text-[11px]" />
                                   }
-                                  className="font-medium text-[11px] rounded-md px-2 py-0.5 border border-emerald-300/80 bg-[var(--color-primary-soft)] text-[var(--color-primary-900)]"
+                                  className="font-medium text-[11px] rounded-md px-2 py-0.5 border border-[var(--color-primary-300)] bg-[var(--color-primary-soft)] text-[var(--color-primary-900)]"
                                 >
                                   {row.supplier} (NCC có sẵn)
                                 </Tag>
                               ) : (
                                 <Tag
                                   icon={
-                                    <PlusCircleOutlined className="text-[10px]" />
+                                    <PlusCircleOutlined className="text-[11px]" />
                                   }
-                                  className="font-medium text-[11px] rounded-md px-2 py-0.5 border border-amber-300/80 bg-[var(--color-warning-soft)] text-amber-900"
+                                  className="font-medium text-[11px] rounded-md px-2 py-0.5 border border-[var(--color-warning-300)] bg-[var(--color-warning-soft)] text-[var(--color-warning-900)]"
                                 >
                                   {row.supplier} (Tạo NCC mới)
                                 </Tag>

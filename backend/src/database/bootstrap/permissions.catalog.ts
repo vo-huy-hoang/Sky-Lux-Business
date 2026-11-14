@@ -20,6 +20,7 @@ export const PERMISSION_CATALOG: readonly PermissionDefinition[] = [
   { code: 'dossier.view.all', name: 'Xem toàn bộ hồ sơ', module: 'DOSSIER' },
   { code: 'dossier.create', name: 'Tạo hồ sơ', module: 'DOSSIER' },
   { code: 'dossier.update', name: 'Cập nhật hồ sơ', module: 'DOSSIER' },
+  { code: 'dossier.delete', name: 'Xóa hồ sơ', module: 'DOSSIER' },
   { code: 'dossier.submit', name: 'Gửi duyệt hồ sơ', module: 'DOSSIER' },
   { code: 'dossier.approve', name: 'Phê duyệt hồ sơ', module: 'DOSSIER' },
   { code: 'dossier.lock', name: 'Khóa hồ sơ', module: 'DOSSIER' },

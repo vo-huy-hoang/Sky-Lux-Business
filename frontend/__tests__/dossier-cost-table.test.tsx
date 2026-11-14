@@ -25,6 +25,8 @@ jest.mock("@ant-design/icons", () => ({
   RocketOutlined: () => <span data-testid="rocket-icon" />,
   SendOutlined: () => <span data-testid="send-icon" />,
   SyncOutlined: () => <span data-testid="sync-icon" />,
+  DeleteOutlined: () => <span data-testid="delete-icon" />,
+  ExclamationCircleOutlined: () => <span data-testid="exclamation-icon" />,
 }));
 
 jest.mock("@/components/documents/DossierDocumentsTab", () => {
@@ -787,7 +789,7 @@ describe("Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
         businessLine: { code: "TOUR_OUTBOUND", name: "Du lịch Outbound" },
         marketType: { name: "Nội địa" },
       };
-      render(<DossierHeader dossier={mockDossier} />);
+      renderWithQuery(<DossierHeader dossier={mockDossier} />);
       expect(screen.queryByText(/Mảng:/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/Loại hình:/i)).not.toBeInTheDocument();
     });
@@ -798,7 +800,7 @@ describe("Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
         code: "DOS-2026-001",
         status: "IN_REVIEW",
       };
-      render(<DossierHeader dossier={mockDossier} />);
+      renderWithQuery(<DossierHeader dossier={mockDossier} />);
       const editBtn = screen.getByRole("link", { name: /Sửa dự toán/i });
       expect(editBtn).toHaveAttribute(
         "href",
@@ -813,7 +815,7 @@ describe("Phase 36, 37 & 38: Dossier Cost, Revenue, Workflow & Rapid Actions Int
         code: "DOS-2026-001",
         status: "LOCKED",
       };
-      render(<DossierHeader dossier={mockDossier} />);
+      renderWithQuery(<DossierHeader dossier={mockDossier} />);
       expect(screen.queryByText("Sửa dự toán")).not.toBeInTheDocument();
       expect(screen.getByText("Tải file gốc")).toBeInTheDocument();
     });

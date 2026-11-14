@@ -3,6 +3,7 @@
 import React from "react";
 import { Alert } from "antd";
 import { useDossierDetail } from "@/hooks/dossiers";
+import { useDossierFinanceSummary } from "@/hooks/use-payments";
 import { EstimateStatus } from "@/types/estimate";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useWorkflowHistory } from "@/hooks/workflow";
@@ -74,6 +75,12 @@ export default function DossierDetailView({
   const workflowHistory = workflowHistoryQuery.data?.data || [];
 
   const dossier = dossierQuery.data;
+  const financeSummaryQuery = useDossierFinanceSummary(dossierId);
+  const totalPaid = Number(financeSummaryQuery.data?.data?.totalPaid ?? 0);
+  const hasPayments =
+    totalPaid > 0 ||
+    Boolean((dossier as any)?.hasPayments) ||
+    Number((dossier as any)?.totalPaid ?? 0) > 0;
 
   // Workflow Actions Hook (TanStack mutations & Zustand UI modal synchronization)
   const workflow = useDossierWorkflowActions({
@@ -116,6 +123,8 @@ export default function DossierDetailView({
         isDrawer={isDrawer}
         isOperator={isOperator}
         isCeoAdmin={isCeoAdmin}
+        hasPayments={hasPayments}
+        onDeleted={onClose}
       />
 
       {/* 2. Quy trình duyệt hồ sơ (Steps) */}

@@ -12,6 +12,7 @@ jest.mock('@ant-design/icons', () => ({
   CheckCircleOutlined: () => null,
   ClockCircleOutlined: () => null,
   EyeOutlined: () => null,
+  DeleteOutlined: () => null,
   FileExcelOutlined: () => null,
   FolderOpenOutlined: () => null,
   ReloadOutlined: () => null,
@@ -23,6 +24,7 @@ const mockDossiersList = jest.fn();
 
 jest.mock('@/hooks/dossiers', () => ({
   useDossiersList: () => mockDossiersList(),
+  useDeleteDossier: () => ({ mutateAsync: jest.fn(), isPending: false }),
 }));
 
 jest.mock('next/navigation', () => ({
