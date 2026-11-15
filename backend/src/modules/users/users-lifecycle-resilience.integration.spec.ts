@@ -112,10 +112,28 @@ describe('IAM & RBAC User-Role Lifecycle Resilience (Integration Spec)', () => {
       }),
     };
 
-    const mockUserRepo = {
-      findOne: jest.fn().mockImplementation(async ({ where }: any) => {
-        const user = simulatedUsers.get(where.id);
-        if (!user || (user.deletedAt && !where.withDeleted)) return null;
+    const mockUserRepo: any = {
+      manager: {
+        transaction: jest.fn(async (cb: any) => cb(mockUserRepo)),
+      },
+      findOne: jest.fn().mockImplementation(async (options: any) => {
+        const where = options?.where ?? options;
+        const withDeleted = options?.withDeleted ?? false;
+        let user: User | undefined;
+        if (where.id) {
+          user = simulatedUsers.get(where.id);
+        } else if (where.email) {
+          user = Array.from(simulatedUsers.values()).find(
+            (u) => u.email === where.email,
+          );
+        } else if (where.employeeCode) {
+          user = Array.from(simulatedUsers.values()).find(
+            (u) =>
+              u.employeeCode === where.employeeCode &&
+              (!where.organizationId || u.organizationId === where.organizationId),
+          );
+        }
+        if (!user || (user.deletedAt && !withDeleted)) return null;
         // Return cloned object with loaded relations
         return {
           ...user,
@@ -125,6 +143,17 @@ describe('IAM & RBAC User-Role Lifecycle Resilience (Integration Spec)', () => {
       save: jest.fn().mockImplementation(async (target: User) => {
         simulatedUsers.set(target.id, target);
         return target;
+      }),
+      recover: jest.fn().mockImplementation(async (target: User) => {
+        (target as any).deletedAt = null;
+        simulatedUsers.set(target.id, target);
+        return target;
+      }),
+      create: jest.fn().mockImplementation((dto: any) => {
+        return {
+          id: `new-user-${Date.now()}`,
+          ...dto,
+        } as unknown as User;
       }),
       softRemove: jest.fn().mockImplementation(async (target: User) => {
         // Ticket 01 Invariant Assertion: target.roles MUST be detached prior to softRemove
@@ -149,8 +178,21 @@ describe('IAM & RBAC User-Role Lifecycle Resilience (Integration Spec)', () => {
         if (!role || (role.deletedAt && !where.withDeleted)) return null;
         return role;
       }),
-      find: jest.fn().mockImplementation(async () => {
-        return Array.from(simulatedRoles.values()).filter((r) => !r.deletedAt);
+      find: jest.fn().mockImplementation(async (options?: any) => {
+        const where = options?.where;
+        let roles = Array.from(simulatedRoles.values()).filter((r) => !r.deletedAt);
+        if (where?.id) {
+          const ids = where.id?._value ?? where.id;
+          if (Array.isArray(ids)) {
+            roles = roles.filter((r) => ids.includes(r.id));
+          } else {
+            roles = roles.filter((r) => r.id === ids);
+          }
+        }
+        if (where?.organizationId) {
+          roles = roles.filter((r) => r.organizationId === where.organizationId);
+        }
+        return roles;
       }),
     };
 
@@ -258,6 +300,50 @@ describe('IAM & RBAC User-Role Lifecycle Resilience (Integration Spec)', () => {
 
       // 4. Verify total returned employees count includes all active non-elevated staff
       expect(result.data).toHaveLength(3);
+    });
+  });
+
+  describe('Test Case 5: Smart Auto-Recovery of Soft-Deleted Account (Historical Continuity)', () => {
+    it('khi tạo lại người dùng bằng email đã bị xóa mềm, hệ thống tự động recover, bảo lưu ID và lịch sử dữ liệu cũ', async () => {
+      // 1. Employee 'user-sales-1' with email 'haduclam@skylux.vn' is deleted
+      await usersService.remove(
+        orgId,
+        'user-sales-1',
+        'actor-ceo-uuid',
+        ['CEO_ADMIN'],
+      );
+      const userBeforeRecover = simulatedUsers.get('user-sales-1');
+      expect(userBeforeRecover?.deletedAt).toBeInstanceOf(Date);
+
+      // 2. CEO adds the employee back using the same email
+      const recreateResult = await usersService.create(
+        orgId,
+        {
+          fullName: 'HÀ ĐỨC LÂM (RECOVERED)',
+          email: 'haduclam@skylux.vn',
+          roleIds: [roleSalesId],
+        },
+        'actor-ceo-uuid',
+        ['CEO_ADMIN'],
+      );
+
+      // 3. Verify user ID is preserved (historical continuity for past tours/estimates)
+      expect(recreateResult.data.id).toBe('user-sales-1');
+      expect(recreateResult.data.email).toBe('haduclam@skylux.vn');
+      expect(recreateResult.data.fullName).toBe('HÀ ĐỨC LÂM (RECOVERED)');
+      expect(recreateResult.data.status).toBe(UserStatus.ACTIVE);
+      expect(recreateResult.data.temporaryPassword).toBeDefined();
+
+      // 4. Verify in simulated DB that deletedAt is cleared and roles reattached
+      const userAfterRecover = simulatedUsers.get('user-sales-1');
+      expect(userAfterRecover?.deletedAt).toBeNull();
+      expect(userAfterRecover?.status).toBe(UserStatus.ACTIVE);
+      expect(userAfterRecover?.mustChangePassword).toBe(true);
+      expect(userAfterRecover?.authVersion).toBe(
+        (userBeforeRecover?.authVersion ?? 0) + 1,
+      );
+      expect(userAfterRecover?.roles).toHaveLength(1);
+      expect(userAfterRecover?.roles[0].code).toBe('SALES');
     });
   });
 });

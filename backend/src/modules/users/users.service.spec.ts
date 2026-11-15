@@ -30,12 +30,16 @@ describe('UsersService', () => {
     getManyAndCount: jest.fn(),
   };
 
-  const mockUserRepository = {
+  const mockUserRepository: any = {
     findOne: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
+    recover: jest.fn((entity) => Promise.resolve(entity)),
     softRemove: jest.fn(),
     createQueryBuilder: jest.fn(() => mockQueryBuilder),
+    manager: {
+      transaction: jest.fn(async (cb) => cb(mockUserRepository)),
+    },
   };
 
   const mockRefreshTokenRepository = {
@@ -238,8 +242,12 @@ describe('UsersService', () => {
       expect(result.data.id).toBe('new-user-id');
     });
 
-    it('should throw ConflictException if email exists', async () => {
-      mockUserRepository.findOne.mockResolvedValueOnce({ id: 'existing-id' });
+    it('should throw ConflictException if email exists and is active', async () => {
+      mockUserRepository.findOne.mockResolvedValueOnce({
+        id: 'existing-id',
+        email: 'exist@skylux.vn',
+        deletedAt: null,
+      });
 
       await expect(
         service.create('org-uuid', {
@@ -247,6 +255,136 @@ describe('UsersService', () => {
           email: 'exist@skylux.vn',
         }),
       ).rejects.toThrow(ConflictException);
+    });
+
+    it('should throw ConflictException if soft-deleted email belongs to a different organization', async () => {
+      mockUserRepository.findOne.mockResolvedValueOnce({
+        id: 'existing-id',
+        email: 'other-org@skylux.vn',
+        organizationId: 'other-org-uuid',
+        deletedAt: new Date(),
+      });
+
+      await expect(
+        service.create('org-uuid', {
+          fullName: 'Test',
+          email: 'other-org@skylux.vn',
+        }),
+      ).rejects.toThrow(
+        new ConflictException(
+          'Email "other-org@skylux.vn" đã được đăng ký bởi một tổ chức khác',
+        ),
+      );
+    });
+
+    it('should auto-recover soft-deleted user in the same organization preserving ID and reactivating status', async () => {
+      const orgId = 'org-uuid';
+      const softDeletedUser: any = {
+        id: 'existing-user-id',
+        fullName: 'Lê Tự Hoàng Tùng (Cũ)',
+        email: 'vnluxcar@gmail.com',
+        employeeCode: 'EMP1001',
+        organizationId: orgId,
+        status: UserStatus.INACTIVE,
+        authVersion: 2,
+        mustChangePassword: false,
+        phone: '0912345678',
+        departmentId: 'dept-old-id',
+        deletedAt: new Date('2026-11-01T00:00:00Z'),
+        roles: [],
+      };
+
+      // Email check returns soft-deleted user in same org
+      mockUserRepository.findOne.mockResolvedValueOnce(softDeletedUser);
+
+      mockRoleRepository.find.mockResolvedValue([
+        { id: 'role-sales-uuid', code: 'SALES', organizationId: orgId },
+      ]);
+
+      mockUserRepository.recover.mockImplementation(async (u) => {
+        u.deletedAt = null;
+        return u;
+      });
+      mockUserRepository.save.mockImplementation(async (u) => u);
+
+      const result = await service.create(
+        orgId,
+        {
+          fullName: 'LÊ TỰ HOÀNG TÙNG',
+          email: 'vnluxcar@gmail.com',
+          roleIds: ['role-sales-uuid'],
+        },
+        'actor-ceo-id',
+        ['CEO_ADMIN'],
+      );
+
+      expect(mockUserRepository.recover).toHaveBeenCalledWith(softDeletedUser);
+      expect(mockUserRepository.save).toHaveBeenCalled();
+      expect(result.data.id).toBe('existing-user-id');
+      expect(result.data.fullName).toBe('LÊ TỰ HOÀNG TÙNG');
+      expect(result.data.status).toBe(UserStatus.ACTIVE);
+      expect(result.data.employeeCode).toBe('EMP1001');
+      expect(result.data.temporaryPassword).toBeDefined();
+      expect(softDeletedUser.status).toBe(UserStatus.ACTIVE);
+      expect(softDeletedUser.authVersion).toBe(3);
+      expect(softDeletedUser.mustChangePassword).toBe(true);
+      expect(softDeletedUser.phone).toBeNull();
+      expect(softDeletedUser.departmentId).toBeNull();
+    });
+
+    it('should strictly enforce status ACTIVE during recovery even if DTO specifies INACTIVE', async () => {
+      const orgId = 'org-uuid';
+      const softDeletedUser: any = {
+        id: 'user-inactive-id',
+        fullName: 'User Old',
+        email: 'inactive@skylux.vn',
+        employeeCode: 'EMP1002',
+        organizationId: orgId,
+        status: UserStatus.INACTIVE,
+        deletedAt: new Date(),
+        roles: [],
+      };
+
+      mockUserRepository.findOne.mockResolvedValueOnce(softDeletedUser);
+      mockUserRepository.recover.mockImplementation(async (u) => {
+        u.deletedAt = null;
+        return u;
+      });
+      mockUserRepository.save.mockImplementation(async (u) => u);
+
+      const result = await service.create('org-uuid', {
+        fullName: 'User Reactivated',
+        email: 'inactive@skylux.vn',
+        status: UserStatus.INACTIVE, // Requesting INACTIVE in DTO
+      });
+
+      expect(result.data.status).toBe(UserStatus.ACTIVE);
+      expect(softDeletedUser.status).toBe(UserStatus.ACTIVE);
+    });
+
+    it('should return temporaryPassword equal to manual password when provided', async () => {
+      const orgId = 'org-uuid';
+      mockUserRepository.findOne
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
+
+      const createdUser = {
+        id: 'new-user-pw',
+        fullName: 'Manual PW User',
+        email: 'manualpw@skylux.vn',
+        employeeCode: 'EMP005',
+        organizationId: orgId,
+      };
+      mockUserRepository.create.mockReturnValue(createdUser);
+      mockUserRepository.save.mockResolvedValue(createdUser);
+
+      const result = await service.create(orgId, {
+        fullName: 'Manual PW User',
+        email: 'manualpw@skylux.vn',
+        password: 'CustomSecret@123',
+      });
+
+      expect(result.data.temporaryPassword).toBe('CustomSecret@123');
     });
 
     it('should throw ConflictException if employeeCode exists in organization', async () => {
@@ -264,6 +402,7 @@ describe('UsersService', () => {
 
       expect(mockUserRepository.findOne).toHaveBeenLastCalledWith({
         where: { employeeCode: 'EMP001', organizationId: 'org-uuid' },
+        withDeleted: true,
       });
     });
 
@@ -291,8 +430,53 @@ describe('UsersService', () => {
 
       expect(mockUserRepository.findOne).toHaveBeenNthCalledWith(2, {
         where: { employeeCode: 'EMP001', organizationId: 'org-2' },
+        withDeleted: true,
       });
       expect(result.data.employeeCode).toBe('EMP001');
+    });
+
+    it('should catch 23505 unique constraint error and rethrow ConflictException', async () => {
+      mockUserRepository.findOne
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
+
+      mockUserRepository.create.mockReturnValue({ email: 'race@skylux.vn' });
+      mockUserRepository.save.mockRejectedValueOnce({
+        code: '23505',
+        detail: 'Key (email)=(race@skylux.vn) already exists.',
+      });
+
+      await expect(
+        service.create('org-uuid', {
+          fullName: 'Race Condition User',
+          email: 'race@skylux.vn',
+        }),
+      ).rejects.toThrow(
+        new ConflictException('Email "race@skylux.vn" đã tồn tại trong hệ thống'),
+      );
+    });
+
+    it('should catch 23505 unique constraint error on phone and rethrow ConflictException for phone', async () => {
+      mockUserRepository.findOne
+        .mockResolvedValueOnce(null) // email ok
+        .mockResolvedValueOnce(null) // phone ok
+        .mockResolvedValueOnce(null); // code ok
+
+      mockUserRepository.create.mockReturnValue({ email: 'race2@skylux.vn', phone: '0912345678' });
+      mockUserRepository.save.mockRejectedValueOnce({
+        code: '23505',
+        detail: 'Key (phone)=(0912345678) already exists.',
+      });
+
+      await expect(
+        service.create('org-uuid', {
+          fullName: 'Race Condition Phone',
+          email: 'race2@skylux.vn',
+          phone: '0912345678',
+        }),
+      ).rejects.toThrow(
+        new ConflictException('Số điện thoại "0912345678" đã tồn tại trong hệ thống'),
+      );
     });
 
     it('should throw BadRequestException if department does not belong to organization', async () => {

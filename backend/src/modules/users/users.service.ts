@@ -331,13 +331,22 @@ export class UsersService {
     const normalizedEmail = email.toLowerCase().trim();
     const normalizedPhone = phone?.trim();
 
-    // 1. Kiểm tra tính duy nhất của email
-    const existingEmail = await this.userRepository.findOne({
+    // 1. Kiểm tra tính duy nhất của email (xét cả bản ghi đã xóa mềm để hỗ trợ khôi phục)
+    const existingUser = await this.userRepository.findOne({
       where: { email: normalizedEmail },
+      withDeleted: true,
+      relations: { roles: true },
     });
-    if (existingEmail) {
+
+    if (existingUser && !existingUser.deletedAt) {
       throw new ConflictException(
         `Email "${normalizedEmail}" đã tồn tại trong hệ thống`,
+      );
+    }
+
+    if (existingUser && existingUser.organizationId !== organizationId) {
+      throw new ConflictException(
+        `Email "${normalizedEmail}" đã được đăng ký bởi một tổ chức khác`,
       );
     }
 
@@ -346,7 +355,7 @@ export class UsersService {
       const existingPhone = await this.userRepository.findOne({
         where: { phone: normalizedPhone },
       });
-      if (existingPhone) {
+      if (existingPhone && existingPhone.id !== existingUser?.id) {
         throw new ConflictException(
           `Số điện thoại "${normalizedPhone}" đã tồn tại trong hệ thống`,
         );
@@ -358,15 +367,36 @@ export class UsersService {
     if (finalEmployeeCode) {
       const existingCode = await this.userRepository.findOne({
         where: { employeeCode: finalEmployeeCode, organizationId },
+        withDeleted: true,
       });
-      if (existingCode) {
+      if (existingCode && existingCode.id !== existingUser?.id) {
         throw new ConflictException(
           `Mã nhân viên "${finalEmployeeCode}" đã tồn tại trong tổ chức`,
         );
       }
+    } else if (existingUser?.employeeCode) {
+      finalEmployeeCode = existingUser.employeeCode;
     } else {
-      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-      finalEmployeeCode = `EMP${Date.now().toString().slice(-4)}${randomSuffix}`;
+      let candidate = `EMP${Date.now().toString().slice(-4)}${Math.floor(1000 + Math.random() * 9000)}`;
+      let codeExists = await this.userRepository.findOne({
+        where: { employeeCode: candidate, organizationId },
+        withDeleted: true,
+      });
+      let attempts = 0;
+      while (codeExists && attempts < 5) {
+        attempts++;
+        candidate = `EMP${Date.now().toString().slice(-4)}${Math.floor(1000 + Math.random() * 9000)}`;
+        codeExists = await this.userRepository.findOne({
+          where: { employeeCode: candidate, organizationId },
+          withDeleted: true,
+        });
+      }
+      if (codeExists) {
+        throw new ConflictException(
+          'Không thể tự động sinh mã nhân viên hợp lệ lúc này. Vui lòng nhập mã thủ công.',
+        );
+      }
+      finalEmployeeCode = candidate;
     }
 
     // 4. Xác thực phòng ban nếu có
@@ -430,22 +460,69 @@ export class UsersService {
     const rawPassword = password || generatedTemporaryPassword!;
     const passwordHash = await bcrypt.hash(rawPassword, 10);
 
-    // 7. Tạo và lưu người dùng (bắt buộc đổi mật khẩu khi đăng nhập lần đầu)
-    const user = this.userRepository.create({
-      organizationId,
-      departmentId,
-      employeeCode: finalEmployeeCode,
-      fullName: fullName.trim(),
-      email: normalizedEmail,
-      phone: normalizedPhone || undefined,
-      avatarUrl,
-      status,
-      passwordHash,
-      mustChangePassword: true,
-      roles,
-    });
+    // 7. Khôi phục người dùng đã xóa mềm hoặc tạo mới (bắt buộc đổi mật khẩu khi đăng nhập lần đầu)
+    let savedUser: User;
+    let isRestored = false;
 
-    const savedUser = await this.userRepository.save(user);
+    if (existingUser?.deletedAt) {
+      isRestored = true;
+      existingUser.fullName = fullName.trim();
+      existingUser.phone = (normalizedPhone || null) as any;
+      existingUser.employeeCode = finalEmployeeCode;
+      existingUser.departmentId = (departmentId || null) as any;
+      existingUser.avatarUrl =
+        avatarUrl !== undefined ? avatarUrl : existingUser.avatarUrl;
+      existingUser.status = UserStatus.ACTIVE;
+      existingUser.passwordHash = passwordHash;
+      existingUser.mustChangePassword = true;
+      existingUser.roles = roles;
+      existingUser.authVersion = (existingUser.authVersion ?? 0) + 1;
+
+      try {
+        if (this.userRepository.manager?.transaction) {
+          savedUser = await this.userRepository.manager.transaction(
+            async (transactionalEntityManager) => {
+              const restoredUser =
+                await transactionalEntityManager.recover(existingUser);
+              return transactionalEntityManager.save(restoredUser);
+            },
+          );
+        } else {
+          const restoredUser = await this.userRepository.recover(existingUser);
+          savedUser = await this.userRepository.save(restoredUser);
+        }
+      } catch (error: any) {
+        this.handleUniqueConstraintViolation(error, {
+          email: normalizedEmail,
+          employeeCode: finalEmployeeCode,
+          phone: normalizedPhone,
+        });
+      }
+    } else {
+      const user = this.userRepository.create({
+        organizationId,
+        departmentId: departmentId || undefined,
+        employeeCode: finalEmployeeCode,
+        fullName: fullName.trim(),
+        email: normalizedEmail,
+        phone: normalizedPhone || undefined,
+        avatarUrl,
+        status,
+        passwordHash,
+        mustChangePassword: true,
+        roles,
+      });
+
+      try {
+        savedUser = await this.userRepository.save(user);
+      } catch (error: any) {
+        this.handleUniqueConstraintViolation(error, {
+          email: normalizedEmail,
+          employeeCode: finalEmployeeCode,
+          phone: normalizedPhone,
+        });
+      }
+    }
 
     if (actorUserId) {
       await this.auditLogsService.record({
@@ -454,16 +531,17 @@ export class UsersService {
         action: AuditAction.USER_CREATED,
         entityType: AuditEntityType.USER,
         entityId: savedUser.id,
-        afterData: this.auditSnapshot(savedUser),
+        afterData: {
+          ...this.auditSnapshot(savedUser),
+          ...(isRestored ? { restored: true } : {}),
+        },
       });
     }
 
     return {
       data: {
         ...this.sanitizeUser(savedUser),
-        ...(generatedTemporaryPassword
-          ? { temporaryPassword: generatedTemporaryPassword }
-          : {}),
+        temporaryPassword: rawPassword,
       },
     };
   }
@@ -889,5 +967,41 @@ export class UsersService {
       status: user.status,
       roleIds: (user.roles ?? []).map((role) => role.id).sort(),
     };
+  }
+
+  private handleUniqueConstraintViolation(
+    error: any,
+    options: {
+      email: string;
+      employeeCode?: string;
+      phone?: string;
+    },
+  ): never {
+    if (error?.code === '23505') {
+      const errString =
+        `${error?.detail || ''} ${error?.constraint || ''} ${error?.message || ''}`.toLowerCase();
+      if (
+        errString.includes('employee_code') ||
+        errString.includes('employeecode')
+      ) {
+        throw new ConflictException(
+          `Mã nhân viên "${options.employeeCode}" đã tồn tại trong tổ chức`,
+        );
+      }
+      if (errString.includes('phone')) {
+        throw new ConflictException(
+          `Số điện thoại "${options.phone}" đã tồn tại trong hệ thống`,
+        );
+      }
+      if (errString.includes('email')) {
+        throw new ConflictException(
+          `Email "${options.email}" đã tồn tại trong hệ thống`,
+        );
+      }
+      throw new ConflictException(
+        `Email "${options.email}" đã tồn tại trong hệ thống`,
+      );
+    }
+    throw error;
   }
 }
