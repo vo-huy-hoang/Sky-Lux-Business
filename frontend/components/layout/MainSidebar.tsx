@@ -107,9 +107,9 @@ export function MainSidebar({ userCtx }: MainSidebarProps) {
       >
         <div className="px-4 pb-6 pt-5">
           {collapsed ? (
-            <BrandLogo variant="mark" size="sm" theme="dark" asLink={true} />
+            <BrandLogo variant="mark" size="sm" theme="dark" asLink={true} href="/dashboard" />
           ) : (
-            <BrandLogo variant="full" size="md" theme="dark" asLink={true} />
+            <BrandLogo variant="full" size="md" theme="dark" asLink={true} href="/dashboard" />
           )}
         </div>
 

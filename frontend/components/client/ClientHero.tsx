@@ -1,18 +1,34 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRightOutlined, ArrowDownOutlined } from '@ant-design/icons';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 export function ClientHero() {
   const orbitWrapperRef = useRef<HTMLDivElement>(null);
+  const [hasMounted, setHasMounted] = useState(false);
+  const user = useAuthStore((state) => state.user);
+  const hasHydrated = useAuthStore((state) => state.hasHydrated);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  const isLoggedIn = hasMounted && hasHydrated && Boolean(user);
 
   useEffect(() => {
     const el = orbitWrapperRef.current;
     if (!el || typeof window === 'undefined') return;
 
-    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const finePointer = window.matchMedia('(pointer: fine)').matches;
+    const prefersReduced =
+      typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        : false;
+    const finePointer =
+      typeof window.matchMedia === 'function'
+        ? window.matchMedia('(pointer: fine)').matches
+        : true;
     if (prefersReduced || !finePointer) return;
 
     let rafId: number | null = null;
@@ -133,7 +149,7 @@ export function ClientHero() {
           className="flex flex-col sm:flex-row items-center justify-center gap-3.5 sm:gap-4 w-full sm:w-auto hero-reveal"
           style={{ animationDelay: '460ms' }}
         >
-          <Link href="/login" className="w-full sm:w-auto">
+          <Link href={isLoggedIn ? "/dashboard" : "/login"} className="w-full sm:w-auto">
             <button
               type="button"
               className="relative overflow-hidden w-full sm:w-auto min-h-[48px] pl-7 pr-2.5 py-2 rounded-full bg-[var(--color-primary-900)] hover:bg-[var(--color-primary-800)] text-white font-bold text-sm sm:text-[15px] shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 inline-flex items-center justify-between sm:justify-center gap-3.5 group cursor-pointer"
@@ -143,7 +159,7 @@ export function ClientHero() {
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-[linear-gradient(105deg,transparent_25%,rgba(255,255,255,0.16)_50%,transparent_75%)]"
               />
-              <span className="relative z-10">Đăng ký Demo</span>
+              <span className="relative z-10">{isLoggedIn ? 'Vào Bảng Điều Khiển' : 'Đăng ký Demo'}</span>
               <span className="relative z-10 w-8 h-8 rounded-full bg-white/15 flex items-center justify-center transition-all duration-200 group-hover:translate-x-0.5 group-hover:bg-white/25">
                 <ArrowRightOutlined className="text-[13px]" aria-hidden="true" />
               </span>
