@@ -279,7 +279,7 @@ describe('UsersService', () => {
 
     it('should auto-recover soft-deleted user in the same organization preserving ID and reactivating status', async () => {
       const orgId = 'org-uuid';
-      const softDeletedUser = {
+      const softDeletedUser: any = {
         id: 'existing-user-id',
         fullName: 'Lê Tự Hoàng Tùng (Cũ)',
         email: 'vnluxcar@gmail.com',
@@ -287,6 +287,9 @@ describe('UsersService', () => {
         organizationId: orgId,
         status: UserStatus.INACTIVE,
         authVersion: 2,
+        mustChangePassword: false,
+        phone: '0912345678',
+        departmentId: 'dept-old-id',
         deletedAt: new Date('2026-11-01T00:00:00Z'),
         roles: [],
       };
@@ -331,7 +334,7 @@ describe('UsersService', () => {
 
     it('should strictly enforce status ACTIVE during recovery even if DTO specifies INACTIVE', async () => {
       const orgId = 'org-uuid';
-      const softDeletedUser = {
+      const softDeletedUser: any = {
         id: 'user-inactive-id',
         fullName: 'User Old',
         email: 'inactive@skylux.vn',
