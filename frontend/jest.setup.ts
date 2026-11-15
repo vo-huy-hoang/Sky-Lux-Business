@@ -15,6 +15,16 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
+if (typeof global.ResizeObserver === 'undefined') {
+  class MockResizeObserver {
+    observe = jest.fn();
+    unobserve = jest.fn();
+    disconnect = jest.fn();
+  }
+  (window as any).ResizeObserver = MockResizeObserver;
+  (global as any).ResizeObserver = MockResizeObserver;
+}
+
 if (typeof global.MessageChannel === 'undefined') {
   (global as any).MessageChannel = class MockMessageChannel {
     port1: any;

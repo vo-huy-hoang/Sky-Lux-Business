@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
@@ -25,6 +24,7 @@ import { useUIStore } from '@/lib/stores/ui-store';
 import { useNotificationStore } from '@/lib/stores/notification-store';
 import { authService } from '@/services/auth.service';
 import type { UserContext } from '@/lib/routes.config';
+import { BrandLogo } from '@/components/ui';
 import styles from './super-admin.module.css';
 
 const navigation = [
@@ -84,7 +84,11 @@ export function SuperAdminWorkspace({ children, routeMeta }: SuperAdminWorkspace
       {mobileOpen && <button className={styles.scrim} aria-label="Đóng menu" onClick={() => setMobileOpen(false)} />}
       <aside className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ''} ${mobileOpen ? styles.sidebarMobileOpen : ''}`}>
         <div className={styles.brand}>
-          <Image src="/logo/logo.png?v=2" alt="Sky-Lux CRM" width={200} height={71} priority unoptimized className={styles.brandLogo} />
+          {collapsed ? (
+            <BrandLogo variant="mark" size="md" theme="dark" asLink={true} href="/dashboard" priority />
+          ) : (
+            <BrandLogo variant="full" size="xl" theme="dark" asLink={true} href="/dashboard" priority />
+          )}
         </div>
 
         <nav className={styles.navigation} aria-label="Điều hướng quản trị">
