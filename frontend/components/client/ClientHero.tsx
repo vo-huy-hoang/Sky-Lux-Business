@@ -1,21 +1,13 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowRightOutlined, ArrowDownOutlined } from '@ant-design/icons';
-import { useAuthStore } from '@/lib/stores/auth-store';
+import { useIsLoggedIn } from '@/hooks/use-is-logged-in';
 
 export function ClientHero() {
   const orbitWrapperRef = useRef<HTMLDivElement>(null);
-  const [hasMounted, setHasMounted] = useState(false);
-  const user = useAuthStore((state) => state.user);
-  const hasHydrated = useAuthStore((state) => state.hasHydrated);
-
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
-
-  const isLoggedIn = hasMounted && hasHydrated && Boolean(user);
+  const isLoggedIn = useIsLoggedIn();
 
   useEffect(() => {
     const el = orbitWrapperRef.current;

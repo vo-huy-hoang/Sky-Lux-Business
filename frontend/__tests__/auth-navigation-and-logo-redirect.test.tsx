@@ -224,7 +224,7 @@ describe('Auth Navigation, History Guard & Logo Destination', () => {
       });
     });
 
-    it('renders "Đăng Nhập" linking to /login when user is guest', async () => {
+    it('renders "Đăng Ký Demo" linking to /login when user is guest', async () => {
       useAuthStore.setState({
         user: null,
         isAuthenticated: false,
@@ -234,7 +234,7 @@ describe('Auth Navigation, History Guard & Logo Destination', () => {
       render(<ClientHeader />);
 
       const loginLinks = await screen.findAllByRole('link', {
-        name: /Đăng Nhập/i,
+        name: /Đăng Ký/i,
       });
       expect(loginLinks.length).toBeGreaterThan(0);
       loginLinks.forEach((link) => {

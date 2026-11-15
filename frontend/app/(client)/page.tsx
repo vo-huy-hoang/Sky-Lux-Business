@@ -32,7 +32,7 @@ function ClientLandingContent() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white">
         <Spin size="large" />
-        <p className="mt-4 text-sm font-medium text-slate-500">
+        <p className="mt-4 text-sm font-medium text-[var(--color-text-muted)]">
           Đang chuyển hướng vào bảng điều khiển...
         </p>
       </div>

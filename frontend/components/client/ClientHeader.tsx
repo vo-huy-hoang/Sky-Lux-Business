@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { Dropdown, MenuProps } from 'antd';
 import {
@@ -19,19 +19,11 @@ import {
 } from '@ant-design/icons';
 import { themeTokens } from '@/lib/theme/tokens.config';
 import { BrandLogo } from '@/components/ui';
-import { useAuthStore } from '@/lib/stores/auth-store';
+import { useIsLoggedIn } from '@/hooks/use-is-logged-in';
 
 export function ClientHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [hasMounted, setHasMounted] = useState(false);
-  const user = useAuthStore((state) => state.user);
-  const hasHydrated = useAuthStore((state) => state.hasHydrated);
-
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
-
-  const isLoggedIn = hasMounted && hasHydrated && Boolean(user);
+  const isLoggedIn = useIsLoggedIn();
 
   // Smooth scroll handler with header offset calculation
   const handleScrollTo = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
@@ -208,7 +200,7 @@ export function ClientHeader() {
                   className="h-10 sm:h-11 pl-5 pr-2 rounded-full text-white font-bold text-xs sm:text-sm shadow-sm hover:shadow-lg hover:shadow-(--color-primary-900)/20 active:scale-[0.98] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] flex items-center gap-2 group cursor-pointer"
                   style={{ backgroundColor: themeTokens.brand.primary[900] }}
                 >
-                  <span>Đăng Nhập</span>
+                  <span>Đăng Ký Demo</span>
                   <span className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:translate-x-1 group-hover:-translate-y-[0.5px] group-hover:bg-white/30">
                     <ArrowRightOutlined className="text-[10px]" />
                   </span>
@@ -266,7 +258,7 @@ export function ClientHeader() {
                   className="w-full py-3 rounded-full text-white font-bold text-sm shadow-sm flex items-center justify-center gap-2 cursor-pointer"
                   style={{ backgroundColor: themeTokens.brand.primary[900] }}
                 >
-                  <span>{isLoggedIn ? "Vào Bảng Điều Khiển" : "Đăng Nhập Hệ Thống"}</span>
+                  <span>{isLoggedIn ? "Vào Bảng Điều Khiển" : "Đăng Ký Trải Nghiệm Demo"}</span>
                   <ArrowRightOutlined className="text-xs" />
                 </button>
               </Link>

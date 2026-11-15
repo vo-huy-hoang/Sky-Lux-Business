@@ -11,7 +11,6 @@ import {
   Divider,
   Spin,
   Alert,
-  message as staticMessage,
 } from 'antd';
 import {
   MailOutlined,
@@ -40,15 +39,7 @@ function LoginLogo() {
 }
 
 function LoginForm() {
-  let message: any = staticMessage;
-  try {
-    const antdApp = App.useApp();
-    if (antdApp?.message) {
-      message = antdApp.message;
-    }
-  } catch {
-    // Fallback to staticMessage if rendered outside antd App context
-  }
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -113,7 +104,7 @@ function LoginForm() {
     return (
       <div className="w-full max-w-[420px] mx-auto py-12 flex flex-col items-center justify-center text-center">
         <Spin size="large" />
-        <p className="mt-4 text-sm font-medium text-slate-500">
+        <p className="mt-4 text-sm font-medium text-[var(--color-text-muted)]">
           Tài khoản đã đăng nhập. Đang chuyển hướng vào bảng điều khiển...
         </p>
       </div>
