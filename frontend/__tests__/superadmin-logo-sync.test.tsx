@@ -1,10 +1,11 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App } from 'antd';
 import { SuperAdminWorkspace } from '@/components/super-admin/SuperAdminWorkspace';
 import { MainSidebar } from '@/components/layout/MainSidebar';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useUIStore } from '@/lib/stores/ui-store';
 
 const mockPush = jest.fn();
 jest.mock('next/navigation', () => ({
@@ -24,6 +25,11 @@ describe('SuperAdmin & Role Sidebar BrandLogo Synchronization and Sizing', () =>
     jest.clearAllMocks();
     queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
+    });
+
+    useUIStore.setState({
+      sidebarCollapsed: false,
+      notificationsDrawerOpen: false,
     });
 
     useAuthStore.setState({
@@ -93,9 +99,11 @@ describe('SuperAdmin & Role Sidebar BrandLogo Synchronization and Sizing', () =>
         </App>,
       );
 
-      // Find and click "Thu gọn" button in SuperAdmin sidebar
+      // Find and click "Thu gọn" button in SuperAdmin sidebar wrapped in act
       const collapseBtn = screen.getByRole('button', { name: /Thu gọn/i });
-      fireEvent.click(collapseBtn);
+      act(() => {
+        fireEvent.click(collapseBtn);
+      });
 
       // Verify mark image with 1:1 ratio and size md (38x38)
       const markImg = screen.getByAltText('OPTRIP App Icon');
@@ -108,6 +116,8 @@ describe('SuperAdmin & Role Sidebar BrandLogo Synchronization and Sizing', () =>
 
   describe('2. MainSidebar Role Logo Sizing & Alignment', () => {
     it('renders BrandLogo in full size xl for other roles (CEO, Sales, Operator) when expanded', () => {
+      useUIStore.setState({ sidebarCollapsed: false });
+
       render(
         <MainSidebar
           userCtx={{
@@ -130,6 +140,30 @@ describe('SuperAdmin & Role Sidebar BrandLogo Synchronization and Sizing', () =>
       expect(logoImg.getAttribute('src')).toContain('/brand/optrip-logo-dark.png');
       expect(logoImg).toHaveAttribute('width', '180');
       expect(logoImg).toHaveAttribute('height', '60');
+    });
+
+    it('renders BrandLogo in mark variant size md for other roles when collapsed', () => {
+      render(
+        <MainSidebar
+          userCtx={{
+            roles: ['CEO_ADMIN'],
+            permissions: ['*'],
+            isSales: false,
+            isOperator: false,
+            isCeoAdmin: true,
+          }}
+        />,
+      );
+
+      act(() => {
+        useUIStore.getState().setSidebarCollapsed(true);
+      });
+
+      const markImg = screen.getByAltText('OPTRIP App Icon');
+      expect(markImg).toBeInTheDocument();
+      expect(markImg.getAttribute('src')).toContain('/brand/optrip-mark.png');
+      expect(markImg).toHaveAttribute('width', '38');
+      expect(markImg).toHaveAttribute('height', '38');
     });
   });
 });

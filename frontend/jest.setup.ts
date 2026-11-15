@@ -21,7 +21,9 @@ if (typeof global.ResizeObserver === 'undefined') {
     unobserve = jest.fn();
     disconnect = jest.fn();
   }
-  (window as any).ResizeObserver = MockResizeObserver;
+  if (typeof window !== 'undefined') {
+    (window as any).ResizeObserver = MockResizeObserver;
+  }
   (global as any).ResizeObserver = MockResizeObserver;
 }
 

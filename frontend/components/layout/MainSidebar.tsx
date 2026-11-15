@@ -111,9 +111,7 @@ export function MainSidebar({ userCtx }: MainSidebarProps) {
           }`}
         >
           {collapsed ? (
-            <div className="flex items-center justify-center w-full">
-              <BrandLogo variant="mark" size="md" theme="dark" asLink={true} href="/dashboard" priority />
-            </div>
+            <BrandLogo variant="mark" size="md" theme="dark" asLink={true} href="/dashboard" priority />
           ) : (
             <BrandLogo variant="full" size="xl" theme="dark" asLink={true} href="/dashboard" priority />
           )}
