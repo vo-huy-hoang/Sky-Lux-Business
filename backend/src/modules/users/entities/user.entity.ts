@@ -80,7 +80,7 @@ export class User extends BaseEntity {
   @JoinColumn({ name: 'department_id' })
   department?: Department;
 
-  @ManyToMany(() => Role, (role) => role.users, { cascade: true })
+  @ManyToMany(() => Role, (role) => role.users)
   @JoinTable({
     name: 'user_roles',
     joinColumn: { name: 'user_id', referencedColumnName: 'id' },

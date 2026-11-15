@@ -124,9 +124,9 @@ export class UsersService {
       actorRoles?.includes('CEO_ADMIN') &&
       !actorRoles.includes('SUPER_ADMIN')
     ) {
-      queryBuilder.andWhere('role.code IN (:...staffRoleCodes)', {
-        staffRoleCodes: ['OPERATOR', 'SALES'],
-      });
+      // Exclude elevated system accounts (CEO_ADMIN, SUPER_ADMIN) from staff management list.
+      // Do NOT filter on role.code directly here to avoid turning the LEFT JOIN on roles into
+      // an INNER JOIN, which would erroneously ghost users without roles or with roles under maintenance.
       queryBuilder.andWhere(
         `NOT EXISTS (
           SELECT 1
@@ -765,6 +765,10 @@ export class UsersService {
 
     user.authVersion = (user.authVersion ?? 0) + 1;
     await this.userRepository.save(user);
+
+    // Defensively detach loaded relations prior to softRemove to guarantee
+    // that no ORM unit-of-work cascades mutations to shared aggregates (e.g. roles)
+    user.roles = [];
     await this.userRepository.softRemove(user);
 
     if (actorUserId) {
