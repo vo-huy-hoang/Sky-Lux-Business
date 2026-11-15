@@ -138,6 +138,34 @@ describe('UsersService', () => {
         totalPages: 1,
       });
     });
+
+    it('should scope CEO_ADMIN query via NOT EXISTS subquery without inner-joining on role.code', async () => {
+      const orgId = 'org-uuid';
+      const mockUsers = [
+        {
+          id: 'u-1',
+          fullName: 'Staff Without Role',
+          email: 'staff@example.com',
+          organizationId: orgId,
+          roles: [],
+        },
+      ];
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([mockUsers, 1]);
+
+      const result = await service.findAll(orgId, new QueryUserDto(), ['CEO_ADMIN']);
+
+      const andWhereCalls = mockQueryBuilder.andWhere.mock.calls;
+      const hasNotExistsSubquery = andWhereCalls.some(([clause]: [any]) =>
+        typeof clause === 'string' && clause.includes('NOT EXISTS'),
+      );
+      const hasStrictRoleCodeIn = andWhereCalls.some(([clause]: [any]) =>
+        typeof clause === 'string' && clause.includes('role.code IN (:...staffRoleCodes)'),
+      );
+
+      expect(hasNotExistsSubquery).toBe(true);
+      expect(hasStrictRoleCodeIn).toBe(false);
+      expect(result.data).toHaveLength(1);
+    });
   });
 
   describe('findOne (API-USERS-002)', () => {
@@ -454,6 +482,32 @@ describe('UsersService', () => {
         { isRevoked: true },
       );
       expect(mockUserRepository.softRemove).toHaveBeenCalledWith(mockUser);
+      expect(result.data.deleted).toBe(true);
+    });
+
+    it('should defensively detach user.roles before softRemove to prevent cascading role deletion', async () => {
+      const orgId = 'org-uuid';
+      const userId = 'user-uuid';
+      const mockRoles = [
+        { id: 'role-sales', code: 'SALES', name: 'Sales' },
+      ];
+      const mockUser: any = {
+        id: userId,
+        organizationId: orgId,
+        roles: [...mockRoles],
+        authVersion: 1,
+      };
+      mockUserRepository.findOne.mockResolvedValue(mockUser);
+      mockRefreshTokenRepository.update.mockResolvedValue({ affected: 1 });
+      mockUserRepository.save.mockResolvedValue(mockUser);
+      mockUserRepository.softRemove.mockImplementation(async (target: any) => {
+        expect(target.roles).toEqual([]);
+        return target;
+      });
+
+      const result = await service.remove(orgId, userId);
+
+      expect(mockUserRepository.softRemove).toHaveBeenCalled();
       expect(result.data.deleted).toBe(true);
     });
 
