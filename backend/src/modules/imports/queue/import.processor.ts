@@ -1,3 +1,4 @@
+import { Optional } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -8,16 +9,22 @@ import * as xlsx from 'xlsx';
 import { ImportSession } from '../entities/import-session.entity';
 import { ImportRow } from '../entities/import-row.entity';
 import { ImportError } from '../entities/import-error.entity';
-import { ImportSessionStatus, CustomerType } from '../../../common/enums';
+import { ImportSessionStatus } from '../../../common/enums';
 import { Customer } from '../../customers/entities/customer.entity';
+import { Supplier } from '../../suppliers/entities/supplier.entity';
 import {
   CUSTOMER_BUDGET_FORMAT,
+  computeFinancialReconciliation,
+  findCustomerBudgetSheet,
   isCustomerBudgetWorkbook,
+  looksLikeCustomerBudgetWorkbook,
   parseCustomerBudgetWorkbook,
 } from '../customer-budget.parser';
 import {
   CustomerIdentity,
   CustomerIdentityIndex,
+  normalizeCustomerPhone,
+  normalizeCustomerEmail,
 } from './customer-identity-index';
 
 function sanitizeCellValue(value: any): string {
@@ -40,6 +47,9 @@ export class ImportProcessor extends WorkerHost {
     private readonly errorRepository: Repository<ImportError>,
     @InjectRepository(Customer)
     private readonly customerRepository: Repository<Customer>,
+    @Optional()
+    @InjectRepository(Supplier)
+    private readonly supplierRepository?: Repository<Supplier>,
   ) {
     super();
   }
@@ -83,24 +93,69 @@ export class ImportProcessor extends WorkerHost {
     }
 
     const workbook = xlsx.readFile(filePath, { cellDates: true });
-    const sheetName = workbook.SheetNames[0];
+    const detectedBudgetSheet = findCustomerBudgetSheet(workbook);
+    const sheetName =
+      detectedBudgetSheet || workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
 
-    // Read sheet to JSON format with empty string default values
-    const rowsData: any[] = isCustomerBudgetWorkbook(workbook)
-      ? [parseCustomerBudgetWorkbook(workbook)]
-      : xlsx.utils.sheet_to_json(sheet, { defval: '' });
+    let rowsData: any[] = [];
+    let budgetParsingError: string | null = null;
+    const isBudgetCandidate = looksLikeCustomerBudgetWorkbook(workbook);
+
+    if (isBudgetCandidate) {
+      try {
+        rowsData = [parseCustomerBudgetWorkbook(workbook)];
+      } catch (err: any) {
+        budgetParsingError =
+          err?.message || 'Cấu trúc file Dự toán không hợp lệ';
+      }
+    } else {
+      rowsData = xlsx.utils.sheet_to_json(sheet, { defval: '' });
+    }
 
     // Clear existing raw rows in staging
     await this.rowRepository.delete({ sessionId });
     await this.errorRepository.delete({ sessionId });
+
+    if (budgetParsingError) {
+      const errorRow = this.rowRepository.create({
+        sessionId,
+        sheetName,
+        rowNumber: 1,
+        rawData: { error: budgetParsingError },
+        status: 'ERROR',
+        normalizedData: undefined,
+      });
+      await this.rowRepository.save(errorRow);
+
+      const errorEntity = this.errorRepository.create({
+        sessionId,
+        rowNumber: 1,
+        errorCode: 'BUDGET_FORMAT_ERROR',
+        errorMessage: budgetParsingError,
+      });
+      await this.errorRepository.save(errorEntity);
+
+      try {
+        fs.unlinkSync(filePath);
+      } catch (e) {}
+
+      await this.sessionRepository.update(sessionId, {
+        status: ImportSessionStatus.READY_FOR_REVIEW,
+        totalRows: 1,
+        processedRows: 1,
+        validRows: 0,
+        errorRows: 1,
+      });
+      return;
+    }
 
     // Save staging records
     const importRows = rowsData.map((data, index) => {
       return this.rowRepository.create({
         sessionId,
         sheetName,
-        rowNumber: isCustomerBudgetWorkbook(workbook) ? 1 : index + 2,
+        rowNumber: isBudgetCandidate ? 1 : index + 2,
         rawData: data,
         status: 'PENDING',
       });
@@ -243,37 +298,39 @@ export class ImportProcessor extends WorkerHost {
         }
       }
 
-      // Check customer exist in organization, or auto-create if new
+      // Check customer exist in organization (strictly read-only validation)
       let customer: Customer | null = null;
+      let customerStatus: 'EXISTING' | 'NEW_TO_BE_CREATED' = 'NEW_TO_BE_CREATED';
       if (customerCode) {
         customer = await this.customerRepository.findOne({
           where: { code: customerCode, organizationId: session.organizationId },
         });
-        if (!customer) {
-          // Tự động tạo mới khách hàng từ thông tin trong file Excel
-          try {
-            const nameToUse = customerName || `Khách hàng ${customerCode}`;
-            const newCustomer = this.customerRepository.create({
-              organizationId: session.organizationId,
-              code: customerCode,
-              displayName: nameToUse,
-              customerType: CustomerType.INDIVIDUAL,
-              phone: phone || undefined,
-              email: email || undefined,
-              dateOfBirth:
-                dob && !isNaN(Date.parse(dob))
-                  ? new Date(dob).toISOString().slice(0, 10)
-                  : undefined,
-              status: 'ACTIVE',
-            });
-            customer = await this.customerRepository.save(newCustomer);
-          } catch (createErr: any) {
-            errors.push(
-              `Không thể tự động tạo mới khách hàng "${customerCode}": ${createErr?.message || 'Lỗi lưu dữ liệu'}`,
-            );
+        if (customer) {
+          customerStatus = 'EXISTING';
+        } else {
+          customerStatus = 'NEW_TO_BE_CREATED';
+        }
+      } else if (isCustomerBudget && (phone || email)) {
+        const phoneMatches = phone ? identityIndex.getPhoneMatches(phone) : [];
+        const emailMatches = email ? identityIndex.getEmailMatches(email) : [];
+        const matched = phoneMatches[0] || emailMatches[0];
+        if (matched) {
+          const isExistingMaster = !matched.id.startsWith('import-');
+          if (isExistingMaster) {
+            customer = matched as any;
+            customerStatus = 'EXISTING';
+          } else {
+            customerStatus = 'NEW_TO_BE_CREATED';
           }
+        } else {
+          customerStatus = 'NEW_TO_BE_CREATED';
         }
       }
+
+      const effectiveCustomerName =
+        customer?.displayName ||
+        customerName ||
+        (customerCode ? `Khách hàng ${customerCode}` : '');
 
       // Date parsing & logical order validation
       let validStartDate = false;
@@ -332,10 +389,71 @@ export class ImportProcessor extends WorkerHost {
         // Save normalized data structure for Dossier & Customer migration (with formula sanitization)
         validRowsCount++;
         row.status = 'VALID';
+
+        let supplierResolution: Array<{
+          name: string;
+          status: 'EXISTING' | 'NEW_TO_BE_CREATED';
+          id?: string;
+        }> = [];
+
+        if (
+          isCustomerBudget &&
+          data.__costLines &&
+          Array.isArray(data.__costLines)
+        ) {
+          const rawSupplierNames = Array.from(
+            new Set(
+              data.__costLines
+                .map((l: any) => String(l.supplierName || '').trim())
+                .filter(Boolean),
+            ),
+          ) as string[];
+
+          if (rawSupplierNames.length > 0 && this.supplierRepository) {
+            try {
+              const existingSuppliers = await this.supplierRepository.find({
+                where: { organizationId: session.organizationId },
+              });
+              const existingMap = new Map(
+                existingSuppliers.map((s) => [
+                  s.name.trim().toLowerCase(),
+                  s.id,
+                ]),
+              );
+              supplierResolution = rawSupplierNames.map((name) => {
+                const existingId = existingMap.get(name.toLowerCase());
+                return {
+                  name,
+                  status: existingId ? 'EXISTING' : 'NEW_TO_BE_CREATED',
+                  ...(existingId ? { id: existingId } : {}),
+                };
+              });
+            } catch (supErr) {
+              supplierResolution = rawSupplierNames.map((name) => ({
+                name,
+                status: 'NEW_TO_BE_CREATED',
+              }));
+            }
+          } else if (rawSupplierNames.length > 0) {
+            supplierResolution = rawSupplierNames.map((name) => ({
+              name,
+              status: 'NEW_TO_BE_CREATED',
+            }));
+          }
+        }
+
         row.normalizedData = {
           code: sanitizeCellValue(code),
           name: sanitizeCellValue(name),
-          customerId: customer?.id,
+          customerId: customer?.id || undefined,
+          customerStatus,
+          customerCode: customer?.code || customerCode || undefined,
+          customerResolution: {
+            status: customerStatus,
+            ...(customer?.id ? { id: customer.id } : {}),
+            code: customer?.code || customerCode || undefined,
+            name: effectiveCustomerName || undefined,
+          },
           route: sanitizeCellValue(String(data[routeKey] || '').trim()),
           startDate: startDate
             ? new Date(startDate).toISOString().slice(0, 10)
@@ -351,8 +469,8 @@ export class ImportProcessor extends WorkerHost {
               }
             : {}),
           priority: data[priorityKey] || 'MEDIUM',
-          ...(customerName
-            ? { customerName: sanitizeCellValue(customerName) }
+          ...(effectiveCustomerName
+            ? { customerName: sanitizeCellValue(effectiveCustomerName) }
             : {}),
           ...(phone ? { phone: sanitizeCellValue(phone) } : {}),
           ...(email ? { email: sanitizeCellValue(email) } : {}),
@@ -369,6 +487,13 @@ export class ImportProcessor extends WorkerHost {
                 revenueLines: data.__revenueLines,
                 costLines: data.__costLines,
                 sourceSummary: data.__sourceSummary,
+                financialReconciliation: computeFinancialReconciliation(
+                  data.__revenueLines || [],
+                  data.__costLines || [],
+                  data.__sourceSummary,
+                ),
+                reconciliationResolution: data.__reconciliationResolution,
+                supplierResolution,
               }
             : {}),
         };

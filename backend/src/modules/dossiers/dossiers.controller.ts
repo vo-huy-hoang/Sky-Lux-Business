@@ -28,6 +28,7 @@ import { DossiersService } from './dossiers.service';
 import { QueryDossierDto } from './dto/query-dossier.dto';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
+import { DeleteDossierDto } from './dto/delete-dossier.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { QueryCommentDto } from './dto/query-comment.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -103,16 +104,18 @@ export class DossiersController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @RequirePermissions('dossier.update')
-  @Roles('OPERATOR', 'CEO_ADMIN', 'SUPER_ADMIN')
+  @RequirePermissions('dossier.delete')
   @ApiOperation({ summary: 'Xóa hồ sơ (API-DOSSIER-005)' })
   @ApiParam({ name: 'id', description: 'Dossier UUID' })
   @ApiResponse({ status: 204, description: 'Xóa thành công' })
   remove(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', ParseUUIDPipe) id: string,
+    @Query() queryDto?: DeleteDossierDto,
+    @Body() bodyDto?: DeleteDossierDto,
   ) {
-    return this.dossiersService.remove(user, id);
+    const reason = bodyDto?.reason || queryDto?.reason;
+    return this.dossiersService.remove(user, id, reason);
   }
 
   @Post(':id/submit')

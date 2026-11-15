@@ -1,5 +1,9 @@
 import { useMemo } from "react";
-import { PaginatedImportRowsResponse } from "@/types/import";
+import {
+  FinancialReconciliation,
+  ImportRow,
+  PaginatedImportRowsResponse,
+} from "@/types/import";
 import { EXCEL_VAT_DIVISOR } from "@/lib/financial-calculations";
 
 export interface ValidatedLine {
@@ -25,6 +29,26 @@ export interface ValidatedLine {
   statusMessage?: string;
   categoryGroup?: string;
   serviceCategoryCode?: string;
+  supplierStatus?: "EXISTING" | "NEW_TO_BE_CREATED";
+  isVatSection?: boolean;
+  calculatedAmount?: number;
+  isTamperedFormula?: boolean;
+  isMissingDescription?: boolean;
+}
+
+export interface BudgetMetadata {
+  tourName: string;
+  customerName: string;
+  customerCode?: string;
+  customerStatus?: "EXISTING" | "NEW_TO_BE_CREATED";
+  phone: string;
+  email: string;
+  route: string;
+  startDate: string;
+  endDate: string;
+  tourDuration: string;
+  businessLine: string;
+  marketType: string;
 }
 
 export interface ImportSummaryRow {
@@ -147,6 +171,33 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
       marketType: "-",
     };
 
+    let rawRow: ImportRow | undefined = undefined;
+    let isCustomerBudget = false;
+    let metadata: BudgetMetadata = {
+      tourName: "-",
+      customerName: "-",
+      phone: "-",
+      email: "-",
+      route: "-",
+      startDate: "-",
+      endDate: "-",
+      tourDuration: "-",
+      businessLine: "-",
+      marketType: "-",
+    };
+    let financialReconciliation: FinancialReconciliation = {
+      calculatedRevenue: 0,
+      calculatedCost: 0,
+      calculatedGrossProfit: 0,
+      calculatedProfitMarginPercent: 0,
+      revenueDelta: 0,
+      costDelta: 0,
+      profitDelta: 0,
+      status: "MATCHED",
+      warnings: [],
+    };
+    const supplierResolutionMap = new Map<string, "EXISTING" | "NEW_TO_BE_CREATED">();
+
     const revenues: ValidatedLine[] = [];
     const costs: ValidatedLine[] = [];
     let sourceSummary = {
@@ -157,23 +208,56 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
     };
 
     if (previewData?.data && previewData.data.length > 0) {
-      const row = previewData.data[0];
-      const data = row.rawData || {};
+      rawRow = previewData.data[0];
+      const normalized = (rawRow.normalizedData as Record<string, any>) || {};
+      const data = rawRow.rawData || {};
+
+      isCustomerBudget =
+        data.__importFormat === "SKYLUX_CUSTOMER_BUDGET" ||
+        normalized.importFormat === "SKYLUX_CUSTOMER_BUDGET";
+
+      if (Array.isArray(normalized.supplierResolution)) {
+        normalized.supplierResolution.forEach((s: any) => {
+          if (s && s.name) {
+            supplierResolutionMap.set(String(s.name).trim().toLowerCase(), s.status);
+          }
+        });
+      }
 
       classification = {
         businessLine: classificationLabel(
-          data.__businessLineName || data["MẢNG"] || data.__businessLineCode,
+          normalized.businessLineName || data.__businessLineName || data["MẢNG"] || data.__businessLineCode,
           "-",
         ),
         marketType: classificationLabel(
-          data.__marketTypeName || data["LOẠI HÌNH"] || data.__marketTypeCode,
+          normalized.marketTypeName || data.__marketTypeName || data["LOẠI HÌNH"] || data.__marketTypeCode,
           "-",
         ),
       };
 
-      const rawRevenues = data.__revenueLines || [];
-      const rawCosts = data.__costLines || [];
-      sourceSummary = data.__sourceSummary || sourceSummary;
+      const rawCustomerStatus =
+        normalized.customerStatus ||
+        normalized.customerResolution?.status ||
+        (normalized.customerId ? "EXISTING" : "NEW_TO_BE_CREATED");
+
+      metadata = {
+        tourName: String(normalized.name || data["Tên hồ sơ"] || data.tourName || "").trim() || "-",
+        customerName: String(normalized.customerName || data["Tên khách hàng"] || data.customerName || "").trim() || "-",
+        customerCode: String(normalized.customerCode || data["Mã khách hàng"] || data.customerCode || "").trim() || undefined,
+        customerStatus: rawCustomerStatus,
+        phone: String(normalized.phone || data["Số điện thoại"] || data["Số ĐT"] || data.phone || "").trim() || "-",
+        email: String(normalized.email || data["Email"] || data.email || "").trim() || "-",
+        route: String(normalized.route || data["Tuyến đường"] || data.route || "").trim() || "-",
+        startDate: String(normalized.startDate || data["Ngày bắt đầu"] || data.startDate || "").trim() || "-",
+        endDate: String(normalized.endDate || data["Ngày kết thúc"] || data.endDate || "").trim() || "-",
+        tourDuration: String(normalized.tourDuration || data["Thời gian"] || data.tourDuration || "").trim() || "-",
+        businessLine: classification.businessLine,
+        marketType: classification.marketType,
+      };
+
+      const rawRevenues = normalized.revenueLines || data.__revenueLines || [];
+      const rawCosts = normalized.costLines || data.__costLines || [];
+      sourceSummary = normalized.sourceSummary || data.__sourceSummary || sourceSummary;
 
       rawRevenues.forEach((line: any, idx: number) => {
         let status: "VALID" | "WARNING" | "ERROR" = "VALID";
@@ -238,14 +322,13 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
               safeQuantity /
               safeMultiplier
             : rawUnitPrice;
-        const calcAmount = safeQuantity * safeMultiplier * calcPrice;
-        const sourceOrCalculatedAmount = hasSourceAmount
-          ? sourceAmount
-          : calcAmount;
+        const calculatedAmount = safeQuantity * safeMultiplier * calcPrice;
+        const isTamperedFormula =
+          hasSourceAmount && Math.abs(sourceAmount - calculatedAmount) > 1000;
+        const isMissingDescription =
+          !line.description || String(line.description).trim() === '';
 
-        if (
-          !hasUnitPrice && !hasSourceAmount
-        ) {
+        if (!hasUnitPrice && !hasSourceAmount) {
           status = "ERROR";
           statusMessage = "Thiếu Đơn giá và Thành tiền";
           unitPriceError = true;
@@ -254,7 +337,7 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
           status = "ERROR";
           statusMessage = "Đơn giá không hợp lệ";
           unitPriceError = true;
-        } else if (sourceOrCalculatedAmount < 0) {
+        } else if (calculatedAmount < 0) {
           status = "ERROR";
           statusMessage = "Thành tiền không hợp lệ";
           totalAmountError = true;
@@ -265,9 +348,12 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
           status = "ERROR";
           statusMessage = "VAT không hợp lệ";
           vatRateError = true;
-        } else if (!line.description) {
+        } else if (isMissingDescription) {
           status = "WARNING";
-          statusMessage = "Thiếu diễn giải";
+          statusMessage = "Thiếu tên dịch vụ (Vui lòng điền tên hoặc xóa dòng)";
+        } else if (isTamperedFormula) {
+          status = "WARNING";
+          statusMessage = `Công thức lệch: Excel ghi ${sourceAmount.toLocaleString('vi-VN')} đ, tính đúng là ${calculatedAmount.toLocaleString('vi-VN')} đ`;
         }
 
         if (status === "VALID") validCount++;
@@ -275,29 +361,134 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
         else if (status === "ERROR") errorCount++;
         totalCount++;
 
-        totalCost += sourceOrCalculatedAmount;
+        totalCost += calculatedAmount;
+
+        const rawSupplier = String(line.supplierName || line.supplier || "").trim();
+        const supplierStatus = rawSupplier
+          ? supplierResolutionMap.get(rawSupplier.toLowerCase()) || "NEW_TO_BE_CREATED"
+          : undefined;
+        const groupName = line.categoryName || "DỊCH VỤ";
+        const isVatSection =
+          /CÓ\s*VAT/i.test(groupName) ||
+          vatRateOf(line.vatRate) > 0;
 
         costs.push({
           id: `cost-${idx}`,
           stt: idx + 1,
-          content: line.description || `Dịch vụ dòng ${idx + 1}`,
+          content: line.description ? String(line.description).trim() : "",
           supplier: line.supplierName || "Tự do",
-          quantity: line.quantity || 1,
+          supplierStatus,
+          isVatSection,
+          quantity: safeQuantity,
           multiplier: safeMultiplier,
           unitText: "Gói",
           unitPrice: calcPrice,
-          sourceAmount: line.sourceAmount,
+          sourceAmount: hasSourceAmount ? sourceAmount : undefined,
+          calculatedAmount,
+          isTamperedFormula,
+          isMissingDescription,
           unitPriceError,
           vatRate: line.vatRate || 0,
           vatRateError,
-          totalAmount: sourceOrCalculatedAmount,
+          totalAmount: calculatedAmount,
           totalAmountError,
           status,
           statusMessage,
-          categoryGroup: line.categoryName || "DỊCH VỤ",
+          categoryGroup: groupName,
           serviceCategoryCode: line.serviceCategoryCode,
         });
       });
+
+      const importSummary = calculateImportSummary(revenues, costs);
+      const netGrossProfit = importSummary.total.grossProfit;
+      const netProfitMargin =
+        importSummary.total.netRevenue > 0
+          ? Number(
+              ((netGrossProfit / importSummary.total.netRevenue) * 100).toFixed(2),
+            )
+          : 0;
+
+      const grossProfit = totalRevenue - totalCost;
+      const grossProfitMargin =
+        totalRevenue > 0
+          ? Number(((grossProfit / totalRevenue) * 100).toFixed(2))
+          : 0;
+
+      let calcGrossProfit = grossProfit;
+      let calcProfitMargin = grossProfitMargin;
+      let prfDelta = 0;
+
+      if (sourceSummary.totalProfit !== undefined) {
+        const netDelta = Math.abs(netGrossProfit - sourceSummary.totalProfit);
+        const grossDelta = Math.abs(grossProfit - sourceSummary.totalProfit);
+        if (netDelta <= 1000 && netDelta < grossDelta) {
+          calcGrossProfit = netGrossProfit;
+          calcProfitMargin = netProfitMargin;
+          prfDelta = netDelta;
+        } else if (grossDelta <= 1000) {
+          calcGrossProfit = grossProfit;
+          calcProfitMargin = grossProfitMargin;
+          prfDelta = grossDelta;
+        } else {
+          if (netDelta < grossDelta) {
+            calcGrossProfit = netGrossProfit;
+            calcProfitMargin = netProfitMargin;
+            prfDelta = netDelta;
+          } else {
+            calcGrossProfit = grossProfit;
+            calcProfitMargin = grossProfitMargin;
+            prfDelta = grossDelta;
+          }
+        }
+      }
+
+      const revDelta = sourceSummary.totalRevenue
+        ? Math.abs(totalRevenue - sourceSummary.totalRevenue)
+        : 0;
+      const cstDelta = sourceSummary.totalCost
+        ? Math.abs(totalCost - sourceSummary.totalCost)
+        : 0;
+
+      const hasLineTampering = costs.some((c: any) => c.isTamperedFormula);
+      let recStatus: "MATCHED" | "ROUNDING_TOLERANCE" | "MISMATCH" = "MATCHED";
+      if (
+        revDelta > 1000 ||
+        cstDelta > 1000 ||
+        prfDelta > 1000 ||
+        hasLineTampering
+      ) {
+        recStatus = "MISMATCH";
+      } else if (revDelta > 1 || cstDelta > 1 || prfDelta > 1) {
+        recStatus = "ROUNDING_TOLERANCE";
+      }
+
+      const hookWarnings = [
+        ...(normalized.financialReconciliation?.warnings ||
+          data.__financialReconciliation?.warnings ||
+          []),
+      ];
+      costs.forEach((c: any) => {
+        if (c.isMissingDescription) {
+          const w = `Dòng #${c.stt} có số tiền ${c.totalAmount.toLocaleString('vi-VN')} đ nhưng chưa có tên dịch vụ.`;
+          if (!hookWarnings.includes(w)) hookWarnings.push(w);
+        }
+        if (c.isTamperedFormula && c.sourceAmount !== undefined) {
+          const w = `Dòng "${c.content || `#${c.stt}`}" có công thức lệch: Excel ghi ${c.sourceAmount.toLocaleString('vi-VN')} đ, tính đúng là ${c.totalAmount.toLocaleString('vi-VN')} đ.`;
+          if (!hookWarnings.includes(w)) hookWarnings.push(w);
+        }
+      });
+
+      financialReconciliation = {
+        calculatedRevenue: totalRevenue,
+        calculatedCost: totalCost,
+        calculatedGrossProfit: calcGrossProfit,
+        calculatedProfitMarginPercent: calcProfitMargin,
+        revenueDelta: revDelta,
+        costDelta: cstDelta,
+        profitDelta: prfDelta,
+        status: recStatus,
+        warnings: hookWarnings,
+      };
     }
 
     const summary = calculateImportSummary(revenues, costs);
@@ -317,6 +508,11 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
       sourceSummary,
       classification,
       summary,
+      rawRow,
+      isCustomerBudget,
+      metadata,
+      financialReconciliation,
+      supplierResolutionMap,
     };
   }, [previewData]);
 }

@@ -86,7 +86,9 @@ export default function UsersAndRbacPage() {
   const { data: rolesData, isLoading: isRolesLoading } = useUserRoles(
     debouncedRoleSearch,
   );
-  const roles = rolesData || [];
+  const roles = (rolesData || []).filter(
+    (role) => isSuperAdmin || role.code !== 'SUPER_ADMIN',
+  );
 
   return (
     <div className="space-y-4">

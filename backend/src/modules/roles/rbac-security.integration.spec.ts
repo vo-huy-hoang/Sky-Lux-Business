@@ -42,6 +42,7 @@ describe('RBAC Security & Tenant Boundary (Integration)', () => {
   } as unknown as EntityManager;
 
   const mockDataSource = {
+    query: jest.fn().mockResolvedValue([]),
     transaction: jest.fn((cb: (em: EntityManager) => Promise<any>) =>
       cb(mockEntityManager),
     ),
@@ -206,6 +207,10 @@ describe('RBAC Security & Tenant Boundary (Integration)', () => {
 
       expect(roleRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({ users: [] }),
+      );
+      expect(mockDataSource.query).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE "users"'),
+        [['user1-uuid']],
       );
       expect(roleRepository.softRemove).toHaveBeenCalled();
       expect(result).toEqual({ message: 'Đã xóa vai trò thành công' });

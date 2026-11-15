@@ -55,6 +55,23 @@ export function useUpdateDossierMetadata() {
 }
 
 /**
+ * Hook xóa hồ sơ tour (API-DOSSIER-005)
+ */
+export function useDeleteDossier() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      dossiersService.deleteDossier(id, reason),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.dossiers.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboards.all });
+      queryClient.removeQueries({ queryKey: queryKeys.dossiers.detail(variables.id) });
+    },
+  });
+}
+
+/**
  * Hook lấy danh sách bình luận của hồ sơ tour (API-COMMENT-001)
  */
 export function useDossierComments(dossierId: string, params?: QueryCommentParams, options?: { enabled?: boolean }) {

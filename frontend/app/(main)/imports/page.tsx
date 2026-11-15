@@ -10,6 +10,7 @@ import {
   ImportPreviewTable,
   ImportSelectedFileCard,
   ImportUploadZone,
+  RowEditModal,
 } from "./components";
 
 export default function ImportsPage() {
@@ -63,6 +64,7 @@ export default function ImportsPage() {
                   previewData={flow.previewData}
                   errorsData={flow.errorsData}
                   isLoading={flow.isLoadingPreview || flow.isLoadingSession}
+                  onEditMetadata={flow.handleRowEdit}
                 />
               </>
             )
@@ -91,6 +93,20 @@ export default function ImportsPage() {
           onValidate={() => flow.validateMutation.mutate()}
           onConfirm={() => flow.confirmMutation.mutate()}
           onResetSession={handleResetSession}
+        />
+      )}
+
+      {/* Row / Tour Metadata Edit Modal */}
+      {flow.currentSessionId && (
+        <RowEditModal
+          visible={flow.isEditModalOpen}
+          sessionId={flow.currentSessionId}
+          row={flow.editingRow}
+          onClose={() => flow.setIsEditModalOpen(false)}
+          onSuccess={() => {
+            flow.refetchPreview();
+            flow.refetchSession();
+          }}
         />
       )}
     </div>

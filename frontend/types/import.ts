@@ -105,3 +105,56 @@ export interface ConfirmImportResponse {
   sentToOperations?: boolean;
   underReview?: boolean;
 }
+
+export type FinancialReconciliationStatus =
+  | 'MATCHED'
+  | 'ROUNDING_TOLERANCE'
+  | 'MISMATCH';
+
+export interface FinancialReconciliation {
+  calculatedRevenue: number;
+  calculatedCost: number;
+  calculatedGrossProfit: number;
+  calculatedProfitMarginPercent: number;
+  revenueDelta: number;
+  costDelta: number;
+  profitDelta: number;
+  status: FinancialReconciliationStatus;
+  warnings: string[];
+}
+
+export interface SupplierResolutionItem {
+  name: string;
+  status: 'EXISTING' | 'NEW_TO_BE_CREATED';
+  id?: string;
+}
+
+export interface CustomerBudgetCostLine {
+  stt: number;
+  categoryName: string;
+  description: string;
+  supplierName: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  vatRate: number;
+  multiplier: number;
+  sourceAmount?: number;
+  calculatedAmount?: number;
+  isTamperedFormula?: boolean;
+  isMissingDescription?: boolean;
+  serviceCategoryCode: string;
+  sortOrder: number;
+  note?: string;
+  supplierId?: string;
+}
+
+export interface CustomerBudgetRevenueLine {
+  passengerTypeCode: string;
+  description: string;
+  quantity: number;
+  unitCode: string;
+  unitPrice: number;
+  vatRate: number;
+  sortOrder: number;
+}

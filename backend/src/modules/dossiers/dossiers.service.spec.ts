@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   DataSource,
@@ -13,6 +14,8 @@ import {
 import { DossiersService } from './dossiers.service';
 import { Dossier } from './entities/dossier.entity';
 import { Comment } from './entities/comment.entity';
+import { Payment } from './entities/payment.entity';
+import { Estimate } from '../estimates/entities/estimate.entity';
 import { Customer } from '../customers/entities/customer.entity';
 import { User } from '../users/entities/user.entity';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
@@ -21,8 +24,9 @@ import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { QueryCommentDto } from './dto/query-comment.dto';
-import { DossierStatus } from '../../common/enums';
+import { DossierStatus, PaymentStatus } from '../../common/enums';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { AuditAction } from '../audit-logs/audit-event.constants';
 import { DossierAccessPolicyService } from './dossier-access-policy.service';
 
 describe('DossiersService', () => {
@@ -79,12 +83,22 @@ describe('DossiersService', () => {
     findOne: jest.fn(),
   };
 
+  const mockPaymentRepository = {
+    find: jest.fn(),
+  };
+
+  const mockEntityManager = {
+    find: jest.fn(),
+    softRemove: jest.fn(),
+    getRepository: jest.fn(() => mockDossierRepository),
+  };
+
   const mockDataSource = {
-    transaction: jest.fn(async (cb: any) =>
-      cb({
-        getRepository: jest.fn(() => mockDossierRepository),
-      }),
-    ),
+    transaction: jest.fn(async (cb: any) => cb(mockEntityManager)),
+  };
+
+  const mockAuditLogsService = {
+    record: jest.fn().mockResolvedValue(undefined),
   };
 
   beforeEach(async () => {
@@ -95,6 +109,8 @@ describe('DossiersService', () => {
     mockQueryBuilder.getOne.mockImplementation(async () =>
       mockDossierRepository.findOne(),
     );
+    mockEntityManager.find.mockResolvedValue([]);
+    mockEntityManager.softRemove.mockImplementation(async (entityOrTarget, entities) => entities || entityOrTarget);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -113,6 +129,10 @@ describe('DossiersService', () => {
           useValue: mockCustomerRepository,
         },
         {
+          provide: getRepositoryToken(Payment),
+          useValue: mockPaymentRepository,
+        },
+        {
           provide: getRepositoryToken(User),
           useValue: {
             find: jest.fn().mockResolvedValue([{ id: mockUserPayload.id }]),
@@ -120,7 +140,7 @@ describe('DossiersService', () => {
         },
         {
           provide: AuditLogsService,
-          useValue: { record: jest.fn().mockResolvedValue(undefined) },
+          useValue: mockAuditLogsService,
         },
         {
           provide: DataSource,
@@ -425,14 +445,260 @@ describe('DossiersService', () => {
   });
 
   describe('remove', () => {
-    it('should load dossier and call softRemove', async () => {
-      repository.findOne.mockResolvedValue(mockDossier);
-      repository.softRemove.mockResolvedValue(mockDossier);
+    it('should allow owner to delete draft dossier and record audit log', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        status: DossierStatus.DRAFT,
+        salesUserId: mockUserPayload.id,
+      });
+
+      await service.remove(mockUserPayload, 'dossier-uuid', 'Xóa nháp');
+
+      expect(mockEntityManager.softRemove).toHaveBeenCalledWith(
+        Dossier,
+        expect.objectContaining({ id: 'dossier-uuid' }),
+      );
+      expect(mockAuditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: AuditAction.DOSSIER_DELETED,
+          entityId: 'dossier-uuid',
+          beforeData: expect.objectContaining({
+            deletionReason: 'Xóa nháp',
+          }),
+        }),
+      );
+    });
+
+    it('should allow owner or operator to delete NEED_CHANGES dossier', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        status: DossierStatus.NEED_CHANGES,
+        salesUserId: mockUserPayload.id,
+      });
+
+      await service.remove(mockUserPayload, 'dossier-uuid', 'Xóa hồ sơ cần chỉnh sửa');
+
+      expect(mockEntityManager.softRemove).toHaveBeenCalledWith(
+        Dossier,
+        expect.objectContaining({ id: 'dossier-uuid' }),
+      );
+    });
+
+    it('should allow owner to delete CANCELLED dossier', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        status: DossierStatus.CANCELLED,
+        salesUserId: mockUserPayload.id,
+      });
+
+      await service.remove(mockUserPayload, 'dossier-uuid', 'Xóa hồ sơ đã hủy');
+
+      expect(mockEntityManager.softRemove).toHaveBeenCalledWith(
+        Dossier,
+        expect.objectContaining({ id: 'dossier-uuid' }),
+      );
+    });
+
+    it('should allow operator to delete draft dossier', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        status: DossierStatus.DRAFT,
+        salesUserId: 'another-sales-id',
+      });
+      const operatorPayload = {
+        ...mockUserPayload,
+        id: 'operator-user-id',
+        roles: ['OPERATOR'],
+      };
+
+      await service.remove(operatorPayload, 'dossier-uuid', 'Điều hành dọn dẹp nháp');
+
+      expect(mockEntityManager.softRemove).toHaveBeenCalledWith(
+        Dossier,
+        expect.objectContaining({ id: 'dossier-uuid' }),
+      );
+    });
+
+    it('should block deletion and throw ConflictException if dossier has actual collected payments', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        status: DossierStatus.DRAFT,
+        salesUserId: mockUserPayload.id,
+      });
+      mockEntityManager.find.mockResolvedValueOnce([
+        {
+          id: 'pay-1',
+          dossierId: 'dossier-uuid',
+          amount: 5000000,
+          status: PaymentStatus.PAID,
+        },
+      ]);
+
+      await expect(
+        service.remove(mockUserPayload, 'dossier-uuid'),
+      ).rejects.toThrow(ConflictException);
+      expect(mockEntityManager.softRemove).not.toHaveBeenCalled();
+    });
+
+    it('should allow deletion if existing payments are CANCELLED', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        status: DossierStatus.DRAFT,
+        salesUserId: mockUserPayload.id,
+      });
+      mockEntityManager.find.mockImplementation(async (entity) => {
+        if (entity === Payment) {
+          return [
+            {
+              id: 'pay-cancelled',
+              dossierId: 'dossier-uuid',
+              amount: 5000000,
+              status: PaymentStatus.CANCELLED,
+            },
+          ];
+        }
+        return [];
+      });
 
       await service.remove(mockUserPayload, 'dossier-uuid');
 
-      expect(repository.findOne).toHaveBeenCalled();
-      expect(repository.softRemove).toHaveBeenCalledWith(mockDossier);
+      expect(mockEntityManager.softRemove).toHaveBeenCalledWith(
+        Dossier,
+        expect.objectContaining({ id: 'dossier-uuid' }),
+      );
+    });
+
+    it('should throw BadRequestException if non-admin tries to delete APPROVED dossier', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        status: DossierStatus.APPROVED,
+        salesUserId: mockUserPayload.id,
+      });
+
+      await expect(
+        service.remove(
+          { ...mockUserPayload, roles: ['SALES'] },
+          'dossier-uuid',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if non-admin tries to delete COMPLETED dossier', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        status: DossierStatus.COMPLETED,
+        salesUserId: mockUserPayload.id,
+      });
+
+      await expect(
+        service.remove(
+          { ...mockUserPayload, roles: ['OPERATOR'] },
+          'dossier-uuid',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should allow CEO_ADMIN to delete APPROVED or COMPLETED dossier when no payments exist', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        status: DossierStatus.COMPLETED,
+        salesUserId: 'another-user',
+      });
+      const ceoPayload = {
+        ...mockUserPayload,
+        id: 'ceo-user',
+        roles: ['CEO_ADMIN'],
+      };
+
+      await service.remove(ceoPayload, 'dossier-uuid', 'Dọn dẹp hồ sơ test');
+
+      expect(mockEntityManager.softRemove).toHaveBeenCalledWith(
+        Dossier,
+        expect.objectContaining({ id: 'dossier-uuid' }),
+      );
+    });
+
+    it('should throw BadRequestException if non-superadmin tries to delete LOCKED dossier', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        status: DossierStatus.LOCKED,
+        salesUserId: mockUserPayload.id,
+      });
+
+      await expect(
+        service.remove(
+          { ...mockUserPayload, roles: ['CEO_ADMIN'] },
+          'dossier-uuid',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should allow SUPER_ADMIN to delete LOCKED dossier when no payments exist', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        status: DossierStatus.LOCKED,
+        salesUserId: 'another-user',
+      });
+      const superAdminPayload = {
+        ...mockUserPayload,
+        id: 'super-admin',
+        roles: ['SUPER_ADMIN'],
+      };
+
+      await service.remove(superAdminPayload, 'dossier-uuid');
+
+      expect(mockEntityManager.softRemove).toHaveBeenCalledWith(
+        Dossier,
+        expect.objectContaining({ id: 'dossier-uuid' }),
+      );
+    });
+
+    it('should throw ForbiddenException if regular sales user tries to delete another sales user draft dossier', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        status: DossierStatus.DRAFT,
+        salesUserId: 'other-sales-user',
+        createdBy: 'other-sales-user',
+      });
+
+      await expect(
+        service.remove(
+          { ...mockUserPayload, id: 'different-sales-user', roles: ['SALES'] },
+          'dossier-uuid',
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should cascade softRemove to associated child estimates within the database transaction', async () => {
+      repository.findOne.mockResolvedValue({
+        ...mockDossier,
+        status: DossierStatus.DRAFT,
+        salesUserId: mockUserPayload.id,
+      });
+      const mockEstimates = [
+        { id: 'est-1', dossierId: 'dossier-uuid', versionNo: 1 },
+        { id: 'est-2', dossierId: 'dossier-uuid', versionNo: 2 },
+      ];
+      mockEntityManager.find.mockImplementation(async (entity) => {
+        if (entity === Estimate) {
+          return mockEstimates;
+        }
+        if (entity === Payment) {
+          return [];
+        }
+        return [];
+      });
+
+      await service.remove(mockUserPayload, 'dossier-uuid');
+
+      expect(mockEntityManager.softRemove).toHaveBeenCalledWith(
+        Estimate,
+        mockEstimates,
+      );
+      expect(mockEntityManager.softRemove).toHaveBeenCalledWith(
+        Dossier,
+        expect.objectContaining({ id: 'dossier-uuid' }),
+      );
     });
   });
 

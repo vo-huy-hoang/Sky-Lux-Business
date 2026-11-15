@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
   Optional,
   Logger,
 } from '@nestjs/common';
@@ -15,6 +16,8 @@ import {
 } from 'typeorm';
 import { Dossier } from './entities/dossier.entity';
 import { Comment } from './entities/comment.entity';
+import { Payment } from './entities/payment.entity';
+import { Estimate } from '../estimates/entities/estimate.entity';
 import { Customer } from '../customers/entities/customer.entity';
 import { User } from '../users/entities/user.entity';
 import { QueryDossierDto } from './dto/query-dossier.dto';
@@ -24,7 +27,7 @@ import { CreateCommentDto } from './dto/create-comment.dto';
 import { QueryCommentDto } from './dto/query-comment.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
-import { DossierStatus } from '../../common/enums';
+import { DossierStatus, PaymentStatus } from '../../common/enums';
 import { toPublicUser } from '../../common/utils/public-user';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { DossierAccessPolicyService } from './dossier-access-policy.service';
@@ -458,25 +461,96 @@ export class DossiersService {
     }
   }
 
-  async remove(user: CurrentUserPayload, id: string): Promise<void> {
+  async remove(
+    user: CurrentUserPayload,
+    id: string,
+    reason?: string,
+  ): Promise<void> {
     const dossier = await this.findOne(user, id, false);
-    if (
+
+    // 1. Role & Lifecycle Status Matrix Check
+    const roles = user.roles || [];
+    const isSuperAdmin = roles.includes('SUPER_ADMIN');
+    const isCeoAdmin = roles.includes('CEO_ADMIN');
+    const isAdmin = isSuperAdmin || isCeoAdmin;
+    const isOperator = roles.includes('OPERATOR');
+    const isOwner =
+      dossier.salesUserId === user.id ||
+      dossier.operatorUserId === user.id ||
+      dossier.createdBy === user.id;
+
+    if (dossier.status === DossierStatus.LOCKED) {
+      if (!isSuperAdmin) {
+        throw new BadRequestException(
+          'Không thể xóa hồ sơ khi đang ở trạng thái LOCKED',
+        );
+      }
+    } else if (
       dossier.status === DossierStatus.APPROVED ||
-      dossier.status === DossierStatus.COMPLETED ||
-      dossier.status === DossierStatus.LOCKED
+      dossier.status === DossierStatus.COMPLETED
     ) {
-      throw new BadRequestException(
-        `Không thể xóa hồ sơ khi đang ở trạng thái ${dossier.status}`,
-      );
+      if (!isAdmin) {
+        throw new BadRequestException(
+          `Không thể xóa hồ sơ khi đang ở trạng thái ${dossier.status}. Chỉ Ban Giám Đốc (CEO) hoặc Quản trị viên mới có quyền.`,
+        );
+      }
+    } else if (
+      dossier.status === DossierStatus.SUBMITTED ||
+      dossier.status === DossierStatus.IN_REVIEW ||
+      dossier.status === DossierStatus.RESUBMITTED
+    ) {
+      if (!isOwner && !isOperator && !isAdmin) {
+        throw new ForbiddenException(
+          'Bạn không có quyền xóa hồ sơ đang trong quy trình duyệt',
+        );
+      }
+    } else {
+      // DRAFT, NEED_CHANGES, CANCELLED
+      if (!isOwner && !isOperator && !isAdmin) {
+        throw new ForbiddenException(
+          'Bạn không có quyền xóa hồ sơ của người khác',
+        );
+      }
     }
-    await this.dossierRepository.softRemove(dossier);
+
+    // 2. Transactional Cascade Soft-Delete & Financial Integrity Guard
+    await this.dataSource.transaction(async (manager) => {
+      // Financial Integrity Guard: Block deletion if actual collected money exists
+      const payments = await manager.find(Payment, {
+        where: { dossierId: id, organizationId: user.organizationId },
+      });
+      const hasRealPayment = payments.some(
+        (p) => p.status !== PaymentStatus.CANCELLED && Number(p.amount) > 0,
+      );
+      if (hasRealPayment) {
+        throw new ConflictException(
+          'Không thể xóa hồ sơ đã phát sinh phiếu thu tiền thực tế. Vui lòng hủy các phiếu thu liên quan trước.',
+        );
+      }
+
+      // Cascade soft-delete child estimates
+      const estimates = await manager.find(Estimate, {
+        where: { dossierId: id, organizationId: user.organizationId },
+      });
+      if (estimates && estimates.length > 0) {
+        await manager.softRemove(Estimate, estimates);
+      }
+
+      // Soft-delete the dossier
+      await manager.softRemove(Dossier, dossier);
+    });
+
+    // 3. Audit Logging
     await this.auditLogsService.record({
       organizationId: user.organizationId,
       actorUserId: user.id,
       action: AuditAction.DOSSIER_DELETED,
       entityType: AuditEntityType.DOSSIER,
       entityId: id,
-      beforeData: this.auditSnapshot(dossier),
+      beforeData: {
+        ...this.auditSnapshot(dossier),
+        deletionReason: reason ?? null,
+      },
     });
   }
 

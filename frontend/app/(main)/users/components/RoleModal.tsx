@@ -1,14 +1,15 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { Modal, Form, Input, message } from 'antd';
+import { App, Modal, Form, Input } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { rbacService } from '@/services/rbac.service';
+import { rbacService, type RoleItem } from '@/services/rbac.service';
 import { useRbacStore } from '../store';
 import { useShallow } from 'zustand/react/shallow';
 import { queryKeys } from '@/lib/query-keys';
 
 export default function RoleModal() {
+  const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [form] = Form.useForm();
 
@@ -42,7 +43,21 @@ export default function RoleModal() {
         return rbacService.createRole(values);
       }
     },
-    onSuccess: () => {
+    onSuccess: async (savedRole: RoleItem) => {
+      if (!editingRole) {
+        // Make the created role visible immediately, even before the list refetch completes.
+        useRbacStore.getState().setRoleSearch('');
+        queryClient.setQueryData<RoleItem[]>(
+          queryKeys.users.roles(''),
+          (currentRoles = []) => {
+            const roles = currentRoles.filter((role) => role.id !== savedRole.id);
+            return [...roles, savedRole].sort((a, b) =>
+              a.code.localeCompare(b.code),
+            );
+          },
+        );
+      }
+
       message.success(
         editingRole
           ? 'Cập nhật vai trò thành công'
@@ -50,7 +65,9 @@ export default function RoleModal() {
       );
       closeRoleModal();
       form.resetFields();
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.roles() });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.users.roles(),
+      });
     },
 
     onError: (err: any) => {

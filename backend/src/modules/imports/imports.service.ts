@@ -5,7 +5,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, IsNull } from 'typeorm';
+import { Repository, DataSource, IsNull, EntityManager } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { randomInt } from 'crypto';
@@ -329,6 +329,31 @@ export class ImportsService {
     return { message: 'Tiến trình kiểm duyệt đang được chạy lại dưới nền' };
   }
 
+  private async persistCustomerMaster(
+    manager: EntityManager,
+    organizationId: string,
+    code: string,
+    displayName: string,
+    phone?: string,
+    email?: string,
+    dateOfBirth?: string,
+  ): Promise<Customer> {
+    const customer = manager.create(Customer, {
+      organizationId,
+      code,
+      displayName,
+      customerType: CustomerType.INDIVIDUAL,
+      phone: phone || undefined,
+      email: email || undefined,
+      dateOfBirth:
+        dateOfBirth && !isNaN(Date.parse(dateOfBirth))
+          ? new Date(dateOfBirth).toISOString().slice(0, 10)
+          : undefined,
+      status: 'ACTIVE',
+    });
+    return manager.save(Customer, customer);
+  }
+
   async confirm(
     organizationId: string,
     id: string,
@@ -384,6 +409,31 @@ export class ImportsService {
         // same person. Duplicate contact values are valid here.
         let resolvedCustomerId =
           importFormat === CUSTOMER_BUDGET_FORMAT ? undefined : customerId;
+        let isNewlyCreatedCustomer = false;
+
+        // Resolve or atomically create regular customer if staged as new
+        if (!resolvedCustomerId && importFormat !== CUSTOMER_BUDGET_FORMAT && customerCode) {
+          const existingCustomer = await transactionalEntityManager.findOne(Customer, {
+            where: { code: customerCode, organizationId },
+          });
+          if (existingCustomer) {
+            resolvedCustomerId = existingCustomer.id;
+          } else {
+            const nameToUse = customerName || `Khách hàng ${customerCode}`;
+            const savedCustomer = await this.persistCustomerMaster(
+              transactionalEntityManager,
+              organizationId,
+              customerCode,
+              nameToUse,
+              phone,
+              email,
+              dateOfBirth,
+            );
+            resolvedCustomerId = savedCustomer.id;
+            isNewlyCreatedCustomer = true;
+          }
+        }
+
         if (!resolvedCustomerId && importFormat === CUSTOMER_BUDGET_FORMAT) {
           const normalizedPhone = normalizeCustomerPhone(phone);
           const normalizedEmail = normalizeCustomerEmail(email);
@@ -409,21 +459,26 @@ export class ImportsService {
             // customer instead of creating a duplicate row.
             resolvedCustomerId = existingCustomer.id;
           } else {
-            const generatedCode = `IMP-${id.slice(0, 8).toUpperCase()}`;
-            const customer = transactionalEntityManager.create(Customer, {
+            let generatedCode = `IMP-${id.slice(0, 8).toUpperCase()}`;
+            let suffix = 1;
+            while (
+              await transactionalEntityManager.findOne(Customer, {
+                where: { organizationId, code: generatedCode },
+              })
+            ) {
+              generatedCode = `IMP-${id.slice(0, 8).toUpperCase()}-${suffix++}`;
+            }
+            const savedCustomer = await this.persistCustomerMaster(
+              transactionalEntityManager,
               organizationId,
-              code: generatedCode,
-              customerType: CustomerType.INDIVIDUAL,
-              displayName: customerName,
+              generatedCode,
+              customerName,
               phone,
               email,
               dateOfBirth,
-            });
-            const savedCustomer = await transactionalEntityManager.save(
-              Customer,
-              customer,
             );
             resolvedCustomerId = savedCustomer.id;
+            isNewlyCreatedCustomer = true;
           }
         }
 
@@ -650,6 +705,10 @@ export class ImportsService {
                   `Chi phí nguồn: ${formatVnd(sourceSummary.totalCost)}`,
                 sourceSummary?.totalProfit !== undefined &&
                   `Lợi nhuận nguồn: ${formatVnd(sourceSummary.totalProfit)}`,
+                row.normalizedData.financialReconciliation &&
+                  `Đối soát tài chính: ${row.normalizedData.financialReconciliation.status} (Delta DT: ${formatVnd(row.normalizedData.financialReconciliation.revenueDelta || 0)}, Delta CP: ${formatVnd(row.normalizedData.financialReconciliation.costDelta || 0)}, Delta LN: ${formatVnd(row.normalizedData.financialReconciliation.profitDelta || 0)})`,
+                row.normalizedData.reconciliationResolution &&
+                  `Lựa chọn đối soát: ${row.normalizedData.reconciliationResolution === 'PRESERVE_EXCEL_SUMMARY' ? 'Giữ nguyên số tổng Excel' : 'Lấy theo tổng từng dòng thực tế'}`,
               ]
                 .filter(Boolean)
                 .join('\n'),
@@ -714,10 +773,9 @@ export class ImportsService {
           }
         }
 
-        // Update shared customer contact details only. The imported customer
-        // name is stored on the dossier as a snapshot so a new import cannot
-        // rename every older dossier that points to the same customer.
-        if (resolvedCustomerId && (phone || email || dateOfBirth)) {
+        // Update shared customer contact details only for existing customers.
+        // Newly created customers already have their contact fields set at creation.
+        if (resolvedCustomerId && !isNewlyCreatedCustomer && (phone || email || dateOfBirth)) {
           const updateCustomerData: any = {};
           if (phone) updateCustomerData.phone = phone;
           if (email) updateCustomerData.email = email;

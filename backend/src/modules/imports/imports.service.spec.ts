@@ -9,6 +9,7 @@ import { ImportRow } from './entities/import-row.entity';
 import { ImportError } from './entities/import-error.entity';
 import { ImportTemplate } from './entities/import-template.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
+import { Customer } from '../customers/entities/customer.entity';
 import { ImportSessionStatus } from '../../common/enums';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { CUSTOMER_BUDGET_FORMAT } from './customer-budget.parser';
@@ -64,6 +65,9 @@ describe('ImportsService', () => {
       transaction: jest.fn().mockImplementation((cb) => {
         const mockManager = {
           find: jest.fn().mockResolvedValue([]),
+          findOne: jest.fn().mockResolvedValue(null),
+          create: jest.fn((entityClass, data) => data || {}),
+          update: jest.fn().mockResolvedValue({ affected: 1 }),
           save: jest
             .fn()
             .mockImplementation((entityClass, data) => Promise.resolve(data)),
@@ -435,6 +439,7 @@ describe('ImportsService', () => {
 
       const transactionManager = {
         find: jest.fn().mockResolvedValue([]),
+        findOne: jest.fn().mockResolvedValue(null),
         create: jest.fn((_entity, data) => ({ id: 'new-customer', ...data })),
         save: jest.fn().mockImplementation((_entity, data) => data),
         update: jest.fn(),
@@ -592,6 +597,119 @@ describe('ImportsService', () => {
           categoryTitle: 'VÉ THAM QUAN',
         }),
       );
+    });
+
+    it('should create new customer atomically inside transaction on confirm when customer was staged as NEW_TO_BE_CREATED in regular import', async () => {
+      const mockSession = {
+        id: 'session-regular-new-cust',
+        organizationId: 'org-id',
+        errorRows: 0,
+        uploadedBy: 'user-id',
+        fileName: 'dossiers.xlsx',
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+      rowRepository.find.mockResolvedValue([
+        {
+          id: 'row-new-regular',
+          sessionId: 'session-regular-new-cust',
+          status: 'VALID',
+          normalizedData: {
+            code: 'TOUR-REG-01',
+            name: 'Tour Da Nang 3N2D',
+            customerCode: 'KH-NEW-REGULAR',
+            customerName: 'Cong ty Du Lich Song Han',
+            customerStatus: 'NEW_TO_BE_CREATED',
+            phone: '0912345678',
+            email: 'songhan@travel.com',
+            dateOfBirth: '1990-01-01',
+          },
+        },
+      ]);
+      dossierRepository.create.mockImplementation((data) => data);
+
+      const savedCustomerEntity = { id: 'created-cust-uuid', code: 'KH-NEW-REGULAR' };
+      const transactionManager = {
+        find: jest.fn().mockResolvedValue([]),
+        findOne: jest.fn().mockResolvedValue(null), // Customer does not exist yet
+        create: jest.fn((entityClass, data) => ({ id: 'created-cust-uuid', ...data })),
+        save: jest.fn().mockImplementation((entityClass, data) => {
+          if (entityClass === Customer) return Promise.resolve(savedCustomerEntity);
+          return Promise.resolve(data);
+        }),
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      dataSource.transaction.mockImplementationOnce((callback: any) =>
+        callback(transactionManager),
+      );
+
+      const result = await service.confirm('org-id', 'session-regular-new-cust');
+
+      expect(result).toEqual({
+        message: 'Nhập dữ liệu thành công',
+        importedRowsCount: 1,
+      });
+
+      // Assert Customer was created & saved within the atomic transaction
+      expect(transactionManager.create).toHaveBeenCalledWith(
+        Customer,
+        expect.objectContaining({
+          organizationId: 'org-id',
+          code: 'KH-NEW-REGULAR',
+          displayName: 'Cong ty Du Lich Song Han',
+          phone: '0912345678',
+          email: 'songhan@travel.com',
+        }),
+      );
+      expect(transactionManager.save).toHaveBeenCalledWith(
+        Customer,
+        expect.objectContaining({
+          code: 'KH-NEW-REGULAR',
+        }),
+      );
+
+      // Assert Dossier received the newly resolved customerId
+      expect(dossierRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customerId: 'created-cust-uuid',
+        }),
+      );
+    });
+
+    it('should rollback transaction cleanly and leave master tables untouched when confirm fails', async () => {
+      const mockSession = {
+        id: 'session-fail',
+        organizationId: 'org-id',
+        errorRows: 0,
+        uploadedBy: 'user-id',
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+      rowRepository.find.mockResolvedValue([
+        {
+          id: 'row-fail',
+          sessionId: 'session-fail',
+          status: 'VALID',
+          normalizedData: {
+            code: 'TOUR-FAIL',
+            name: 'Failing Tour',
+            customerCode: 'KH-FAIL',
+          },
+        },
+      ]);
+
+      const transactionManager = {
+        find: jest.fn().mockResolvedValue([]),
+        findOne: jest.fn().mockResolvedValue(null),
+        create: jest.fn((_e, d) => d),
+        save: jest.fn().mockRejectedValue(new Error('Database disk error')),
+        update: jest.fn(),
+      };
+      dataSource.transaction.mockImplementationOnce((callback: any) =>
+        callback(transactionManager),
+      );
+
+      await expect(
+        service.confirm('org-id', 'session-fail'),
+      ).rejects.toThrow('Database disk error');
     });
   });
 });

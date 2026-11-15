@@ -100,6 +100,11 @@ export const rbacService = {
       .then(toRoleItem);
   },
 
+  deleteRole: (id: string, force = false) =>
+    apiClient.delete<any, { message: string }>(`/roles/${id}`, {
+      params: force ? { force: true } : undefined,
+    }),
+
   assignRolePermissions: (
     id: string,
     permissions: Array<{ permissionId: string; scope: 'OWN' | 'TEAM' | 'ALL' }>,

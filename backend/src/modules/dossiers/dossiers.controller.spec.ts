@@ -8,6 +8,7 @@ import { UpdateDossierDto } from './dto/update-dossier.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { QueryCommentDto } from './dto/query-comment.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { PERMISSIONS_KEY } from '../../common/decorators/require-permissions.decorator';
 import { DossierWorkflowService } from '../approvals/dossier-workflow.service';
 import { DocumentsService } from '../documents/documents.service';
 import { QueryDocumentDto } from '../documents/dto/query-document.dto';
@@ -156,7 +157,32 @@ describe('DossiersController', () => {
   });
 
   describe('remove', () => {
-    it('should call service.remove', async () => {
+    it('should have RequirePermissions metadata for dossier.delete', () => {
+      const permissions = Reflect.getMetadata(
+        PERMISSIONS_KEY,
+        DossiersController.prototype.remove,
+      );
+      expect(permissions).toEqual(['dossier.delete']);
+    });
+
+    it('should call service.remove with reason when provided', async () => {
+      mockDossiersService.remove.mockResolvedValue(undefined);
+
+      await controller.remove(
+        mockUserPayload,
+        'dossier-uuid',
+        { reason: 'Tạo nhầm' },
+        undefined,
+      );
+
+      expect(service.remove).toHaveBeenCalledWith(
+        mockUserPayload,
+        'dossier-uuid',
+        'Tạo nhầm',
+      );
+    });
+
+    it('should call service.remove without reason when omitted', async () => {
       mockDossiersService.remove.mockResolvedValue(undefined);
 
       await controller.remove(mockUserPayload, 'dossier-uuid');
@@ -164,6 +190,7 @@ describe('DossiersController', () => {
       expect(service.remove).toHaveBeenCalledWith(
         mockUserPayload,
         'dossier-uuid',
+        undefined,
       );
     });
   });
