@@ -63,15 +63,25 @@ export default function EditImportDossierPage() {
     enabled: !!latestEstimateItem?.id,
   });
 
-  // 4. Fetch Suppliers for Cost dropdown
+  // 4. Fetch Suppliers for Cost dropdown (Default suppliers)
   const { data: suppliersData } = useQuery({
-    queryKey: queryKeys.suppliers.list({ page: 1, limit: 100 }),
-    queryFn: () => suppliersService.getSuppliers({ page: 1, limit: 100 }),
+    queryKey: queryKeys.suppliers.list({ page: 1, limit: 50 }),
+    queryFn: () => suppliersService.getSuppliers({ page: 1, limit: 50 }),
   });
 
   const supplierOptions = useMemo(() => {
     return mapSuppliersToOptions(suppliersData);
   }, [suppliersData]);
+
+  // Scalable debounced remote search handler for supplier dropdown
+  const handleSearchSuppliers = useCallback(async (keyword: string) => {
+    const res = await suppliersService.getSuppliers({
+      search: keyword,
+      page: 1,
+      limit: 50,
+    });
+    return mapSuppliersToOptions(res?.data || []);
+  }, []);
 
   // 5. Encapsulated Estimate State and Domain Hook
   const {
@@ -217,6 +227,7 @@ export default function EditImportDossierPage() {
           totalCostNoVatSum={totalCostNoVatSum}
           grandTotalCost={grandTotalCost}
           supplierOptions={supplierOptions}
+          onSearchSuppliers={handleSearchSuppliers}
           onCellChange={handleCostCellChange}
           onAddRow={handleAddCostRow}
           onDeleteRow={handleDeleteCostRow}

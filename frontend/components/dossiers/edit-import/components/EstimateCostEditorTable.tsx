@@ -1,7 +1,14 @@
 'use client';
 
-import React, { memo, useMemo } from 'react';
-import { Input, InputNumber, Select, Button, Tooltip, Tag } from 'antd';
+import React, {
+  memo,
+  useMemo,
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+} from 'react';
+import { Input, InputNumber, Select, Button, Tooltip, Tag, Spin } from 'antd';
 import type { DefaultOptionType } from 'antd/es/select';
 import {
   PlusOutlined,
@@ -20,23 +27,18 @@ import {
   normalizeCategoryKey,
   getCategoryDisplayName,
   getCategoryBadgeColor,
-  stripVietnameseDiacritics,
 } from '../utils/supplier-category-matcher';
+import {
+  SupplierOptionItem,
+  mergeSuppliersWithCurrent,
+} from '../utils/supplier-options';
 import { formatCurrency as formatCurrencyBase } from '@/lib/financial-calculations';
 
 function formatCurrency(amount?: number | string) {
   return formatCurrencyBase(amount, { showSymbol: false });
 }
 
-export interface SupplierOptionItem {
-  label: string;
-  value: string;
-  id?: string;
-  code?: string;
-  supplierTypeId?: string | null;
-  supplierTypeName?: string;
-  key?: string;
-}
+export type { SupplierOptionItem };
 
 interface EditableCostRowItemProps {
   row: EditableCostRow;
@@ -44,6 +46,7 @@ interface EditableCostRowItemProps {
   displayStt?: number;
   sectionTitle?: string;
   supplierOptions: SupplierOptionItem[];
+  onSearchSuppliers?: (keyword: string) => Promise<SupplierOptionItem[]>;
   onCellChange: (id: string, patch: Partial<EditableCostRow>) => void;
   onDeleteRow: (id: string) => void;
 }
@@ -55,6 +58,7 @@ const EditableCostRowItem = memo<EditableCostRowItemProps>(
     displayStt,
     sectionTitle,
     supplierOptions,
+    onSearchSuppliers,
     onCellChange,
     onDeleteRow,
   }) => {
@@ -70,39 +74,89 @@ const EditableCostRowItem = memo<EditableCostRowItemProps>(
           ? 'hover:bg-sky-50/40 bg-white'
           : 'hover:bg-amber-50/40 bg-white';
 
+    const [remoteOptions, setRemoteOptions] = useState<SupplierOptionItem[] | null>(null);
+    const [isSearching, setIsSearching] = useState(false);
+    const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const searchSeqRef = useRef<number>(0);
+
+    useEffect(() => {
+      return () => {
+        if (searchTimerRef.current) {
+          clearTimeout(searchTimerRef.current);
+        }
+      };
+    }, []);
+
+    const handleSearch = useCallback(
+      (query: string) => {
+        const trimmed = query ? query.trim() : '';
+
+        if (searchTimerRef.current) {
+          clearTimeout(searchTimerRef.current);
+          searchTimerRef.current = null;
+        }
+
+        // Nếu từ khóa rỗng -> khôi phục danh sách mặc định ban đầu
+        if (!trimmed) {
+          searchSeqRef.current++;
+          setIsSearching(false);
+          setRemoteOptions(null);
+          return;
+        }
+
+        setIsSearching(true);
+        const currentSeq = ++searchSeqRef.current;
+
+        searchTimerRef.current = setTimeout(async () => {
+          try {
+            const results = onSearchSuppliers
+              ? await onSearchSuppliers(trimmed)
+              : [];
+
+            // Chống race-condition: chỉ cập nhật nếu là truy vấn mới nhất
+            if (currentSeq === searchSeqRef.current) {
+              setRemoteOptions(results);
+            }
+          } catch (error) {
+            console.error('Lỗi tìm kiếm nhà cung cấp từ xa:', error);
+            if (currentSeq === searchSeqRef.current) {
+              setRemoteOptions([]);
+            }
+          } finally {
+            if (currentSeq === searchSeqRef.current) {
+              setIsSearching(false);
+            }
+          }
+        }, 300);
+      },
+      [onSearchSuppliers],
+    );
+
+    const handleOpenChange = useCallback((open: boolean) => {
+      if (!open) {
+        if (searchTimerRef.current) {
+          clearTimeout(searchTimerRef.current);
+          searchTimerRef.current = null;
+        }
+        searchSeqRef.current++;
+        setIsSearching(false);
+        setRemoteOptions(null);
+      }
+    }, []);
+
+    const baseOptions = remoteOptions !== null ? remoteOptions : supplierOptions;
+
     const effectiveOptions = useMemo(() => {
-      if (
-        row.supplierId &&
-        !supplierOptions.some(
-          (opt) => opt.id === row.supplierId || opt.value === row.supplierId,
-        )
-      ) {
-        return [
-          {
-            key: `current-supplier-${row.supplierId}`,
-            label: row.supplierName || row.supplierId,
-            value: row.supplierId,
-            id: row.supplierId,
-          },
-          ...supplierOptions,
-        ];
-      }
-      if (
-        !row.supplierId &&
-        row.supplierName &&
-        !supplierOptions.some((opt) => opt.label === row.supplierName)
-      ) {
-        return [
-          {
-            key: `current-supplier-name-${row.supplierName}`,
-            label: row.supplierName,
-            value: row.supplierName,
-          },
-          ...supplierOptions,
-        ];
-      }
-      return supplierOptions;
-    }, [supplierOptions, row.supplierId, row.supplierName]);
+      const existingSupplier = supplierOptions.find(
+        (opt) => opt.id === row.supplierId || opt.value === row.supplierId,
+      );
+      return mergeSuppliersWithCurrent(baseOptions, {
+        supplierId: row.supplierId,
+        supplierName: row.supplierName || existingSupplier?.label,
+        supplierCode: existingSupplier?.code,
+        supplierTypeName: existingSupplier?.supplierTypeName,
+      });
+    }, [baseOptions, row.supplierId, row.supplierName, supplierOptions]);
 
     const categoryIdentifier = sectionTitle || row.categoryTitle;
 
@@ -193,6 +247,7 @@ const EditableCostRowItem = memo<EditableCostRowItemProps>(
             size="small"
             showSearch
             allowClear
+            loading={isSearching}
             optionLabelProp="rawLabel"
             value={
               effectiveOptions.find((option) => option.id === row.supplierId)
@@ -203,30 +258,16 @@ const EditableCostRowItem = memo<EditableCostRowItemProps>(
               (row.supplierId || row.supplierName || undefined)
             }
             placeholder="Chọn nhà cung cấp..."
-            filterOption={(input, option) => {
-              if (!input) return true;
-              if (option && 'options' in option) return true;
-              const search = stripVietnameseDiacritics(input);
-              const rawLabel =
-                typeof option?.rawLabel === 'string'
-                  ? stripVietnameseDiacritics(option.rawLabel)
-                  : '';
-              const code =
-                typeof (option as any)?.code === 'string'
-                  ? stripVietnameseDiacritics((option as any).code)
-                  : '';
-              const typeName =
-                typeof (option as any)?.supplierTypeName === 'string'
-                  ? stripVietnameseDiacritics((option as any).supplierTypeName)
-                  : '';
-              return (
-                rawLabel.includes(search) ||
-                code.includes(search) ||
-                typeName.includes(search)
-              );
-            }}
+            filterOption={false}
+            onSearch={handleSearch}
+            onOpenChange={handleOpenChange}
             notFoundContent={
-              supplierOptions.length === 0 ? (
+              isSearching ? (
+                <div className="py-2.5 px-2 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
+                  <Spin size="small" />
+                  <span>Đang tìm kiếm nhà cung cấp...</span>
+                </div>
+              ) : baseOptions.length === 0 && supplierOptions.length === 0 ? (
                 <div className="py-2 px-2 text-center text-xs text-(--color-text-muted)">
                   <p className="mb-1 text-slate-600">Chưa có nhà cung cấp nào.</p>
                   <a
@@ -415,7 +456,10 @@ const EditableCostRowItem = memo<EditableCostRowItemProps>(
       prev.row.note === next.row.note &&
       prev.row.status === next.row.status &&
       prev.row.warningMessage === next.row.warningMessage &&
-      prev.supplierOptions === next.supplierOptions
+      prev.supplierOptions === next.supplierOptions &&
+      prev.onSearchSuppliers === next.onSearchSuppliers &&
+      prev.onCellChange === next.onCellChange &&
+      prev.onDeleteRow === next.onDeleteRow
     );
   },
 );
@@ -429,7 +473,7 @@ interface CostVatSection {
   items: EditableCostRow[];
 }
 
-interface EstimateCostEditorTableProps {
+export interface EstimateCostEditorTableProps {
   costRows: EditableCostRow[];
   costVatSections: CostVatSection[];
   costNoVatItems: EditableCostRow[];
@@ -437,6 +481,7 @@ interface EstimateCostEditorTableProps {
   totalCostNoVatSum: number;
   grandTotalCost: number;
   supplierOptions: SupplierOptionItem[];
+  onSearchSuppliers?: (keyword: string) => Promise<SupplierOptionItem[]>;
   onCellChange: (id: string, patch: Partial<EditableCostRow>) => void;
   onAddRow: (
     categoryTitle: string,
@@ -456,6 +501,7 @@ export const EstimateCostEditorTable: React.FC<
   totalCostNoVatSum,
   grandTotalCost,
   supplierOptions,
+  onSearchSuppliers,
   onCellChange,
   onAddRow,
   onDeleteRow,
@@ -662,6 +708,7 @@ export const EstimateCostEditorTable: React.FC<
                             displayStt={currentStt++}
                             sectionTitle={sec.title}
                             supplierOptions={supplierOptions}
+                            onSearchSuppliers={onSearchSuppliers}
                             onCellChange={onCellChange}
                             onDeleteRow={onDeleteRow}
                           />
@@ -724,6 +771,7 @@ export const EstimateCostEditorTable: React.FC<
                         displayStt={currentStt++}
                         sectionTitle="DỊCH VỤ ĐẦU VÀO CHƯA VAT"
                         supplierOptions={supplierOptions}
+                        onSearchSuppliers={onSearchSuppliers}
                         onCellChange={onCellChange}
                         onDeleteRow={onDeleteRow}
                       />

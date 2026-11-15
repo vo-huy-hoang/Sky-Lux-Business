@@ -45,12 +45,21 @@ function LoginForm() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
+  const user = useAuthStore((state) => state.user);
+  const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const setAuth = useAuthStore((state) => state.setAuth);
   const lockoutSeconds = useAuthStore((state) => state.lockoutSeconds);
   const setLockoutSeconds = useAuthStore((state) => state.setLockoutSeconds);
   const decrementLockoutSeconds = useAuthStore(
     (state) => state.decrementLockoutSeconds,
   );
+
+  React.useEffect(() => {
+    if (hasHydrated && user) {
+      const redirectPath = searchParams.get('redirect') || '/dashboard';
+      router.replace(redirectPath);
+    }
+  }, [hasHydrated, user, router, searchParams]);
 
   React.useEffect(() => {
     if (lockoutSeconds <= 0) return;
@@ -74,7 +83,7 @@ function LoginForm() {
       message.success(`Chào mừng ${response.user.fullName} quay trở lại!`);
 
       const redirectPath = searchParams.get('redirect') || '/dashboard';
-      router.push(redirectPath);
+      router.replace(redirectPath);
     } catch (err: any) {
       if (err.status === 429 || err.isRateLimited) {
         const seconds = err.lockoutSeconds || 60;
@@ -90,6 +99,17 @@ function LoginForm() {
       setLoading(false);
     }
   };
+
+  if (hasHydrated && user) {
+    return (
+      <div className="w-full max-w-[420px] mx-auto py-12 flex flex-col items-center justify-center text-center">
+        <Spin size="large" />
+        <p className="mt-4 text-sm font-medium text-[var(--color-text-muted)]">
+          Tài khoản đã đăng nhập. Đang chuyển hướng vào bảng điều khiển...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-[420px] mx-auto">

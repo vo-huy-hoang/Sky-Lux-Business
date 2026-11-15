@@ -105,11 +105,15 @@ export function MainSidebar({ userCtx }: MainSidebarProps) {
           backgroundColor: themeTokens.brand.primary[950],
         }}
       >
-        <div className="px-4 pb-6 pt-5">
+        <div
+          className={`pt-5 pb-5 transition-all duration-200 ${
+            collapsed ? 'px-0 flex justify-center items-center' : 'px-5 flex items-center'
+          }`}
+        >
           {collapsed ? (
-            <BrandLogo variant="mark" size="sm" theme="dark" asLink={true} />
+            <BrandLogo variant="mark" size="md" theme="dark" asLink={true} href="/dashboard" priority />
           ) : (
-            <BrandLogo variant="full" size="md" theme="dark" asLink={true} />
+            <BrandLogo variant="full" size="xl" theme="dark" asLink={true} href="/dashboard" priority />
           )}
         </div>
 
