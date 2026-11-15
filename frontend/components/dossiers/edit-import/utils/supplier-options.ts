@@ -33,16 +33,22 @@ export function mapSuppliersToOptions(
     }
   }
 
-  return list.map((supplier) => ({
-    key: `supplier-${supplier.id}`,
-    label: supplier.name,
-    value: supplier.id,
-    id: supplier.id,
-    code: supplier.code,
-    supplierTypeId: supplier.supplierTypeId,
-    supplierTypeName:
-      supplier.supplierTypeName || supplier.supplierType?.name,
-  }));
+  return list.map((supplier) => {
+    const displayLabel = supplier.code
+      ? `[${supplier.code}] ${supplier.name}`
+      : supplier.name;
+
+    return {
+      key: `supplier-${supplier.id}`,
+      label: displayLabel,
+      value: supplier.id,
+      id: supplier.id,
+      code: supplier.code,
+      supplierTypeId: supplier.supplierTypeId,
+      supplierTypeName:
+        supplier.supplierTypeName || supplier.supplierType?.name,
+    };
+  });
 }
 
 export interface CurrentRowSupplierInfo {
@@ -70,10 +76,14 @@ export function mergeSuppliersWithCurrent(
       (opt) => opt.id === currentRow.supplierId || opt.value === currentRow.supplierId,
     );
     if (!exists) {
+      const displayLabel = currentRow.supplierCode
+        ? `[${currentRow.supplierCode}] ${currentRow.supplierName || currentRow.supplierId}`
+        : currentRow.supplierName || currentRow.supplierId;
+
       return [
         {
           key: `current-supplier-${currentRow.supplierId}`,
-          label: currentRow.supplierName || currentRow.supplierId,
+          label: displayLabel,
           value: currentRow.supplierId,
           id: currentRow.supplierId,
           code: currentRow.supplierCode,
@@ -87,13 +97,23 @@ export function mergeSuppliersWithCurrent(
 
   // 2. Trường hợp dòng chỉ có text supplierName (dữ liệu import chưa map UUID)
   if (currentRow.supplierName) {
-    const exists = options.some((opt) => opt.label === currentRow.supplierName);
+    const exists = options.some(
+      (opt) =>
+        opt.label === currentRow.supplierName ||
+        (currentRow.supplierCode && opt.label === `[${currentRow.supplierCode}] ${currentRow.supplierName}`),
+    );
     if (!exists) {
+      const displayLabel = currentRow.supplierCode
+        ? `[${currentRow.supplierCode}] ${currentRow.supplierName}`
+        : currentRow.supplierName;
+
       return [
         {
           key: `current-supplier-name-${currentRow.supplierName}`,
-          label: currentRow.supplierName,
+          label: displayLabel,
           value: currentRow.supplierName,
+          code: currentRow.supplierCode,
+          supplierTypeName: currentRow.supplierTypeName,
         },
         ...options,
       ];

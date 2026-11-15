@@ -63,10 +63,10 @@ export default function EditImportDossierPage() {
     enabled: !!latestEstimateItem?.id,
   });
 
-  // 4. Fetch Suppliers for Cost dropdown (Default active suppliers)
+  // 4. Fetch Suppliers for Cost dropdown (Default suppliers)
   const { data: suppliersData } = useQuery({
-    queryKey: queryKeys.suppliers.list({ page: 1, limit: 50, status: 'ACTIVE' }),
-    queryFn: () => suppliersService.getSuppliers({ page: 1, limit: 50, status: 'ACTIVE' }),
+    queryKey: queryKeys.suppliers.list({ page: 1, limit: 50 }),
+    queryFn: () => suppliersService.getSuppliers({ page: 1, limit: 50 }),
   });
 
   const supplierOptions = useMemo(() => {
@@ -79,7 +79,6 @@ export default function EditImportDossierPage() {
       search: keyword,
       page: 1,
       limit: 50,
-      status: 'ACTIVE',
     });
     return mapSuppliersToOptions(res?.data || []);
   }, []);

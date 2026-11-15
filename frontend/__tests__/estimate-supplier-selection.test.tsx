@@ -182,7 +182,7 @@ describe('EstimateCostEditorTable - Supplier Selection & Empty State (Ticket 02)
     expect(mapped).toHaveLength(1);
     expect(mapped[0].value).toBe('real-uuid-1');
     expect(mapped[0].id).toBe('real-uuid-1');
-    expect(mapped[0].label).toBe('Công ty Xe Miền Trung');
+    expect(mapped[0].label).toBe('[SUP-01] Công ty Xe Miền Trung');
     expect(mapped[0].supplierTypeName).toBe('Dịch vụ xe');
   });
 
@@ -346,7 +346,7 @@ describe('EstimateCostEditorTable - Supplier Selection & Empty State (Ticket 02)
           key: 'current-supplier-s2',
           id: 's2',
           value: 's2',
-          label: 'Supplier 2',
+          label: '[SUP-02] Supplier 2',
           code: 'SUP-02',
           supplierTypeName: 'Dịch vụ xe',
         });

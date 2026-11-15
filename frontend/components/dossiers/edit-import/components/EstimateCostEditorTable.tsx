@@ -31,9 +31,7 @@ import {
 import {
   SupplierOptionItem,
   mergeSuppliersWithCurrent,
-  mapSuppliersToOptions,
 } from '../utils/supplier-options';
-import { suppliersService } from '@/services/suppliers.service';
 import { formatCurrency as formatCurrencyBase } from '@/lib/financial-calculations';
 
 function formatCurrency(amount?: number | string) {
@@ -79,6 +77,7 @@ const EditableCostRowItem = memo<EditableCostRowItemProps>(
     const [remoteOptions, setRemoteOptions] = useState<SupplierOptionItem[] | null>(null);
     const [isSearching, setIsSearching] = useState(false);
     const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const searchSeqRef = useRef<number>(0);
 
     useEffect(() => {
       return () => {
@@ -99,32 +98,34 @@ const EditableCostRowItem = memo<EditableCostRowItemProps>(
 
         // Nếu từ khóa rỗng -> khôi phục danh sách mặc định ban đầu
         if (!trimmed) {
+          searchSeqRef.current++;
           setIsSearching(false);
           setRemoteOptions(null);
           return;
         }
 
         setIsSearching(true);
+        const currentSeq = ++searchSeqRef.current;
+
         searchTimerRef.current = setTimeout(async () => {
           try {
-            let results: SupplierOptionItem[];
-            if (onSearchSuppliers) {
-              results = await onSearchSuppliers(trimmed);
-            } else {
-              const res = await suppliersService.getSuppliers({
-                search: trimmed,
-                page: 1,
-                limit: 50,
-                status: 'ACTIVE',
-              });
-              results = mapSuppliersToOptions(res?.data || []);
+            const results = onSearchSuppliers
+              ? await onSearchSuppliers(trimmed)
+              : [];
+
+            // Chống race-condition: chỉ cập nhật nếu là truy vấn mới nhất
+            if (currentSeq === searchSeqRef.current) {
+              setRemoteOptions(results);
             }
-            setRemoteOptions(results);
           } catch (error) {
             console.error('Lỗi tìm kiếm nhà cung cấp từ xa:', error);
-            setRemoteOptions([]);
+            if (currentSeq === searchSeqRef.current) {
+              setRemoteOptions([]);
+            }
           } finally {
-            setIsSearching(false);
+            if (currentSeq === searchSeqRef.current) {
+              setIsSearching(false);
+            }
           }
         }, 300);
       },
@@ -137,6 +138,7 @@ const EditableCostRowItem = memo<EditableCostRowItemProps>(
           clearTimeout(searchTimerRef.current);
           searchTimerRef.current = null;
         }
+        searchSeqRef.current++;
         setIsSearching(false);
         setRemoteOptions(null);
       }
@@ -261,7 +263,7 @@ const EditableCostRowItem = memo<EditableCostRowItemProps>(
             onOpenChange={handleOpenChange}
             notFoundContent={
               isSearching ? (
-                <div className="py-2.5 px-2 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                <div className="py-2.5 px-2 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
                   <Spin size="small" />
                   <span>Đang tìm kiếm nhà cung cấp...</span>
                 </div>
