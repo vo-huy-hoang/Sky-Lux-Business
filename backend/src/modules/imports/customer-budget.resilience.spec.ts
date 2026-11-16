@@ -230,7 +230,7 @@ describe('Customer Budget Import - E2E Resilience & Stress Verification Suite', 
     // Verify Cost Lines created
     const costLines = savedEntities.get('EstimateCostLine') || [];
     expect(costLines).toHaveLength(2);
-    expect(costLines[0].grossAmount).toBe(30000000 * 1.1); // 10% VAT default for section I
+    expect(costLines[0].grossAmount).toBe(30000000 * 1.08); // 8% VAT default for section I
     expect(costLines[1].grossAmount).toBe(22500000); // 0% VAT for section II
   });
 

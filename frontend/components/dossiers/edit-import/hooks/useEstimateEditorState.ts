@@ -298,7 +298,7 @@ export function useEstimateEditorState({
         multiplier: 1,
         unit: 'PAX',
         unitPrice: 0,
-        vatRate: type === 'vat' ? 10 : 0,
+        vatRate: type === 'vat' ? 8 : 0,
         note: '-',
         categoryTitle,
         serviceCategory: { name: categoryTitle },
