@@ -96,7 +96,7 @@ describe('customer-budget.parser', () => {
         supplierName: 'Công ty Vé Hội An',
         quantity: 30,
         unitPrice: 80000,
-        vatRate: 10,
+        vatRate: 8,
         sourceAmount: 2400000,
       }),
     );

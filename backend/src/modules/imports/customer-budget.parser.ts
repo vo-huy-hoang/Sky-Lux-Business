@@ -374,7 +374,7 @@ export function computeFinancialReconciliation(
         ? line.calculatedAmount
         : (line.quantity ?? 1) * (line.multiplier ?? 1) * (line.unitPrice ?? 0),
     );
-    const lineVat = line.vatRate !== undefined ? Number(line.vatRate) : 10;
+    const lineVat = line.vatRate !== undefined ? Number(line.vatRate) : 8;
     return sum + (lineVat > 0 ? amount / EXCEL_VAT_DIVISOR : amount);
   }, 0);
   const netGrossProfit = netRevenue - netCost;
@@ -918,7 +918,7 @@ export function parseCustomerBudgetWorkbook(
   // 4. Dynamic Cost Lines Parsing & Dynamic Table Boundary
   const costLines: CustomerBudgetLine[] = [];
   let section: 'I' | 'II' = 'I';
-  let sectionIVatRate = options?.defaultSectionIVatRate ?? 10;
+  let sectionIVatRate = options?.defaultSectionIVatRate ?? 8;
   let categoryName = '';
   let totalCost: number | undefined;
   let consecutiveEmptyRows = 0;
