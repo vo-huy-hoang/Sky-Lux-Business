@@ -123,6 +123,13 @@ export interface DossierItem {
   }>;
   hasPayments?: boolean;
   totalPaid?: number;
+  deletedAt?: string | null;
+  deletionReason?: string | null;
+  deletedByUser?: {
+    id: string;
+    fullName: string;
+    email: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
 }

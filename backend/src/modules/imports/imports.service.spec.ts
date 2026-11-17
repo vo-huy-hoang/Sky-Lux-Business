@@ -202,7 +202,13 @@ describe('ImportsService', () => {
       });
 
       expect(result).toEqual({
-        data: mockRows,
+        data: [
+          {
+            ...mockRows[0],
+            warnings: [],
+            hasWarning: false,
+          },
+        ],
         meta: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
       });
       expect(rowRepository.findAndCount).toHaveBeenCalledWith({

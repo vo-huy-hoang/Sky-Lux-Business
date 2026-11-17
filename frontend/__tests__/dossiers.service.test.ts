@@ -148,4 +148,45 @@ describe('DossiersService (Frontend)', () => {
       { params: { reason: 'Xóa thử nghiệm' } },
     );
   });
+
+  it('API-DOSSIER-ARCHIVED: getArchivedDossiers calls GET /dossiers/archived with params', async () => {
+    const mockArchived = {
+      data: [{ id: dossierId, code: 'TOUR-ARCHIVED-01', deletedAt: '2026-11-01' }],
+      meta: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
+    };
+    (apiClient.get as jest.Mock).mockResolvedValueOnce(mockArchived);
+
+    const params = { page: 1, limit: 10, search: 'TOUR' };
+    const result = await dossiersService.getArchivedDossiers(params);
+
+    expect(apiClient.get).toHaveBeenCalledWith('/dossiers/archived', {
+      params,
+      signal: undefined,
+    });
+    expect(result).toEqual(mockArchived);
+  });
+
+  it('API-DOSSIER-RESTORE: restoreDossier calls POST /dossiers/:id/restore', async () => {
+    const mockRestored = { id: dossierId, code: 'TOUR-RESTORED-01' };
+    (apiClient.post as jest.Mock).mockResolvedValueOnce(mockRestored);
+
+    const result = await dossiersService.restoreDossier(dossierId);
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      `/dossiers/${dossierId}/restore`,
+      {},
+      { signal: undefined },
+    );
+    expect(result).toEqual(mockRestored);
+  });
+
+  it('API-DOSSIER-PURGE: purgeDossier calls DELETE /dossiers/:id/purge', async () => {
+    (apiClient.delete as jest.Mock).mockResolvedValueOnce(undefined);
+
+    await dossiersService.purgeDossier(dossierId);
+
+    expect(apiClient.delete).toHaveBeenCalledWith(`/dossiers/${dossierId}/purge`, {
+      signal: undefined,
+    });
+  });
 });

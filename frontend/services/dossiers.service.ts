@@ -85,4 +85,34 @@ export const dossiersService = {
       signal: options?.signal,
     });
   },
+
+  /**
+   * API-DOSSIER-ARCHIVED: Lấy danh sách hồ sơ trong thùng rác / đã lưu trữ
+   */
+  getArchivedDossiers: (params?: QueryDossierParams, options?: RequestOptions) => {
+    return apiClient.get<any, PaginatedDossiersResponse>('/dossiers/archived', {
+      params,
+      signal: options?.signal,
+    });
+  },
+
+  /**
+   * API-DOSSIER-RESTORE: Khôi phục hồ sơ đã xóa
+   */
+  restoreDossier: (id: string, options?: RequestOptions) => {
+    return apiClient.post<any, DossierItem>(
+      `/dossiers/${id}/restore`,
+      {},
+      { signal: options?.signal },
+    );
+  },
+
+  /**
+   * API-DOSSIER-PURGE: Xóa vĩnh viễn hồ sơ khỏi hệ thống (CEO/Admin only)
+   */
+  purgeDossier: (id: string, options?: RequestOptions) => {
+    return apiClient.delete<any, void>(`/dossiers/${id}/purge`, {
+      signal: options?.signal,
+    });
+  },
 };

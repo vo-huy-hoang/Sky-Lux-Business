@@ -18,6 +18,9 @@ export const queryKeys = {
       [...queryKeys.dossiers.detail(dossierId), 'comments', params || {}] as const,
     changeRequests: (dossierId?: string) =>
       [...queryKeys.dossiers.detail(dossierId), 'change-requests'] as const,
+    archivedLists: () => [...queryKeys.dossiers.all, 'archived'] as const,
+    archivedList: (filters?: Record<string, any>) =>
+      [...queryKeys.dossiers.archivedLists(), filters || {}] as const,
   },
 
   // 2. USERS & RBAC

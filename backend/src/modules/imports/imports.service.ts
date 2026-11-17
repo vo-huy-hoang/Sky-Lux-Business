@@ -247,8 +247,14 @@ export class ImportsService {
       take: limit,
     });
 
+    const data = items.map((row) => ({
+      ...row,
+      warnings: row.normalizedData?.warnings || [],
+      hasWarning: Boolean(row.normalizedData?.hasWarning),
+    }));
+
     return {
-      data: items,
+      data,
       meta: {
         page,
         pageSize: limit,

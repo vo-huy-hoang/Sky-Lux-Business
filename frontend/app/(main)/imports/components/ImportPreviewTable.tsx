@@ -2,14 +2,16 @@
 
 import React, { useState, useMemo } from "react";
 import {
+  Alert,
+  App,
+  Button,
   Card,
+  Input,
+  Radio,
+  Select,
   Spin,
   Tag,
-  Select,
-  Button,
-  Radio,
-  App,
-  Input,
+  Tooltip,
 } from "antd";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
@@ -130,6 +132,25 @@ export function ImportPreviewTable({
       return c;
     });
   }, [allCosts, vatOverrides]);
+
+  const duplicateWarnings = useMemo(() => {
+    const list: Array<{ rowNumber?: number; warning: any; rowId?: string }> = [];
+    if (_previewData?.data) {
+      _previewData.data.forEach((r) => {
+        const rowWarns = r.warnings || r.normalizedData?.warnings || [];
+        rowWarns.forEach((w: any) => {
+          if (w.type === "DUPLICATE_ACTIVE_DOSSIER") {
+            list.push({ rowNumber: r.rowNumber, warning: w, rowId: r.id });
+          }
+        });
+      });
+    }
+    return list;
+  }, [_previewData]);
+
+  const duplicateWarningCount =
+    session?.summary?.warningRows ?? duplicateWarnings.length;
+  const primaryDuplicateWarning = duplicateWarnings[0]?.warning;
 
   const summary = useMemo(() => {
     return calculateImportSummary(allRevenues, costsWithOverrides);
@@ -479,13 +500,50 @@ export function ImportPreviewTable({
         </div>
       }
     >
+      {/* ⚠️ CỤM THỐNG KÊ TỔNG QUAN: CẢNH BÁO TRÙNG LẶP HỒ SƠ ĐANG HOẠT ĐỘNG */}
+      {duplicateWarningCount > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          icon={<WarningOutlined className="text-amber-600 text-lg" />}
+          className="rounded-xl border border-amber-300 bg-amber-50/90 shadow-xs"
+          title={
+            <span className="font-bold text-amber-950 text-xs uppercase tracking-wide">
+              Cảnh báo trùng lặp hồ sơ đang hoạt động
+            </span>
+          }
+          description={
+            <div className="text-xs text-amber-900 mt-0.5 space-y-1">
+              <div>
+                Phát hiện <strong>{duplicateWarningCount}</strong> dòng có thông tin trùng với hồ sơ đang chạy trong hệ thống.
+                Hệ thống vẫn cho phép nhập (để phục vụ tour ghép / tour series), nhưng vui lòng kiểm tra kỹ trước khi xác nhận để tránh trùng lặp không mong muốn.
+              </div>
+              {duplicateWarnings.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {duplicateWarnings.map((item, idx) => (
+                    <Tag
+                      key={idx}
+                      color="warning"
+                      className="border-amber-300 bg-white/80 text-amber-900 font-mono text-[11px]"
+                    >
+                      Dòng {item.rowNumber ?? idx + 1}: Trùng [
+                      {item.warning.existingDossierCode}]
+                    </Tag>
+                  ))}
+                </div>
+              )}
+            </div>
+          }
+        />
+      )}
+
       {/* ========================================================================= */}
       {/* 🟢 THẺ 1: THÔNG TIN TOUR & KHÁCH HÀNG (TOUR & CLIENT METADATA CARD)       */}
       {/* ========================================================================= */}
       <div className="bg-white border border-[var(--color-border)] rounded-xl p-5 shadow-xs">
         <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-[var(--color-divider)]">
           <div className="space-y-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-primary-950)] bg-[var(--color-primary-soft)] px-2.5 py-0.5 rounded-full border border-emerald-200/60">
                 Thẻ 1: Thông tin Tour & Khách hàng
               </span>
@@ -495,6 +553,44 @@ export function ImportPreviewTable({
               <Tag className="font-semibold text-xs m-0 border border-slate-300 bg-[var(--color-surface-muted)] text-slate-700">
                 Loại hình: {metadata.marketType || "NỘI ĐỊA"}
               </Tag>
+
+              {primaryDuplicateWarning && (
+                <Tooltip
+                  title={
+                    <div>
+                      <div>
+                        {primaryDuplicateWarning.message ||
+                          `Hồ sơ "${primaryDuplicateWarning.existingDossierCode || ''}" đang hoạt động trong hệ thống. Nhập tiếp sẽ tạo thêm một bản ghi mới.`}
+                      </div>
+                      {primaryDuplicateWarning.existingDossierId && (
+                        <div className="mt-1 text-slate-300 text-[11px]">
+                          Nhấp để mở xem hồ sơ đang chạy (tab mới)
+                        </div>
+                      )}
+                    </div>
+                  }
+                >
+                  <Tag
+                    icon={<WarningOutlined className="text-amber-600" />}
+                    className="font-bold text-xs m-0 border border-amber-400 bg-amber-100 text-amber-950 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 cursor-pointer hover:bg-amber-200 transition-colors"
+                    onClick={() => {
+                      if (primaryDuplicateWarning.existingDossierId) {
+                        window.open(
+                          `/dossiers/${primaryDuplicateWarning.existingDossierId}`,
+                          '_blank',
+                        );
+                      }
+                    }}
+                  >
+                    ⚠️ Trùng hồ sơ hiện có
+                    {primaryDuplicateWarning.existingDossierCode && (
+                      <span className="font-mono text-amber-900 font-bold ml-1">
+                        [{primaryDuplicateWarning.existingDossierCode}]
+                      </span>
+                    )}
+                  </Tag>
+                </Tooltip>
+              )}
             </div>
             <h3 className="text-base font-bold text-slate-900 mb-0 pt-0.5">
               {metadata.tourName || "Dự toán Tour SkyLux"}
@@ -1621,6 +1717,18 @@ export function ImportPreviewTable({
                               <CloseCircleOutlined className="text-rose-500 text-xs" />
                               {row.statusMessage}
                             </span>
+                          ) : primaryDuplicateWarning ? (
+                            <Tooltip
+                              title={
+                                primaryDuplicateWarning.message ||
+                                `Hồ sơ "${primaryDuplicateWarning.existingDossierCode || ''}" đang hoạt động trong hệ thống.`
+                              }
+                            >
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-300">
+                                <WarningOutlined className="text-amber-600 text-xs" />
+                                ⚠️ Trùng hồ sơ hiện có
+                              </span>
+                            </Tooltip>
                           ) : (
                             <span className="inline-block px-3 py-0.5 rounded-full text-[11px] font-medium bg-[var(--color-primary-soft)] text-[var(--color-primary-700)] border border-emerald-200/60">
                               Hợp lệ
