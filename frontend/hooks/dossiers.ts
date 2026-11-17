@@ -72,6 +72,52 @@ export function useDeleteDossier() {
 }
 
 /**
+ * Hook lấy danh sách hồ sơ trong thùng rác / đã lưu trữ
+ */
+export function useArchivedDossiersList(
+  params?: QueryDossierParams,
+  options?: { enabled?: boolean },
+) {
+  return useQuery<PaginatedDossiersResponse>({
+    queryKey: queryKeys.dossiers.archivedList(params),
+    queryFn: ({ signal }) => dossiersService.getArchivedDossiers(params, { signal }),
+    ...options,
+  });
+}
+
+/**
+ * Hook khôi phục hồ sơ đã xóa (API-DOSSIER-RESTORE)
+ */
+export function useRestoreDossier() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => dossiersService.restoreDossier(id),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.dossiers.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboards.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dossiers.detail(data.id) });
+    },
+  });
+}
+
+/**
+ * Hook xóa vĩnh viễn hồ sơ khỏi hệ thống (API-DOSSIER-PURGE)
+ */
+export function usePurgeDossier() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => dossiersService.purgeDossier(id),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.dossiers.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboards.all });
+      queryClient.removeQueries({ queryKey: queryKeys.dossiers.detail(id) });
+    },
+  });
+}
+
+/**
  * Hook lấy danh sách bình luận của hồ sơ tour (API-COMMENT-001)
  */
 export function useDossierComments(dossierId: string, params?: QueryCommentParams, options?: { enabled?: boolean }) {

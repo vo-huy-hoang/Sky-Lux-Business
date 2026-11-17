@@ -1,4 +1,4 @@
-import { Optional } from '@nestjs/common';
+import { Optional, Logger } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -12,6 +12,7 @@ import { ImportError } from '../entities/import-error.entity';
 import { ImportSessionStatus } from '../../../common/enums';
 import { Customer } from '../../customers/entities/customer.entity';
 import { Supplier } from '../../suppliers/entities/supplier.entity';
+import { Dossier } from '../../dossiers/entities/dossier.entity';
 import {
   CUSTOMER_BUDGET_FORMAT,
   computeFinancialReconciliation,
@@ -38,6 +39,8 @@ function sanitizeCellValue(value: any): string {
 
 @Processor('import-queue')
 export class ImportProcessor extends WorkerHost {
+  private readonly logger = new Logger(ImportProcessor.name);
+
   constructor(
     @InjectRepository(ImportSession)
     private readonly sessionRepository: Repository<ImportSession>,
@@ -50,6 +53,9 @@ export class ImportProcessor extends WorkerHost {
     @Optional()
     @InjectRepository(Supplier)
     private readonly supplierRepository?: Repository<Supplier>,
+    @Optional()
+    @InjectRepository(Dossier)
+    private readonly dossierRepository?: Repository<Dossier>,
   ) {
     super();
   }
@@ -215,6 +221,7 @@ export class ImportProcessor extends WorkerHost {
 
     let validRowsCount = 0;
     let errorRowsCount = 0;
+    let warningRowsCount = 0;
 
     const mapping = session.template?.mappingConfig || {};
     const codeKey = mapping.codeColumn || 'Mã hồ sơ';
@@ -442,6 +449,96 @@ export class ImportProcessor extends WorkerHost {
           }
         }
 
+        const parseIsoDate = (dateVal: string): string | undefined => {
+          if (!dateVal) return undefined;
+          const parsed = Date.parse(dateVal);
+          if (!isNaN(parsed)) {
+            return new Date(dateVal).toISOString().slice(0, 10);
+          }
+          if (/^\d{4}-\d{2}-\d{2}/.test(dateVal)) {
+            return dateVal.slice(0, 10);
+          }
+          return undefined;
+        };
+
+        const normalizedStartDate = parseIsoDate(startDate);
+        const normalizedEndDate = parseIsoDate(endDate);
+
+        // Check duplicate with active dossiers (deletedAt IS NULL)
+        let duplicateWarning: {
+          type: 'DUPLICATE_ACTIVE_DOSSIER';
+          existingDossierId: string;
+          existingDossierCode: string;
+          message: string;
+        } | null = null;
+
+        if (this.dossierRepository) {
+          try {
+            let matchingDossier: Dossier | null = null;
+
+            // Layer 1: Check match by dossier code
+            if (code) {
+              matchingDossier = await this.dossierRepository.findOne({
+                where: {
+                  organizationId: session.organizationId,
+                  code,
+                },
+              });
+            }
+
+            // Layer 2: Check matching customer + startDate + route
+            const normalizedRoute = String(data[routeKey] || '').trim();
+            if (
+              !matchingDossier &&
+              (customer?.id || effectiveCustomerName) &&
+              normalizedStartDate &&
+              normalizedRoute
+            ) {
+              const query = this.dossierRepository
+                .createQueryBuilder('dossier')
+                .where('dossier.organizationId = :organizationId', {
+                  organizationId: session.organizationId,
+                })
+                .andWhere('dossier.startDate = :startDate', {
+                  startDate: normalizedStartDate,
+                })
+                .andWhere('dossier.route ILIKE :route', {
+                  route: `%${normalizedRoute}%`,
+                });
+
+              if (customer?.id) {
+                query.andWhere('dossier.customerId = :customerId', {
+                  customerId: customer.id,
+                });
+              } else if (effectiveCustomerName) {
+                query.andWhere('dossier.customerName ILIKE :custName', {
+                  custName: `%${effectiveCustomerName}%`,
+                });
+              }
+
+              matchingDossier = await query.getOne();
+            }
+
+            if (matchingDossier) {
+              duplicateWarning = {
+                type: 'DUPLICATE_ACTIVE_DOSSIER',
+                existingDossierId: matchingDossier.id,
+                existingDossierCode: matchingDossier.code,
+                message: `Hồ sơ có nguy cơ trùng lặp với hồ sơ đang hoạt động [Mã: ${matchingDossier.code} - ${matchingDossier.name}].`,
+              };
+            }
+          } catch (err: any) {
+            this.logger.warn(
+              `Lỗi đối soát trùng lặp hồ sơ import: ${err?.message}`,
+            );
+          }
+        }
+
+        const rowWarnings = duplicateWarning ? [duplicateWarning] : [];
+        if (rowWarnings.length > 0) {
+          warningRowsCount++;
+        }
+
         row.normalizedData = {
           code: sanitizeCellValue(code),
           name: sanitizeCellValue(name),
@@ -455,12 +552,10 @@ export class ImportProcessor extends WorkerHost {
             name: effectiveCustomerName || undefined,
           },
           route: sanitizeCellValue(String(data[routeKey] || '').trim()),
-          startDate: startDate
-            ? new Date(startDate).toISOString().slice(0, 10)
-            : undefined,
-          endDate: endDate
-            ? new Date(endDate).toISOString().slice(0, 10)
-            : undefined,
+          startDate: normalizedStartDate,
+          endDate: normalizedEndDate,
+          warnings: rowWarnings,
+          hasWarning: rowWarnings.length > 0,
           ...(isCustomerBudget && data.tourDuration
             ? {
                 tourDuration: sanitizeCellValue(
@@ -508,6 +603,10 @@ export class ImportProcessor extends WorkerHost {
       processedRows: rows.length,
       validRows: validRowsCount,
       errorRows: errorRowsCount,
+      summary: {
+        ...(session.summary || {}),
+        warningRows: warningRowsCount,
+      } as any,
     });
   }
 }

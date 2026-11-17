@@ -87,6 +87,7 @@ export default function ImportsPage() {
       {flow.currentSessionId && flow.session?.status !== "CONFIRMED" && (
         <ImportFloatingActionBar
           session={flow.session}
+          previewData={flow.previewData}
           isValidating={flow.validateMutation.isPending}
           isConfirming={flow.confirmMutation.isPending}
           canConfirm={flow.canConfirm}

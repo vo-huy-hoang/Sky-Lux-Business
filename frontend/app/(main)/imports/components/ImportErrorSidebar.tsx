@@ -32,6 +32,16 @@ const CHECKLIST_ITEMS = [
 export function ImportErrorSidebar({ session, previewData, errorsData }: ImportErrorSidebarProps) {
   const { validCount, errorCount, warningCount, totalCount } = useImportValidation(previewData);
   const importErrorRowCount = session?.errorRows ?? 0;
+  const duplicateWarningCount =
+    session?.summary?.warningRows ??
+    previewData?.data?.filter(
+      (r) =>
+        r.warnings?.some((w) => w.type === "DUPLICATE_ACTIVE_DOSSIER") ||
+        (r.normalizedData?.warnings as any[])?.some(
+          (w: any) => w.type === "DUPLICATE_ACTIVE_DOSSIER",
+        ),
+    ).length ??
+    0;
 
   return (
     <div className="space-y-4">
@@ -139,6 +149,18 @@ export function ImportErrorSidebar({ session, previewData, errorsData }: ImportE
               {totalCount}
             </span>
           </div>
+
+          {duplicateWarningCount > 0 && (
+            <div className="p-3 rounded-xl bg-amber-50/90 border border-amber-300 text-xs text-amber-950 space-y-1">
+              <div className="font-bold flex items-center gap-1.5 text-amber-900">
+                <WarningFilled className="text-amber-600" />
+                <span>Cảnh báo trùng lặp: {duplicateWarningCount} hồ sơ</span>
+              </div>
+              <div className="text-[11px] text-amber-800 leading-relaxed">
+                Phát hiện thông tin trùng với hồ sơ đang chạy. Vui lòng kiểm tra kỹ trước khi xác nhận nhập.
+              </div>
+            </div>
+          )}
 
           {importErrorRowCount > 0 && (
             <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800">

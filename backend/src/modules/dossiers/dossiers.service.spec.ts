@@ -27,7 +27,9 @@ import { QueryCommentDto } from './dto/query-comment.dto';
 import { DossierStatus, PaymentStatus } from '../../common/enums';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AuditAction } from '../audit-logs/audit-event.constants';
+import { AuditLog } from '../audit-logs/entities/audit-log.entity';
 import { DossierAccessPolicyService } from './dossier-access-policy.service';
+import { QueryArchivedDossierDto } from './dto/query-archived-dossier.dto';
 
 describe('DossiersService', () => {
   let service: DossiersService;
@@ -59,6 +61,7 @@ describe('DossiersService', () => {
     orderBy: jest.fn().mockReturnThis(),
     skip: jest.fn().mockReturnThis(),
     take: jest.fn().mockReturnThis(),
+    withDeleted: jest.fn().mockReturnThis(),
     getOne: jest.fn(),
     getManyAndCount: jest.fn(),
     getMany: jest.fn(),
@@ -87,14 +90,28 @@ describe('DossiersService', () => {
     find: jest.fn(),
   };
 
+  const mockAuditLogRepository = {
+    find: jest.fn().mockResolvedValue([]),
+  };
+
   const mockEntityManager = {
     find: jest.fn(),
+    findOne: jest.fn(),
     softRemove: jest.fn(),
+    recover: jest.fn(async (entityOrTarget, entities) => entities || entityOrTarget),
+    delete: jest.fn().mockResolvedValue({ affected: 1 }),
+    update: jest.fn().mockResolvedValue({ affected: 1 }),
+    createQueryBuilder: jest.fn(() => mockQueryBuilder),
     getRepository: jest.fn(() => mockDossierRepository),
   };
 
   const mockDataSource = {
     transaction: jest.fn(async (cb: any) => cb(mockEntityManager)),
+    getRepository: jest.fn((entity: any) => {
+      if (entity === Payment) return mockPaymentRepository;
+      if (entity === AuditLog) return mockAuditLogRepository;
+      return mockDossierRepository;
+    }),
   };
 
   const mockAuditLogsService = {
@@ -881,6 +898,284 @@ describe('DossiersService', () => {
       ).rejects.toThrow(BadRequestException);
 
       expect(commentRepository.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findArchived', () => {
+    it('should return paginated archived dossiers enriched with deletedByUser and deletionReason', async () => {
+      const archivedDossier = {
+        ...mockDossier,
+        id: 'archived-id-1',
+        deletedAt: new Date(),
+      };
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([[archivedDossier], 1]);
+      mockAuditLogRepository.find.mockResolvedValue([
+        {
+          entityId: 'archived-id-1',
+          actor: { id: 'admin-id', fullName: 'Admin User', employeeCode: 'EMP001' },
+          beforeData: { deletionReason: 'Hủy kế hoạch đoàn' },
+        },
+      ]);
+
+      const result = await service.findArchived(mockUserPayload, new QueryArchivedDossierDto());
+
+      expect(mockQueryBuilder.withDeleted).toHaveBeenCalled();
+      expect(mockQueryBuilder.where).toHaveBeenCalledWith(
+        'dossier.organizationId = :organizationId',
+        { organizationId: 'org-uuid' },
+      );
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('dossier.deletedAt IS NOT NULL');
+      expect(result.data).toHaveLength(1);
+      expect((result.data[0] as any).deletionReason).toBe('Hủy kế hoạch đoàn');
+      expect((result.data[0] as any).deletedByUser.fullName).toBe('Admin User');
+    });
+
+    it('should strictly limit Sales user to only their own deleted dossiers', async () => {
+      const salesUser = {
+        id: 'sales-1',
+        organizationId: 'org-uuid',
+        roles: ['SALES'],
+        permissions: ['dossier.view.own'],
+      } as unknown as CurrentUserPayload;
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([[], 0]);
+
+      await service.findArchived(salesUser, new QueryArchivedDossierDto());
+
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        '(dossier.salesUserId = :currentUserId OR dossier.createdBy = :currentUserId)',
+        { currentUserId: 'sales-1' },
+      );
+    });
+
+    it('should apply status, salesUserId and search filters when provided', async () => {
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([[], 0]);
+      const queryDto: QueryArchivedDossierDto = {
+        page: 1,
+        limit: 10,
+        status: DossierStatus.DRAFT,
+        salesUserId: 'sales-uuid',
+        search: 'Hà Nội',
+      };
+
+      await service.findArchived(mockUserPayload, queryDto);
+
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        'dossier.status = :status',
+        { status: DossierStatus.DRAFT },
+      );
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        'dossier.salesUserId = :salesUserId',
+        { salesUserId: 'sales-uuid' },
+      );
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('dossier.code ILIKE :search'),
+        { search: '%Hà Nội%' },
+      );
+    });
+  });
+
+  describe('restore', () => {
+    it('should throw NotFoundException if deleted dossier is not found', async () => {
+      mockQueryBuilder.getOne.mockResolvedValue(null);
+
+      await expect(
+        service.restore(mockUserPayload, 'non-existent-id'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ForbiddenException if Sales tries to restore another sales user dossier', async () => {
+      const salesUser = {
+        id: 'sales-user-1',
+        organizationId: 'org-uuid',
+        roles: ['SALES'],
+        permissions: ['dossier.update'],
+      } as unknown as CurrentUserPayload;
+      mockQueryBuilder.getOne.mockResolvedValue({
+        ...mockDossier,
+        id: 'dossier-other-sales',
+        salesUserId: 'sales-user-2',
+        createdBy: 'sales-user-2',
+        deletedAt: new Date(),
+        status: DossierStatus.DRAFT,
+      });
+
+      await expect(
+        service.restore(salesUser, 'dossier-other-sales'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw ForbiddenException if Sales tries to restore non-DRAFT dossier', async () => {
+      const salesUser = {
+        id: 'sales-user-1',
+        organizationId: 'org-uuid',
+        roles: ['SALES'],
+        permissions: ['dossier.update'],
+      } as unknown as CurrentUserPayload;
+      mockQueryBuilder.getOne.mockResolvedValue({
+        ...mockDossier,
+        id: 'dossier-approved',
+        salesUserId: 'sales-user-1',
+        createdBy: 'sales-user-1',
+        deletedAt: new Date(),
+        status: DossierStatus.APPROVED,
+      });
+
+      await expect(
+        service.restore(salesUser, 'dossier-approved'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should allow Sales to restore own draft dossier and cascade recover child estimates', async () => {
+      const salesUser = {
+        id: 'sales-user-1',
+        organizationId: 'org-uuid',
+        roles: ['SALES'],
+        permissions: ['dossier.update', 'dossier.view.own'],
+      } as unknown as CurrentUserPayload;
+      const softDeletedDossier = {
+        ...mockDossier,
+        id: 'dossier-to-restore',
+        code: 'TOUR-SG-01',
+        salesUserId: 'sales-user-1',
+        createdBy: 'sales-user-1',
+        deletedAt: new Date(),
+        status: DossierStatus.DRAFT,
+      };
+      mockQueryBuilder.getOne.mockResolvedValue(softDeletedDossier);
+      mockEntityManager.findOne.mockResolvedValue(null); // No collision
+      mockQueryBuilder.getMany.mockResolvedValue([{ id: 'est-1', deletedAt: new Date() }]);
+      repository.findOne.mockResolvedValue(softDeletedDossier);
+
+      const result = await service.restore(salesUser, 'dossier-to-restore');
+
+      expect(mockEntityManager.recover).toHaveBeenCalledWith(
+        Estimate,
+        expect.arrayContaining([expect.objectContaining({ id: 'est-1' })]),
+      );
+      expect(mockEntityManager.recover).toHaveBeenCalledWith(
+        Dossier,
+        softDeletedDossier,
+      );
+      expect(mockAuditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: AuditAction.DOSSIER_RESTORED,
+          entityId: 'dossier-to-restore',
+        }),
+      );
+      expect(result).toBeDefined();
+    });
+
+    it('should resolve code collision by appending -RESTORED suffix if code is occupied by an active dossier', async () => {
+      const adminUser = {
+        id: 'ceo-user-1',
+        organizationId: 'org-uuid',
+        roles: ['CEO_ADMIN'],
+        permissions: ['*'],
+      } as unknown as CurrentUserPayload;
+      const softDeletedDossier = {
+        ...mockDossier,
+        id: 'dossier-colliding',
+        code: 'TOUR-HA-NOI',
+        deletedAt: new Date(),
+        status: DossierStatus.APPROVED,
+      };
+      mockQueryBuilder.getOne.mockResolvedValue(softDeletedDossier);
+      mockEntityManager.findOne
+        .mockResolvedValueOnce({ id: 'active-other-id', code: 'TOUR-HA-NOI' })
+        .mockResolvedValueOnce(null);
+
+      mockQueryBuilder.getMany.mockResolvedValue([]);
+      repository.findOne.mockResolvedValue(softDeletedDossier);
+
+      await service.restore(adminUser, 'dossier-colliding');
+
+      expect(mockEntityManager.update).toHaveBeenCalledWith(
+        Dossier,
+        { id: 'dossier-colliding' },
+        { code: 'TOUR-HA-NOI-RESTORED' },
+      );
+    });
+  });
+
+  describe('purge', () => {
+    it('should throw NotFoundException if dossier not found in trash', async () => {
+      mockQueryBuilder.getOne.mockResolvedValue(null);
+
+      await expect(
+        service.purge(mockUserPayload, 'non-existent-id'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ForbiddenException if non-admin user attempts to purge', async () => {
+      const operatorUser = {
+        id: 'op-1',
+        organizationId: 'org-uuid',
+        roles: ['OPERATOR'],
+        permissions: ['dossier.delete'],
+      } as unknown as CurrentUserPayload;
+      mockQueryBuilder.getOne.mockResolvedValue({
+        ...mockDossier,
+        id: 'dossier-trash-1',
+        deletedAt: new Date(),
+      });
+
+      await expect(
+        service.purge(operatorUser, 'dossier-trash-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw ConflictException if dossier has real non-cancelled payments', async () => {
+      const adminUser = {
+        id: 'admin-1',
+        organizationId: 'org-uuid',
+        roles: ['CEO_ADMIN'],
+        permissions: ['*'],
+      } as unknown as CurrentUserPayload;
+      mockQueryBuilder.getOne.mockResolvedValue({
+        ...mockDossier,
+        id: 'dossier-with-payment',
+        deletedAt: new Date(),
+      });
+      mockPaymentRepository.find.mockResolvedValue([
+        { id: 'pay-1', status: PaymentStatus.PAID, amount: 5000000 },
+      ]);
+
+      await expect(
+        service.purge(adminUser, 'dossier-with-payment'),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should permanently hard-delete dossier and child records when user is CEO_ADMIN', async () => {
+      const adminUser = {
+        id: 'admin-1',
+        organizationId: 'org-uuid',
+        roles: ['CEO_ADMIN'],
+        permissions: ['*'],
+      } as unknown as CurrentUserPayload;
+      const dossierToPurge = {
+        ...mockDossier,
+        id: 'dossier-clean-purge',
+        deletedAt: new Date(),
+      };
+      mockQueryBuilder.getOne.mockResolvedValue(dossierToPurge);
+      mockPaymentRepository.find.mockResolvedValue([]);
+
+      await service.purge(adminUser, 'dossier-clean-purge');
+
+      expect(mockEntityManager.delete).toHaveBeenCalledWith(
+        Dossier,
+        { id: 'dossier-clean-purge', organizationId: 'org-uuid' },
+      );
+      expect(mockEntityManager.delete).toHaveBeenCalledWith(
+        Estimate,
+        { dossierId: 'dossier-clean-purge', organizationId: 'org-uuid' },
+      );
+      expect(mockAuditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: AuditAction.DOSSIER_PURGED,
+          entityId: 'dossier-clean-purge',
+        }),
+      );
     });
   });
 });
