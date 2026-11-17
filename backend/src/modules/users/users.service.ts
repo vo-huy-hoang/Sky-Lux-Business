@@ -14,7 +14,7 @@ import { User } from './entities/user.entity';
 import { RefreshToken } from '../auth/entities/refresh-token.entity';
 import { Role } from '../roles/entities/role.entity';
 import { Department } from '../departments/entities/department.entity';
-import { UserStatus } from '../../common/enums';
+import { UserStatus, RoleScope } from '../../common/enums';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { QueryUserDto } from './dto/query-user.dto';
@@ -22,6 +22,12 @@ import { AssignRolesDto } from './dto/assign-roles.dto';
 import { Organization } from '../organizations/entities/organization.entity';
 import { CreateCeoUserDto } from './dto/create-ceo-user.dto';
 import { UpdateCeoUserDto } from './dto/update-ceo-user.dto';
+import { RolePermission } from '../permissions/entities/role-permission.entity';
+import { Permission } from '../permissions/entities/permission.entity';
+import {
+  BASELINE_ROLE_PERMISSIONS,
+  syncBaselinePermissionsForRole,
+} from '../../database/bootstrap/baseline-role-permissions';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
   AuditAction,
@@ -68,6 +74,12 @@ export class UsersService {
     if (!user) return user;
     const { passwordHash: _passwordHash, ...sanitized } = user;
     return sanitized;
+  }
+
+  async ensureBaselinePermissionsForRole(role: Role): Promise<void> {
+    const manager = this.roleRepository?.manager;
+    if (!manager) return;
+    await syncBaselinePermissionsForRole(manager, role);
   }
 
   /**
@@ -425,6 +437,9 @@ export class UsersService {
           'Một hoặc nhiều vai trò được chọn không hợp lệ hoặc không thuộc tổ chức của bạn',
         );
       }
+      for (const role of roles) {
+        await this.ensureBaselinePermissionsForRole(role);
+      }
     }
 
     if (actorRoles) {
@@ -674,6 +689,9 @@ export class UsersService {
           );
         }
         this.assertAssignableRoles(actorRoles, roles);
+        for (const role of roles) {
+          await this.ensureBaselinePermissionsForRole(role);
+        }
         user.roles = roles;
       } else {
         this.assertAssignableRoles(actorRoles, []);
@@ -895,6 +913,10 @@ export class UsersService {
     }
 
     this.assertAssignableRoles(actorRoles, roles);
+
+    for (const role of roles) {
+      await this.ensureBaselinePermissionsForRole(role);
+    }
 
     const previousRoleIds = (user.roles ?? []).map((role) => role.id).sort();
     const nextRoleIds = roles.map((role) => role.id).sort();

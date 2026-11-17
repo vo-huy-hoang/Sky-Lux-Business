@@ -98,6 +98,7 @@ export interface DossierItem {
   revenueRecognitionDate?: string | null;
   tourDuration?: string;
   status: string;
+  version?: number;
   priority?: string;
   customer?: {
     id: string;

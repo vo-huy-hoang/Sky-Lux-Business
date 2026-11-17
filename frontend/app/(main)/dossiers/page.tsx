@@ -621,7 +621,7 @@ function DossiersContent() {
         </div>
         <Link href="/imports">
           <Button icon={<FileExcelOutlined />} className="skylux-primary-button" suppressHydrationWarning>
-            {isCeoAdmin || isOperator ? 'Kiểm tra dữ liệu Excel' : 'Import dự toán Excel'}
+            {isCeoAdmin || isOperator ? 'Kiểm tra dữ liệu Excel' : '+ Tạo Tour mới từ Excel'}
           </Button>
         </Link>
       </div>

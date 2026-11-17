@@ -40,6 +40,7 @@ export interface AppRoute {
   excludeRoles?: string[];
   superAdminOnly?: boolean;
   hideFromNavigationRoles?: string[];
+  hubKey?: string;
   order: number;
 }
 
@@ -129,6 +130,20 @@ export const APP_ROUTES: AppRoute[] = [
     order: 40,
   },
   {
+    key: '/reports',
+    path: '/reports',
+    icon: React.createElement(BarChartOutlined),
+    label: (ctx) => (ctx.isSuperAdmin ? 'Báo cáo' : 'Báo cáo & Tài chính'),
+    title: (ctx) => (ctx.isSuperAdmin ? 'Báo cáo' : 'Báo cáo & Tài chính'),
+    subtitle: (ctx) =>
+      ctx.isSuperAdmin
+        ? 'Tạo và xuất các báo cáo quản trị dành cho CEO/Admin'
+        : 'Phân tích doanh thu, báo cáo quản trị và chỉ số hiệu suất kinh doanh',
+    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN', 'OPERATOR'],
+    hideFromNavigationRoles: ['OPERATOR'],
+    order: 50,
+  },
+  {
     key: '/revenue',
     path: '/revenue',
     icon: React.createElement(BarChartOutlined),
@@ -138,18 +153,9 @@ export const APP_ROUTES: AppRoute[] = [
       ? 'Theo dõi phí thuê bao phần mềm và khoản thanh toán của từng doanh nghiệp'
       : 'Phân tích doanh thu, lợi nhuận và cơ cấu hoạt động',
     allowedRoles: ['OPERATOR', 'SUPER_ADMIN', 'CEO_ADMIN'],
-    hideFromNavigationRoles: ['OPERATOR'],
-    order: 50,
-  },
-  {
-    key: '/reports',
-    path: '/reports',
-    icon: React.createElement(FileTextOutlined),
-    label: 'Báo cáo',
-    title: 'Báo cáo',
-    subtitle: 'Tạo và xuất các báo cáo quản trị dành cho CEO/Admin',
-    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN'],
-    order: 60,
+    hideFromNavigationRoles: ['OPERATOR', 'CEO_ADMIN'],
+    hubKey: '/reports',
+    order: 55,
   },
   {
     key: '/kpi',
@@ -159,7 +165,9 @@ export const APP_ROUTES: AppRoute[] = [
     title: 'KPI Sales',
     subtitle: 'Theo dõi hiệu suất đội ngũ kinh doanh toàn công ty',
     allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN'],
-    order: 70,
+    hideFromNavigationRoles: ['CEO_ADMIN'],
+    hubKey: '/reports',
+    order: 60,
   },
   {
     key: '/customers',
@@ -397,10 +405,11 @@ export function getActiveMenuKey(pathname: string | null): string {
 
   const normalized = pathname.startsWith('/main/') ? pathname.replace(/^\/main/, '') : pathname;
 
-  // Khớp chính xác route dài nhất
+  // Khớp chính xác route dài nhất theo cấu trúc khai báo
   const matched = APP_ROUTES.filter((r) => normalized.startsWith(r.path) || pathname.startsWith(r.path)).sort(
     (a, b) => b.path.length - a.path.length,
   )[0];
 
-  return matched ? matched.key : normalized;
+  if (!matched) return normalized;
+  return matched.hubKey || matched.key;
 }

@@ -4,13 +4,18 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, ILike, Repository } from 'typeorm';
+import { DataSource, ILike, Repository, In } from 'typeorm';
 import { Organization } from './entities/organization.entity';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { SettingsService } from '../settings/settings.service';
 import { Role } from '../roles/entities/role.entity';
 import { RolePermission } from '../permissions/entities/role-permission.entity';
+import { Permission } from '../permissions/entities/permission.entity';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
+import {
+  BASELINE_ROLE_PERMISSIONS,
+  syncBaselinePermissionsForRole,
+} from '../../database/bootstrap/baseline-role-permissions';
 
 @Injectable()
 export class OrganizationsService {
@@ -148,6 +153,11 @@ export class OrganizationsService {
       );
       if (permissionGrants.length) {
         await rolePermRepo.save(permissionGrants);
+      }
+
+      // Ensure baseline permissions are seeded even if template was empty or incomplete
+      for (const role of createdRoles) {
+        await syncBaselinePermissionsForRole(manager, role);
       }
 
       return organization;

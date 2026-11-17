@@ -108,9 +108,19 @@ export interface UpdateImportRowInput {
   rawData: Record<string, any>;
 }
 
+export interface CreatedDossierMetadata {
+  dossierId: string;
+  code: string;
+  customerName?: string;
+  totalRevenue?: number;
+  totalCost?: number;
+  hasDuplicateWarning?: boolean;
+}
+
 export interface ConfirmImportResponse {
   message: string;
   importedRowsCount: number;
+  createdDossiers?: CreatedDossierMetadata[];
   sentToOperations?: boolean;
   underReview?: boolean;
 }

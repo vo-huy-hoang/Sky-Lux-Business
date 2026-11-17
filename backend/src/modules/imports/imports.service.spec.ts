@@ -310,6 +310,7 @@ describe('ImportsService', () => {
       expect(result).toEqual({
         message: 'Nhập dữ liệu thành công',
         importedRowsCount: 1,
+        createdDossiers: expect.any(Array),
       });
       expect(dataSource.transaction).toHaveBeenCalled();
       expect(dossierRepository.create).toHaveBeenCalledWith(
@@ -356,6 +357,7 @@ describe('ImportsService', () => {
       await expect(service.confirm('org-id', 'session-id')).resolves.toEqual({
         message: 'Nhập dữ liệu thành công',
         importedRowsCount: 1,
+        createdDossiers: expect.any(Array),
       });
       expect(dossierRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -407,6 +409,7 @@ describe('ImportsService', () => {
       await expect(service.confirm('org-id', 'session-id')).resolves.toEqual({
         message: 'Nhập dữ liệu thành công',
         importedRowsCount: 1,
+        createdDossiers: expect.any(Array),
       });
       expect(dossierRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({ customerName: 'Nguyễn Văn D' }),
@@ -457,6 +460,7 @@ describe('ImportsService', () => {
       await expect(service.confirm('org-id', 'session-id')).resolves.toEqual({
         message: 'Nhập dữ liệu thành công',
         importedRowsCount: 1,
+        createdDossiers: expect.any(Array),
       });
       expect(dossierRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -511,6 +515,7 @@ describe('ImportsService', () => {
       await expect(service.confirm('org-id', 'session-id')).resolves.toEqual({
         message: 'Nhập dữ liệu thành công',
         importedRowsCount: 1,
+        createdDossiers: expect.any(Array),
       });
 
       expect(dossierRepository.create).toHaveBeenCalledWith(
@@ -583,6 +588,7 @@ describe('ImportsService', () => {
       await expect(service.confirm('org-id', 'session-id')).resolves.toEqual({
         message: 'Nhập dữ liệu thành công',
         importedRowsCount: 1,
+        createdDossiers: expect.any(Array),
       });
 
       expect(transactionManager.save).toHaveBeenCalledWith(
@@ -653,6 +659,7 @@ describe('ImportsService', () => {
       expect(result).toEqual({
         message: 'Nhập dữ liệu thành công',
         importedRowsCount: 1,
+        createdDossiers: expect.any(Array),
       });
 
       // Assert Customer was created & saved within the atomic transaction

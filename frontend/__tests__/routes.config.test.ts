@@ -131,11 +131,19 @@ describe('routes.config - Permission-Driven Dynamic Navigation', () => {
     expect(getActiveMenuKey('/dossiers/123-abc')).toBe('/dossiers');
     expect(getActiveMenuKey('/dashboard')).toBe('/dashboard');
 
+    // Consolidated reporting & financial hub keys highlight /reports
+    expect(getActiveMenuKey('/reports')).toBe('/reports');
+    expect(getActiveMenuKey('/revenue')).toBe('/reports');
+    expect(getActiveMenuKey('/kpi')).toBe('/reports');
+
     // Backward compatibility checks
     expect(getActiveMenuKey('/main/suppliers')).toBe('/suppliers');
     expect(getActiveMenuKey('/main/customers')).toBe('/customers');
     expect(getActiveMenuKey('/main/dossiers/123-abc')).toBe('/dossiers');
     expect(getActiveMenuKey('/main/dashboard')).toBe('/dashboard');
+    expect(getActiveMenuKey('/main/revenue')).toBe('/reports');
+    expect(getActiveMenuKey('/main/reports')).toBe('/reports');
+    expect(getActiveMenuKey('/main/kpi')).toBe('/reports');
   });
 
   it('getRouteMeta: provides dynamic titles based on user context', () => {
@@ -255,7 +263,7 @@ describe('routes.config - Permission-Driven Dynamic Navigation', () => {
     expect(typeof taskRoute!.label === 'function' ? taskRoute!.label(ceoCtx) : taskRoute!.label).toBe('Lịch trình điều hành');
   });
 
-  it('CEO_ADMIN: 14 menus ordered by CEO Mental Model and Decision Pyramid', () => {
+  it('CEO_ADMIN: streamlined navigation menu with unified Financial & Reporting hub', () => {
     const ceoCtx: UserContext = {
       roles: ['CEO_ADMIN'],
       permissions: ['*'],
@@ -270,14 +278,13 @@ describe('routes.config - Permission-Driven Dynamic Navigation', () => {
     );
     const paths = routes.map((r) => r.path);
 
+    // Streamlined from 14 items down to 12 items (and 11 in MainSidebar where /messages is filtered)
     expect(paths).toEqual([
       '/dashboard',
       '/approvals',
       '/tasks',
       '/dossiers',
-      '/revenue',
       '/reports',
-      '/kpi',
       '/customers',
       '/imports',
       '/messages',
@@ -286,5 +293,14 @@ describe('routes.config - Permission-Driven Dynamic Navigation', () => {
       '/audit-logs',
       '/profile',
     ]);
+
+    const reportsRoute = routes.find((r) => r.path === '/reports');
+    expect(reportsRoute).toBeDefined();
+    expect(typeof reportsRoute!.label === 'function' ? reportsRoute!.label(ceoCtx) : reportsRoute!.label).toBe('Báo cáo & Tài chính');
+
+    // Deep-links are fully accessible even when hidden from top-level navigation
+    expect(isPathAccessible('/revenue', ceoCtx)).toBe(true);
+    expect(isPathAccessible('/kpi', ceoCtx)).toBe(true);
+    expect(isPathAccessible('/reports', ceoCtx)).toBe(true);
   });
 });

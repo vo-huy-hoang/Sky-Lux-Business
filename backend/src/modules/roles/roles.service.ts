@@ -7,12 +7,13 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, In } from 'typeorm';
 import { Role } from './entities/role.entity';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { AssignPermissionsDto } from './dto/assign-permissions.dto';
 import { RolePermission } from '../permissions/entities/role-permission.entity';
+import { Permission } from '../permissions/entities/permission.entity';
 import { RoleScope } from '../../common/enums';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
@@ -20,6 +21,10 @@ import {
   AuditEntityType,
 } from '../audit-logs/audit-event.constants';
 import { RedisService } from '../../common/redis/redis.service';
+import {
+  BASELINE_ROLE_PERMISSIONS,
+  syncBaselinePermissionsForRole,
+} from '../../database/bootstrap/baseline-role-permissions';
 
 @Injectable()
 export class RolesService {
@@ -57,6 +62,7 @@ export class RolesService {
       existingRole.description = createRoleDto.description;
       const restoredRole = await this.roleRepository.recover(existingRole);
       const savedRole = await this.roleRepository.save(restoredRole);
+      await this.ensureBaselinePermissionsForRole(savedRole);
       await this.auditLogsService.record({
         organizationId,
         actorUserId,
@@ -77,6 +83,7 @@ export class RolesService {
     let savedRole: Role;
     try {
       savedRole = await this.roleRepository.save(role);
+      await this.ensureBaselinePermissionsForRole(savedRole);
     } catch (error: any) {
       // The unique constraint is the final guard against concurrent create requests.
       if (
@@ -321,6 +328,11 @@ export class RolesService {
     });
 
     return { message: 'Gán quyền cho vai trò thành công' };
+  }
+
+  async ensureBaselinePermissionsForRole(role: Role): Promise<void> {
+    if (!this.dataSource?.manager) return;
+    await syncBaselinePermissionsForRole(this.dataSource.manager, role);
   }
 
   private auditSnapshot(role: Role): Record<string, unknown> {

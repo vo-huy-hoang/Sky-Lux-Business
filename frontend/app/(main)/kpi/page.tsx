@@ -9,6 +9,7 @@ import { useFilterStore } from '@/lib/stores/filter-store';
 import { OperatorSalesSummaryItem } from '@/types/dashboard';
 import { formatCurrency } from '@/lib/financial-calculations';
 import { themeTokens } from '@/lib/theme/tokens.config';
+import { FinancialReportingHubNav } from '@/components/reports/FinancialReportingHubNav';
 import KpiDashboard from './components/KpiDashboard';
 
 const { Title, Text } = Typography;
@@ -228,6 +229,9 @@ function SalesPerformance() {
 export default function KpiPage() {
   return (
     <div className="space-y-6">
+      {/* Trung tâm Báo cáo & Tài chính Navigation */}
+      <FinancialReportingHubNav />
+
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
