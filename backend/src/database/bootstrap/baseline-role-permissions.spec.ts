@@ -1,4 +1,7 @@
-import { BASELINE_ROLE_PERMISSIONS } from './baseline-role-permissions';
+import {
+  BASELINE_ROLE_PERMISSIONS,
+  syncBaselinePermissionsForRole,
+} from './baseline-role-permissions';
 import { PERMISSION_CATALOG } from './permissions.catalog';
 
 describe('Baseline Role Permissions Catalog Integrity', () => {
@@ -40,5 +43,55 @@ describe('Baseline Role Permissions Catalog Integrity', () => {
         expect(catalogCodes.has(code)).toBe(true);
       }
     }
+  });
+
+  it('should gracefully handle incomplete manager/repos without throwing', async () => {
+    const incompleteManager = {
+      getRepository: jest.fn().mockReturnValue({}),
+    } as any;
+
+    await expect(
+      syncBaselinePermissionsForRole(incompleteManager, {
+        id: 'r-1',
+        code: 'SALES',
+      }),
+    ).resolves.not.toThrow();
+  });
+
+  it('should sync missing baseline permissions when repos are fully mocked', async () => {
+    const mockPermissions = [
+      { id: 'p-1', code: 'dashboard.sales' },
+      { id: 'p-2', code: 'dossier.view.own' },
+    ];
+    const permRepo = {
+      find: jest.fn().mockResolvedValue(mockPermissions),
+    };
+    const rolePermRepo = {
+      find: jest.fn().mockResolvedValue([{ permissionId: 'p-1' }]),
+      create: jest.fn((val) => val),
+      save: jest.fn().mockResolvedValue([]),
+    };
+
+    const manager = {
+      getRepository: jest.fn((entity) => {
+        if (entity.name === 'Permission') return permRepo;
+        if (entity.name === 'RolePermission') return rolePermRepo;
+        return {};
+      }),
+    } as any;
+
+    await syncBaselinePermissionsForRole(manager, {
+      id: 'r-1',
+      code: 'SALES',
+    });
+
+    expect(permRepo.find).toHaveBeenCalled();
+    expect(rolePermRepo.find).toHaveBeenCalled();
+    expect(rolePermRepo.save).toHaveBeenCalledWith([
+      expect.objectContaining({
+        roleId: 'r-1',
+        permissionId: 'p-2',
+      }),
+    ]);
   });
 });

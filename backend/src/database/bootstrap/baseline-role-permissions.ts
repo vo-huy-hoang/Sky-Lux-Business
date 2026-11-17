@@ -118,6 +118,17 @@ export async function syncBaselinePermissionsForRole(
   const permissionRepo = manager.getRepository(Permission);
   const rolePermRepo = manager.getRepository(RolePermission);
 
+  if (
+    !permissionRepo ||
+    typeof permissionRepo.find !== 'function' ||
+    !rolePermRepo ||
+    typeof rolePermRepo.find !== 'function' ||
+    typeof rolePermRepo.create !== 'function' ||
+    typeof rolePermRepo.save !== 'function'
+  ) {
+    return;
+  }
+
   const permissions = await permissionRepo.find({
     where: { code: In(baselineCodes) },
   });
