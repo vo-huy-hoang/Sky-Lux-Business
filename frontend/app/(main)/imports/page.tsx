@@ -48,6 +48,7 @@ export default function ImportsPage() {
             flow.session?.status === "CONFIRMED" ? (
               <ImportConfirmedResult
                 session={flow.session}
+                confirmedResult={flow.confirmedResult}
                 onResetSession={handleResetSession}
               />
             ) : (

@@ -483,7 +483,11 @@ export class DossierWorkflowService {
       RETURN_TO_OPERATIONS: [DossierStatus.IN_REVIEW],
       REQUEST_CHANGES: [DossierStatus.IN_REVIEW],
       RESUBMIT: [DossierStatus.NEED_CHANGES],
-      APPROVE: [DossierStatus.IN_REVIEW],
+      APPROVE: [
+        DossierStatus.IN_REVIEW,
+        DossierStatus.SUBMITTED,
+        DossierStatus.RESUBMITTED,
+      ],
       COMPLETE: [DossierStatus.APPROVED],
       LOCK: [DossierStatus.APPROVED, DossierStatus.COMPLETED],
     };
@@ -500,8 +504,13 @@ export class DossierWorkflowService {
     action: WorkflowAction,
   ) {
     if (action === 'SUBMIT') Object.assign(dossier, this.submitFields(dto));
-    if (action === 'START_REVIEW' && !dossier.operatorUserId)
+    if (
+      !dossier.operatorUserId &&
+      (action === 'START_REVIEW' ||
+        (action === 'APPROVE' && user.roles?.includes('OPERATOR')))
+    ) {
       dossier.operatorUserId = user.id;
+    }
     const statusByAction: Record<WorkflowAction, DossierStatus> = {
       SUBMIT: DossierStatus.SUBMITTED,
       START_REVIEW: DossierStatus.IN_REVIEW,
@@ -614,11 +623,29 @@ export class DossierWorkflowService {
       },
       order: { requestedAt: 'DESC' },
     });
-    if (!approval) return;
+    if (!approval) {
+      if (action === 'APPROVE') {
+        await repository.save(
+          repository.create({
+            organizationId: user.organizationId,
+            dossierId: dossier.id,
+            estimateId: estimate.id,
+            stepNo: 1,
+            stepCode: user.roles?.includes('OPERATOR') ? 'OPERATOR_REVIEW' : 'EXECUTIVE_APPROVAL',
+            reviewerUserId: user.id,
+            status: ApprovalStatus.APPROVED,
+            decidedAt: new Date(),
+            comment: note,
+          }),
+        );
+      }
+      return;
+    }
     approval.status =
       action === 'APPROVE'
         ? ApprovalStatus.APPROVED
         : ApprovalStatus.CHANGES_REQUESTED;
+    approval.reviewerUserId = user.id;
     approval.decidedAt = new Date();
     approval.comment = note;
     await repository.save(approval);

@@ -45,6 +45,7 @@ import { formatCurrency } from '@/lib/financial-calculations';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useReportStore } from '@/lib/stores/report-store';
 import { reportTypeLabel, SavedReport } from '@/services/reports.service';
+import { FinancialReportingHubNav } from '@/components/reports/FinancialReportingHubNav';
 import type {
   ReportFormat,
   ReportQueryParams,
@@ -421,6 +422,9 @@ export default function ReportsPage() {
   return (
     <div className="space-y-4">
       {contextHolder}
+
+      {/* Trung tâm Báo cáo & Tài chính Navigation */}
+      <FinancialReportingHubNav />
 
       {/* 1. Header Grid 4 Loại Báo Cáo */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

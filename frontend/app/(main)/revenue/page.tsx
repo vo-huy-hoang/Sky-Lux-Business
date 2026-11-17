@@ -51,6 +51,7 @@ import { RevenueBreakdownToggle, RevenueBreakdownMode } from '@/components/ceo/R
 import { getRevenueDonutSlices, RevenueDonutChart } from '@/components/ceo/RevenueDonutChart';
 import { themeTokens } from '@/lib/theme/tokens.config';
 import SaasBillingOverview from '@/components/super-admin/SaasBillingOverview';
+import { FinancialReportingHubNav } from '@/components/reports/FinancialReportingHubNav';
 
 ChartJS.register(
   ArcElement,
@@ -257,6 +258,9 @@ function CeoRevenuePage() {
 
   return (
     <div className="space-y-4 pb-8">
+      {/* Trung tâm Báo cáo & Tài chính Navigation */}
+      <FinancialReportingHubNav />
+
       {/* 1. FILTER TOOLBAR & EXPORT BUTTONS */}
       <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-[0_1px_3px_rgba(0,0,0,0.03)] p-3.5">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">

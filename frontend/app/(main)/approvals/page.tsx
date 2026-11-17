@@ -11,17 +11,19 @@ import {
   Row,
   Select,
   Skeleton,
+  Space,
   Table,
   Tag,
   Typography,
 } from 'antd';
 import {
+  ArrowRightOutlined,
+  CheckCircleOutlined,
   ClockCircleOutlined,
   EyeOutlined,
   FileDoneOutlined,
   SearchOutlined,
   WarningOutlined,
-  ArrowRightOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { estimatesService } from '@/services/estimates.service';
@@ -29,6 +31,7 @@ import { EstimateItem, EstimateStatus } from '@/types/estimate';
 import { themeTokens } from '@/lib/theme/tokens.config';
 import { queryKeys } from '@/lib/query-keys';
 import { formatCurrency } from '@/lib/financial-calculations';
+import { ExecutiveApprovalModal } from './components';
 
 
 const { Text } = Typography;
@@ -54,6 +57,8 @@ function waitingTime(value?: string) {
 export default function ApprovalsPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<string>('ALL');
+  const [selectedEstimateForApproval, setSelectedEstimateForApproval] =
+    useState<EstimateItem | null>(null);
 
   const submittedQuery = useQuery({
     queryKey: queryKeys.approvals.submitted({ status: EstimateStatus.SUBMITTED }),
@@ -121,8 +126,23 @@ export default function ApprovalsPage() {
         {value === EstimateStatus.IN_REVIEW ? 'Đang xem xét' : 'Chờ duyệt'}
       </Tag>
     ) },
-    { title: 'Thao tác', width: 125, fixed: 'right' as const, render: (_: unknown, item: EstimateItem) => (
-      <Link href={`/dossiers/${item.dossierId}`}><Button size="small" icon={<EyeOutlined />} className="skylux-outline-button">Xem hồ sơ</Button></Link>
+    { title: 'Thao tác', width: 190, fixed: 'right' as const, render: (_: unknown, item: EstimateItem) => (
+      <Space size="small">
+        <Button
+          size="small"
+          type="primary"
+          icon={<CheckCircleOutlined />}
+          className="skylux-primary-button font-medium"
+          onClick={() => setSelectedEstimateForApproval(item)}
+        >
+          Duyệt nhanh
+        </Button>
+        <Link href={`/dossiers/${item.dossierId}`}>
+          <Button size="small" icon={<EyeOutlined />} className="skylux-outline-button">
+            Xem
+          </Button>
+        </Link>
+      </Space>
     ) },
   ];
 
@@ -167,6 +187,16 @@ export default function ApprovalsPage() {
           ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hồ sơ ưu tiên" />}
         </Card>
       </div>
+
+      <ExecutiveApprovalModal
+        open={!!selectedEstimateForApproval}
+        estimate={selectedEstimateForApproval}
+        onClose={() => setSelectedEstimateForApproval(null)}
+        onSuccess={() => {
+          submittedQuery.refetch();
+          reviewingQuery.refetch();
+        }}
+      />
     </div>
   );
 }

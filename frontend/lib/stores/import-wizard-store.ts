@@ -1,9 +1,12 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { ConfirmImportResponse } from '@/types/import';
 
 export interface ImportWizardState {
   currentSessionId: string | null;
   setCurrentSessionId: (sessionId: string | null) => void;
+  confirmedResult: ConfirmImportResponse | null;
+  setConfirmedResult: (result: ConfirmImportResponse | null) => void;
   activeFilterTab: 'ALL' | 'VALID' | 'ERROR';
   setActiveFilterTab: (tab: 'ALL' | 'VALID' | 'ERROR') => void;
   page: number;
@@ -22,6 +25,8 @@ export const useImportWizardStore = create<ImportWizardState>()(
     (set) => ({
       currentSessionId: null,
       setCurrentSessionId: (sessionId) => set({ currentSessionId: sessionId }),
+      confirmedResult: null,
+      setConfirmedResult: (result) => set({ confirmedResult: result }),
       activeFilterTab: 'ALL',
       setActiveFilterTab: (tab) => set({ activeFilterTab: tab, page: 1 }),
       page: 1,
@@ -35,6 +40,7 @@ export const useImportWizardStore = create<ImportWizardState>()(
       resetSession: () =>
         set({
           currentSessionId: null,
+          confirmedResult: null,
           activeFilterTab: 'ALL',
           page: 1,
           pageSize: 10,

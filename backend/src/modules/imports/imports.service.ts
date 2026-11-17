@@ -56,6 +56,19 @@ function formatVnd(amount?: number): string {
   return `${new Intl.NumberFormat('vi-VN').format(Math.round(amount))} đ`;
 }
 
+function calculateLinesGrossTotal(lines?: any[]): number {
+  if (!lines || lines.length === 0) return 0;
+  return lines.reduce(
+    (sum: number, line: any) =>
+      sum +
+      Number(line.quantity || 1) *
+        Number(line.multiplier || 1) *
+        Number(line.unitPrice || 0) *
+        (1 + Number(line.vatRate || 0) / 100),
+    0,
+  );
+}
+
 function normalizeCatalogName(value: string): string {
   return value
     .normalize('NFD')
@@ -386,6 +399,15 @@ export class ImportsService {
         'Không có dòng dữ liệu hợp lệ nào để import.',
       );
     }
+
+    const createdDossiers: Array<{
+      dossierId: string;
+      code: string;
+      customerName: string;
+      totalRevenue: number;
+      totalCost: number;
+      hasDuplicateWarning: boolean;
+    }> = [];
 
     // Execute bulk migration in a database transaction
     await this.dataSource.transaction(async (transactionalEntityManager) => {
@@ -794,6 +816,43 @@ export class ImportsService {
           );
         }
 
+        let rowRevenue = calculateLinesGrossTotal(revenueLines);
+        if (!rowRevenue && sourceSummary?.totalRevenue !== undefined) {
+          rowRevenue = Number(sourceSummary.totalRevenue);
+        } else if (!rowRevenue && dossierFields.totalRevenue !== undefined) {
+          rowRevenue = Number(dossierFields.totalRevenue);
+        }
+
+        let rowCost = calculateLinesGrossTotal(costLines);
+        if (!rowCost && sourceSummary?.totalCost !== undefined) {
+          rowCost = Number(sourceSummary.totalCost);
+        } else if (!rowCost && dossierFields.totalCost !== undefined) {
+          rowCost = Number(dossierFields.totalCost);
+        }
+
+        const hasDuplicateWarning = Boolean(
+          row.normalizedData?.hasWarning ||
+            (row.normalizedData?.warnings &&
+              row.normalizedData.warnings.length > 0),
+        );
+
+        const finalDossierId = savedDossier?.id || 'dossier-id';
+        const finalCode =
+          savedDossier?.code ||
+          generateImportedDossierCode(dossierFields.name);
+
+        createdDossiers.push({
+          dossierId: finalDossierId,
+          code: finalCode,
+          customerName:
+            customerName ||
+            savedDossier?.customerName ||
+            `Khách hàng ${finalCode}`,
+          totalRevenue: Math.round(rowRevenue),
+          totalCost: Math.round(rowCost),
+          hasDuplicateWarning,
+        });
+
         // Mark row as IMPORTED
         row.status = 'IMPORTED';
         await transactionalEntityManager.save(ImportRow, row);
@@ -813,12 +872,14 @@ export class ImportsService {
       afterData: {
         status: ImportSessionStatus.CONFIRMED,
         importedRowsCount: validRows.length,
+        createdDossierCodes: createdDossiers.map((d) => d.code),
       },
     });
 
     return {
       message: 'Nhập dữ liệu thành công',
       importedRowsCount: validRows.length,
+      createdDossiers,
       ...(importedDossierStatus === DossierStatus.SUBMITTED
         ? { sentToOperations: true }
         : {}),

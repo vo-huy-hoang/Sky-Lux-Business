@@ -14,6 +14,8 @@ export function useImportFlow() {
 
   const currentSessionId = useImportWizardStore((state) => state.currentSessionId);
   const setCurrentSessionId = useImportWizardStore((state) => state.setCurrentSessionId);
+  const confirmedResult = useImportWizardStore((state) => state.confirmedResult);
+  const setConfirmedResult = useImportWizardStore((state) => state.setConfirmedResult);
   const resetWizardSession = useImportWizardStore((state) => state.resetSession);
   const activeTab = useImportWizardStore((state) => state.activeFilterTab);
   const setActiveTab = useImportWizardStore((state) => state.setActiveFilterTab);
@@ -102,6 +104,7 @@ export function useImportFlow() {
   const confirmMutation = useMutation({
     mutationFn: () => importsService.confirm(currentSessionId!),
     onSuccess: async (res) => {
+      setConfirmedResult(res);
       const importedRowsCount = res.importedRowsCount ?? session?.validRows ?? 0;
 
       // Show the result immediately after the API confirms the transaction.
@@ -215,6 +218,7 @@ export function useImportFlow() {
     uploadMutation,
     validateMutation,
     confirmMutation,
+    confirmedResult,
     editingRow,
     setEditingRow,
     isEditModalOpen,
