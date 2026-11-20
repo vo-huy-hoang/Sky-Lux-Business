@@ -216,8 +216,13 @@ describe('CustomersController', () => {
         expectedResult,
       );
 
+      const mockUser = {
+        id: 'user-uuid',
+        organizationId: 'org-uuid',
+      } as any;
+
       const result = await controller.findCustomerDossiers(
-        'org-uuid',
+        mockUser,
         'cust-uuid',
         queryDto,
       );
@@ -226,6 +231,7 @@ describe('CustomersController', () => {
         'org-uuid',
         'cust-uuid',
         queryDto,
+        mockUser,
       );
       expect(result).toEqual(expectedResult);
     });

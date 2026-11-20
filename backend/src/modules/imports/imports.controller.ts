@@ -28,7 +28,6 @@ import { UpdateImportRowDto } from './dto/update-import-row.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
-import { DossierStatus } from '../../common/enums';
 
 @ApiTags('Imports')
 @ApiBearerAuth('JWT-auth')
@@ -161,11 +160,7 @@ export class ImportsController {
       user.organizationId,
       id,
       user.id,
-      user.roles.includes('CEO_ADMIN')
-        ? DossierStatus.IN_REVIEW
-        : user.roles.includes('OPERATOR')
-          ? DossierStatus.SUBMITTED
-          : DossierStatus.DRAFT,
+      user,
     );
   }
 }

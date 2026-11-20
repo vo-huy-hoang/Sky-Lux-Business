@@ -175,28 +175,15 @@ export class DossiersService {
       .where('dossier.organizationId = :organizationId', { organizationId })
       .andWhere('dossier.deletedAt IS NOT NULL');
 
-    const roles = user.roles || [];
-    const isSalesOnly =
-      roles.includes('SALES') &&
-      !this.isAdmin(user) &&
-      !roles.includes('OPERATOR');
-
-    if (isSalesOnly) {
-      queryBuilder.andWhere(
-        '(dossier.salesUserId = :currentUserId OR dossier.createdBy = :currentUserId)',
-        { currentUserId: user.id },
-      );
-    } else {
-      this.dossierAccessPolicy.applyVisibilityScope(
-        queryBuilder,
-        'dossier',
-        user,
-        {
-          salesUserAlias: 'salesUser',
-          operatorUserAlias: 'operatorUser',
-        },
-      );
-    }
+    this.dossierAccessPolicy.applyVisibilityScope(
+      queryBuilder,
+      'dossier',
+      user,
+      {
+        salesUserAlias: 'salesUser',
+        operatorUserAlias: 'operatorUser',
+      },
+    );
 
     if (status) {
       queryBuilder.andWhere('dossier.status = :status', { status });
@@ -407,6 +394,7 @@ export class DossiersService {
     updateDossierDto: UpdateDossierDto,
   ): Promise<Dossier> {
     const initialDossier = await this.findOne(user, id, false);
+    this.dossierAccessPolicy.assertCanMutate(user, initialDossier, id);
     const organizationId = user.organizationId;
     const {
       code,
@@ -484,9 +472,10 @@ export class DossiersService {
           dossier.code = code;
         }
 
-        if (status && status !== dossier.status) {
-          this.validateStatusTransition(dossier.status, status);
-          dossier.status = status;
+        if (status !== undefined && status !== dossier.status) {
+          throw new BadRequestException(
+            'Không thể thay đổi trạng thái hồ sơ trực tiếp qua API cập nhật thông tin chung. Vui lòng sử dụng quy trình phê duyệt (workflow).',
+          );
         }
 
         if (updateData.customerId) {
@@ -610,50 +599,8 @@ export class DossiersService {
   ): Promise<void> {
     const dossier = await this.findOne(user, id, false);
 
-    // 1. Role & Lifecycle Status Matrix Check
-    const roles = user.roles || [];
-    const isSuperAdmin = roles.includes('SUPER_ADMIN');
-    const isCeoAdmin = roles.includes('CEO_ADMIN');
-    const isAdmin = isSuperAdmin || isCeoAdmin;
-    const isOperator = roles.includes('OPERATOR');
-    const isOwner =
-      dossier.salesUserId === user.id ||
-      dossier.operatorUserId === user.id ||
-      dossier.createdBy === user.id;
-
-    if (dossier.status === DossierStatus.LOCKED) {
-      if (!isSuperAdmin) {
-        throw new BadRequestException(
-          'Không thể xóa hồ sơ khi đang ở trạng thái LOCKED',
-        );
-      }
-    } else if (
-      dossier.status === DossierStatus.APPROVED ||
-      dossier.status === DossierStatus.COMPLETED
-    ) {
-      if (!isAdmin) {
-        throw new BadRequestException(
-          `Không thể xóa hồ sơ khi đang ở trạng thái ${dossier.status}. Chỉ Ban Giám Đốc (CEO) hoặc Quản trị viên mới có quyền.`,
-        );
-      }
-    } else if (
-      dossier.status === DossierStatus.SUBMITTED ||
-      dossier.status === DossierStatus.IN_REVIEW ||
-      dossier.status === DossierStatus.RESUBMITTED
-    ) {
-      if (!isOwner && !isOperator && !isAdmin) {
-        throw new ForbiddenException(
-          'Bạn không có quyền xóa hồ sơ đang trong quy trình duyệt',
-        );
-      }
-    } else {
-      // DRAFT, NEED_CHANGES, CANCELLED
-      if (!isOwner && !isOperator && !isAdmin) {
-        throw new ForbiddenException(
-          'Bạn không có quyền xóa hồ sơ của người khác',
-        );
-      }
-    }
+    // 1. Centralized deletion authorization guard
+    this.dossierAccessPolicy.assertCanDelete(user, dossier, id);
 
     // 2. Transactional Cascade Soft-Delete & Financial Integrity Guard
     await this.dataSource.transaction(async (manager) => {
@@ -711,30 +658,7 @@ export class DossiersService {
       throw new NotFoundException(`Không tìm thấy hồ sơ đã xóa với ID "${id}"`);
     }
 
-    const roles = user.roles || [];
-    const isAdmin = this.isAdmin(user);
-    const isOperator = roles.includes('OPERATOR');
-    const isSales = roles.includes('SALES');
-    const isOwner =
-      dossier.salesUserId === user.id || dossier.createdBy === user.id;
-
-    if (isSales && !isAdmin && !isOperator) {
-      if (!isOwner) {
-        throw new ForbiddenException(
-          'Bạn không có quyền khôi phục hồ sơ của người khác',
-        );
-      }
-      if (
-        dossier.status !== DossierStatus.DRAFT &&
-        dossier.status !== DossierStatus.NEED_CHANGES
-      ) {
-        throw new ForbiddenException(
-          'Nhân viên kinh doanh chỉ có quyền khôi phục hồ sơ ở trạng thái nháp',
-        );
-      }
-    } else if (!isAdmin && !isOperator) {
-      throw new ForbiddenException('Bạn không có quyền khôi phục hồ sơ này');
-    }
+    this.dossierAccessPolicy.assertCanRestore(user, dossier, id);
 
     await this.dataSource.transaction(async (manager) => {
       // 1. Collision check: if original code is currently taken by an active dossier
@@ -808,11 +732,7 @@ export class DossiersService {
       );
     }
 
-    if (!this.isAdmin(user)) {
-      throw new ForbiddenException(
-        'Chỉ Ban Giám đốc (CEO/Admin) mới có quyền xóa vĩnh viễn hồ sơ',
-      );
-    }
+    this.dossierAccessPolicy.assertCanPurge(user, dossier, id);
 
     // Financial Integrity Guard: Block purge if real payments exist
     const payments = await this.dataSource.getRepository(Payment).find({
@@ -854,13 +774,7 @@ export class DossiersService {
   }
 
   private isAdmin(user: CurrentUserPayload): boolean {
-    return (
-      Boolean(
-        user.roles &&
-          (user.roles.includes('SUPER_ADMIN') ||
-            user.roles.includes('CEO_ADMIN')),
-      ) || Boolean(user.permissions && user.permissions.includes('*'))
-    );
+    return this.dossierAccessPolicy.isAdmin(user);
   }
 
   private auditSnapshot(dossier: Dossier): Record<string, unknown> {
@@ -1071,58 +985,5 @@ export class DossiersService {
           }
         : {}),
     };
-  }
-
-  private validateStatusTransition(
-    current: DossierStatus,
-    next: DossierStatus,
-  ) {
-    if (current === next) {
-      return;
-    }
-
-    const validTransitions: Record<DossierStatus, DossierStatus[]> = {
-      [DossierStatus.DRAFT]: [DossierStatus.SUBMITTED, DossierStatus.CANCELLED],
-      [DossierStatus.SUBMITTED]: [
-        DossierStatus.IN_REVIEW,
-        DossierStatus.CANCELLED,
-        DossierStatus.DRAFT,
-      ],
-      [DossierStatus.IN_REVIEW]: [
-        DossierStatus.NEED_CHANGES,
-        DossierStatus.APPROVED,
-        DossierStatus.CANCELLED,
-        DossierStatus.SUBMITTED,
-      ],
-      [DossierStatus.NEED_CHANGES]: [
-        DossierStatus.RESUBMITTED,
-        DossierStatus.CANCELLED,
-        DossierStatus.DRAFT,
-      ],
-      [DossierStatus.RESUBMITTED]: [
-        DossierStatus.IN_REVIEW,
-        DossierStatus.CANCELLED,
-      ],
-      [DossierStatus.EDITING]: [
-        DossierStatus.RESUBMITTED,
-        DossierStatus.CANCELLED,
-      ],
-      [DossierStatus.APPROVED]: [
-        DossierStatus.EDITING,
-        DossierStatus.COMPLETED,
-        DossierStatus.LOCKED,
-        DossierStatus.CANCELLED,
-      ],
-      [DossierStatus.COMPLETED]: [DossierStatus.LOCKED],
-      [DossierStatus.LOCKED]: [],
-      [DossierStatus.CANCELLED]: [],
-    };
-
-    const allowed = validTransitions[current] || [];
-    if (!allowed.includes(next)) {
-      throw new BadRequestException(
-        `Không thể chuyển đổi trạng thái hồ sơ từ ${current} sang ${next}`,
-      );
-    }
   }
 }

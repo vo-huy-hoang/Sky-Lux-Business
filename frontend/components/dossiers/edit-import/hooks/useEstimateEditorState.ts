@@ -20,8 +20,13 @@ import {
   calculateRevenueRowAmount,
   ValidationResult,
 } from '../validation/estimate-validator';
-import { parseVatRate } from '@/components/dossiers/detail/utils';
-import { classifyCategory } from '@/components/dossiers/detail/components/DossierCostTable';
+import {
+  parseVatRate,
+  classifyCategory,
+  groupCostLinesByVatSection,
+  valuateEstimate,
+  buildCostSummaryRows,
+} from '@/lib/estimate-valuation';
 
 export interface UseEstimateEditorStateProps {
   dossierId: string;
@@ -166,7 +171,11 @@ export function useEstimateEditorState({
   const errorCount = validationResult.errorCount;
   const warningCount = validationResult.warningCount;
 
-  // 5. Total Calculations
+  // 5. Total Calculations & Canonical Valuation
+  const valuation = useMemo(() => {
+    return valuateEstimate(revenueRows, costRows);
+  }, [revenueRows, costRows]);
+
   const totalRevenueNoVat = useMemo(() => {
     return revenueRows.reduce(
       (acc, r) => acc + calculateRevenueRowAmount(r),
@@ -181,53 +190,21 @@ export function useEstimateEditorState({
     totalCostNoVatSum,
     grandTotalCost,
   } = useMemo(() => {
-    const vatMap = new Map<
-      string,
-      { code: string; title: string; order: number; items: EditableCostRow[] }
-    >();
-    const noVatList: EditableCostRow[] = [];
-
-    costRows.forEach((row) => {
-      const isVat = parseVatRate(row.vatRate) > 0;
-      if (isVat) {
-        const cat = classifyCategory(row);
-        const group = vatMap.get(cat.title) || {
-          code: cat.code,
-          title: cat.title,
-          order: cat.order,
-          items: [],
-        };
-        group.items.push(row);
-        vatMap.set(cat.title, group);
-      } else {
-        noVatList.push(row);
-      }
+    const grouped = groupCostLinesByVatSection<EditableCostRow>(costRows, {
+      getAmount: calculateCostRowAmount,
     });
-
-    const sections = Array.from(vatMap.values()).sort(
-      (a, b) => a.order - b.order,
-    );
-
-    let tVat = 0;
-    sections.forEach((sec) => {
-      sec.items.forEach((item) => {
-        tVat += calculateCostRowAmount(item);
-      });
-    });
-
-    let tNoVat = 0;
-    noVatList.forEach((item) => {
-      tNoVat += calculateCostRowAmount(item);
-    });
-
     return {
-      costVatSections: sections,
-      costNoVatItems: noVatList,
-      totalCostVat: tVat,
-      totalCostNoVatSum: tNoVat,
-      grandTotalCost: tVat + tNoVat,
+      costVatSections: grouped.vatSections,
+      costNoVatItems: grouped.noVatItems,
+      totalCostVat: grouped.totalVatGross,
+      totalCostNoVatSum: grouped.totalNoVatGross,
+      grandTotalCost: grouped.grandTotalGross,
     };
   }, [costRows]);
+
+  const costSummaryRows = useMemo(() => {
+    return buildCostSummaryRows(costRows, totalRevenueNoVat);
+  }, [costRows, totalRevenueNoVat]);
 
   // 6. Action Handlers
   const handleRevenueCellChange = useCallback(
@@ -426,6 +403,12 @@ export function useEstimateEditorState({
     errorCount,
     warningCount,
     totalRevenueNoVat,
+    totalRevenueValuedNet: valuation.revenueNet,
+    totalCostValuedNet: valuation.costNet,
+    totalProfit: valuation.profit,
+    profitMargin: valuation.marginPercent,
+    costSummaryRows,
+    valuation,
     costVatSections,
     costNoVatItems,
     totalCostVat,

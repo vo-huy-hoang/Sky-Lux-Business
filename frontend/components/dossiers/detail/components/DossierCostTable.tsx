@@ -10,6 +10,7 @@ import {
   getWorkbookGrossAmount,
 } from "@/lib/financial-calculations";
 import { parseVatRate, classifyCategory } from "../utils";
+import { groupCostLinesByVatSection } from "@/lib/estimate-valuation";
 
 function formatNumber(num?: number | string, currency: string = "VND") {
   if (num === undefined || num === null || num === "") return "-";
@@ -65,23 +66,11 @@ export function DossierCostTable({
   // Categorize lines into Section I (VAT) and Section II (NO VAT)
   const { vatSections, noVatItems, totalVat, totalNoVat, grandTotal } =
     useMemo(() => {
-      // Process only cost lines received from the database/API.
-      const vatMap = new Map<
-        string,
-        {
-          code: string;
-          title: string;
-          order: number;
-          items: CostTableRowItem[];
-        }
-      >();
-      const noVatList: CostTableRowItem[] = [];
-
-      costLines.forEach((line, index) => {
-        const isVat = parseVatRate(line.vatRate) > 0;
-        const grossAmount = getWorkbookGrossAmount(line);
-
-        const item: CostTableRowItem = {
+      const grouped = groupCostLinesByVatSection<
+        EstimateCostLine,
+        CostTableRowItem
+      >(costLines, {
+        mapItem: (line, index, grossAmount) => ({
           id: line.id || `line-${index}`,
           stt: String(index + 1),
           content: line.description || "Dịch vụ",
@@ -90,41 +79,15 @@ export function DossierCostTable({
           unit: Number(line.multiplier) || 1,
           unitPrice: Number(line.unitPrice) || 0,
           totalAmount: grossAmount,
-        };
-
-        if (isVat) {
-          const cat = classifyCategory(line);
-          const group = vatMap.get(cat.title) || {
-            code: cat.code,
-            title: cat.title,
-            order: cat.order,
-            items: [],
-          };
-          group.items.push(item);
-          vatMap.set(cat.title, group);
-        } else {
-          noVatList.push(item);
-        }
+        }),
       });
 
-      const sections = Array.from(vatMap.values())
-        .sort((a, b) => a.order - b.order)
-        .map((sec) => ({
-          code: sec.code,
-          title: sec.title,
-          items: sec.items,
-          subTotal: sec.items.reduce((sum, it) => sum + it.totalAmount, 0),
-        }));
-
-      const tVat = sections.reduce((sum, s) => sum + s.subTotal, 0);
-      const tNoVat = noVatList.reduce((sum, it) => sum + it.totalAmount, 0);
-
       return {
-        vatSections: sections,
-        noVatItems: noVatList,
-        totalVat: tVat,
-        totalNoVat: tNoVat,
-        grandTotal: tVat + tNoVat,
+        vatSections: grouped.vatSections,
+        noVatItems: grouped.noVatItems,
+        totalVat: grouped.totalVatGross,
+        totalNoVat: grouped.totalNoVatGross,
+        grandTotal: grouped.grandTotalGross,
       };
     }, [costLines]);
 

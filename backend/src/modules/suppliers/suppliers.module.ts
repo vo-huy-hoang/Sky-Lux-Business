@@ -6,11 +6,13 @@ import { Supplier } from './entities/supplier.entity';
 import { SupplierType } from './entities/supplier-type.entity';
 import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { FinancialsModule } from '../financials/financials.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Supplier, SupplierType, EstimateCostLine]),
     AuditLogsModule,
+    FinancialsModule,
   ],
   controllers: [SuppliersController],
   providers: [SuppliersService],

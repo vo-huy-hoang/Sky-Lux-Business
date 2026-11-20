@@ -12,6 +12,10 @@ import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { User } from '../users/entities/user.entity';
+import { Estimate } from '../estimates/entities/estimate.entity';
+import { EstimateRevenueLine } from '../estimates/entities/estimate-revenue-line.entity';
+import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
+import { FinancialReadModelService } from '../financials/financial-read-model.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 describe('Customers Module (Integration)', () => {
@@ -64,6 +68,10 @@ describe('Customers Module (Integration)', () => {
       controllers: [CustomersController],
       providers: [
         CustomersService,
+        FinancialReadModelService,
+        { provide: getRepositoryToken(Estimate), useValue: { createQueryBuilder: jest.fn() } },
+        { provide: getRepositoryToken(EstimateRevenueLine), useValue: { createQueryBuilder: jest.fn() } },
+        { provide: getRepositoryToken(EstimateCostLine), useValue: { createQueryBuilder: jest.fn() } },
         {
           provide: CustomerActivitiesService,
           useValue: { findByCustomer: jest.fn() },

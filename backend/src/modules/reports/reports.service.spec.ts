@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ReportsService } from './reports.service';
+import { ReportDateBasis } from './dto/report-query.dto';
 import { SavedReport } from './entities/report.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
@@ -207,8 +208,8 @@ describe('ReportsService', () => {
       expect(andWhereMock).toHaveBeenCalledWith(
         'dossier.lockedAt >= :periodStart AND dossier.lockedAt <= :periodEnd',
         {
-          periodStart: '2026-01-01 00:00:00',
-          periodEnd: '2026-01-31 23:59:59.999',
+          periodStart: new Date('2025-12-31T17:00:00.000Z'), // 2026-01-01 00:00:00+07:00
+          periodEnd: new Date('2026-01-31T16:59:59.999Z'), // 2026-01-31 23:59:59.999+07:00
         },
       );
 
@@ -228,6 +229,48 @@ describe('ReportsService', () => {
 
       (service as any).applyDateFilter(qbMock, {} as any);
       expect(andWhereMock).not.toHaveBeenCalled();
+    });
+
+    it('filters by estimate.approvedAt in Asia/Ho_Chi_Minh UTC+7 bounds when dateBasis is APPROVED_AT (including ISO inputs)', () => {
+      const andWhereMock = jest.fn().mockReturnThis();
+      const qbMock: any = {
+        andWhere: andWhereMock,
+      };
+
+      const query: any = {
+        periodStart: '2026-11-01T00:00:00+07:00',
+        periodEnd: '2026-11-30',
+        dateBasis: ReportDateBasis.APPROVED_AT,
+      };
+
+      (service as any).applyDateFilter(qbMock, query);
+
+      expect(andWhereMock).toHaveBeenCalledWith(
+        'estimate.approvedAt IS NOT NULL',
+      );
+      expect(andWhereMock).toHaveBeenCalledWith(
+        'estimate.approvedAt >= :periodStart AND estimate.approvedAt <= :periodEnd',
+        {
+          periodStart: new Date('2026-10-31T17:00:00.000Z'),
+          periodEnd: new Date('2026-11-30T16:59:59.999Z'),
+        },
+      );
+    });
+
+    it('rounds repeating-decimal VND amounts in mapSummary and computes customerOutstanding against revenueGross', () => {
+      const summary = (service as any).mapSummary({
+        revenueGross: '100000000',
+        revenueNet: '92592592.59259259',
+        costGross: '80000000',
+        costNet: '74074074.07407407',
+        customerPaid: '60000000',
+      });
+
+      expect(summary.revenueGross).toBe(100_000_000);
+      expect(summary.revenueNet).toBe(92_592_593);
+      expect(summary.costNet).toBe(74_074_074);
+      expect(summary.profit).toBe(18_518_519);
+      expect(summary.customerOutstanding).toBe(40_000_000);
     });
   });
 });

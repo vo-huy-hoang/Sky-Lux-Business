@@ -3,77 +3,23 @@
 import { useMemo } from "react";
 import { EstimateItem } from "@/types/estimate";
 import {
-  EXCEL_VAT_DIVISOR,
-  getWorkbookGrossAmount,
-  getWorkbookNetAmount,
-  sumWorkbookGrossAmounts,
-} from "@/lib/financial-calculations";
-import { parseVatRate } from "../utils";
+  valuateEstimate,
+  buildCostSummaryRows,
+  type CostSummaryRow,
+  type ValuationLineInput,
+} from "@/lib/estimate-valuation";
 
-export interface CostSummaryRow {
-  key: string;
-  label: string;
-  revenue: number;
-  cost: number;
-  grossRevenue?: number;
-  grossCost?: number;
-  grossProfit: number;
-}
+export type { CostSummaryRow };
 
 /**
  * TICKET-55.1: Tổng hợp khớp công thức trong sheet DỰ TOÁN của file Excel mẫu.
  * Nhóm có VAT chia 1.08; nhóm chưa VAT giữ nguyên.
  */
 export function calculateCostSummaryRows(
-  costLines: any[] = [],
+  costLines: ValuationLineInput[] = [],
   totalRevenueGross: number = 0,
 ): CostSummaryRow[] {
-  const taxableRevenue = totalRevenueGross / EXCEL_VAT_DIVISOR;
-  const serviceVatGross = costLines
-    .filter((line) => parseVatRate(line.vatRate) > 0)
-    .reduce((sum, line) => sum + getWorkbookGrossAmount(line), 0);
-  const serviceVatCost = serviceVatGross / EXCEL_VAT_DIVISOR;
-
-  const serviceNoVatGross = costLines
-    .filter((line) => parseVatRate(line.vatRate) === 0)
-    .reduce((sum, line) => sum + getWorkbookGrossAmount(line), 0);
-  const serviceNoVatCost = serviceNoVatGross;
-
-  const rows: CostSummaryRow[] = [
-    {
-      key: "service-vat",
-      label: "Dịch vụ 10%",
-      revenue: taxableRevenue,
-      cost: serviceVatCost,
-      grossRevenue: totalRevenueGross,
-      grossCost: serviceVatGross,
-      grossProfit: taxableRevenue - serviceVatCost,
-    },
-    {
-      key: "service-no-vat",
-      label: "Dịch vụ 0%",
-      revenue: 0,
-      cost: serviceNoVatCost,
-      grossRevenue: 0,
-      grossCost: serviceNoVatGross,
-      grossProfit: -serviceNoVatCost,
-    },
-  ];
-
-  const totalRow: CostSummaryRow = {
-    key: "total",
-    label: "TỔNG CỘNG",
-    revenue: rows.reduce((sum, row) => sum + row.revenue, 0),
-    cost: rows.reduce((sum, row) => sum + row.cost, 0),
-    grossRevenue: rows.reduce(
-      (sum, row) => sum + (row.grossRevenue ?? row.revenue),
-      0,
-    ),
-    grossCost: rows.reduce((sum, row) => sum + (row.grossCost ?? row.cost), 0),
-    grossProfit: rows.reduce((sum, row) => sum + row.grossProfit, 0),
-  };
-
-  return [...rows, totalRow];
+  return buildCostSummaryRows(costLines, totalRevenueGross);
 }
 
 export interface DossierFinancialSummary {
@@ -94,30 +40,23 @@ export function useDossierFinancials(
   estimate?: EstimateItem | null,
 ): DossierFinancialSummary {
   return useMemo(() => {
-    const revenueGross = sumWorkbookGrossAmounts(estimate?.revenueLines || []);
-    const revenue = revenueGross / EXCEL_VAT_DIVISOR;
-
-    const cost = (estimate?.costLines || []).reduce(
-      (sum: number, line: any) =>
-        sum +
-        getWorkbookNetAmount(line, parseVatRate(line.vatRate) > 0),
-      0,
-    );
-
-    const profit = revenue - cost;
-    const margin = revenue ? ((profit / revenue) * 100).toFixed(2) : "0.00";
-
-    const costSummaryRows = calculateCostSummaryRows(
-      estimate?.costLines || [],
-      revenueGross,
+    const revenueLines = estimate?.revenueLines || [];
+    const costLines = estimate?.costLines || [];
+    const valuation = valuateEstimate(revenueLines, costLines);
+    const costSummaryRows = buildCostSummaryRows(
+      costLines,
+      valuation.revenueGross,
     );
 
     return {
-      revenueGross,
-      revenue,
-      cost,
-      profit,
-      margin,
+      revenueGross: valuation.revenueGross,
+      revenue: valuation.revenueNet,
+      cost: valuation.costNet,
+      profit: valuation.profitExact,
+      margin:
+        valuation.revenueNet > 0
+          ? valuation.marginPercent.toFixed(2)
+          : "0.00",
       costSummaryRows,
     };
   }, [estimate?.revenueLines, estimate?.costLines]);

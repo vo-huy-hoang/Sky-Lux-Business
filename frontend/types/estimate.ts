@@ -77,6 +77,9 @@ export interface EstimateItem {
   totalRevenue?: number;
   totalCost?: number;
   totalProfit?: number;
+  profitMargin?: number;
+  revenueGross?: number;
+  costGross?: number;
   dossier?: {
 
     id: string;

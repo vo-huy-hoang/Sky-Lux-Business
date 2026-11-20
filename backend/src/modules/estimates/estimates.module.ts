@@ -10,6 +10,8 @@ import { Supplier } from '../suppliers/entities/supplier.entity';
 import { DossiersModule } from '../dossiers/dossiers.module';
 import { DossierAccessModule } from '../dossiers/dossier-access.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { FinancialsModule } from '../financials/financials.module';
+import { ApprovalsModule } from '../approvals/approvals.module';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
     DossiersModule,
     DossierAccessModule,
     AuditLogsModule,
+    FinancialsModule,
+    ApprovalsModule,
   ],
   controllers: [EstimatesController],
   providers: [EstimatesService],

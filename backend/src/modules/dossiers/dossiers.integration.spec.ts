@@ -32,7 +32,7 @@ describe('Dossiers Module (Integration)', () => {
     id: 'user-A-all-uuid',
     organizationId: orgA,
     permissions: ['dossier.view.all', 'dossier.create', 'dossier.update'],
-    roles: [],
+    roles: ['OPERATOR'],
   } as unknown as CurrentUserPayload;
 
   const mockUserOrgAOwn = {
@@ -265,7 +265,7 @@ describe('Dossiers Module (Integration)', () => {
   });
 
   describe('3. Ràng buộc Máy trạng thái Hồ sơ (Dossier Status State Machine)', () => {
-    it('Chặn chuyển trạng thái sai luật (ví dụ: DRAFT trực tiếp sang APPROVED - Trả về 400)', async () => {
+    it('Chặn chuyển trạng thái sai luật hoặc trực tiếp qua generic update (Trả về 400)', async () => {
       dossierRepository.findOne.mockResolvedValue(mockDossierOfOrgA); // starts in DRAFT
 
       const updateDto: UpdateDossierDto = { status: DossierStatus.APPROVED };
@@ -290,13 +290,23 @@ describe('Dossiers Module (Integration)', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('Cho phép chuyển trạng thái đúng luật (DRAFT -> SUBMITTED)', async () => {
+    it('Chặn thay đổi trạng thái trực tiếp qua generic update (Ticket 05 - Trả về 400)', async () => {
       dossierRepository.findOne.mockResolvedValue(mockDossierOfOrgA); // starts in DRAFT
+
+      const updateDto: UpdateDossierDto = { status: DossierStatus.SUBMITTED };
+
+      await expect(
+        controller.update(mockUserOrgAAll, 'dossier-A-uuid', updateDto),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('Cho phép cập nhật thông tin chung hợp lệ khi không sửa status', async () => {
+      dossierRepository.findOne.mockResolvedValue(mockDossierOfOrgA);
       dossierRepository.save.mockImplementation((entity) =>
         Promise.resolve(entity as any),
       );
 
-      const updateDto: UpdateDossierDto = { status: DossierStatus.SUBMITTED };
+      const updateDto: UpdateDossierDto = { name: 'Tên tour cập nhật' };
 
       const result = await controller.update(
         mockUserOrgAAll,
@@ -305,7 +315,8 @@ describe('Dossiers Module (Integration)', () => {
       );
 
       expect(dossierRepository.save).toHaveBeenCalled();
-      expect(result.status).toEqual(DossierStatus.SUBMITTED);
+      expect(result.name).toEqual('Tên tour cập nhật');
+      expect(result.status).toEqual(DossierStatus.DRAFT);
     });
   });
 

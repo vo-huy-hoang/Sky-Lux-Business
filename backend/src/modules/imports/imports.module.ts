@@ -21,6 +21,7 @@ import { Supplier } from '../suppliers/entities/supplier.entity';
 import { ImportProcessor } from './queue/import.processor';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { StorageModule } from '../../shared/storage/storage.module';
+import { ApprovalsModule } from '../approvals/approvals.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { StorageModule } from '../../shared/storage/storage.module';
     }),
     AuditLogsModule,
     StorageModule,
+    ApprovalsModule,
   ],
   controllers: [ImportsController],
   providers: [ImportsService, ImportProcessor],

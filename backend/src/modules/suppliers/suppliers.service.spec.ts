@@ -6,6 +6,10 @@ import { SuppliersService } from './suppliers.service';
 import { Supplier } from './entities/supplier.entity';
 import { SupplierType } from './entities/supplier-type.entity';
 import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
+import { Estimate } from '../estimates/entities/estimate.entity';
+import { EstimateRevenueLine } from '../estimates/entities/estimate-revenue-line.entity';
+import { Dossier } from '../dossiers/entities/dossier.entity';
+import { FinancialReadModelService } from '../financials/financial-read-model.service';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { QuerySupplierDto } from './dto/query-supplier.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
@@ -107,6 +111,19 @@ describe('SuppliersService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SuppliersService,
+        FinancialReadModelService,
+        {
+          provide: getRepositoryToken(Estimate),
+          useValue: { createQueryBuilder: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(EstimateRevenueLine),
+          useValue: { createQueryBuilder: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(Dossier),
+          useValue: { createQueryBuilder: jest.fn() },
+        },
         {
           provide: getRepositoryToken(Supplier),
           useValue: mockSupplierRepository,
@@ -469,7 +486,7 @@ describe('SuppliersService', () => {
           status: DossierStatus.COMPLETED,
           operatorOrSalesName: 'Trần Điều Hành',
           lineCount: '4',
-          totalCost: '25000000',
+          totalCost: '25000000.4',
         },
         {
           dossierId: 'dos-2',
@@ -495,6 +512,14 @@ describe('SuppliersService', () => {
       expect(mockCostLineQB.andWhere).toHaveBeenCalledWith(
         'estimate.organizationId = :organizationId',
         { organizationId: 'org-uuid' },
+      );
+      const historyAndWheres = mockCostLineQB.andWhere.mock.calls
+        .map((c) => c[0])
+        .join('\n');
+      expect(historyAndWheres).toContain('latest.version_no DESC');
+      expect(mockCostLineQB.addSelect).toHaveBeenCalledWith(
+        expect.stringContaining('1.08'),
+        'totalCost',
       );
       expect(result.data).toHaveLength(2);
       expect(result.data[0]).toEqual({

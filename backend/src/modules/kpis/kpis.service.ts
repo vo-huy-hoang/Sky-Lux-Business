@@ -21,8 +21,12 @@ import {
   KpiMetric,
   KpiPeriodType,
   DossierStatus,
-  EstimateStatus,
 } from '../../common/enums';
+import {
+  resolveCalendarBounds,
+  resolvePeriodRange,
+} from '../../common/utils/period-range.util';
+import { FinancialReadModelService } from '../financials/financial-read-model.service';
 
 interface KpiAccessContext {
   userId: string;
@@ -48,6 +52,7 @@ export class KpisService {
     private readonly costLineRepository: Repository<EstimateCostLine>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly financialReadModel: FinancialReadModelService,
   ) {}
 
   async findMyKpi(
@@ -417,35 +422,10 @@ export class KpisService {
       return { periodStart, periodEnd };
     }
 
-    return this.getPeriodDates(periodType, periodStart || legacyDate);
-  }
-
-  private getPeriodDates(periodType: KpiPeriodType, dateStr?: string) {
-    const date = dateStr ? new Date(dateStr) : new Date();
-    const year = date.getFullYear();
-    const month = date.getMonth();
-
-    let start: Date;
-    let end: Date;
-
-    if (periodType === KpiPeriodType.YEARLY) {
-      start = new Date(year, 0, 1);
-      end = new Date(year, 11, 31);
-    } else if (periodType === KpiPeriodType.QUARTERLY) {
-      const quarter = Math.floor(month / 3);
-      start = new Date(year, quarter * 3, 1);
-      end = new Date(year, (quarter + 1) * 3, 0);
-    } else {
-      // MONTHLY
-      start = new Date(year, month, 1);
-      end = new Date(year, month + 1, 0);
-    }
-
-    const format = (d: Date) => d.toISOString().slice(0, 10);
-
+    const resolved = resolvePeriodRange(periodType, periodStart || legacyDate);
     return {
-      periodStart: format(start),
-      periodEnd: format(end),
+      periodStart: resolved.periodStart,
+      periodEnd: resolved.periodEnd,
     };
   }
 
@@ -497,52 +477,31 @@ export class KpisService {
     };
   }
 
-  private async getApprovedEstimates(
-    organizationId: string,
-    userId: string,
-    start: string,
-    end: string,
-  ): Promise<Estimate[]> {
-    return this.estimateRepository
-      .createQueryBuilder('estimate')
-      .innerJoin('estimate.dossier', 'dossier')
-      .where('dossier.salesUserId = :userId', { userId })
-      .andWhere('dossier.organizationId = :organizationId', { organizationId })
-      .andWhere('estimate.status = :status', {
-        status: EstimateStatus.APPROVED,
-      })
-      .andWhere('estimate.approvedAt BETWEEN :start AND :end', {
-        start: new Date(start + 'T00:00:00Z'),
-        end: new Date(end + 'T23:59:59Z'),
-      })
-      .getMany();
-  }
-
   private async calculateLiveRevenue(
     organizationId: string,
     userId: string,
     start: string,
     end: string,
   ): Promise<number> {
-    const approvedEstimates = await this.getApprovedEstimates(
-      organizationId,
-      userId,
-      start,
-      end,
+    const { startUtc, endUtc } = resolveCalendarBounds(start, end);
+    const estimateIds = await this.financialReadModel.getLatestApprovedEstimateIds(
+      {
+        organizationId,
+        salesUserId: userId,
+        startUtc,
+        endUtc,
+      },
     );
 
-    if (approvedEstimates.length === 0) {
+    if (estimateIds.length === 0) {
       return 0;
     }
 
-    const estimateIds = approvedEstimates.map((e) => e.id);
-    const sumResult = await this.revenueLineRepository
-      .createQueryBuilder('line')
-      .select('SUM(line.netAmount)', 'sum')
-      .where('line.estimateId IN (:...estimateIds)', { estimateIds })
-      .getRawOne();
-
-    return Number(sumResult?.sum || 0);
+    const totals = await this.financialReadModel.getValuedTotalsForEstimates(
+      organizationId,
+      estimateIds,
+    );
+    return totals.revenueNet;
   }
 
   private async calculateLiveProfit(
@@ -551,35 +510,25 @@ export class KpisService {
     start: string,
     end: string,
   ): Promise<number> {
-    const approvedEstimates = await this.getApprovedEstimates(
-      organizationId,
-      userId,
-      start,
-      end,
+    const { startUtc, endUtc } = resolveCalendarBounds(start, end);
+    const estimateIds = await this.financialReadModel.getLatestApprovedEstimateIds(
+      {
+        organizationId,
+        salesUserId: userId,
+        startUtc,
+        endUtc,
+      },
     );
 
-    if (approvedEstimates.length === 0) {
+    if (estimateIds.length === 0) {
       return 0;
     }
 
-    const estimateIds = approvedEstimates.map((e) => e.id);
-
-    const revenueSumResult = await this.revenueLineRepository
-      .createQueryBuilder('line')
-      .select('SUM(line.netAmount)', 'sum')
-      .where('line.estimateId IN (:...estimateIds)', { estimateIds })
-      .getRawOne();
-
-    const costSumResult = await this.costLineRepository
-      .createQueryBuilder('line')
-      .select('SUM(line.netAmount)', 'sum')
-      .where('line.estimateId IN (:...estimateIds)', { estimateIds })
-      .getRawOne();
-
-    const revenueSum = Number(revenueSumResult?.sum || 0);
-    const costSum = Number(costSumResult?.sum || 0);
-
-    return revenueSum - costSum;
+    const totals = await this.financialReadModel.getValuedTotalsForEstimates(
+      organizationId,
+      estimateIds,
+    );
+    return totals.profit;
   }
 
   private async calculateLiveDossierCount(
@@ -588,6 +537,7 @@ export class KpisService {
     start: string,
     end: string,
   ): Promise<number> {
+    const { startUtc, endUtc } = resolveCalendarBounds(start, end);
     return this.dossierRepository
       .createQueryBuilder('dossier')
       .where('dossier.salesUserId = :userId', { userId })
@@ -600,8 +550,8 @@ export class KpisService {
         ],
       })
       .andWhere('dossier.createdAt BETWEEN :start AND :end', {
-        start: new Date(start + 'T00:00:00Z'),
-        end: new Date(end + 'T23:59:59Z'),
+        start: startUtc,
+        end: endUtc,
       })
       .getCount();
   }
@@ -612,13 +562,14 @@ export class KpisService {
     start: string,
     end: string,
   ): Promise<number> {
+    const { startUtc, endUtc } = resolveCalendarBounds(start, end);
     const totalAssigned = await this.dossierRepository
       .createQueryBuilder('dossier')
       .where('dossier.salesUserId = :userId', { userId })
       .andWhere('dossier.organizationId = :organizationId', { organizationId })
       .andWhere('dossier.createdAt BETWEEN :start AND :end', {
-        start: new Date(start + 'T00:00:00Z'),
-        end: new Date(end + 'T23:59:59Z'),
+        start: startUtc,
+        end: endUtc,
       })
       .getCount();
 

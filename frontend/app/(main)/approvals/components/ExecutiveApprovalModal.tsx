@@ -36,6 +36,7 @@ import { dossiersService } from '@/services/dossiers.service';
 import { workflowService } from '@/services/workflow.service';
 import { queryKeys } from '@/lib/query-keys';
 import { formatCurrency } from '@/lib/financial-calculations';
+import { valuateEstimate } from '@/lib/estimate-valuation';
 import { themeTokens } from '@/lib/theme/tokens.config';
 
 const { Text, Title } = Typography;
@@ -84,18 +85,52 @@ export function ExecutiveApprovalModal({
 
   const isLoadingDetails = isLoadingEstimate || isLoadingDossier;
 
-  // Financial calculations
+  // Financial calculations (Canonical In-Process Valuation Seam)
+  const hasLoadedTotals =
+    fullEstimate?.totalRevenue !== undefined ||
+    estimate?.totalRevenue !== undefined;
+
+  const valuation = React.useMemo(() => {
+    if (
+      !hasLoadedTotals &&
+      (fullEstimate?.revenueLines?.length || fullEstimate?.costLines?.length)
+    ) {
+      return valuateEstimate(
+        fullEstimate?.revenueLines || [],
+        fullEstimate?.costLines || [],
+      );
+    }
+    return null;
+  }, [hasLoadedTotals, fullEstimate?.revenueLines, fullEstimate?.costLines]);
+
   const revenue = Number(
-    fullEstimate?.totalRevenue ?? estimate?.totalRevenue ?? 0,
+    fullEstimate?.totalRevenue ??
+      estimate?.totalRevenue ??
+      valuation?.revenueNet ??
+      0,
   );
-  const cost = Number(fullEstimate?.totalCost ?? estimate?.totalCost ?? 0);
+  const cost = Number(
+    fullEstimate?.totalCost ??
+      estimate?.totalCost ??
+      valuation?.costNet ??
+      0,
+  );
   const profit = Number(
     fullEstimate?.totalProfit ??
       estimate?.totalProfit ??
+      valuation?.profit ??
       (revenue - cost),
   );
   const marginPercent =
-    revenue > 0 ? ((profit / revenue) * 100).toFixed(1) : '0.0';
+    fullEstimate?.profitMargin !== undefined
+      ? Number(fullEstimate.profitMargin).toFixed(1)
+      : estimate?.profitMargin !== undefined
+        ? Number(estimate.profitMargin).toFixed(1)
+        : valuation
+          ? valuation.marginPercent.toFixed(1)
+          : revenue > 0
+            ? ((profit / revenue) * 100).toFixed(1)
+            : '0.0';
   const marginValue = parseFloat(marginPercent);
 
   // Calculate total pax from estimate revenue lines

@@ -1,7 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ObjectLiteral, Repository, SelectQueryBuilder } from 'typeorm';
 import { Dossier } from './entities/dossier.entity';
+import { DossierStatus } from '../../common/enums';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
 export interface DossierAccessSubject {
@@ -10,6 +16,7 @@ export interface DossierAccessSubject {
   salesUserId?: string | null;
   operatorUserId?: string | null;
   createdBy?: string | null;
+  status?: DossierStatus | string | null;
   salesUser?: { organizationId?: string; departmentId?: string | null } | null;
   operatorUser?: { organizationId?: string; departmentId?: string | null } | null;
 }
@@ -21,14 +28,25 @@ export class DossierAccessPolicyService {
     private readonly dossierRepository: Repository<Dossier>,
   ) {}
 
+  /**
+   * Single consistent admin resolution rule for dossier management
+   */
+  isAdmin(user: CurrentUserPayload): boolean {
+    const roles = user.roles || [];
+    const permissions = user.permissions || [];
+    return (
+      roles.includes('SUPER_ADMIN') ||
+      roles.includes('CEO_ADMIN') ||
+      roles.includes('DIRECTOR') ||
+      roles.includes('ADMIN') ||
+      permissions.includes('*') ||
+      permissions.includes('dossier.manage.all')
+    );
+  }
+
   hasViewAllAccess(user: CurrentUserPayload): boolean {
     const permissions = user.permissions || [];
-    const roles = user.roles || [];
-    return (
-      permissions.includes('dossier.view.all') ||
-      permissions.includes('*') ||
-      roles.includes('SUPER_ADMIN')
-    );
+    return this.isAdmin(user) || permissions.includes('dossier.view.all');
   }
 
   canViewDossier(
@@ -105,6 +123,157 @@ export class DossierAccessPolicyService {
     return this.assertCanViewDossierEntity(user, dossier, dossierId);
   }
 
+  assertCanMutate<T extends DossierAccessSubject>(
+    user: CurrentUserPayload,
+    dossier: T | null | undefined,
+    dossierId: string,
+  ): T {
+    // 1. Anti-enumeration: must pass visibility check first; otherwise 404
+    this.assertCanViewDossierEntity(user, dossier, dossierId);
+
+    if (dossier!.status === DossierStatus.LOCKED) {
+      throw new BadRequestException('Không thể chỉnh sửa hồ sơ khi đã bị khóa');
+    }
+
+    if (this.isAdmin(user)) {
+      return dossier!;
+    }
+
+    const permissions = user.permissions || [];
+    const roles = user.roles || [];
+    const isOwner = [
+      dossier!.salesUserId,
+      dossier!.operatorUserId,
+      dossier!.createdBy,
+    ].includes(user.id);
+
+    const hasUpdatePerm =
+      permissions.includes('dossier.update') ||
+      permissions.includes('dossier.manage.all') ||
+      permissions.includes('dossier.manage.own');
+
+    const isOperator = roles.includes('OPERATOR');
+
+    if (!hasUpdatePerm || (!isOwner && !isOperator)) {
+      throw new ForbiddenException('Bạn không có quyền chỉnh sửa hồ sơ này');
+    }
+
+    return dossier!;
+  }
+
+  assertCanDelete<T extends DossierAccessSubject>(
+    user: CurrentUserPayload,
+    dossier: T | null | undefined,
+    dossierId: string,
+  ): T {
+    // 1. Anti-enumeration: if cannot view or not found, return 404
+    this.assertCanViewDossierEntity(user, dossier, dossierId);
+
+    const roles = user.roles || [];
+    const isSuperAdmin = roles.includes('SUPER_ADMIN');
+    const isAdmin = this.isAdmin(user);
+    const isOperator = roles.includes('OPERATOR');
+    const isOwner =
+      dossier!.salesUserId === user.id ||
+      dossier!.operatorUserId === user.id ||
+      dossier!.createdBy === user.id;
+
+    if (dossier!.status === DossierStatus.LOCKED) {
+      if (!isSuperAdmin) {
+        throw new BadRequestException(
+          'Không thể xóa hồ sơ khi đang ở trạng thái LOCKED',
+        );
+      }
+    } else if (
+      dossier!.status === DossierStatus.APPROVED ||
+      dossier!.status === DossierStatus.COMPLETED
+    ) {
+      if (!isAdmin) {
+        throw new BadRequestException(
+          `Không thể xóa hồ sơ khi đang ở trạng thái ${dossier!.status}. Chỉ Ban Giám Đốc (CEO) hoặc Quản trị viên mới có quyền.`,
+        );
+      }
+    } else if (
+      dossier!.status === DossierStatus.SUBMITTED ||
+      dossier!.status === DossierStatus.IN_REVIEW ||
+      dossier!.status === DossierStatus.RESUBMITTED
+    ) {
+      if (!isOwner && !isOperator && !isAdmin) {
+        throw new ForbiddenException(
+          'Bạn không có quyền xóa hồ sơ đang trong quy trình duyệt',
+        );
+      }
+    } else {
+      if (!isOwner && !isOperator && !isAdmin) {
+        throw new ForbiddenException(
+          'Bạn không có quyền xóa hồ sơ của người khác',
+        );
+      }
+    }
+
+    return dossier!;
+  }
+
+  assertCanRestore<T extends DossierAccessSubject>(
+    user: CurrentUserPayload,
+    dossier: T | null | undefined,
+    dossierId: string,
+  ): T {
+    // 1. Anti-enumeration: if cannot view or not found, return 404
+    if (!this.canViewDossier(user, dossier)) {
+      throw new NotFoundException(
+        `Không tìm thấy hồ sơ đã xóa với ID "${dossierId}"`,
+      );
+    }
+
+    const isAdmin = this.isAdmin(user);
+    const roles = user.roles || [];
+    const isOperator = roles.includes('OPERATOR');
+    const isSales = roles.includes('SALES');
+    const isOwner =
+      dossier!.salesUserId === user.id || dossier!.createdBy === user.id;
+
+    if (isSales && !isAdmin && !isOperator) {
+      if (!isOwner) {
+        throw new ForbiddenException(
+          'Bạn không có quyền khôi phục hồ sơ của người khác',
+        );
+      }
+      if (
+        dossier!.status !== DossierStatus.DRAFT &&
+        dossier!.status !== DossierStatus.NEED_CHANGES
+      ) {
+        throw new ForbiddenException(
+          'Nhân viên kinh doanh chỉ có quyền khôi phục hồ sơ ở trạng thái nháp',
+        );
+      }
+    } else if (!isAdmin && !isOperator) {
+      throw new ForbiddenException('Bạn không có quyền khôi phục hồ sơ này');
+    }
+
+    return dossier!;
+  }
+
+  assertCanPurge<T extends DossierAccessSubject>(
+    user: CurrentUserPayload,
+    dossier: T | null | undefined,
+    dossierId: string,
+  ): T {
+    if (!dossier || dossier.organizationId !== user.organizationId) {
+      throw new NotFoundException(
+        `Không tìm thấy hồ sơ trong thùng rác với ID "${dossierId}"`,
+      );
+    }
+
+    if (!this.isAdmin(user)) {
+      throw new ForbiddenException(
+        'Chỉ Ban Giám đốc (CEO/Admin) mới có quyền xóa vĩnh viễn hồ sơ',
+      );
+    }
+
+    return dossier!;
+  }
+
   applyVisibilityScope<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
     dossierAlias: string,
@@ -175,4 +344,3 @@ export class DossierAccessPolicyService {
     return queryBuilder;
   }
 }
-

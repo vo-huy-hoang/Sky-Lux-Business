@@ -1,14 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ApprovalRequest } from './entities/approval-request.entity';
 import { WorkflowListQueryDto } from './dto/workflow-list-query.dto';
+import { DossierWorkflowService } from './dossier-workflow.service';
 
 @Injectable()
 export class ApprovalsService {
   constructor(
     @InjectRepository(ApprovalRequest)
     private readonly approvalRepository: Repository<ApprovalRequest>,
+    @Optional()
+    private readonly dossierWorkflowService?: DossierWorkflowService,
   ) {}
 
   async findAll(
@@ -16,6 +19,14 @@ export class ApprovalsService {
     userId: string,
     query: WorkflowListQueryDto,
   ) {
+    if (this.dossierWorkflowService) {
+      return this.dossierWorkflowService.findAllApprovals(
+        organizationId,
+        userId,
+        query,
+      );
+    }
+
     const page = query.page || 1;
     const pageSize = Math.min(query.pageSize || 20, 100);
     const qb = this.approvalRepository
@@ -41,6 +52,14 @@ export class ApprovalsService {
   }
 
   async findOne(organizationId: string, userId: string, id: string) {
+    if (this.dossierWorkflowService) {
+      return this.dossierWorkflowService.findOneApproval(
+        organizationId,
+        userId,
+        id,
+      );
+    }
+
     const item = await this.approvalRepository
       .createQueryBuilder('approval')
       .leftJoinAndSelect('approval.dossier', 'dossier')

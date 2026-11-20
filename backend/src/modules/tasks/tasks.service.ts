@@ -14,6 +14,7 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { DossiersService } from '../dossiers/dossiers.service';
+import { DossierAccessPolicyService } from '../dossiers/dossier-access-policy.service';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
 import { TaskStatus } from '../../common/enums';
 import { TaskActionDto } from './dto/task-action.dto';
@@ -35,6 +36,8 @@ export class TasksService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly dossiersService: DossiersService,
+    @Optional()
+    private readonly dossierAccessPolicy: DossierAccessPolicyService,
     private readonly redisService: RedisService,
     private readonly dataSource: DataSource,
     @Optional()
@@ -77,6 +80,9 @@ export class TasksService {
       .where('task.organizationId = :organizationId', { organizationId });
 
     if (dossierId) {
+      if (this.dossierAccessPolicy) {
+        await this.dossierAccessPolicy.assertCanView(user, dossierId);
+      }
       queryBuilder.andWhere('task.dossierId = :dossierId', { dossierId });
     }
 
@@ -126,7 +132,7 @@ export class TasksService {
     const totalPages = Math.ceil(total / limit);
 
     const response = {
-      data: items.map((task) => this.toTaskResponseDto(task)),
+      data: items.map((task) => this.toTaskResponseDto(task, user)),
       meta: {
         page,
         limit,
@@ -166,7 +172,7 @@ export class TasksService {
     }
 
     const response = {
-      data: this.toTaskResponseDto(task),
+      data: this.toTaskResponseDto(task, user),
       meta: {},
     };
 
@@ -183,7 +189,7 @@ export class TasksService {
     const organizationId = user.organizationId;
 
     if (dossierId) {
-      await this.dossiersService.findOne(user, dossierId);
+      await this.dossiersService.findOne(user, dossierId, false);
     }
     await this.assertAssignedUserInOrganization(
       organizationId,
@@ -235,7 +241,7 @@ export class TasksService {
       }
     }
     return {
-      data: this.toTaskResponseDto(savedTask),
+      data: this.toTaskResponseDto(savedTask, user),
       meta: {},
     };
   }
@@ -268,7 +274,7 @@ export class TasksService {
     } = updateTaskDto;
 
     if (updateData.dossierId !== undefined && updateData.dossierId !== null) {
-      await this.dossiersService.findOne(user, updateData.dossierId);
+      await this.dossiersService.findOne(user, updateData.dossierId, false);
     }
     await this.assertAssignedUserInOrganization(
       user.organizationId,
@@ -349,7 +355,7 @@ export class TasksService {
       }
     }
     return {
-      data: this.toTaskResponseDto(savedTask),
+      data: this.toTaskResponseDto(savedTask, user),
       meta: {},
     };
   }
@@ -425,7 +431,7 @@ export class TasksService {
     );
 
     return {
-      data: this.toTaskResponseDto(savedTask),
+      data: this.toTaskResponseDto(savedTask, user),
       meta: {},
     };
   }
@@ -460,7 +466,7 @@ export class TasksService {
     );
 
     return {
-      data: this.toTaskResponseDto(savedTask),
+      data: this.toTaskResponseDto(savedTask, user),
       meta: {},
     };
   }
@@ -493,7 +499,7 @@ export class TasksService {
     );
 
     return {
-      data: this.toTaskResponseDto(savedTask),
+      data: this.toTaskResponseDto(savedTask, user),
       meta: {},
     };
   }
@@ -566,7 +572,7 @@ export class TasksService {
     );
 
     return {
-      data: this.toTaskResponseDto(savedTask),
+      data: this.toTaskResponseDto(savedTask, user),
       meta: {},
     };
   }
@@ -614,18 +620,24 @@ export class TasksService {
     );
 
     return {
-      data: this.toTaskResponseDto(savedTask),
+      data: this.toTaskResponseDto(savedTask, user),
       meta: {},
     };
   }
 
-  private toTaskResponseDto(task: Task): any {
+  private toTaskResponseDto(task: Task, user?: CurrentUserPayload): any {
+    const canViewTaskDossier =
+      Boolean(task.dossier) &&
+      task.dossier!.organizationId === task.organizationId &&
+      (!user ||
+        !this.dossierAccessPolicy ||
+        this.dossierAccessPolicy.canViewDossier(user, task.dossier));
+
     return {
       id: task.id,
       organizationId: task.organizationId,
       dossierId:
-        task.dossier &&
-        task.dossier.organizationId !== task.organizationId
+        task.dossier && !canViewTaskDossier
           ? undefined
           : task.dossierId,
       title: task.title,
@@ -646,20 +658,19 @@ export class TasksService {
       updatedAt: task.updatedAt,
       assignee:
         task.assignee?.organizationId === task.organizationId
+          ? {
+              id: task.assignee.id,
+              fullName: task.assignee.fullName,
+              email: task.assignee.email,
+              avatarUrl: task.assignee.avatarUrl,
+            }
+          : undefined,
+      dossier: canViewTaskDossier
         ? {
-            id: task.assignee.id,
-            fullName: task.assignee.fullName,
-            email: task.assignee.email,
-            avatarUrl: task.assignee.avatarUrl,
-          }
-        : undefined,
-      dossier:
-        task.dossier?.organizationId === task.organizationId
-        ? {
-            id: task.dossier.id,
-            name: task.dossier.name,
-            code: task.dossier.code,
-            status: task.dossier.status,
+            id: task.dossier!.id,
+            name: task.dossier!.name,
+            code: task.dossier!.code,
+            status: task.dossier!.status,
           }
         : undefined,
       checklistItems: task.checklistItems?.map((item) => ({

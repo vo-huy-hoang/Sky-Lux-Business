@@ -1,40 +1,36 @@
-export type FinancialLine = {
-  quantity?: number | string | null;
-  multiplier?: number | string | null;
-  unitPrice?: number | string | null;
-  vatRate?: number | string | null;
+import {
+  EXCEL_VAT_DIVISOR,
+  calculateWorkbookGrossAmount,
+  calculateValuedNetAmount,
+  parseVatRate,
+  toFiniteNumber,
+  type ValuationLineInput,
+} from './estimate-valuation';
+
+export type FinancialLine = ValuationLineInput & {
   netAmount?: number | string | null;
   grossAmount?: number | string | null;
 };
 
-// The supplied Excel template applies a fixed 8% VAT divisor in its summary.
-export const EXCEL_VAT_DIVISOR = 1.08;
-
-function numericValue(value: unknown, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
+// Re-export single canonical VAT divisor from estimate-valuation core
+export { EXCEL_VAT_DIVISOR };
 
 export function calculateLineNetAmount(line: FinancialLine): number {
-  return (
-    numericValue(line.quantity, 1) *
-    numericValue(line.multiplier, 1) *
-    numericValue(line.unitPrice, 0)
-  );
+  return calculateWorkbookGrossAmount(line);
 }
 
 export function calculateLineGrossAmount(line: FinancialLine): number {
   const netAmount = calculateLineNetAmount(line);
-  return netAmount * (1 + numericValue(line.vatRate, 0) / 100);
+  return netAmount * (1 + parseVatRate(line.vatRate) / 100);
 }
 
 export function getLineNetAmount(line: FinancialLine): number {
-  const netAmount = Number(line.netAmount);
+  const netAmount = toFiniteNumber(line.netAmount, Number.NaN);
   return Number.isFinite(netAmount) ? netAmount : calculateLineNetAmount(line);
 }
 
 export function getLineGrossAmount(line: FinancialLine): number {
-  const grossAmount = Number(line.grossAmount);
+  const grossAmount = toFiniteNumber(line.grossAmount, Number.NaN);
   return Number.isFinite(grossAmount)
     ? grossAmount
     : calculateLineGrossAmount(line);
@@ -46,7 +42,7 @@ export function sumLineNetAmounts(lines: FinancialLine[] = []): number {
 
 /** Amount represented by the Excel source columns before the summary divisor. */
 export function getWorkbookGrossAmount(line: FinancialLine): number {
-  return calculateLineNetAmount(line);
+  return calculateWorkbookGrossAmount(line);
 }
 
 /** Matches the DỰ TOÁN!D55/F55 formulas: taxable values are divided by 1.08. */
@@ -54,8 +50,7 @@ export function getWorkbookNetAmount(
   line: FinancialLine,
   isVatService: boolean,
 ): number {
-  const grossAmount = getWorkbookGrossAmount(line);
-  return isVatService ? grossAmount / EXCEL_VAT_DIVISOR : grossAmount;
+  return calculateValuedNetAmount(line, isVatService);
 }
 
 export function sumWorkbookGrossAmounts(lines: FinancialLine[] = []): number {
@@ -244,7 +239,7 @@ export function formatCurrency(
   }
 
   // TICKET-59.1: Bóc tách số thông minh qua parseCurrencyAmount
-  let safeNum = parseCurrencyAmount(amount, currency);
+  const safeNum = parseCurrencyAmount(amount, currency);
 
   // Định dạng rút gọn cho Dashboard / Báo cáo / Biểu đồ
   if (compact) {

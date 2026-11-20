@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -18,6 +19,9 @@ import { UpdateContactDto } from './dto/update-contact.dto';
 import { QueryDossierDto } from '../dossiers/dto/query-dossier.dto';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
 import { toPublicUser } from '../../common/utils/public-user';
+import { FinancialReadModelService } from '../financials/financial-read-model.service';
+import { DossierAccessPolicyService } from '../dossiers/dossier-access-policy.service';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
   AuditAction,
@@ -56,6 +60,9 @@ export class CustomersService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly auditLogsService: AuditLogsService,
+    private readonly financialReadModel: FinancialReadModelService,
+    @Optional()
+    private readonly dossierAccessPolicy?: DossierAccessPolicyService,
   ) {}
 
   async findAll(
@@ -624,6 +631,7 @@ export class CustomersService {
     organizationId: string,
     customerId: string,
     queryDto: QueryDossierDto,
+    user?: CurrentUserPayload,
   ) {
     // 1. Kiểm tra khách hàng tồn tại trong tổ chức
     const customer = await this.findOne(organizationId, customerId);
@@ -651,6 +659,18 @@ export class CustomersService {
       .where('dossier.organizationId = :organizationId', { organizationId })
       .andWhere('dossier.customerId IN (:...customerIds)', { customerIds });
 
+    if (user && this.dossierAccessPolicy) {
+      this.dossierAccessPolicy.applyVisibilityScope(
+        queryBuilder,
+        'dossier',
+        user,
+        {
+          salesUserAlias: 'salesUser',
+          operatorUserAlias: 'operatorUser',
+        },
+      );
+    }
+
     if (status) {
       queryBuilder.andWhere('dossier.status = :status', { status });
     }
@@ -672,29 +692,52 @@ export class CustomersService {
     const [items, total] = await queryBuilder.getManyAndCount();
     const totalPages = Math.ceil(total / limit);
 
-    // Compute totalRevenue for each estimate in dossiers
+    items.forEach((dossier) => {
+      dossier.salesUser = toPublicUser(
+        dossier.salesUser,
+      ) as typeof dossier.salesUser;
+      dossier.operatorUser = toPublicUser(
+        dossier.operatorUser,
+      ) as typeof dossier.operatorUser;
+    });
+
+    // Compute canonical valued totalRevenue via FinancialReadModel (strictly latest non-deleted APPROVED)
     const enrichedItems = items.map((item) => {
       if (item.estimates && item.estimates.length > 0) {
         const enrichedEstimates = item.estimates.map((est) => {
-          const totalRev = (est.revenueLines || []).reduce((acc, line) => {
-            const lineGross = Number(line.grossAmount) || 0;
-            const lineSubtotal =
-              (Number(line.quantity) || 0) *
-              (Number(line.multiplier) || 1) *
-              (Number(line.unitPrice) || 0);
-            return acc + (lineGross > 0 ? lineGross : lineSubtotal);
-          }, 0);
+          const valuation = this.financialReadModel.valuateLoadedEstimate(
+            est.revenueLines || [],
+            [],
+          );
           return {
             ...est,
-            totalRevenue: totalRev,
+            totalRevenue: valuation.revenueNet,
+            revenueGross: valuation.revenueGross,
           };
         });
+
+        const latestApproved =
+          this.financialReadModel.selectLatestApprovedEstimate(
+            enrichedEstimates,
+          );
+
+        // Place latest approved (or highest versionNo) first so UI reading estimates[0] stays accurate
+        const sortedEstimates = [...enrichedEstimates].sort((a, b) => {
+          if (latestApproved && a.id === latestApproved.id) return -1;
+          if (latestApproved && b.id === latestApproved.id) return 1;
+          return (b.versionNo ?? 0) - (a.versionNo ?? 0);
+        });
+
         return {
           ...item,
-          estimates: enrichedEstimates,
+          estimates: sortedEstimates,
+          totalRevenue: latestApproved?.totalRevenue ?? 0,
         };
       }
-      return item;
+      return {
+        ...item,
+        totalRevenue: 0,
+      };
     });
 
     return {

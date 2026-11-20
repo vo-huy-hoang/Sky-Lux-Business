@@ -7,12 +7,14 @@ import { Dossier } from '../dossiers/entities/dossier.entity';
 import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
 import { RedisModule } from '../../common/redis/redis.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { FinancialsModule } from '../financials/financials.module';
 
 @Module({
   imports: [
     RedisModule,
     TypeOrmModule.forFeature([SavedReport, Dossier, EstimateCostLine]),
     AuditLogsModule,
+    FinancialsModule,
   ],
   controllers: [ReportsController],
   providers: [ReportsService],

@@ -387,17 +387,17 @@ describe('DossiersService', () => {
       });
     });
 
-    it('should throw BadRequestException if transitioning status illegally', async () => {
+    it('should throw BadRequestException if attempting to mutate status via generic update (Ticket 05)', async () => {
       repository.findOne.mockResolvedValue(mockDossier); // starts in DRAFT
 
-      const updateDto: UpdateDossierDto = { status: DossierStatus.APPROVED }; // DRAFT to APPROVED is illegal
+      const updateDto: UpdateDossierDto = { status: DossierStatus.APPROVED };
 
       await expect(
         service.update(mockUserPayload, 'dossier-uuid', updateDto),
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should update properties and transition status legally', async () => {
+    it('should update properties successfully when status is not mutated', async () => {
       const activeDossier = {
         ...mockDossier,
         status: DossierStatus.DRAFT,
@@ -412,7 +412,6 @@ describe('DossiersService', () => {
         name: 'VIP Tour Updated',
         businessLineName: 'SỰ KIỆN',
         marketTypeName: 'INBOUND',
-        status: DossierStatus.SUBMITTED, // DRAFT to SUBMITTED is legal
       };
 
       const result = await service.update(
@@ -425,7 +424,7 @@ describe('DossiersService', () => {
       expect(result.name).toEqual('VIP Tour Updated');
       expect(result.businessLineName).toEqual('SỰ KIỆN');
       expect(result.marketTypeName).toEqual('INBOUND');
-      expect(result.status).toEqual(DossierStatus.SUBMITTED);
+      expect(result.status).toEqual(DossierStatus.DRAFT);
     });
 
     it('throws 409 ConflictException when update submits a stale version', async () => {
@@ -942,8 +941,8 @@ describe('DossiersService', () => {
       await service.findArchived(salesUser, new QueryArchivedDossierDto());
 
       expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
-        '(dossier.salesUserId = :currentUserId OR dossier.createdBy = :currentUserId)',
-        { currentUserId: 'sales-1' },
+        '((dossier.salesUserId = :userId OR dossier.operatorUserId = :userId OR dossier.createdBy = :userId))',
+        { userId: 'sales-1' },
       );
     });
 
@@ -983,12 +982,12 @@ describe('DossiersService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('should throw ForbiddenException if Sales tries to restore another sales user dossier', async () => {
+    it('should throw NotFoundException (anti-enumeration) if Sales tries to restore another sales user dossier', async () => {
       const salesUser = {
         id: 'sales-user-1',
         organizationId: 'org-uuid',
         roles: ['SALES'],
-        permissions: ['dossier.update'],
+        permissions: ['dossier.update', 'dossier.view.own'],
       } as unknown as CurrentUserPayload;
       mockQueryBuilder.getOne.mockResolvedValue({
         ...mockDossier,
@@ -1001,7 +1000,7 @@ describe('DossiersService', () => {
 
       await expect(
         service.restore(salesUser, 'dossier-other-sales'),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw ForbiddenException if Sales tries to restore non-DRAFT dossier', async () => {
@@ -1009,7 +1008,7 @@ describe('DossiersService', () => {
         id: 'sales-user-1',
         organizationId: 'org-uuid',
         roles: ['SALES'],
-        permissions: ['dossier.update'],
+        permissions: ['dossier.update', 'dossier.view.own'],
       } as unknown as CurrentUserPayload;
       mockQueryBuilder.getOne.mockResolvedValue({
         ...mockDossier,

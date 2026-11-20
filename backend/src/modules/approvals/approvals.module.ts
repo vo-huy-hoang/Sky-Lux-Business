@@ -7,9 +7,10 @@ import { WorkflowHistory } from './entities/workflow-history.entity';
 import { DossierChangeRequest } from './entities/dossier-change-request.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { Estimate } from '../estimates/entities/estimate.entity';
-import { DossierWorkflowService } from './dossier-workflow.service';
+import { DossierWorkflowService, DossierLifecycleService } from './dossier-workflow.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { DossierAccessModule } from '../dossiers/dossier-access.module';
 
 @Module({
   imports: [
@@ -20,11 +21,26 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
       Dossier,
       Estimate,
     ]),
+    DossierAccessModule,
     NotificationsModule,
     AuditLogsModule,
   ],
   controllers: [ApprovalsController],
-  providers: [ApprovalsService, DossierWorkflowService],
-  exports: [ApprovalsService, DossierWorkflowService, TypeOrmModule],
+  providers: [
+    ApprovalsService,
+    DossierWorkflowService,
+    {
+      provide: 'DossierLifecycleService',
+      useExisting: DossierWorkflowService,
+    },
+  ],
+  exports: [
+    ApprovalsService,
+    DossierWorkflowService,
+    'DossierLifecycleService',
+    TypeOrmModule,
+  ],
 })
 export class ApprovalsModule {}
+
+export { ApprovalsModule as DossierLifecycleModule };

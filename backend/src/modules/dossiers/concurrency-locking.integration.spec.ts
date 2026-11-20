@@ -32,6 +32,7 @@ import { EstimateRevenueLine } from '../estimates/entities/estimate-revenue-line
 import { Estimate } from '../estimates/entities/estimate.entity';
 import { EstimatesController } from '../estimates/estimates.controller';
 import { EstimatesService } from '../estimates/estimates.service';
+import { FinancialReadModelService } from '../financials/financial-read-model.service';
 import { UpdateEstimateDto } from '../estimates/dto/update-estimate.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaymentsController } from '../payments/payments.controller';
@@ -618,6 +619,7 @@ describe('Concurrency, Pessimistic Locks & Optimistic Versioning (Integration)',
         DossiersService,
         DossierWorkflowService,
         EstimatesService,
+        FinancialReadModelService,
         PaymentsService,
         DossierAccessPolicyService,
         { provide: DataSource, useValue: mockDataSource },
