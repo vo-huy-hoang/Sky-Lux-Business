@@ -3,6 +3,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { DossiersController } from './dossiers.controller';
 import { DossiersService } from './dossiers.service';
 import { QueryDossierDto } from './dto/query-dossier.dto';
+import { QueryArchivedDossierDto } from './dto/query-archived-dossier.dto';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -28,10 +29,13 @@ describe('DossiersController', () => {
 
   const mockDossiersService = {
     findAll: jest.fn(),
+    findArchived: jest.fn(),
     findOne: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     remove: jest.fn(),
+    restore: jest.fn(),
+    purge: jest.fn(),
     findComments: jest.fn(),
     createComment: jest.fn(),
   };
@@ -191,6 +195,78 @@ describe('DossiersController', () => {
         mockUserPayload,
         'dossier-uuid',
         undefined,
+      );
+    });
+  });
+
+  describe('findArchived (API-DOSSIER-ARCHIVED)', () => {
+    it('should throw ForbiddenException if user lacks view permission', () => {
+      const badUser = { permissions: [], roles: [] } as any;
+      const queryDto = new QueryArchivedDossierDto();
+
+      expect(() => controller.findArchived(badUser, queryDto)).toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should call service.findArchived and return archived dossiers', async () => {
+      const queryDto = new QueryArchivedDossierDto();
+      const mockResult = {
+        data: [{ id: 'archived-1', code: 'TRASH-01' }],
+        meta: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+      };
+      mockDossiersService.findArchived.mockResolvedValue(mockResult);
+
+      const result = await controller.findArchived(mockUserPayload, queryDto);
+
+      expect(service.findArchived).toHaveBeenCalledWith(
+        mockUserPayload,
+        queryDto,
+      );
+      expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe('restore (API-DOSSIER-RESTORE)', () => {
+    it('should have RequirePermissions metadata for dossier.update', () => {
+      const permissions = Reflect.getMetadata(
+        PERMISSIONS_KEY,
+        DossiersController.prototype.restore,
+      );
+      expect(permissions).toEqual(['dossier.update']);
+    });
+
+    it('should call service.restore with user and dossier id', async () => {
+      const mockRestored = { id: 'dossier-restored', code: 'REST-01' };
+      mockDossiersService.restore.mockResolvedValue(mockRestored);
+
+      const result = await controller.restore(mockUserPayload, 'dossier-restored');
+
+      expect(service.restore).toHaveBeenCalledWith(
+        mockUserPayload,
+        'dossier-restored',
+      );
+      expect(result).toEqual(mockRestored);
+    });
+  });
+
+  describe('purge (API-DOSSIER-PURGE)', () => {
+    it('should have RequirePermissions metadata for dossier.delete', () => {
+      const permissions = Reflect.getMetadata(
+        PERMISSIONS_KEY,
+        DossiersController.prototype.purge,
+      );
+      expect(permissions).toEqual(['dossier.delete']);
+    });
+
+    it('should call service.purge with user and dossier id', async () => {
+      mockDossiersService.purge.mockResolvedValue(undefined);
+
+      await controller.purge(mockUserPayload, 'dossier-purge');
+
+      expect(service.purge).toHaveBeenCalledWith(
+        mockUserPayload,
+        'dossier-purge',
       );
     });
   });

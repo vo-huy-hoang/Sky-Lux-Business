@@ -44,9 +44,17 @@ describe('ImportProcessor', () => {
       ),
     };
 
+    const mockQueryBuilder: any = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(null),
+    };
+
     dossierRepository = {
       findOne: jest.fn().mockResolvedValue(null),
       find: jest.fn().mockResolvedValue([]),
+      createQueryBuilder: jest.fn().mockReturnValue(mockQueryBuilder),
+      _mockQueryBuilder: mockQueryBuilder,
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -771,6 +779,180 @@ describe('ImportProcessor', () => {
           fs.unlinkSync(mockFilePath);
         }
       }
+    });
+  });
+
+  describe('Active Dossier Duplicate Detection & Soft Warnings', () => {
+    it('Layer 1: emits soft warning and maintains VALID status when dossier code matches active dossier', async () => {
+      const mockSession = {
+        id: 'session-dup-code',
+        organizationId: 'org-test',
+        template: null,
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+
+      const mockRows = [
+        {
+          id: 'row-dup-code',
+          rowNumber: 2,
+          rawData: {
+            'Mã hồ sơ': 'TOUR-ACTIVE-100',
+            'Tên hồ sơ': 'Tour Hạ Long 3N2Đ',
+            'Mã khách hàng': 'KH001',
+          },
+          status: 'PENDING',
+        },
+      ];
+      rowRepository.find.mockResolvedValue(mockRows);
+      customerRepository.findOne.mockResolvedValue({
+        id: 'cust-uuid',
+        code: 'KH001',
+      });
+
+      // Active dossier found by code
+      dossierRepository.findOne.mockResolvedValue({
+        id: 'active-dossier-uuid-1',
+        code: 'TOUR-ACTIVE-100',
+        name: 'Existing Active Hạ Long Tour',
+      });
+
+      await (processor as any).handleValidateRows('session-dup-code');
+
+      expect(rowRepository.save).toHaveBeenCalled();
+      const savedRow = rowRepository.save.mock.calls[0][0];
+
+      // Non-blocking: status must remain VALID
+      expect(savedRow.status).toBe('VALID');
+      expect(savedRow.normalizedData.hasWarning).toBe(true);
+      expect(savedRow.normalizedData.warnings).toHaveLength(1);
+      expect(savedRow.normalizedData.warnings[0]).toEqual({
+        type: 'DUPLICATE_ACTIVE_DOSSIER',
+        existingDossierId: 'active-dossier-uuid-1',
+        existingDossierCode: 'TOUR-ACTIVE-100',
+        message: expect.stringContaining('TOUR-ACTIVE-100'),
+      });
+
+      expect(sessionRepository.update).toHaveBeenCalledWith(
+        'session-dup-code',
+        expect.objectContaining({
+          validRows: 1,
+          errorRows: 0,
+          summary: expect.objectContaining({ warningRows: 1 }),
+        }),
+      );
+    });
+
+    it('Layer 2: emits soft warning when customer + startDate + route match active dossier', async () => {
+      const mockSession = {
+        id: 'session-dup-layer2',
+        organizationId: 'org-test',
+        template: null,
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+
+      const mockRows = [
+        {
+          id: 'row-dup-layer2',
+          rowNumber: 3,
+          rawData: {
+            'Mã hồ sơ': 'TOUR-DIFFERENT-CODE',
+            'Tên hồ sơ': 'Tour Đà Nẵng Mùa Hè',
+            'Mã khách hàng': 'KH-DA-NANG',
+            'Ngày bắt đầu': '2026-07-20',
+            'Tuyến đường': 'Hà Nội - Đà Nẵng - Hội An',
+          },
+          status: 'PENDING',
+        },
+      ];
+      rowRepository.find.mockResolvedValue(mockRows);
+      customerRepository.findOne.mockResolvedValue({
+        id: 'cust-danang-id',
+        code: 'KH-DA-NANG',
+      });
+
+      // Layer 1 fails (no match by code)
+      dossierRepository.findOne.mockResolvedValue(null);
+
+      // Layer 2 matches via QueryBuilder
+      dossierRepository._mockQueryBuilder.getOne.mockResolvedValue({
+        id: 'active-dossier-uuid-2',
+        code: 'DOS-EXISTING-DANANG',
+        name: 'Đà Nẵng Hè Rực Rỡ',
+      });
+
+      await (processor as any).handleValidateRows('session-dup-layer2');
+
+      expect(rowRepository.save).toHaveBeenCalled();
+      const savedRow = rowRepository.save.mock.calls[0][0];
+
+      expect(savedRow.status).toBe('VALID');
+      expect(savedRow.normalizedData.hasWarning).toBe(true);
+      expect(savedRow.normalizedData.warnings).toHaveLength(1);
+      expect(savedRow.normalizedData.warnings[0]).toEqual({
+        type: 'DUPLICATE_ACTIVE_DOSSIER',
+        existingDossierId: 'active-dossier-uuid-2',
+        existingDossierCode: 'DOS-EXISTING-DANANG',
+        message: expect.stringContaining('DOS-EXISTING-DANANG'),
+      });
+
+      expect(sessionRepository.update).toHaveBeenCalledWith(
+        'session-dup-layer2',
+        expect.objectContaining({
+          validRows: 1,
+          errorRows: 0,
+          summary: expect.objectContaining({ warningRows: 1 }),
+        }),
+      );
+    });
+
+    it('emits no warnings when row does not match any active dossier', async () => {
+      const mockSession = {
+        id: 'session-clean',
+        organizationId: 'org-test',
+        template: null,
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+
+      const mockRows = [
+        {
+          id: 'row-clean',
+          rowNumber: 4,
+          rawData: {
+            'Mã hồ sơ': 'TOUR-BRAND-NEW',
+            'Tên hồ sơ': 'Tour Phú Quốc Mới',
+            'Mã khách hàng': 'KH-PQ',
+            'Ngày bắt đầu': '2026-12-01',
+            'Tuyến đường': 'Hà Nội - Phú Quốc',
+          },
+          status: 'PENDING',
+        },
+      ];
+      rowRepository.find.mockResolvedValue(mockRows);
+      customerRepository.findOne.mockResolvedValue({
+        id: 'cust-pq-id',
+        code: 'KH-PQ',
+      });
+
+      dossierRepository.findOne.mockResolvedValue(null);
+      dossierRepository._mockQueryBuilder.getOne.mockResolvedValue(null);
+
+      await (processor as any).handleValidateRows('session-clean');
+
+      expect(rowRepository.save).toHaveBeenCalled();
+      const savedRow = rowRepository.save.mock.calls[0][0];
+
+      expect(savedRow.status).toBe('VALID');
+      expect(savedRow.normalizedData.hasWarning).toBe(false);
+      expect(savedRow.normalizedData.warnings).toEqual([]);
+
+      expect(sessionRepository.update).toHaveBeenCalledWith(
+        'session-clean',
+        expect.objectContaining({
+          validRows: 1,
+          errorRows: 0,
+          summary: expect.objectContaining({ warningRows: 0 }),
+        }),
+      );
     });
   });
 });

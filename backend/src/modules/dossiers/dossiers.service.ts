@@ -11,16 +11,20 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   DataSource,
+  In,
   OptimisticLockVersionMismatchError,
   Repository,
 } from 'typeorm';
 import { Dossier } from './entities/dossier.entity';
 import { Comment } from './entities/comment.entity';
 import { Payment } from './entities/payment.entity';
+import { DossierPassenger } from './entities/dossier-passenger.entity';
 import { Estimate } from '../estimates/entities/estimate.entity';
 import { Customer } from '../customers/entities/customer.entity';
 import { User } from '../users/entities/user.entity';
+import { AuditLog } from '../audit-logs/entities/audit-log.entity';
 import { QueryDossierDto } from './dto/query-dossier.dto';
+import { QueryArchivedDossierDto } from './dto/query-archived-dossier.dto';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -129,6 +133,144 @@ export class DossiersService {
 
     return {
       data: items,
+      meta: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages,
+      },
+    };
+  }
+
+  async findArchived(
+    user: CurrentUserPayload,
+    queryDto: QueryArchivedDossierDto,
+  ): Promise<
+    PaginatedResponse<
+      Dossier & { deletedByUser?: unknown; deletionReason?: string | null }
+    >
+  > {
+    const { page, limit, search, status, salesUserId } = queryDto;
+    const organizationId = user.organizationId;
+
+    const queryBuilder = this.dossierRepository
+      .createQueryBuilder('dossier')
+      .withDeleted()
+      .leftJoinAndSelect(
+        'dossier.customer',
+        'customer',
+        'customer.organizationId = dossier.organizationId',
+      )
+      .leftJoinAndSelect('dossier.businessLine', 'businessLine')
+      .leftJoinAndSelect(
+        'dossier.salesUser',
+        'salesUser',
+        'salesUser.organizationId = dossier.organizationId',
+      )
+      .leftJoinAndSelect(
+        'dossier.operatorUser',
+        'operatorUser',
+        'operatorUser.organizationId = dossier.organizationId',
+      )
+      .where('dossier.organizationId = :organizationId', { organizationId })
+      .andWhere('dossier.deletedAt IS NOT NULL');
+
+    const roles = user.roles || [];
+    const isSalesOnly =
+      roles.includes('SALES') &&
+      !this.isAdmin(user) &&
+      !roles.includes('OPERATOR');
+
+    if (isSalesOnly) {
+      queryBuilder.andWhere(
+        '(dossier.salesUserId = :currentUserId OR dossier.createdBy = :currentUserId)',
+        { currentUserId: user.id },
+      );
+    } else {
+      this.dossierAccessPolicy.applyVisibilityScope(
+        queryBuilder,
+        'dossier',
+        user,
+        {
+          salesUserAlias: 'salesUser',
+          operatorUserAlias: 'operatorUser',
+        },
+      );
+    }
+
+    if (status) {
+      queryBuilder.andWhere('dossier.status = :status', { status });
+    }
+
+    if (salesUserId) {
+      queryBuilder.andWhere('dossier.salesUserId = :salesUserId', {
+        salesUserId,
+      });
+    }
+
+    const normalizedSearch = search?.trim();
+    if (normalizedSearch) {
+      queryBuilder.andWhere(
+        '(dossier.code ILIKE :search OR dossier.name ILIKE :search OR dossier.route ILIKE :search OR dossier.customerName ILIKE :search OR customer.code ILIKE :search OR customer.displayName ILIKE :search)',
+        { search: `%${normalizedSearch}%` },
+      );
+    }
+
+    queryBuilder
+      .orderBy('dossier.deletedAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [items, total] = await queryBuilder.getManyAndCount();
+    const totalPages = Math.ceil(total / limit);
+
+    items.forEach((dossier) => {
+      dossier.salesUser = toPublicUser(
+        dossier.salesUser,
+      ) as typeof dossier.salesUser;
+      dossier.operatorUser = toPublicUser(
+        dossier.operatorUser,
+      ) as typeof dossier.operatorUser;
+    });
+
+    const dossierIds = items.map((d) => d.id);
+    const auditMap = new Map<string, AuditLog>();
+
+    if (dossierIds.length > 0) {
+      try {
+        const auditLogs = await this.dataSource.getRepository(AuditLog).find({
+          where: {
+            organizationId,
+            entityType: AuditEntityType.DOSSIER,
+            action: AuditAction.DOSSIER_DELETED,
+            entityId: In(dossierIds),
+          },
+          relations: { actor: true },
+          order: { createdAt: 'DESC' },
+        });
+
+        for (const log of auditLogs) {
+          if (!auditMap.has(log.entityId)) {
+            auditMap.set(log.entityId, log);
+          }
+        }
+      } catch (err: any) {
+        this.logger.warn(
+          `Lỗi tra cứu audit log khi lấy danh sách thùng rác: ${err?.message}`,
+        );
+      }
+    }
+
+    const enrichedItems = items.map((dossier) => {
+      const audit = auditMap.get(dossier.id);
+      return Object.assign(dossier, {
+        deletedByUser: audit?.actor ? toPublicUser(audit.actor) : null,
+        deletionReason: audit?.beforeData?.deletionReason ?? null,
+      });
+    });
+
+    return {
+      data: enrichedItems,
       meta: {
         page,
         pageSize: limit,
@@ -552,6 +694,173 @@ export class DossiersService {
         deletionReason: reason ?? null,
       },
     });
+  }
+
+  async restore(user: CurrentUserPayload, id: string): Promise<Dossier> {
+    const dossier = await this.dossierRepository
+      .createQueryBuilder('dossier')
+      .withDeleted()
+      .where('dossier.id = :id', { id })
+      .andWhere('dossier.organizationId = :organizationId', {
+        organizationId: user.organizationId,
+      })
+      .andWhere('dossier.deletedAt IS NOT NULL')
+      .getOne();
+
+    if (!dossier) {
+      throw new NotFoundException(`Không tìm thấy hồ sơ đã xóa với ID "${id}"`);
+    }
+
+    const roles = user.roles || [];
+    const isAdmin = this.isAdmin(user);
+    const isOperator = roles.includes('OPERATOR');
+    const isSales = roles.includes('SALES');
+    const isOwner =
+      dossier.salesUserId === user.id || dossier.createdBy === user.id;
+
+    if (isSales && !isAdmin && !isOperator) {
+      if (!isOwner) {
+        throw new ForbiddenException(
+          'Bạn không có quyền khôi phục hồ sơ của người khác',
+        );
+      }
+      if (
+        dossier.status !== DossierStatus.DRAFT &&
+        dossier.status !== DossierStatus.NEED_CHANGES
+      ) {
+        throw new ForbiddenException(
+          'Nhân viên kinh doanh chỉ có quyền khôi phục hồ sơ ở trạng thái nháp',
+        );
+      }
+    } else if (!isAdmin && !isOperator) {
+      throw new ForbiddenException('Bạn không có quyền khôi phục hồ sơ này');
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      // 1. Collision check: if original code is currently taken by an active dossier
+      const activeCollision = await manager.findOne(Dossier, {
+        where: { organizationId: user.organizationId, code: dossier.code },
+      });
+      if (activeCollision && activeCollision.id !== dossier.id) {
+        const baseCode = dossier.code.slice(0, 38);
+        let newCode = `${baseCode}-RESTORED`;
+        let suffix = 1;
+        while (
+          await manager.findOne(Dossier, {
+            where: { organizationId: user.organizationId, code: newCode },
+          })
+        ) {
+          newCode = `${baseCode}-RESTORED-${suffix++}`.slice(0, 50);
+        }
+        dossier.code = newCode;
+        await manager.update(Dossier, { id: dossier.id }, { code: newCode });
+      }
+
+      // 2. Cascade recover estimates
+      const estimates = await manager
+        .createQueryBuilder(Estimate, 'estimate')
+        .withDeleted()
+        .where('estimate.dossierId = :dossierId', { dossierId: id })
+        .andWhere('estimate.organizationId = :organizationId', {
+          organizationId: user.organizationId,
+        })
+        .andWhere('estimate.deletedAt IS NOT NULL')
+        .getMany();
+
+      if (estimates.length > 0) {
+        await manager.recover(Estimate, estimates);
+      }
+
+      // 3. Recover dossier
+      await manager.recover(Dossier, dossier);
+    });
+
+    // 4. Audit Log
+    await this.auditLogsService.record({
+      organizationId: user.organizationId,
+      actorUserId: user.id,
+      action: AuditAction.DOSSIER_RESTORED,
+      entityType: AuditEntityType.DOSSIER,
+      entityId: id,
+      afterData: {
+        ...this.auditSnapshot(dossier),
+        restoredAt: new Date().toISOString(),
+      },
+    });
+
+    return this.findOne(user, id, false);
+  }
+
+  async purge(user: CurrentUserPayload, id: string): Promise<void> {
+    const dossier = await this.dossierRepository
+      .createQueryBuilder('dossier')
+      .withDeleted()
+      .where('dossier.id = :id', { id })
+      .andWhere('dossier.organizationId = :organizationId', {
+        organizationId: user.organizationId,
+      })
+      .andWhere('dossier.deletedAt IS NOT NULL')
+      .getOne();
+
+    if (!dossier) {
+      throw new NotFoundException(
+        `Không tìm thấy hồ sơ trong thùng rác với ID "${id}"`,
+      );
+    }
+
+    if (!this.isAdmin(user)) {
+      throw new ForbiddenException(
+        'Chỉ Ban Giám đốc (CEO/Admin) mới có quyền xóa vĩnh viễn hồ sơ',
+      );
+    }
+
+    // Financial Integrity Guard: Block purge if real payments exist
+    const payments = await this.dataSource.getRepository(Payment).find({
+      where: { dossierId: id, organizationId: user.organizationId },
+    });
+    const hasRealPayment = payments.some(
+      (p) => p.status !== PaymentStatus.CANCELLED && Number(p.amount) > 0,
+    );
+    if (hasRealPayment) {
+      throw new ConflictException(
+        'Không thể xóa vĩnh viễn hồ sơ đã phát sinh phiếu thu tiền thực tế.',
+      );
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.delete(DossierPassenger, { dossierId: id });
+      await manager.delete(Comment, { dossierId: id });
+      await manager.delete(Estimate, {
+        dossierId: id,
+        organizationId: user.organizationId,
+      });
+      await manager.delete(Dossier, {
+        id,
+        organizationId: user.organizationId,
+      });
+    });
+
+    await this.auditLogsService.record({
+      organizationId: user.organizationId,
+      actorUserId: user.id,
+      action: AuditAction.DOSSIER_PURGED,
+      entityType: AuditEntityType.DOSSIER,
+      entityId: id,
+      beforeData: {
+        ...this.auditSnapshot(dossier),
+        purgedAt: new Date().toISOString(),
+      },
+    });
+  }
+
+  private isAdmin(user: CurrentUserPayload): boolean {
+    return (
+      Boolean(
+        user.roles &&
+          (user.roles.includes('SUPER_ADMIN') ||
+            user.roles.includes('CEO_ADMIN')),
+      ) || Boolean(user.permissions && user.permissions.includes('*'))
+    );
   }
 
   private auditSnapshot(dossier: Dossier): Record<string, unknown> {

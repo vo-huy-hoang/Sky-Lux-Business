@@ -4,6 +4,7 @@ export interface WorkflowActionInput {
   operatorUserId?: string;
   businessLineId?: string;
   marketTypeId?: string;
+  version?: number;
 }
 
 export interface WorkflowHistoryActor {

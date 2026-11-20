@@ -41,6 +41,13 @@ export interface ImportSession {
   updatedAt: string;
 }
 
+export interface ImportRowWarning {
+  type: string;
+  existingDossierId?: string;
+  existingDossierCode?: string;
+  message: string;
+}
+
 export interface ImportRow {
   id: string;
   sessionId: string;
@@ -49,6 +56,8 @@ export interface ImportRow {
   rawData: Record<string, any>;
   normalizedData?: Record<string, any> | null;
   status: ImportRowStatus;
+  warnings?: ImportRowWarning[];
+  hasWarning?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -99,9 +108,19 @@ export interface UpdateImportRowInput {
   rawData: Record<string, any>;
 }
 
+export interface CreatedDossierMetadata {
+  dossierId: string;
+  code: string;
+  customerName?: string;
+  totalRevenue?: number;
+  totalCost?: number;
+  hasDuplicateWarning?: boolean;
+}
+
 export interface ConfirmImportResponse {
   message: string;
   importedRowsCount: number;
+  createdDossiers?: CreatedDossierMetadata[];
   sentToOperations?: boolean;
   underReview?: boolean;
 }

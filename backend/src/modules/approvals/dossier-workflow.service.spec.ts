@@ -169,14 +169,181 @@ describe('DossierWorkflowService', () => {
     );
   });
 
-  it('rejects an approval that skips the required review state', async () => {
+  it('rejects an approval of a draft dossier', async () => {
     const context = createService();
-    context.dossierRepository.findOne.mockResolvedValue({ ...dossier });
+    context.dossierRepository.findOne.mockResolvedValue({ ...dossier, status: DossierStatus.DRAFT });
     const operator = { ...user, roles: ['OPERATOR'] };
 
     await expect(
       context.service.approve(operator, dossier.id, {}),
     ).rejects.toThrow(ConflictException);
+  });
+
+  describe('Direct Approval from SUBMITTED and RESUBMITTED (Ticket 03)', () => {
+    it('allows direct approval from SUBMITTED status without requiring intermediate START_REVIEW step', async () => {
+      const context = createService();
+      const submittedDossier = {
+        ...dossier,
+        status: DossierStatus.SUBMITTED,
+        operatorUserId: null,
+      };
+      const submittedEstimate = {
+        ...estimate,
+        status: EstimateStatus.SUBMITTED,
+      };
+      const pendingApproval = {
+        id: 'approval-req-1',
+        dossierId: dossier.id,
+        estimateId: estimate.id,
+        organizationId: user.organizationId,
+        status: ApprovalStatus.PENDING,
+      };
+
+      context.dossierRepository.findOne.mockResolvedValue(submittedDossier);
+      context.dossierRepository.save.mockImplementation((val) => val);
+      context.estimateRepository.findOne.mockResolvedValue(submittedEstimate);
+      context.estimateRepository.save.mockImplementation((val) => val);
+      context.approvalRepository.findOne.mockResolvedValue(pendingApproval);
+      context.approvalRepository.save.mockImplementation((val) => val);
+
+      const operatorUser = {
+        ...user,
+        id: 'operator-assigned-id',
+        roles: ['OPERATOR'],
+        permissions: ['dossier.approve', 'dossier.view.all'],
+      };
+
+      const result = await context.service.approve(operatorUser, dossier.id, {
+        note: 'Duyệt nhanh trực tiếp từ hàng chờ SUBMITTED',
+      });
+
+      expect(result.data.status).toBe(DossierStatus.APPROVED);
+      expect(context.dossierRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: DossierStatus.APPROVED,
+          operatorUserId: 'operator-assigned-id',
+        }),
+      );
+      expect(context.estimateRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: EstimateStatus.APPROVED,
+          approvedBy: 'operator-assigned-id',
+        }),
+      );
+      expect(context.approvalRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: ApprovalStatus.APPROVED,
+          reviewerUserId: 'operator-assigned-id',
+          comment: 'Duyệt nhanh trực tiếp từ hàng chờ SUBMITTED',
+        }),
+      );
+      expect(context.historyRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fromStatus: DossierStatus.SUBMITTED,
+          toStatus: DossierStatus.APPROVED,
+          action: 'APPROVE',
+          actorUserId: 'operator-assigned-id',
+        }),
+      );
+      expect(context.notificationsService.notify).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: submittedDossier.salesUserId,
+          type: 'DOSSIER',
+          title: expect.stringContaining('đã được phê duyệt'),
+        }),
+      );
+    });
+
+    it('allows CEO direct approval from SUBMITTED without overwriting operatorUserId', async () => {
+      const context = createService();
+      const submittedDossier = {
+        ...dossier,
+        status: DossierStatus.SUBMITTED,
+        operatorUserId: null,
+      };
+      const submittedEstimate = {
+        ...estimate,
+        status: EstimateStatus.SUBMITTED,
+      };
+
+      context.dossierRepository.findOne.mockResolvedValue(submittedDossier);
+      context.dossierRepository.save.mockImplementation((val) => val);
+      context.estimateRepository.findOne.mockResolvedValue(submittedEstimate);
+      context.estimateRepository.save.mockImplementation((val) => val);
+      context.approvalRepository.findOne.mockResolvedValue(null);
+      context.approvalRepository.save.mockImplementation((val) => val);
+      context.approvalRepository.create.mockImplementation((val) => val);
+
+      const ceoUser = {
+        ...user,
+        id: 'ceo-admin-id',
+        roles: ['CEO_ADMIN'],
+        permissions: ['dossier.approve', 'dossier.view.all'],
+      };
+
+      const result = await context.service.approve(ceoUser, dossier.id, {
+        note: 'CEO phê duyệt trực tiếp',
+      });
+
+      expect(result.data.status).toBe(DossierStatus.APPROVED);
+      expect(context.dossierRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: DossierStatus.APPROVED,
+          operatorUserId: null,
+        }),
+      );
+      expect(context.approvalRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stepCode: 'EXECUTIVE_APPROVAL',
+          reviewerUserId: 'ceo-admin-id',
+        }),
+      );
+    });
+
+    it('allows direct approval from RESUBMITTED status and preserves existing operatorUserId', async () => {
+      const context = createService();
+      const resubmittedDossier = {
+        ...dossier,
+        status: DossierStatus.RESUBMITTED,
+        operatorUserId: 'existing-operator-id',
+      };
+      const submittedEstimate = {
+        ...estimate,
+        status: EstimateStatus.SUBMITTED,
+      };
+
+      context.dossierRepository.findOne.mockResolvedValue(resubmittedDossier);
+      context.dossierRepository.save.mockImplementation((val) => val);
+      context.estimateRepository.findOne.mockResolvedValue(submittedEstimate);
+      context.estimateRepository.save.mockImplementation((val) => val);
+      context.approvalRepository.findOne.mockResolvedValue(null);
+      context.approvalRepository.save.mockImplementation((val) => val);
+
+      const ceoUser = {
+        ...user,
+        id: 'ceo-user-id',
+        roles: ['CEO_ADMIN'],
+        permissions: ['*'],
+      };
+
+      const result = await context.service.approve(ceoUser, dossier.id, {
+        note: 'CEO phê duyệt nhanh hồ sơ sau khi sales bổ sung',
+      });
+
+      expect(result.data.status).toBe(DossierStatus.APPROVED);
+      expect(context.dossierRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: DossierStatus.APPROVED,
+          operatorUserId: 'existing-operator-id',
+        }),
+      );
+      expect(context.approvalRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: ApprovalStatus.APPROVED,
+          reviewerUserId: 'ceo-user-id',
+        }),
+      );
+    });
   });
 
   it('purges tenant dashboard cache via delByPattern on workflow transition', async () => {

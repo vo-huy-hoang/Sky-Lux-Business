@@ -98,6 +98,7 @@ export interface DossierItem {
   revenueRecognitionDate?: string | null;
   tourDuration?: string;
   status: string;
+  version?: number;
   priority?: string;
   customer?: {
     id: string;
@@ -123,6 +124,13 @@ export interface DossierItem {
   }>;
   hasPayments?: boolean;
   totalPaid?: number;
+  deletedAt?: string | null;
+  deletionReason?: string | null;
+  deletedByUser?: {
+    id: string;
+    fullName: string;
+    email: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
 }

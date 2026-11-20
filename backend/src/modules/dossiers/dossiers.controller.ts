@@ -26,6 +26,7 @@ import {
 } from '@nestjs/swagger';
 import { DossiersService } from './dossiers.service';
 import { QueryDossierDto } from './dto/query-dossier.dto';
+import { QueryArchivedDossierDto } from './dto/query-archived-dossier.dto';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
 import { DeleteDossierDto } from './dto/delete-dossier.dto';
@@ -64,6 +65,22 @@ export class DossiersController {
   ) {
     this.checkViewPermission(user);
     return this.dossiersService.findAll(user, queryDto);
+  }
+
+  @Get('archived')
+  @ApiOperation({
+    summary: 'Lấy danh sách hồ sơ trong thùng rác / đã xóa mềm (API-DOSSIER-ARCHIVED)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lấy danh sách hồ sơ đã xóa thành công',
+  })
+  findArchived(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query() queryDto: QueryArchivedDossierDto,
+  ) {
+    this.checkViewPermission(user);
+    return this.dossiersService.findArchived(user, queryDto);
   }
 
   @Get(':id')
@@ -116,6 +133,36 @@ export class DossiersController {
   ) {
     const reason = bodyDto?.reason || queryDto?.reason;
     return this.dossiersService.remove(user, id, reason);
+  }
+
+  @Post(':id/restore')
+  @RequirePermissions('dossier.update')
+  @ApiOperation({
+    summary: 'Khôi phục hồ sơ từ thùng rác (API-DOSSIER-RESTORE)',
+  })
+  @ApiParam({ name: 'id', description: 'Dossier UUID' })
+  @ApiResponse({ status: 200, description: 'Khôi phục hồ sơ thành công' })
+  restore(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.dossiersService.restore(user, id);
+  }
+
+  @Delete(':id/purge')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermissions('dossier.delete')
+  @Roles('CEO_ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({
+    summary: 'Xóa vĩnh viễn hồ sơ khỏi hệ thống (API-DOSSIER-PURGE)',
+  })
+  @ApiParam({ name: 'id', description: 'Dossier UUID' })
+  @ApiResponse({ status: 204, description: 'Xóa vĩnh viễn hồ sơ thành công' })
+  purge(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.dossiersService.purge(user, id);
   }
 
   @Post(':id/submit')

@@ -48,6 +48,7 @@ export default function ImportsPage() {
             flow.session?.status === "CONFIRMED" ? (
               <ImportConfirmedResult
                 session={flow.session}
+                confirmedResult={flow.confirmedResult}
                 onResetSession={handleResetSession}
               />
             ) : (
@@ -87,6 +88,7 @@ export default function ImportsPage() {
       {flow.currentSessionId && flow.session?.status !== "CONFIRMED" && (
         <ImportFloatingActionBar
           session={flow.session}
+          previewData={flow.previewData}
           isValidating={flow.validateMutation.isPending}
           isConfirming={flow.confirmMutation.isPending}
           canConfirm={flow.canConfirm}

@@ -217,6 +217,7 @@ describe('Imports Module (Integration)', () => {
       expect(result).toEqual({
         message: 'Nhập dữ liệu thành công',
         importedRowsCount: 1,
+        createdDossiers: expect.any(Array),
       });
     });
   });

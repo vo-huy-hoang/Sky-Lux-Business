@@ -11,6 +11,7 @@ import {
   Input,
   Popconfirm,
   Row,
+  Segmented,
   Select,
   Skeleton,
   Space,
@@ -28,16 +29,24 @@ import {
   FileExcelOutlined,
   FolderOpenOutlined,
   ReloadOutlined,
+  RollbackOutlined,
   SearchOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useDossiersList, useDeleteDossier } from '@/hooks/dossiers';
+import {
+  useDossiersList,
+  useDeleteDossier,
+  useArchivedDossiersList,
+  useRestoreDossier,
+  usePurgeDossier,
+} from '@/hooks/dossiers';
 import { DossierItem } from '@/types/dossier';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useDebounce } from '@/hooks/use-debounce';
 import { DossierDangerDeleteModal } from '@/components/dossiers/DossierDangerDeleteModal';
+import { DossierPurgeModal } from '@/components/dossiers/DossierPurgeModal';
 import { getDossierDeleteEligibility } from '@/lib/dossier-delete-policy';
 
 const { Title, Text } = Typography;
@@ -119,9 +128,18 @@ function DossiersContent() {
     typeof hasPermission === 'function' ? hasPermission('dossier.delete') : false;
 
   const { mutateAsync: deleteDossierMutation } = useDeleteDossier();
+  const { mutateAsync: restoreDossierMutation } = useRestoreDossier();
+  const { mutateAsync: purgeDossierMutation } = usePurgeDossier();
+
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [purgingId, setPurgingId] = useState<string | null>(null);
   const [dangerModalDossier, setDangerModalDossier] =
     useState<DossierItem | null>(null);
+  const [purgeModalDossier, setPurgeModalDossier] =
+    useState<DossierItem | null>(null);
+
+  const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
 
   const handleDelete = async (record: DossierItem, customReason?: string) => {
     try {
@@ -131,6 +149,7 @@ function DossiersContent() {
         reason: customReason || 'Xóa từ danh sách hồ sơ',
       });
       notify.success('Đã xóa hồ sơ thành công');
+      refetchArchived();
       return true;
     } catch (err: any) {
       notify.error(
@@ -143,8 +162,51 @@ function DossiersContent() {
       setDeletingId(null);
     }
   };
+
+  const handleRestore = async (record: DossierItem) => {
+    try {
+      setRestoringId(record.id);
+      await restoreDossierMutation(record.id);
+      notify.success(`Đã khôi phục hồ sơ [${record.code}] thành công`);
+      refetch();
+      refetchArchived();
+      return true;
+    } catch (err: any) {
+      notify.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          'Có lỗi xảy ra khi khôi phục hồ sơ',
+      );
+      return false;
+    } finally {
+      setRestoringId(null);
+    }
+  };
+
+  const handlePurge = async () => {
+    if (!purgeModalDossier) return;
+    try {
+      setPurgingId(purgeModalDossier.id);
+      await purgeDossierMutation(purgeModalDossier.id);
+      notify.success(`Đã xóa vĩnh viễn hồ sơ [${purgeModalDossier.code}]`);
+      setPurgeModalDossier(null);
+      refetchArchived();
+    } catch (err: any) {
+      notify.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          'Có lỗi xảy ra khi xóa vĩnh viễn hồ sơ',
+      );
+    } finally {
+      setPurgingId(null);
+    }
+  };
+
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [archivedPage, setArchivedPage] = useState(1);
+  const [archivedPageSize, setArchivedPageSize] = useState(10);
+
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 350);
   const [status, setStatus] = useState<string | undefined>(statusParam);
@@ -167,6 +229,18 @@ function DossiersContent() {
     search: debouncedSearch || undefined,
     status: status || undefined,
     priority: priority || undefined,
+    salesUserId: salesUserId || undefined,
+  });
+
+  const {
+    data: archivedData,
+    isLoading: isArchivedLoading,
+    refetch: refetchArchived,
+  } = useArchivedDossiersList({
+    page: archivedPage,
+    limit: archivedPageSize,
+    search: debouncedSearch || undefined,
+    status: status || undefined,
     salesUserId: salesUserId || undefined,
   });
 
@@ -358,6 +432,182 @@ function DossiersContent() {
     ? columns.filter((column) => !['priority', 'operator'].includes(column.key as string))
     : columns;
 
+  const archivedColumns = [
+    {
+      title: 'Mã hồ sơ',
+      dataIndex: 'code',
+      key: 'code',
+      width: 200,
+      render: (code: string) => (
+        <Space className="whitespace-nowrap font-mono font-bold text-slate-700">
+          <FileExcelOutlined className="text-slate-400" />
+          <span>{code}</span>
+        </Space>
+      ),
+    },
+    {
+      title: 'Tên tour / Tuyến đường',
+      key: 'nameRoute',
+      render: (_: unknown, record: DossierItem) => (
+        <div className="flex flex-col">
+          <Text strong className="text-slate-900">
+            {record.name}
+          </Text>
+          <Text type="secondary" className="text-xs">
+            {record.route || 'Chưa cập nhật tuyến'}
+          </Text>
+        </div>
+      ),
+    },
+    {
+      title: 'Khách hàng',
+      key: 'customer',
+      width: 200,
+      render: (_: unknown, record: DossierItem) => (
+        <div className="flex flex-col">
+          <Text strong>
+            {record.customerName || record.customer?.displayName || '-'}
+          </Text>
+          <Text type="secondary" className="text-xs">
+            {record.customer?.code || record.customerId || '-'}
+          </Text>
+        </div>
+      ),
+    },
+    {
+      title: 'Trạng thái trước xóa',
+      dataIndex: 'status',
+      key: 'status',
+      width: 140,
+      render: (value: string) => {
+        const config = getStatus(value);
+        return <Tag className={config.className}>{config.label}</Tag>;
+      },
+    },
+    {
+      title: 'Người thực hiện xóa',
+      key: 'deleter',
+      width: 180,
+      render: (_: unknown, record: DossierItem) => (
+        <Space size={8}>
+          <Avatar size={26} className="bg-slate-200 text-slate-700">
+            {(
+              record.deletedByUser?.fullName ||
+              record.salesUser?.fullName ||
+              '?'
+            ).charAt(0)}
+          </Avatar>
+          <div className="flex flex-col">
+            <Text className="text-xs font-medium">
+              {record.deletedByUser?.fullName ||
+                record.salesUser?.fullName ||
+                'Hệ thống'}
+            </Text>
+            {record.deletedByUser?.email && (
+              <Text
+                type="secondary"
+                className="text-[11px] truncate max-w-[140px]"
+              >
+                {record.deletedByUser.email}
+              </Text>
+            )}
+          </div>
+        </Space>
+      ),
+    },
+    {
+      title: 'Ngày xóa',
+      dataIndex: 'deletedAt',
+      key: 'deletedAt',
+      width: 155,
+      render: formatDate,
+    },
+    {
+      title: 'Lý do xóa',
+      dataIndex: 'deletionReason',
+      key: 'deletionReason',
+      width: 200,
+      render: (reason?: string) => (
+        <Tooltip title={reason || 'Không ghi nhận lý do'}>
+          <Text
+            ellipsis
+            className="text-xs text-slate-600 italic max-w-[190px] block"
+          >
+            {reason || 'Không ghi nhận lý do'}
+          </Text>
+        </Tooltip>
+      ),
+    },
+    {
+      title: 'Thao tác',
+      key: 'actions',
+      width: 195,
+      render: (_: unknown, record: DossierItem) => {
+        const isRestoringThis = restoringId === record.id;
+        const isPurgingThis = purgingId === record.id;
+        const isSales = !isCeoAdmin && !isOperator;
+        const isRestoreBlocked =
+          isSales &&
+          record.status !== 'DRAFT' &&
+          record.status !== 'NEED_CHANGES';
+
+        return (
+          <Space size={8}>
+            {isRestoreBlocked ? (
+              <Tooltip title="Nhân viên kinh doanh chỉ có quyền khôi phục hồ sơ ở trạng thái nháp">
+                <Button
+                  disabled
+                  icon={<RollbackOutlined />}
+                  className="font-medium"
+                >
+                  Khôi phục
+                </Button>
+              </Tooltip>
+            ) : (
+              <Popconfirm
+                title="Xác nhận khôi phục hồ sơ"
+                description={
+                  <div className="max-w-[280px]">
+                    Bạn có chắc chắn muốn khôi phục hồ sơ{' '}
+                    <strong className="text-emerald-700">[{record.code}]</strong>{' '}
+                    về danh sách hoạt động?
+                  </div>
+                }
+                onConfirm={() => handleRestore(record)}
+                okText="Khôi phục"
+                cancelText="Hủy"
+                okButtonProps={{ loading: isRestoringThis }}
+              >
+                <Tooltip title="Khôi phục hồ sơ về bảng hoạt động">
+                  <Button
+                    icon={<RollbackOutlined />}
+                    loading={isRestoringThis}
+                    className="border-emerald-600 text-emerald-700 hover:border-emerald-700 hover:text-emerald-800 font-medium"
+                  >
+                    Khôi phục
+                  </Button>
+                </Tooltip>
+              </Popconfirm>
+            )}
+
+            {isCeoAdmin && (
+              <Tooltip title="Xóa vĩnh viễn khỏi hệ thống (Cần xác nhận mã)">
+                <Button
+                  danger
+                  icon={<DeleteOutlined />}
+                  loading={isPurgingThis}
+                  onClick={() => setPurgeModalDossier(record)}
+                  className="text-rose-600 hover:text-rose-700"
+                  aria-label="purge-dossier-button"
+                />
+              </Tooltip>
+            )}
+          </Space>
+        );
+      },
+    },
+  ];
+
   return (
     <div className={`space-y-5 ${isOperator ? 'op-page op-dossiers-page' : ''}`} suppressHydrationWarning>
       <div className={`flex flex-col gap-3 md:flex-row md:items-end md:justify-between ${isOperator ? 'op-page-heading' : ''}`} suppressHydrationWarning>
@@ -371,7 +621,7 @@ function DossiersContent() {
         </div>
         <Link href="/imports">
           <Button icon={<FileExcelOutlined />} className="skylux-primary-button" suppressHydrationWarning>
-            {isCeoAdmin || isOperator ? 'Kiểm tra dữ liệu Excel' : 'Import dự toán Excel'}
+            {isCeoAdmin || isOperator ? 'Kiểm tra dữ liệu Excel' : '+ Tạo Tour mới từ Excel'}
           </Button>
         </Link>
       </div>
@@ -413,8 +663,10 @@ function DossiersContent() {
               setStatus(undefined);
               setPriority(undefined);
               setPage(1);
+              setArchivedPage(1);
               router.push('/dossiers');
               refetch();
+              refetchArchived();
             }}
           >
             Đặt lại
@@ -512,27 +764,108 @@ function DossiersContent() {
       )}
 
       <Card className={isOperator ? 'op-card op-dossier-table' : 'skylux-card'}>
-        <Table
-          dataSource={data?.data || (data as any)?.items || []}
-          columns={visibleColumns}
-          rowKey="id"
-          loading={isLoading}
-          className={isOperator ? 'op-table' : 'skylux-table'}
-          locale={{ emptyText: <Empty description="Chưa có hồ sơ nào trong hệ thống" /> }}
-          scroll={{ x: 1425 }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: data?.meta?.total ?? (data as any)?.total ?? 0,
-            showSizeChanger: true,
-            pageSizeOptions: ['10', '20', '50'],
-            showTotal: (total) => `Hiển thị ${data?.data?.length || (data as any)?.items?.length || 0} trong tổng số ${total} hồ sơ`,
-            onChange: (nextPage, nextPageSize) => {
-              setPage(nextPage);
-              setPageSize(nextPageSize);
-            },
-          }}
-        />
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4 pb-3 border-b border-slate-100">
+          <Segmented
+            value={activeTab}
+            onChange={(val) => {
+              setActiveTab(val as 'active' | 'archived');
+            }}
+            options={[
+              {
+                label: (
+                  <Space size={6} className="px-3 py-1">
+                    <FolderOpenOutlined className="text-emerald-700" />
+                    <span className="font-semibold">Hồ sơ hoạt động</span>
+                    <Tag className="ml-1 border-0 bg-emerald-50 text-emerald-800 font-bold rounded-full px-2 py-0.5">
+                      {data?.meta?.total ?? (data as any)?.total ?? 0}
+                    </Tag>
+                  </Space>
+                ),
+                value: 'active',
+              },
+              {
+                label: (
+                  <Space size={6} className="px-3 py-1">
+                    <DeleteOutlined className="text-rose-600" />
+                    <span className="font-semibold">Thùng rác / Đã lưu trữ</span>
+                    <Tag
+                      className={`ml-1 border-0 font-bold rounded-full px-2 py-0.5 ${
+                        (archivedData?.meta?.total ?? 0) > 0
+                          ? 'bg-rose-100 text-rose-700'
+                          : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      {archivedData?.meta?.total ?? 0}
+                    </Tag>
+                  </Space>
+                ),
+                value: 'archived',
+              },
+            ]}
+          />
+
+          {activeTab === 'archived' && (
+            <div className="text-xs text-slate-500 italic">
+              {isCeoAdmin
+                ? 'Ban Giám đốc có quyền Khôi phục hoặc Xóa vĩnh viễn'
+                : isOperator
+                  ? 'Điều hành có quyền Khôi phục hồ sơ'
+                  : 'Chỉ hiển thị hồ sơ đã xóa do bạn tạo hoặc phụ trách'}
+            </div>
+          )}
+        </div>
+
+        {activeTab === 'active' ? (
+          <Table
+            dataSource={data?.data || (data as any)?.items || []}
+            columns={visibleColumns}
+            rowKey="id"
+            loading={isLoading}
+            className={isOperator ? 'op-table' : 'skylux-table'}
+            locale={{ emptyText: <Empty description="Chưa có hồ sơ nào trong hệ thống" /> }}
+            scroll={{ x: 1425 }}
+            pagination={{
+              current: page,
+              pageSize,
+              total: data?.meta?.total ?? (data as any)?.total ?? 0,
+              showSizeChanger: true,
+              pageSizeOptions: ['10', '20', '50'],
+              showTotal: (total) =>
+                `Hiển thị ${data?.data?.length || (data as any)?.items?.length || 0} trong tổng số ${total} hồ sơ`,
+              onChange: (nextPage, nextPageSize) => {
+                setPage(nextPage);
+                setPageSize(nextPageSize);
+              },
+            }}
+          />
+        ) : (
+          <Table
+            dataSource={archivedData?.data || []}
+            columns={archivedColumns}
+            rowKey="id"
+            loading={isArchivedLoading}
+            className={isOperator ? 'op-table' : 'skylux-table'}
+            locale={{
+              emptyText: (
+                <Empty description="Thùng rác đang trống. Chưa có hồ sơ nào bị xóa." />
+              ),
+            }}
+            scroll={{ x: 1300 }}
+            pagination={{
+              current: archivedPage,
+              pageSize: archivedPageSize,
+              total: archivedData?.meta?.total ?? 0,
+              showSizeChanger: true,
+              pageSizeOptions: ['10', '20', '50'],
+              showTotal: (total) =>
+                `Hiển thị ${archivedData?.data?.length || 0} trong tổng số ${total} hồ sơ đã xóa`,
+              onChange: (nextPage, nextPageSize) => {
+                setArchivedPage(nextPage);
+                setArchivedPageSize(nextPageSize);
+              },
+            }}
+          />
+        )}
       </Card>
 
       <DossierDangerDeleteModal
@@ -547,6 +880,14 @@ function DossiersContent() {
             setDangerModalDossier(null);
           }
         }}
+      />
+
+      <DossierPurgeModal
+        open={Boolean(purgeModalDossier)}
+        dossier={purgeModalDossier}
+        onClose={() => setPurgeModalDossier(null)}
+        isLoading={purgingId === purgeModalDossier?.id}
+        onConfirm={handlePurge}
       />
     </div>
   );

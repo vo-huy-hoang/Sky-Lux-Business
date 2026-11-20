@@ -25,6 +25,9 @@ const mockDossiersList = jest.fn();
 jest.mock('@/hooks/dossiers', () => ({
   useDossiersList: () => mockDossiersList(),
   useDeleteDossier: () => ({ mutateAsync: jest.fn(), isPending: false }),
+  useArchivedDossiersList: () => ({ data: { data: [], meta: { total: 0 } }, isLoading: false }),
+  useRestoreDossier: () => ({ mutateAsync: jest.fn(), isPending: false }),
+  usePurgeDossier: () => ({ mutateAsync: jest.fn(), isPending: false }),
 }));
 
 jest.mock('next/navigation', () => ({

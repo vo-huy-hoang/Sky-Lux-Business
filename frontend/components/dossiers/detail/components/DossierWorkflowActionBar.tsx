@@ -88,16 +88,27 @@ export function DossierWorkflowActionBar({
             {canOperate &&
               (dossierStatus === 'SUBMITTED' ||
                 dossierStatus === 'RESUBMITTED') && (
-                <Button
-                  size={isDrawer ? 'middle' : 'large'}
-                  type="primary"
-                  icon={<SyncOutlined />}
-                  className="skylux-primary-button"
-                  loading={isActionLoading}
-                  onClick={onStartReview}
-                >
-                  Bắt đầu tiếp nhận & xem xét
-                </Button>
+                <>
+                  <Button
+                    size={isDrawer ? 'middle' : 'large'}
+                    icon={<SyncOutlined />}
+                    className="border-slate-300 text-slate-700 hover:text-slate-900"
+                    loading={isActionLoading}
+                    onClick={onStartReview}
+                  >
+                    Tiếp nhận xử lý
+                  </Button>
+                  <Button
+                    size={isDrawer ? 'middle' : 'large'}
+                    type="primary"
+                    icon={<CheckCircleOutlined />}
+                    className="skylux-primary-button"
+                    loading={isActionLoading}
+                    onClick={() => onOpenModal('APPROVE')}
+                  >
+                    Duyệt trực tiếp
+                  </Button>
+                </>
               )}
 
             {canOperate && dossierStatus === 'IN_REVIEW' && (
