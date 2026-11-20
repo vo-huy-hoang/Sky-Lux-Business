@@ -7,6 +7,10 @@ import { Customer } from './entities/customer.entity';
 import { CustomerContact } from './entities/customer-contact.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { User } from '../users/entities/user.entity';
+import { Estimate } from '../estimates/entities/estimate.entity';
+import { EstimateRevenueLine } from '../estimates/entities/estimate-revenue-line.entity';
+import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
+import { FinancialReadModelService } from '../financials/financial-read-model.service';
 import { QueryCustomerDto } from './dto/query-customer.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
@@ -15,9 +19,15 @@ import { UpdateContactDto } from './dto/update-contact.dto';
 import { QueryDossierDto } from '../dossiers/dto/query-dossier.dto';
 import { CustomerType } from '../../common/enums';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { DossierAccessPolicyService } from '../dossiers/dossier-access-policy.service';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
 describe('CustomersService', () => {
   let service: CustomersService;
+
+  const mockDossierAccessPolicy = {
+    applyVisibilityScope: jest.fn(),
+  };
 
   const mockCustomer = {
     id: 'cust-uuid',
@@ -67,6 +77,10 @@ describe('CustomersService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CustomersService,
+        FinancialReadModelService,
+        { provide: getRepositoryToken(Estimate), useValue: { createQueryBuilder: jest.fn() } },
+        { provide: getRepositoryToken(EstimateRevenueLine), useValue: { createQueryBuilder: jest.fn() } },
+        { provide: getRepositoryToken(EstimateCostLine), useValue: { createQueryBuilder: jest.fn() } },
         {
           provide: getRepositoryToken(Customer),
           useValue: mockCustomerRepository,
@@ -88,6 +102,10 @@ describe('CustomersService', () => {
         {
           provide: AuditLogsService,
           useValue: { record: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: DossierAccessPolicyService,
+          useValue: mockDossierAccessPolicy,
         },
       ],
     }).compile();
@@ -403,13 +421,154 @@ describe('CustomersService', () => {
       expect(mockDossierRepository.createQueryBuilder).toHaveBeenCalledWith(
         'dossier',
       );
-      expect(result.data).toEqual(mockDossiers);
+      expect(result.data).toEqual([
+        { id: 'dossier-uuid', code: 'DOS001', name: 'Tour Han Quoc', totalRevenue: 0 },
+      ]);
       expect(result.meta).toEqual({
         page: 1,
         pageSize: 20,
         total: 1,
         totalPages: 1,
       });
+    });
+
+    it('computes canonical valued revenue (not double-taxed grossAmount) and picks latest APPROVED revision', async () => {
+      mockCustomerRepository.findOne.mockResolvedValue(mockCustomer);
+      const mockDossiers = [
+        {
+          id: 'dossier-val',
+          code: 'DOS-VAL',
+          name: 'Tour Valuation',
+          estimates: [
+            {
+              id: 'est-v1',
+              versionNo: 1,
+              status: 'APPROVED',
+              revenueLines: [
+                {
+                  quantity: 10,
+                  multiplier: 1,
+                  unitPrice: 5_400_000,
+                  vatRate: 8,
+                  grossAmount: 58_320_000,
+                },
+              ],
+            },
+            {
+              id: 'est-v2',
+              versionNo: 2,
+              status: 'APPROVED',
+              revenueLines: [
+                {
+                  quantity: 10,
+                  multiplier: 1,
+                  unitPrice: 10_800_000,
+                  vatRate: 8,
+                  grossAmount: 116_640_000,
+                },
+              ],
+            },
+          ],
+        },
+      ];
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([mockDossiers, 1]);
+
+      const result = await service.findCustomerDossiers(
+        'org-uuid',
+        'cust-uuid',
+        { page: 1, limit: 20 },
+      );
+
+      // 108M workbook gross / 1.08 = 100M canonical valued revenue (NOT 116.64M)
+      // Latest APPROVED (est-v2) is sorted to estimates[0] so legacy UI reading estimates[0] gets v2
+      expect((result.data[0] as any).totalRevenue).toBe(100_000_000);
+      expect((result.data[0] as any).estimates[0].id).toBe('est-v2');
+      expect((result.data[0] as any).estimates[0].totalRevenue).toBe(100_000_000);
+      expect((result.data[0] as any).estimates[0].revenueGross).toBe(108_000_000);
+    });
+
+    it('returns totalRevenue = 0 for dossiers with only unapproved or soft-deleted estimates', async () => {
+      mockCustomerRepository.findOne.mockResolvedValue(mockCustomer);
+      const mockDossiers = [
+        {
+          id: 'dossier-draft',
+          code: 'DOS-DRAFT',
+          name: 'Draft Tour',
+          estimates: [
+            {
+              id: 'est-draft',
+              versionNo: 2,
+              status: 'DRAFT',
+              revenueLines: [{ quantity: 1, multiplier: 1, unitPrice: 108_000_000, vatRate: 8 }],
+            },
+            {
+              id: 'est-deleted-approved',
+              versionNo: 1,
+              status: 'APPROVED',
+              deletedAt: new Date('2026-11-01T00:00:00Z'),
+              revenueLines: [{ quantity: 1, multiplier: 1, unitPrice: 54_000_000, vatRate: 8 }],
+            },
+          ],
+        },
+      ];
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([mockDossiers, 1]);
+
+      const result = await service.findCustomerDossiers(
+        'org-uuid',
+        'cust-uuid',
+        { page: 1, limit: 20 },
+      );
+
+      expect((result.data[0] as any).totalRevenue).toBe(0);
+    });
+
+    it('applies visibility scoping and sanitizes assigned users with toPublicUser', async () => {
+      mockCustomerRepository.findOne.mockResolvedValue(mockCustomer);
+      const mockDossierWithSensitive = {
+        id: 'dossier-sens',
+        code: 'DOS-SENS',
+        name: 'Tour Sensitive',
+        salesUser: {
+          id: 'u1',
+          fullName: 'Sales One',
+          email: 's1@skylux.vn',
+          passwordHash: '$2b$10$supersecretpasswordhash',
+        },
+        operatorUser: {
+          id: 'u2',
+          fullName: 'Op Two',
+          email: 'op2@skylux.vn',
+          passwordHash: '$2b$10$supersecretpasswordhash2',
+        },
+      };
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([[mockDossierWithSensitive], 1]);
+
+      const testUser = {
+        id: 'user-1',
+        organizationId: 'org-uuid',
+        roles: ['SALES'],
+        permissions: ['dossier.view.own'],
+      } as CurrentUserPayload;
+
+      const result = await service.findCustomerDossiers(
+        'org-uuid',
+        'cust-uuid',
+        { page: 1, limit: 20 },
+        testUser,
+      );
+
+      expect(mockDossierAccessPolicy.applyVisibilityScope).toHaveBeenCalledWith(
+        mockQueryBuilder,
+        'dossier',
+        testUser,
+        {
+          salesUserAlias: 'salesUser',
+          operatorUserAlias: 'operatorUser',
+        },
+      );
+      expect((result.data[0].salesUser as any).passwordHash).toBeUndefined();
+      expect((result.data[0].operatorUser as any).passwordHash).toBeUndefined();
+      expect(result.data[0].salesUser?.fullName).toBe('Sales One');
     });
   });
 });

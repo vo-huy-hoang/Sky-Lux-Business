@@ -10,6 +10,7 @@ import { Task } from '../tasks/entities/task.entity';
 import { Supplier } from '../suppliers/entities/supplier.entity';
 import { KpiResult } from '../kpis/entities/kpi-result.entity';
 import { User } from '../users/entities/user.entity';
+import { FinancialsModule } from '../financials/financials.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { User } from '../users/entities/user.entity';
       KpiResult,
       User,
     ]),
+    FinancialsModule,
   ],
   controllers: [DashboardsController],
   providers: [DashboardsService],

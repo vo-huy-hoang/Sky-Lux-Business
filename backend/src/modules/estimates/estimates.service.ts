@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
@@ -25,34 +26,26 @@ import { DossierAccessPolicyService } from '../dossiers/dossier-access-policy.se
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
 import { DossierStatus, EstimateStatus } from '../../common/enums';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { DossierWorkflowService } from '../approvals/dossier-workflow.service';
+import { RedisService } from '../../common/redis/redis.service';
 import {
   AuditAction,
   AuditEntityType,
 } from '../audit-logs/audit-event.constants';
+import {
+  calculateWorkbookGrossAmount,
+  parseVatRate,
+  ValuationLineInput,
+} from '../../common/utils/estimate-valuation.util';
+import { FinancialReadModelService } from '../financials/financial-read-model.service';
 
-type CalculableLine = {
-  quantity?: number | null;
-  multiplier?: number | null;
-  unitPrice?: number | null;
-  vatRate?: number | null;
-};
-
-function numericValue(value: unknown, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
+function calculateLineNetAmount(line: ValuationLineInput): number {
+  return calculateWorkbookGrossAmount(line);
 }
 
-function calculateLineNetAmount(line: CalculableLine): number {
-  return (
-    numericValue(line.quantity, 1) *
-    numericValue(line.multiplier, 1) *
-    numericValue(line.unitPrice, 0)
-  );
-}
-
-function calculateLineGrossAmount(line: CalculableLine): number {
+function calculateLineGrossAmount(line: ValuationLineInput): number {
   const netAmount = calculateLineNetAmount(line);
-  return netAmount * (1 + numericValue(line.vatRate, 0) / 100);
+  return netAmount * (1 + parseVatRate(line.vatRate) / 100);
 }
 
 function removeSourceAmountNote(note?: string): string | undefined {
@@ -78,6 +71,11 @@ export class EstimatesService {
     private readonly dossierAccessPolicy: DossierAccessPolicyService,
     private readonly auditLogsService: AuditLogsService,
     private readonly dataSource: DataSource,
+    private readonly financialReadModel: FinancialReadModelService,
+    @Optional()
+    private readonly dossierWorkflowService?: DossierWorkflowService,
+    @Optional()
+    private readonly redisService?: RedisService,
   ) {}
 
   private async validateSuppliersOwnership(
@@ -147,38 +145,20 @@ export class EstimatesService {
 
     if (items.length > 0) {
       const estimateIds = items.map((e) => e.id);
-
-      const [revenueAgg, costAgg] = await Promise.all([
-        this.revenueLineRepository
-          .createQueryBuilder('line')
-          .select('line.estimateId', 'estimateId')
-          .addSelect('COALESCE(SUM(line.netAmount), 0)', 'totalRevenue')
-          .where('line.estimateId IN (:...estimateIds)', { estimateIds })
-          .groupBy('line.estimateId')
-          .getRawMany(),
-        this.costLineRepository
-          .createQueryBuilder('line')
-          .select('line.estimateId', 'estimateId')
-          .addSelect('COALESCE(SUM(line.netAmount), 0)', 'totalCost')
-          .where('line.estimateId IN (:...estimateIds)', { estimateIds })
-          .groupBy('line.estimateId')
-          .getRawMany(),
-      ]);
-
-      const revMap = new Map(
-        revenueAgg.map((r) => [r.estimateId, Number(r.totalRevenue)]),
-      );
-      const costMap = new Map(
-        costAgg.map((c) => [c.estimateId, Number(c.totalCost)]),
-      );
+      const totalsMap =
+        await this.financialReadModel.getValuedTotalsByEstimateIds(
+          organizationId,
+          estimateIds,
+        );
 
       items.forEach((item) => {
-        const totalRevenue = revMap.get(item.id) || 0;
-        const totalCost = costMap.get(item.id) || 0;
-        const totalProfit = totalRevenue - totalCost;
-        (item as any).totalRevenue = totalRevenue;
-        (item as any).totalCost = totalCost;
-        (item as any).totalProfit = totalProfit;
+        const totals = totalsMap.get(item.id);
+        (item as any).totalRevenue = totals?.revenueNet ?? 0;
+        (item as any).totalCost = totals?.costNet ?? 0;
+        (item as any).totalProfit = totals?.profit ?? 0;
+        (item as any).revenueGross = totals?.revenueGross ?? 0;
+        (item as any).costGross = totals?.costGross ?? 0;
+        (item as any).profitMargin = totals?.marginPercent ?? 0;
       });
     }
 
@@ -229,6 +209,17 @@ export class EstimatesService {
       });
     }
 
+    const valuation = this.financialReadModel.valuateLoadedEstimate(
+      estimate.revenueLines || [],
+      estimate.costLines || [],
+    );
+    (estimate as any).totalRevenue = valuation.revenueNet;
+    (estimate as any).totalCost = valuation.costNet;
+    (estimate as any).totalProfit = valuation.profit;
+    (estimate as any).revenueGross = valuation.revenueGross;
+    (estimate as any).costGross = valuation.costGross;
+    (estimate as any).profitMargin = valuation.marginPercent;
+
     return estimate;
   }
 
@@ -244,8 +235,8 @@ export class EstimatesService {
     } = createEstimateDto;
     const organizationId = user.organizationId;
 
-    // Verify dossier exists and is authorized
-    await this.dossiersService.findOne(user, dossierId);
+    // Verify dossier exists and is authorized (without recording spurious DOSSIER_VIEWED audit)
+    await this.dossiersService.findOne(user, dossierId, false);
 
     // Verify suppliers belong to organization
     if (costLines.length > 0) {
@@ -372,7 +363,7 @@ export class EstimatesService {
     }
 
     // Wrap validation, line sync, and estimate save in an atomic database transaction with pessimistic_write locks
-    const { updatedEstimate, dossierStatus, wasApproved, lockedDossierVersion } =
+    const { updatedEstimate, dossierStatus, revisedDossierStatus, wasApproved } =
       await this.dataSource.transaction(async (manager) => {
         const txDossierRepo = manager.getRepository(Dossier);
         const revRepo = manager.getRepository(EstimateRevenueLine);
@@ -549,11 +540,51 @@ export class EstimatesService {
 
         try {
           const saved = await estRepo.save(estimate);
+
+          // Atomic revision transition inside the transaction (Ticket 05)
+          let revisedDossierStatus: DossierStatus | undefined;
+          if (
+            lockedDossier &&
+            (isApprovedEstimate ||
+              currentDossierStatus === DossierStatus.EDITING)
+          ) {
+            if (this.dossierWorkflowService) {
+              const revisionResult =
+                await this.dossierWorkflowService.reviseApprovedEstimateInTx(
+                  manager,
+                  {
+                    user,
+                    dossier: lockedDossier,
+                    estimate: saved,
+                    wasApproved: isApprovedEstimate,
+                    targetEstimateStatus: saved.status,
+                  },
+                );
+              revisedDossierStatus = revisionResult.targetDossierStatus;
+            } else {
+              // Direct transactional fallback
+              if (
+                currentDossierStatus !== DossierStatus.COMPLETED ||
+                saved.status === EstimateStatus.SUBMITTED
+              ) {
+                const targetDossierStatus =
+                  saved.status === EstimateStatus.SUBMITTED
+                    ? DossierStatus.RESUBMITTED
+                    : DossierStatus.EDITING;
+                if (currentDossierStatus !== targetDossierStatus) {
+                  lockedDossier.status = targetDossierStatus;
+                  await manager.save(Dossier, lockedDossier);
+                  revisedDossierStatus = targetDossierStatus;
+                }
+              }
+            }
+          }
+
           return {
             updatedEstimate: saved,
             dossierStatus: currentDossierStatus,
+            revisedDossierStatus,
             wasApproved: isApprovedEstimate,
-            lockedDossierVersion: lockedDossier?.version,
           };
         } catch (err) {
           if (err instanceof OptimisticLockVersionMismatchError) {
@@ -565,40 +596,27 @@ export class EstimatesService {
         }
       });
 
+    // Invalidate dashboard analytics cache and record audit log on revision
     if (wasApproved || dossierStatus === DossierStatus.EDITING) {
-      if (
-        dossierStatus !== DossierStatus.COMPLETED ||
-        updatedEstimate.status === EstimateStatus.SUBMITTED
-      ) {
-        const targetDossierStatus =
-          updatedEstimate.status === EstimateStatus.SUBMITTED
-            ? DossierStatus.RESUBMITTED
-            : DossierStatus.EDITING;
-        let nextDossierVersion = lockedDossierVersion;
-        if (
-          dossierStatus === DossierStatus.APPROVED &&
-          targetDossierStatus === DossierStatus.RESUBMITTED
-        ) {
-          const editingDossier = await this.dossiersService.update(
-            user,
-            estimate.dossierId,
-            {
-              status: DossierStatus.EDITING,
-              ...(nextDossierVersion !== undefined
-                ? { version: nextDossierVersion }
-                : {}),
-            },
+      if (this.redisService) {
+        try {
+          await this.redisService.delByPattern(
+            `dashboard:*${organizationId}*`,
           );
-          nextDossierVersion = editingDossier?.version;
+        } catch (cacheErr: any) {
+          // ignore cache error
         }
-        if (dossierStatus !== targetDossierStatus) {
-          await this.dossiersService.update(user, estimate.dossierId, {
-            status: targetDossierStatus,
-            ...(nextDossierVersion !== undefined
-              ? { version: nextDossierVersion }
-              : {}),
-          });
-        }
+      }
+      if (revisedDossierStatus && revisedDossierStatus !== dossierStatus) {
+        await this.auditLogsService.record({
+          organizationId,
+          actorUserId: user.id,
+          action: AuditAction.DOSSIER_STATUS_CHANGED,
+          entityType: AuditEntityType.DOSSIER,
+          entityId: estimate.dossierId,
+          beforeData: { status: dossierStatus },
+          afterData: { status: revisedDossierStatus },
+        });
       }
     }
     const afterData = this.auditSnapshot(updatedEstimate);

@@ -37,6 +37,7 @@ import {
   AuditEntityType,
 } from '../audit-logs/audit-event.constants';
 import { RedisService } from '../../common/redis/redis.service';
+import { DossierAccessPolicyService } from '../dossiers/dossier-access-policy.service';
 
 type WorkflowAction =
   | 'SUBMIT'
@@ -48,6 +49,8 @@ type WorkflowAction =
   | 'COMPLETE'
   | 'LOCK';
 
+type ExtendedWorkflowHistoryAction = WorkflowAction | 'REVISE' | 'DRAFT';
+
 const ADMIN_ROLES = ['SUPER_ADMIN', 'CEO_ADMIN'];
 
 @Injectable()
@@ -57,6 +60,8 @@ export class DossierWorkflowService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly auditLogsService: AuditLogsService,
+    @Optional()
+    private readonly dossierAccessPolicy?: DossierAccessPolicyService,
     @Optional()
     private readonly notificationsService?: NotificationsService,
     @Optional()
@@ -179,9 +184,11 @@ export class DossierWorkflowService {
     requestId: string,
     dto: RespondChangeRequestDto,
   ) {
-    const dossier = await this.dataSource.getRepository(Dossier).findOne({
-      where: { id: dossierId, organizationId: user.organizationId },
-    });
+    const dossier = this.dossierAccessPolicy
+      ? await this.dossierAccessPolicy.assertCanView(user, dossierId)
+      : await this.dataSource.getRepository(Dossier).findOne({
+          where: { id: dossierId, organizationId: user.organizationId },
+        });
     if (!dossier) throw new NotFoundException('Không tìm thấy hồ sơ');
 
     const isAssignedSales =
@@ -406,15 +413,27 @@ export class DossierWorkflowService {
     user: CurrentUserPayload,
     dossierId: string,
   ) {
-    const dossier = await repository
+    const qb = repository
       .createQueryBuilder('dossier')
-      .setLock('pessimistic_write')
+      .setLock('pessimistic_write');
+    if (typeof qb.leftJoinAndSelect === 'function') {
+      qb.leftJoinAndSelect('dossier.salesUser', 'salesUser')
+        .leftJoinAndSelect('dossier.operatorUser', 'operatorUser');
+    }
+    const dossier = await qb
       .where('dossier.id = :dossierId', { dossierId })
       .andWhere('dossier.organizationId = :organizationId', {
         organizationId: user.organizationId,
       })
       .getOne();
     if (!dossier) throw new NotFoundException('Không tìm thấy hồ sơ');
+    if (this.dossierAccessPolicy) {
+      this.dossierAccessPolicy.assertCanViewDossierEntity(
+        user,
+        dossier,
+        dossierId,
+      );
+    }
     return dossier;
   }
 
@@ -422,31 +441,13 @@ export class DossierWorkflowService {
     user: CurrentUserPayload,
     dossierId: string,
   ) {
+    if (this.dossierAccessPolicy) {
+      return this.dossierAccessPolicy.assertCanView(user, dossierId);
+    }
     const dossier = await this.dataSource.getRepository(Dossier).findOne({
       where: { id: dossierId, organizationId: user.organizationId },
-      relations: { salesUser: true, operatorUser: true },
     });
     if (!dossier) throw new NotFoundException('Không tìm thấy hồ sơ');
-    const canViewAll =
-      this.isAdmin(user) ||
-      user.permissions.includes('*') ||
-      user.permissions.includes('dossier.view.all');
-    const canViewOwn =
-      user.permissions.includes('dossier.view.own') &&
-      [dossier.salesUserId, dossier.operatorUserId, dossier.createdBy].includes(
-        user.id,
-      );
-    const canViewTeam =
-      user.permissions.includes('dossier.view.team') &&
-      !!user.departmentId &&
-      [
-        dossier.salesUser?.departmentId,
-        dossier.operatorUser?.departmentId,
-      ].includes(user.departmentId);
-    if (!canViewAll && !canViewOwn && !canViewTeam)
-      throw new ForbiddenException(
-        'Bạn không có quyền xem workflow của hồ sơ này',
-      );
     return dossier;
   }
 
@@ -665,6 +666,9 @@ export class DossierWorkflowService {
   }
 
   private isAdmin(user: CurrentUserPayload) {
+    if (this.dossierAccessPolicy) {
+      return this.dossierAccessPolicy.isAdmin(user);
+    }
     return user.roles.some((role) => ADMIN_ROLES.includes(role));
   }
 
@@ -894,4 +898,289 @@ export class DossierWorkflowService {
       }
     }
   }
+
+  // =========================================================================
+  // Unified Approvals Read Model (Folded from shallow ApprovalsService)
+  // =========================================================================
+
+  async findAllApprovals(
+    organizationId: string,
+    userId: string,
+    query: WorkflowListQueryDto,
+  ) {
+    const page = query.page || 1;
+    const pageSize = Math.min(query.pageSize || 20, 100);
+    const qb = this.dataSource
+      .getRepository(ApprovalRequest)
+      .createQueryBuilder('approval')
+      .leftJoinAndSelect('approval.dossier', 'dossier')
+      .leftJoinAndSelect('approval.estimate', 'estimate')
+      .leftJoinAndSelect('approval.reviewer', 'reviewer')
+      .where('approval.organizationId = :organizationId', { organizationId })
+      .andWhere(
+        '(approval.reviewerUserId = :userId OR approval.reviewerUserId IS NULL)',
+        { userId },
+      );
+    if (query.status)
+      qb.andWhere('approval.status = :status', { status: query.status });
+    qb.orderBy('approval.requestedAt', 'DESC')
+      .skip((page - 1) * pageSize)
+      .take(pageSize);
+    const [items, total] = await qb.getManyAndCount();
+    return {
+      data: items.map((item) => this.approvalItemResponse(item)),
+      meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+    };
+  }
+
+  async findOneApproval(organizationId: string, userId: string, id: string) {
+    const item = await this.dataSource
+      .getRepository(ApprovalRequest)
+      .createQueryBuilder('approval')
+      .leftJoinAndSelect('approval.dossier', 'dossier')
+      .leftJoinAndSelect('approval.estimate', 'estimate')
+      .leftJoinAndSelect('approval.reviewer', 'reviewer')
+      .where('approval.id = :id', { id })
+      .andWhere('approval.organizationId = :organizationId', { organizationId })
+      .andWhere(
+        '(approval.reviewerUserId = :userId OR approval.reviewerUserId IS NULL)',
+        { userId },
+      )
+      .getOne();
+    if (!item) throw new NotFoundException('Không tìm thấy yêu cầu phê duyệt');
+    return { data: this.approvalItemResponse(item) };
+  }
+
+  private approvalItemResponse(item: ApprovalRequest) {
+    return {
+      id: item.id,
+      dossierId: item.dossierId,
+      estimateId: item.estimateId,
+      stepNo: item.stepNo,
+      stepCode: item.stepCode,
+      reviewerUserId: item.reviewerUserId,
+      reviewer: item.reviewer
+        ? {
+            id: item.reviewer.id,
+            fullName: item.reviewer.fullName,
+            email: item.reviewer.email,
+          }
+        : undefined,
+      status: item.status,
+      requestedAt: item.requestedAt,
+      decidedAt: item.decidedAt,
+      comment: item.comment,
+      dossier: item.dossier
+        ? {
+            id: item.dossier.id,
+            code: item.dossier.code,
+            name: item.dossier.name,
+          }
+        : undefined,
+      estimate: item.estimate
+        ? {
+            id: item.estimate.id,
+            versionNo: item.estimate.versionNo,
+            status: item.estimate.status,
+          }
+        : undefined,
+    };
+  }
+
+  // =========================================================================
+  // Atomic Estimate Revision & Import Initialization Seams (Ticket 05)
+  // =========================================================================
+
+  async reviseApprovedEstimateInTx(
+    manager: EntityManager,
+    params: {
+      user: CurrentUserPayload;
+      dossier: Dossier;
+      estimate: Estimate;
+      wasApproved: boolean;
+      targetEstimateStatus: EstimateStatus;
+    },
+  ): Promise<{
+    targetDossierStatus?: DossierStatus;
+    updatedDossier?: Dossier;
+    historyRecords: WorkflowHistory[];
+  }> {
+    const { user, dossier, estimate, wasApproved, targetEstimateStatus } =
+      params;
+    const historyRecords: WorkflowHistory[] = [];
+
+    if (!wasApproved && dossier.status !== DossierStatus.EDITING) {
+      return { updatedDossier: dossier, historyRecords };
+    }
+
+    if (
+      dossier.status === DossierStatus.COMPLETED &&
+      targetEstimateStatus !== EstimateStatus.SUBMITTED
+    ) {
+      return { updatedDossier: dossier, historyRecords };
+    }
+
+    const targetDossierStatus =
+      targetEstimateStatus === EstimateStatus.SUBMITTED
+        ? DossierStatus.RESUBMITTED
+        : DossierStatus.EDITING;
+
+    const historyRepo = manager.getRepository(WorkflowHistory);
+
+    // If dossier was APPROVED and is directly resubmitted, record intermediate EDITING state
+    if (
+      dossier.status === DossierStatus.APPROVED &&
+      targetDossierStatus === DossierStatus.RESUBMITTED
+    ) {
+      const intermediateHistory = await historyRepo.save(
+        historyRepo.create({
+          organizationId: user.organizationId,
+          dossierId: dossier.id,
+          estimateId: estimate.id,
+          fromStatus: DossierStatus.APPROVED,
+          toStatus: DossierStatus.EDITING,
+          action: 'REVISE',
+          actorUserId: user.id,
+          comment: 'Bắt đầu chỉnh sửa dự toán đã duyệt',
+        }),
+      );
+      historyRecords.push(intermediateHistory);
+    }
+
+    const fromStatus =
+      dossier.status === DossierStatus.APPROVED &&
+      targetDossierStatus === DossierStatus.RESUBMITTED
+        ? DossierStatus.EDITING
+        : dossier.status;
+
+    if (dossier.status !== targetDossierStatus) {
+      dossier.status = targetDossierStatus;
+      const updatedDossier = await manager.getRepository(Dossier).save(dossier);
+
+      const finalHistory = await historyRepo.save(
+        historyRepo.create({
+          organizationId: user.organizationId,
+          dossierId: dossier.id,
+          estimateId: estimate.id,
+          fromStatus,
+          toStatus: targetDossierStatus,
+          action:
+            targetDossierStatus === DossierStatus.RESUBMITTED
+              ? 'RESUBMIT'
+              : 'REVISE',
+          actorUserId: user.id,
+          comment:
+            targetDossierStatus === DossierStatus.RESUBMITTED
+              ? 'Hoàn tất chỉnh sửa dự toán và gửi duyệt lại'
+              : 'Lưu bản chỉnh sửa dự toán',
+        }),
+      );
+      historyRecords.push(finalHistory);
+
+      if (targetDossierStatus === DossierStatus.RESUBMITTED) {
+        await this.updateApproval(
+          manager,
+          updatedDossier,
+          estimate,
+          user,
+          'Dự toán được gửi duyệt lại sau khi chỉnh sửa',
+          'RESUBMIT',
+        );
+      }
+
+      return { targetDossierStatus, updatedDossier, historyRecords };
+    }
+
+    return { targetDossierStatus, updatedDossier: dossier, historyRecords };
+  }
+
+  async initializeImportedDossierInTx(
+    manager: EntityManager,
+    params: {
+      user: CurrentUserPayload;
+      dossier: Dossier;
+      estimate?: Estimate;
+    },
+  ): Promise<{
+    initialStatus: DossierStatus;
+    approvalRequest?: ApprovalRequest;
+    workflowHistory: WorkflowHistory;
+  }> {
+    const { user, dossier, estimate } = params;
+    const organizationId = user.organizationId;
+
+    const initialStatus = this.isAdmin(user)
+      ? DossierStatus.IN_REVIEW
+      : (user.roles || []).includes('OPERATOR')
+        ? DossierStatus.SUBMITTED
+        : DossierStatus.DRAFT;
+
+    dossier.status = initialStatus;
+    if (initialStatus === DossierStatus.IN_REVIEW && !dossier.operatorUserId) {
+      dossier.operatorUserId = user.id;
+    }
+    await manager.getRepository(Dossier).save(dossier);
+
+    if (estimate) {
+      estimate.status =
+        initialStatus === DossierStatus.IN_REVIEW
+          ? EstimateStatus.IN_REVIEW
+          : initialStatus === DossierStatus.SUBMITTED
+            ? EstimateStatus.SUBMITTED
+            : EstimateStatus.DRAFT;
+      await manager.getRepository(Estimate).save(estimate);
+    }
+
+    const historyAction: ExtendedWorkflowHistoryAction =
+      initialStatus === DossierStatus.DRAFT
+        ? 'DRAFT'
+        : initialStatus === DossierStatus.SUBMITTED
+          ? 'SUBMIT'
+          : 'START_REVIEW';
+
+    const historyRepo = manager.getRepository(WorkflowHistory);
+    const workflowHistory = await historyRepo.save(
+      historyRepo.create({
+        organizationId,
+        dossierId: dossier.id,
+        estimateId: estimate?.id,
+        fromStatus: DossierStatus.DRAFT,
+        toStatus: initialStatus,
+        action: historyAction,
+        actorUserId: user.id,
+        comment: 'Khởi tạo hồ sơ từ tập tin Excel import dự toán',
+      }),
+    );
+
+    let approvalRequest: ApprovalRequest | undefined;
+    if (
+      estimate &&
+      (initialStatus === DossierStatus.SUBMITTED ||
+        initialStatus === DossierStatus.IN_REVIEW)
+    ) {
+      const approvalRepo = manager.getRepository(ApprovalRequest);
+      approvalRequest = await approvalRepo.save(
+        approvalRepo.create({
+          organizationId,
+          dossierId: dossier.id,
+          estimateId: estimate.id,
+          stepNo: 1,
+          stepCode:
+            initialStatus === DossierStatus.IN_REVIEW
+              ? 'EXECUTIVE_REVIEW'
+              : 'OPERATOR_REVIEW',
+          reviewerUserId:
+            initialStatus === DossierStatus.IN_REVIEW
+              ? user.id
+              : dossier.operatorUserId,
+          status: ApprovalStatus.PENDING,
+          comment: 'Yêu cầu duyệt dự toán khởi tạo từ file import Excel',
+        }),
+      );
+    }
+
+    return { initialStatus, approvalRequest, workflowHistory };
+  }
 }
+
+export { DossierWorkflowService as DossierLifecycleService };

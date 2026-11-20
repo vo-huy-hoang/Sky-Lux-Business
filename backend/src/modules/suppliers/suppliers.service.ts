@@ -22,7 +22,12 @@ import {
 } from './dto/query-supplier-dossiers.dto';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { PaginatedResponse } from '../../common/interfaces/api-response.interface';
-import { DossierStatus } from '../../common/enums';
+import { DossierStatus, EstimateStatus } from '../../common/enums';
+import { FinancialReadModelService } from '../financials/financial-read-model.service';
+import {
+  LATEST_APPROVED_ESTIMATE_SUBQUERY,
+  VALUED_COST_NET_SQL,
+} from '../financials/financial-read-model.sql';
 
 export interface SupplierWithTotalAmount extends Supplier {
   totalAmount?: number;
@@ -39,6 +44,7 @@ export class SuppliersService {
     private readonly supplierTypeRepository: Repository<SupplierType>,
     @InjectRepository(EstimateCostLine)
     private readonly estimateCostLineRepository: Repository<EstimateCostLine>,
+    private readonly financialReadModel: FinancialReadModelService,
     @Optional()
     private readonly auditLogsService?: AuditLogsService,
   ) {}
@@ -142,39 +148,12 @@ export class SuppliersService {
     const [items, total] = await queryBuilder.getManyAndCount();
     const totalPages = Math.ceil(total / limit) || 1;
 
-    if (
-      items.length > 0 &&
-      this.estimateCostLineRepository?.createQueryBuilder
-    ) {
+    if (items.length > 0) {
       const supplierIds = items.map((s) => s.id);
-      const rawAmounts = await this.estimateCostLineRepository
-        .createQueryBuilder('line')
-        .select('line.supplierId', 'supplierId')
-        .addSelect(
-          `COALESCE(SUM(CASE
-            WHEN dossier.status IN (:...countableStatuses)
-            THEN line.net_amount
-            ELSE 0
-          END), 0)`,
-          'totalAmount',
-        )
-        .innerJoin('line.estimate', 'estimate')
-        .innerJoin('estimate.dossier', 'dossier')
-        .where('line.supplierId IN (:...supplierIds)', { supplierIds })
-        .andWhere('line.organizationId = :organizationId', { organizationId })
-        .andWhere('dossier.organizationId = :organizationId', {
-          organizationId,
-        })
-        .setParameters({
-          countableStatuses: [DossierStatus.COMPLETED, DossierStatus.LOCKED],
-        })
-        .groupBy('line.supplierId')
-        .getRawMany();
-
-      const amountMap = new Map<string, number>();
-      rawAmounts.forEach((row) => {
-        amountMap.set(row.supplierId, Number(row.totalAmount || 0));
-      });
+      const amountMap = await this.financialReadModel.getSupplierTotalsByIds(
+        organizationId,
+        supplierIds,
+      );
 
       items.forEach((item: SupplierWithTotalAmount) => {
         item.totalAmount = amountMap.get(item.id) || 0;
@@ -208,33 +187,11 @@ export class SuppliersService {
       );
     }
 
-    if (this.estimateCostLineRepository?.createQueryBuilder) {
-      const raw = await this.estimateCostLineRepository
-        .createQueryBuilder('line')
-        .select(
-          `COALESCE(SUM(CASE
-            WHEN dossier.status IN (:...countableStatuses)
-            THEN line.net_amount
-            ELSE 0
-          END), 0)`,
-          'totalAmount',
-        )
-        .innerJoin('line.estimate', 'estimate')
-        .innerJoin('estimate.dossier', 'dossier')
-        .where('line.supplierId = :id', { id })
-        .andWhere('line.organizationId = :organizationId', { organizationId })
-        .andWhere('dossier.organizationId = :organizationId', {
-          organizationId,
-        })
-        .setParameters({
-          countableStatuses: [DossierStatus.COMPLETED, DossierStatus.LOCKED],
-        })
-        .getRawOne();
-
-      (supplier as SupplierWithTotalAmount).totalAmount = Number(
-        raw?.totalAmount || 0,
-      );
-    }
+    const amountMap = await this.financialReadModel.getSupplierTotalsByIds(
+      organizationId,
+      [id],
+    );
+    (supplier as SupplierWithTotalAmount).totalAmount = amountMap.get(id) || 0;
 
     return supplier;
   }
@@ -556,7 +513,14 @@ export class SuppliersService {
     qb.where('line.supplierId = :supplierId', { supplierId })
       .andWhere('line.organizationId = :organizationId', { organizationId })
       .andWhere('estimate.organizationId = :organizationId', { organizationId })
-      .andWhere('dossier.organizationId = :organizationId', { organizationId });
+      .andWhere('dossier.organizationId = :organizationId', { organizationId })
+      .andWhere('estimate.status = :approvedEstimateStatus', {
+        approvedEstimateStatus: EstimateStatus.APPROVED,
+      })
+      .andWhere(`estimate.id = ${LATEST_APPROVED_ESTIMATE_SUBQUERY}`, {
+        organizationId,
+        approvedEstimateStatus: EstimateStatus.APPROVED,
+      });
 
     if (queryDto.status) {
       qb.andWhere('dossier.status = :status', { status: queryDto.status });
@@ -641,7 +605,10 @@ export class SuppliersService {
         'operatorOrSalesName',
       )
       .addSelect('COUNT(line.id)', 'lineCount')
-      .addSelect('COALESCE(SUM(line.net_amount), 0)', 'totalCost')
+      .addSelect(
+        `COALESCE(SUM(${VALUED_COST_NET_SQL('line')}), 0)`,
+        'totalCost',
+      )
       .groupBy('dossier.id')
       .addGroupBy('dossier.code')
       .addGroupBy('dossier.name')
@@ -664,7 +631,7 @@ export class SuppliersService {
       status: r.status,
       operatorOrSalesName: r.operatorOrSalesName || undefined,
       lineCount: Number(r.lineCount || 0),
-      totalCost: Number(r.totalCost || 0),
+      totalCost: Math.round(Number(r.totalCost || 0)),
     }));
 
     return {

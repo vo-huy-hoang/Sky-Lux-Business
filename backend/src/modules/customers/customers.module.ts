@@ -9,6 +9,8 @@ import { Dossier } from '../dossiers/entities/dossier.entity';
 import { User } from '../users/entities/user.entity';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { CustomerActivitiesService } from './customer-activities.service';
+import { FinancialsModule } from '../financials/financials.module';
+import { DossierAccessModule } from '../dossiers/dossier-access.module';
 
 @Module({
   imports: [
@@ -20,6 +22,8 @@ import { CustomerActivitiesService } from './customer-activities.service';
       User,
     ]),
     AuditLogsModule,
+    FinancialsModule,
+    DossierAccessModule,
   ],
   controllers: [CustomersController],
   providers: [CustomersService, CustomerActivitiesService],

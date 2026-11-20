@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { KpisController } from './kpis.controller';
 import { KpisService } from './kpis.service';
+import { FinancialReadModelService } from '../financials/financial-read-model.service';
 import { KpiTarget } from './entities/kpi-target.entity';
 import { KpiResult } from './entities/kpi-result.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
@@ -58,6 +59,7 @@ describe('KPIs Module (Integration)', () => {
       controllers: [KpisController],
       providers: [
         KpisService,
+        FinancialReadModelService,
         {
           provide: getRepositoryToken(KpiTarget),
           useValue: mockTargetRepository,

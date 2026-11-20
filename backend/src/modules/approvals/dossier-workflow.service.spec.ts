@@ -51,6 +51,7 @@ describe('DossierWorkflowService', () => {
       save: jest.fn(),
       createQueryBuilder: jest.fn(() => ({
         setLock: jest.fn().mockReturnThis(),
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         getOne: jest.fn(async () => dossierRepository.findOne()),
@@ -97,10 +98,23 @@ describe('DossierWorkflowService', () => {
     const redisService = {
       delByPattern: jest.fn().mockResolvedValue(undefined),
     };
+    const dossierAccessPolicy = {
+      canViewDossier: jest.fn().mockReturnValue(true),
+      assertCanViewDossierEntity: jest.fn((u, d) => d),
+      assertCanView: jest.fn().mockImplementation(async (u, id) => ({
+        id,
+        organizationId: u.organizationId,
+        salesUserId: u.id,
+      })),
+      isAdmin: jest.fn((u) =>
+        u.roles?.some((r: string) => ['SUPER_ADMIN', 'CEO_ADMIN'].includes(r)),
+      ),
+    };
     return {
       service: new DossierWorkflowService(
         dataSource,
         auditLogsService as any,
+        dossierAccessPolicy as any,
         notificationsService as any,
         redisService as any,
       ),

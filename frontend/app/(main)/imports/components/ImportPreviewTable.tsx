@@ -21,6 +21,10 @@ import {
   useImportValidation,
 } from "../hooks/useImportValidation";
 import {
+  parseVatRate,
+  reconcileEstimateValuation,
+} from "@/lib/estimate-valuation";
+import {
   BarChartOutlined,
   CalculatorOutlined,
   CheckCircleOutlined,
@@ -67,16 +71,6 @@ function formatVND(num: number | string | undefined | null) {
     return vndFormatter.format(Math.round(parsed));
   }
   return String(num);
-}
-
-function vatRateOf(value: unknown): number {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  const normalized = String(value ?? "")
-    .trim()
-    .replace(/%/g, "")
-    .replace(/,/g, ".");
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 export function ImportPreviewTable({
@@ -164,87 +158,29 @@ export function ImportPreviewTable({
   }, [costsWithOverrides]);
 
   const currentReconciliation = useMemo(() => {
-    const calcRev = totalRevenue;
-    const calcCost = totalCost;
-
-    // Use VAT-adjusted net gross profit from calculateImportSummary (standard travel agency formula)
-    const netGrossProfit = summary.total.grossProfit;
-    const netProfitMargin =
-      summary.total.netRevenue > 0
-        ? Number(
-            ((netGrossProfit / summary.total.netRevenue) * 100).toFixed(2),
-          )
-        : 0;
-
-    const grossProfit = calcRev - calcCost;
-    const grossProfitMargin =
-      calcRev > 0 ? Number(((grossProfit / calcRev) * 100).toFixed(2)) : 0;
-
-    let calcGrossProfit = grossProfit;
-    let calcProfitMargin = grossProfitMargin;
-    let prfDelta = 0;
-
-    if (sourceSummary.totalProfit !== undefined) {
-      const netDelta = Math.abs(netGrossProfit - sourceSummary.totalProfit);
-      const grossDelta = Math.abs(grossProfit - sourceSummary.totalProfit);
-      if (netDelta <= 1000 && netDelta < grossDelta) {
-        calcGrossProfit = netGrossProfit;
-        calcProfitMargin = netProfitMargin;
-        prfDelta = netDelta;
-      } else if (grossDelta <= 1000) {
-        calcGrossProfit = grossProfit;
-        calcProfitMargin = grossProfitMargin;
-        prfDelta = grossDelta;
-      } else {
-        if (netDelta < grossDelta) {
-          calcGrossProfit = netGrossProfit;
-          calcProfitMargin = netProfitMargin;
-          prfDelta = netDelta;
-        } else {
-          calcGrossProfit = grossProfit;
-          calcProfitMargin = grossProfitMargin;
-          prfDelta = grossDelta;
-        }
-      }
-    }
-
-    const revDelta = sourceSummary.totalRevenue
-      ? Math.abs(calcRev - sourceSummary.totalRevenue)
-      : 0;
-    const cstDelta = sourceSummary.totalCost
-      ? Math.abs(calcCost - sourceSummary.totalCost)
-      : 0;
-
-    const hasLineTampering = costsWithOverrides.some((c) => c.isTamperedFormula);
-    let status: "MATCHED" | "ROUNDING_TOLERANCE" | "MISMATCH" = "MATCHED";
-    if (
-      revDelta > 1000 ||
-      cstDelta > 1000 ||
-      prfDelta > 1000 ||
-      hasLineTampering
-    ) {
-      status = "MISMATCH";
-    } else if (revDelta > 1 || cstDelta > 1 || prfDelta > 1) {
-      status = "ROUNDING_TOLERANCE";
-    }
+    const recon = reconcileEstimateValuation(
+      allRevenues,
+      costsWithOverrides,
+      sourceSummary,
+    );
 
     return {
-      calculatedRevenue: calcRev,
-      calculatedCost: calcCost,
-      calculatedGrossProfit: calcGrossProfit,
-      calculatedProfitMarginPercent: calcProfitMargin,
-      revenueDelta: revDelta,
-      costDelta: cstDelta,
-      profitDelta: prfDelta,
-      status,
+      calculatedRevenue: totalRevenue,
+      calculatedCost: totalCost,
+      calculatedGrossProfit: recon.calculatedProfit,
+      calculatedProfitMarginPercent: recon.calculatedMargin,
+      revenueDelta: recon.revenueDelta,
+      costDelta: recon.costDelta,
+      profitDelta: recon.profitDelta,
+      status: recon.status,
       warnings: hookReconciliation.warnings || [],
     };
   }, [
     totalRevenue,
     totalCost,
-    summary,
-    sourceSummary,
+    allRevenues,
     costsWithOverrides,
+    sourceSummary,
     hookReconciliation.warnings,
   ]);
 
@@ -1151,7 +1087,7 @@ export function ImportPreviewTable({
                           <td className="py-1.5 px-2 text-center tabular-nums font-mono text-xs">
                             <Select
                               size="small"
-                              value={vatRateOf(row.vatRate)}
+                              value={parseVatRate(row.vatRate)}
                               onChange={(val) => handleVatChange(row.id, val)}
                               className={`w-20 text-xs tabular-nums font-mono font-semibold ${
                                 isVatOverridden

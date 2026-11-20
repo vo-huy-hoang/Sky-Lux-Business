@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsDateString,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -9,6 +10,11 @@ import {
   Max,
   Min,
 } from 'class-validator';
+
+export enum ReportDateBasis {
+  LOCKED_AT = 'lockedAt',
+  APPROVED_AT = 'approvedAt',
+}
 
 export class ReportQueryDto {
   @ApiPropertyOptional({ description: 'Ngày bắt đầu kỳ báo cáo (YYYY-MM-DD)' })
@@ -20,6 +26,16 @@ export class ReportQueryDto {
   @IsOptional()
   @IsDateString()
   periodEnd?: string;
+
+  @ApiPropertyOptional({
+    enum: ReportDateBasis,
+    default: ReportDateBasis.LOCKED_AT,
+    description:
+      'Mốc ghi nhận kỳ báo cáo: lockedAt (kỳ khóa sổ kế toán, mặc định) hoặc approvedAt (kỳ phê duyệt vận hành)',
+  })
+  @IsOptional()
+  @IsEnum(ReportDateBasis)
+  dateBasis?: ReportDateBasis;
 
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()

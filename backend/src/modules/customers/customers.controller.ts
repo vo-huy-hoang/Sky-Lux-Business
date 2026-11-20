@@ -27,6 +27,7 @@ import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
 import { QueryDossierDto } from '../dossiers/dto/query-dossier.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { QueryCustomerActivityDto } from './dto/query-customer-activity.dto';
@@ -213,14 +214,15 @@ export class CustomersController {
     description: 'Lấy danh sách hồ sơ tour thành công',
   })
   findCustomerDossiers(
-    @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser() user: CurrentUserPayload,
     @Param('id', ParseUUIDPipe) id: string,
     @Query() queryDto: QueryDossierDto,
   ) {
     return this.customersService.findCustomerDossiers(
-      organizationId,
+      user.organizationId,
       id,
       queryDto,
+      user,
     );
   }
 

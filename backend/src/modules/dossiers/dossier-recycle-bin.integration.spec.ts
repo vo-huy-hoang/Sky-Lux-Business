@@ -414,10 +414,10 @@ describe('Dossier Recycle Bin & Anti-Duplication Integration Suite (Ticket 05)',
       expect(ids).toContain('dossier-deleted-B');
     });
 
-    it('Sales B cố tình gọi API restore hồ sơ của Sales A -> Bị từ chối (403 Forbidden)', async () => {
+    it('Sales B cố tình gọi API restore hồ sơ của Sales A -> Bị từ chối (404 Not Found anti-enumeration)', async () => {
       await expect(
         dossiersController.restore(mockSalesB, 'dossier-deleted-A'),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('Sales A cố tình khôi phục hồ sơ đã xóa ở trạng thái APPROVED -> Bị từ chối (403 Forbidden)', async () => {

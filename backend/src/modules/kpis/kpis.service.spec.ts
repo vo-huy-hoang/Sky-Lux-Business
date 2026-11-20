@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { KpisService } from './kpis.service';
+import { FinancialReadModelService } from '../financials/financial-read-model.service';
 import { KpiTarget } from './entities/kpi-target.entity';
 import { KpiResult } from './entities/kpi-result.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
@@ -55,6 +56,7 @@ describe('KpisService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         KpisService,
+        FinancialReadModelService,
         {
           provide: getRepositoryToken(KpiTarget),
           useValue: targetRepository,
@@ -119,6 +121,62 @@ describe('KpisService', () => {
       expect(result.data).toHaveLength(1);
       expect(result.data[0].actualValue).toBe(5);
       expect(result.data[0].achievementRate).toBe(50);
+    });
+
+    it('computes REVENUE and PROFIT KPI metrics via FinancialReadModel with UTC+7 bounds', async () => {
+      targetRepository.find.mockResolvedValue([
+        { id: 't-rev', metricCode: KpiMetric.REVENUE, targetValue: 200_000_000 },
+        { id: 't-prf', metricCode: KpiMetric.PROFIT, targetValue: 30_000_000 },
+      ]);
+      resultRepository.findOne.mockResolvedValue(null);
+
+      const estQb = {
+        innerJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([{ id: 'est-v2' }]),
+      };
+      estimateRepository.createQueryBuilder.mockReturnValue(estQb);
+
+      const revQb = {
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getRawOne: jest
+          .fn()
+          .mockResolvedValue({ revenueGross: '108000000', revenueNet: '100000000' }),
+      };
+      revenueLineRepository.createQueryBuilder.mockReturnValue(revQb);
+
+      const costQb = {
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getRawOne: jest
+          .fn()
+          .mockResolvedValue({ costGross: '91400000', costNet: '85000000' }),
+      };
+      costLineRepository.createQueryBuilder.mockReturnValue(costQb);
+
+      const result = await service.findMyKpi('org-id', 'user-id', {
+        periodType: KpiPeriodType.MONTHLY,
+        date: '2026-11-01T00:00:00+07:00',
+      });
+
+      expect(result.data[0].actualValue).toBe(100_000_000);
+      expect(result.data[0].achievementRate).toBe(50);
+      expect(result.data[1].actualValue).toBe(15_000_000);
+      expect(result.data[1].achievementRate).toBe(50);
+      expect(estQb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('estimate.approvedAt BETWEEN :startUtc AND :endUtc'),
+        expect.objectContaining({
+          startUtc: new Date('2026-10-31T17:00:00.000Z'),
+          endUtc: new Date('2026-11-30T16:59:59.999Z'),
+        }),
+      );
     });
   });
 });

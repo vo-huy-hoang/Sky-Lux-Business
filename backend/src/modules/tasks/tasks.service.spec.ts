@@ -16,12 +16,14 @@ import { TaskStatus } from '../../common/enums';
 import { RedisService } from '../../common/redis/redis.service';
 import { DataSource } from 'typeorm';
 import { User } from '../users/entities/user.entity';
+import { DossierAccessPolicyService } from '../dossiers/dossier-access-policy.service';
 
 describe('TasksService', () => {
   let service: TasksService;
   let taskRepository: jest.Mocked<Repository<Task>>;
   let checklistItemRepository: jest.Mocked<Repository<TaskChecklistItem>>;
   let dossiersService: jest.Mocked<DossiersService>;
+  let dossierAccessPolicy: jest.Mocked<DossierAccessPolicyService>;
   let notificationsService: any;
   let redisService: jest.Mocked<RedisService>;
   let dataSource: jest.Mocked<DataSource>;
@@ -54,6 +56,11 @@ describe('TasksService', () => {
 
   const mockDossiersService = {
     findOne: jest.fn(),
+  };
+
+  const mockDossierAccessPolicy = {
+    assertCanView: jest.fn(),
+    canViewDossier: jest.fn(),
   };
 
   const mockRedisService = {
@@ -117,6 +124,10 @@ describe('TasksService', () => {
           provide: DataSource,
           useValue: mockDataSource,
         },
+        {
+          provide: DossierAccessPolicyService,
+          useValue: mockDossierAccessPolicy,
+        },
       ],
     }).compile();
 
@@ -124,6 +135,7 @@ describe('TasksService', () => {
     taskRepository = module.get(getRepositoryToken(Task));
     checklistItemRepository = module.get(getRepositoryToken(TaskChecklistItem));
     dossiersService = module.get(DossiersService);
+    dossierAccessPolicy = module.get(DossierAccessPolicyService);
     notificationsService = module.get(NotificationsService);
     redisService = module.get(RedisService);
     dataSource = module.get(DataSource);
@@ -152,6 +164,22 @@ describe('TasksService', () => {
       expect(result.data.length).toBe(1);
       expect(result.meta.total).toEqual(1);
     });
+
+    it('should throw NotFoundException if dossierId query is not accessible to user', async () => {
+      dossierAccessPolicy.assertCanView.mockRejectedValue(
+        new NotFoundException('Hồ sơ không tồn tại'),
+      );
+
+      await expect(
+        service.findAll(mockUserPayload, {
+          dossierId: 'unauthorized-dossier',
+        } as QueryTaskDto),
+      ).rejects.toThrow(NotFoundException);
+      expect(dossierAccessPolicy.assertCanView).toHaveBeenCalledWith(
+        mockUserPayload,
+        'unauthorized-dossier',
+      );
+    });
   });
 
   describe('findOne', () => {
@@ -172,6 +200,25 @@ describe('TasksService', () => {
         },
       });
       expect(result.data.id).toEqual(mockTask.id);
+    });
+
+    it('should sanitize dossier from response if user cannot view task dossier', async () => {
+      const taskWithDossier = {
+        ...mockTask,
+        dossierId: 'hidden-dos-id',
+        dossier: {
+          id: 'hidden-dos-id',
+          organizationId: 'org-uuid',
+          code: 'TOUR-SECRET',
+        },
+      } as unknown as Task;
+      taskRepository.findOne.mockResolvedValue(taskWithDossier);
+      dossierAccessPolicy.canViewDossier.mockReturnValue(false);
+
+      const result = await service.findOne(mockUserPayload, 'task-uuid');
+
+      expect(result.data.dossierId).toBeUndefined();
+      expect(result.data.dossier).toBeUndefined();
     });
 
     it('should throw NotFoundException if not found', async () => {
@@ -201,6 +248,11 @@ describe('TasksService', () => {
 
       const result = await service.create(mockUserPayload, createDto);
 
+      expect(dossiersService.findOne).toHaveBeenCalledWith(
+        mockUserPayload,
+        'dossier-uuid',
+        false,
+      );
       expect(result.data.progressPercent).toEqual(50);
       expect(result.data.status).toEqual(TaskStatus.IN_PROGRESS);
       expect(redisService.delByPattern).toHaveBeenCalled();

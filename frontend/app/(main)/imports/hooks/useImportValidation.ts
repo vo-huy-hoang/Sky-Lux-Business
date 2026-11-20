@@ -4,7 +4,11 @@ import {
   ImportRow,
   PaginatedImportRowsResponse,
 } from "@/types/import";
-import { EXCEL_VAT_DIVISOR } from "@/lib/financial-calculations";
+import {
+  parseVatRate,
+  valuateEstimate,
+  reconcileEstimateValuation,
+} from "@/lib/estimate-valuation";
 
 export interface ValidatedLine {
   id: string;
@@ -90,16 +94,6 @@ function amountOf(line: ValidatedLine): number {
   );
 }
 
-function vatRateOf(value: unknown): number {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  const normalized = String(value ?? "")
-    .trim()
-    .replace(/%/g, "")
-    .replace(/,/g, ".");
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 /**
  * Tổng hợp khớp công thức trong sheet DỰ TOÁN của file Excel mẫu.
  * Nhóm có VAT chia 1.08; nhóm chưa VAT giữ nguyên.
@@ -108,42 +102,28 @@ export function calculateImportSummary(
   revenues: ValidatedLine[] = [],
   costs: ValidatedLine[] = [],
 ): ImportSummary {
-  const totalRevenueGross = revenues.reduce(
-    (sum, line) => sum + amountOf(line),
-    0,
-  );
-  const service10CostGross = costs
-    // Every VAT cost line belongs to Section I, including uncategorized
-    // entries such as Section I.4 ("CÁC DỊCH VỤ KHÁC").
-    .filter((line) => vatRateOf(line.vatRate) > 0)
-    .reduce((sum, line) => sum + amountOf(line), 0);
-  const service0CostGross = costs
-    .filter((line) => vatRateOf(line.vatRate) === 0)
-    .reduce((sum, line) => sum + amountOf(line), 0);
-
-  const service10Revenue = totalRevenueGross / EXCEL_VAT_DIVISOR;
-  const service10Cost = service10CostGross / EXCEL_VAT_DIVISOR;
+  const valuation = valuateEstimate(revenues, costs);
 
   const service10: ImportSummaryRow = {
-    customerRevenue: totalRevenueGross,
-    netRevenue: service10Revenue,
-    cost: service10CostGross,
-    netCost: service10Cost,
-    grossProfit: service10Revenue - service10Cost,
+    customerRevenue: valuation.revenueGross,
+    netRevenue: valuation.revenueNet,
+    cost: valuation.costVatGross,
+    netCost: valuation.costVatNet,
+    grossProfit: valuation.revenueNet - valuation.costVatNet,
   };
   const service0: ImportSummaryRow = {
     customerRevenue: 0,
     netRevenue: 0,
-    cost: service0CostGross,
-    netCost: service0CostGross,
-    grossProfit: -service0CostGross,
+    cost: valuation.costNoVatGross,
+    netCost: valuation.costNoVatGross,
+    grossProfit: -valuation.costNoVatGross,
   };
   const total: ImportSummaryRow = {
-    customerRevenue: service10.customerRevenue + service0.customerRevenue,
-    netRevenue: service10.netRevenue + service0.netRevenue,
-    cost: service10.cost + service0.cost,
-    netCost: service10.netCost + service0.netCost,
-    grossProfit: service10.grossProfit + service0.grossProfit,
+    customerRevenue: valuation.revenueGross,
+    netRevenue: valuation.revenueNet,
+    cost: valuation.costGross,
+    netCost: valuation.costNet,
+    grossProfit: valuation.profitExact,
   };
 
   return {
@@ -151,8 +131,8 @@ export function calculateImportSummary(
     service0,
     total,
     profitMargin:
-      total.netRevenue > 0
-        ? `${((total.grossProfit / total.netRevenue) * 100).toFixed(1)}%`
+      valuation.revenueNet > 0
+        ? `${((valuation.profitExact / valuation.revenueNet) * 100).toFixed(1)}%`
         : "0%",
   };
 }
@@ -343,7 +323,7 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
           totalAmountError = true;
         } else if (
           line.vatRate !== undefined &&
-          (vatRateOf(line.vatRate) < 0 || vatRateOf(line.vatRate) > 100)
+          (parseVatRate(line.vatRate) < 0 || parseVatRate(line.vatRate) > 100)
         ) {
           status = "ERROR";
           statusMessage = "VAT không hợp lệ";
@@ -370,7 +350,7 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
         const groupName = line.categoryName || "DỊCH VỤ";
         const isVatSection =
           /CÓ\s*VAT/i.test(groupName) ||
-          vatRateOf(line.vatRate) > 0;
+          parseVatRate(line.vatRate) > 0;
 
         costs.push({
           id: `cost-${idx}`,
@@ -399,68 +379,7 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
         });
       });
 
-      const importSummary = calculateImportSummary(revenues, costs);
-      const netGrossProfit = importSummary.total.grossProfit;
-      const netProfitMargin =
-        importSummary.total.netRevenue > 0
-          ? Number(
-              ((netGrossProfit / importSummary.total.netRevenue) * 100).toFixed(2),
-            )
-          : 0;
-
-      const grossProfit = totalRevenue - totalCost;
-      const grossProfitMargin =
-        totalRevenue > 0
-          ? Number(((grossProfit / totalRevenue) * 100).toFixed(2))
-          : 0;
-
-      let calcGrossProfit = grossProfit;
-      let calcProfitMargin = grossProfitMargin;
-      let prfDelta = 0;
-
-      if (sourceSummary.totalProfit !== undefined) {
-        const netDelta = Math.abs(netGrossProfit - sourceSummary.totalProfit);
-        const grossDelta = Math.abs(grossProfit - sourceSummary.totalProfit);
-        if (netDelta <= 1000 && netDelta < grossDelta) {
-          calcGrossProfit = netGrossProfit;
-          calcProfitMargin = netProfitMargin;
-          prfDelta = netDelta;
-        } else if (grossDelta <= 1000) {
-          calcGrossProfit = grossProfit;
-          calcProfitMargin = grossProfitMargin;
-          prfDelta = grossDelta;
-        } else {
-          if (netDelta < grossDelta) {
-            calcGrossProfit = netGrossProfit;
-            calcProfitMargin = netProfitMargin;
-            prfDelta = netDelta;
-          } else {
-            calcGrossProfit = grossProfit;
-            calcProfitMargin = grossProfitMargin;
-            prfDelta = grossDelta;
-          }
-        }
-      }
-
-      const revDelta = sourceSummary.totalRevenue
-        ? Math.abs(totalRevenue - sourceSummary.totalRevenue)
-        : 0;
-      const cstDelta = sourceSummary.totalCost
-        ? Math.abs(totalCost - sourceSummary.totalCost)
-        : 0;
-
-      const hasLineTampering = costs.some((c: any) => c.isTamperedFormula);
-      let recStatus: "MATCHED" | "ROUNDING_TOLERANCE" | "MISMATCH" = "MATCHED";
-      if (
-        revDelta > 1000 ||
-        cstDelta > 1000 ||
-        prfDelta > 1000 ||
-        hasLineTampering
-      ) {
-        recStatus = "MISMATCH";
-      } else if (revDelta > 1 || cstDelta > 1 || prfDelta > 1) {
-        recStatus = "ROUNDING_TOLERANCE";
-      }
+      const recon = reconcileEstimateValuation(revenues, costs, sourceSummary);
 
       const hookWarnings = [
         ...(normalized.financialReconciliation?.warnings ||
@@ -481,12 +400,12 @@ export function useImportValidation(previewData?: PaginatedImportRowsResponse) {
       financialReconciliation = {
         calculatedRevenue: totalRevenue,
         calculatedCost: totalCost,
-        calculatedGrossProfit: calcGrossProfit,
-        calculatedProfitMarginPercent: calcProfitMargin,
-        revenueDelta: revDelta,
-        costDelta: cstDelta,
-        profitDelta: prfDelta,
-        status: recStatus,
+        calculatedGrossProfit: recon.calculatedProfit,
+        calculatedProfitMarginPercent: recon.calculatedMargin,
+        revenueDelta: recon.revenueDelta,
+        costDelta: recon.costDelta,
+        profitDelta: recon.profitDelta,
+        status: recon.status,
         warnings: hookWarnings,
       };
     }

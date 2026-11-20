@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DashboardsController } from './dashboards.controller';
 import { DashboardsService } from './dashboards.service';
+import { FinancialReadModelService } from '../financials/financial-read-model.service';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { Estimate } from '../estimates/entities/estimate.entity';
 import { EstimateRevenueLine } from '../estimates/entities/estimate-revenue-line.entity';
@@ -132,9 +133,10 @@ describe('Dashboards Module (Integration)', () => {
   ) {
     const mockEstimateQB = {
       innerJoin: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
-      getMany: jest.fn().mockImplementation(async () => {
+      getRawMany: jest.fn().mockImplementation(async () => {
         if (customOverrides.getManyDelayMs) {
           await new Promise((r) =>
             setTimeout(r, customOverrides.getManyDelayMs),
@@ -166,15 +168,20 @@ describe('Dashboards Module (Integration)', () => {
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       groupBy: jest.fn().mockReturnThis(),
+      addGroupBy: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
       limit: jest.fn().mockReturnThis(),
       getRawMany: jest.fn().mockResolvedValue([]),
-      getRawOne: jest.fn().mockImplementation(async () => ({
-        sum:
+      getRawOne: jest.fn().mockImplementation(async () => {
+        const rev =
           customOverrides.revenueAmount !== undefined
             ? String(customOverrides.revenueAmount)
-            : '0',
-      })),
+            : '0';
+        return {
+          revenueGross: rev,
+          revenueNet: rev,
+        };
+      }),
     };
     mockRevenueLineRepository.createQueryBuilder.mockReturnValue(
       mockCustomerQB,
@@ -193,7 +200,9 @@ describe('Dashboards Module (Integration)', () => {
       orderBy: jest.fn().mockReturnThis(),
       limit: jest.fn().mockReturnThis(),
       getRawMany: jest.fn().mockResolvedValue([]),
-      getRawOne: jest.fn().mockResolvedValue({ sum: '0' }),
+      getRawOne: jest
+        .fn()
+        .mockResolvedValue({ costGross: '0', costNet: '0', totalSpend: '0' }),
     };
     mockCostLineRepository.createQueryBuilder.mockReturnValue(mockCategoryQB);
 
@@ -212,6 +221,7 @@ describe('Dashboards Module (Integration)', () => {
       controllers: [DashboardsController],
       providers: [
         DashboardsService,
+        FinancialReadModelService,
         {
           provide: RedisService,
           useValue: mockRedisService,
@@ -302,7 +312,7 @@ describe('Dashboards Module (Integration)', () => {
       });
 
       // Database query builder chỉ được gọi đúng 1 lần duy nhất cho toàn bộ 10 requests!
-      expect(mockEstimateQB.getMany).toHaveBeenCalledTimes(1);
+      expect(mockEstimateQB.getRawMany).toHaveBeenCalledTimes(1);
 
       // Mutex lock đã được tự động giải phóng sạch sẽ
       expect(mockRedisService.lockHeld).toBe(false);

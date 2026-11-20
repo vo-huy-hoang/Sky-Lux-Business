@@ -14,7 +14,15 @@ import { Dossier } from '../dossiers/entities/dossier.entity';
 import { EstimateCostLine } from '../estimates/entities/estimate-cost-line.entity';
 import { CreateReportDto } from './dto/create-report.dto';
 import { ReportExportDto } from './dto/report-export.dto';
-import { ReportQueryDto } from './dto/report-query.dto';
+import { ReportDateBasis, ReportQueryDto } from './dto/report-query.dto';
+import { resolveCalendarBounds } from '../../common/utils/period-range.util';
+import {
+  LATEST_APPROVED_ESTIMATE_SUBQUERY,
+  VALUED_COST_NET_SQL,
+  VALUED_REVENUE_NET_SQL,
+  WORKBOOK_GROSS_SQL,
+  latestApprovedEstimateJoinCondition,
+} from '../financials/financial-read-model.sql';
 import { UpdateReportDto } from './dto/update-report.dto';
 import { SavedReport } from './entities/report.entity';
 import {
@@ -522,8 +530,8 @@ export class ReportsService {
       .addSelect('supplier.status', 'supplierStatus')
       .addSelect('supplier.supplierTypeId', 'supplierTypeId')
       .addSelect('COUNT(DISTINCT dossier.id)', 'dossierCount')
-      .addSelect('SUM(costLine.grossAmount)', 'costGross')
-      .addSelect('SUM(costLine.netAmount)', 'costNet')
+      .addSelect(`SUM(${WORKBOOK_GROSS_SQL('costLine')})`, 'costGross')
+      .addSelect(`SUM(${VALUED_COST_NET_SQL('costLine')})`, 'costNet')
       .groupBy('supplier.id')
       .addGroupBy('supplier.code')
       .addGroupBy('supplier.name')
@@ -545,11 +553,11 @@ export class ReportsService {
       supplierStatus: row.supplierStatus,
       supplierTypeId: row.supplierTypeId,
       dossierCount: Number(row.dossierCount || 0),
-      costGross: Number(row.costGross || 0),
-      costNet: Number(row.costNet || 0),
+      costGross: Math.round(Number(row.costGross || 0)),
+      costNet: Math.round(Number(row.costNet || 0)),
     }));
-    const costGross = Number(summaryRaw?.costGross || 0);
-    const costNet = Number(summaryRaw?.costNet || 0);
+    const costGross = Math.round(Number(summaryRaw?.costGross || 0));
+    const costNet = Math.round(Number(summaryRaw?.costNet || 0));
     return {
       data,
       meta: this.reportMeta(query, total, {
@@ -575,17 +583,7 @@ export class ReportsService {
       .innerJoin(
         'dossier.estimates',
         'estimate',
-        `estimate.status = :approvedEstimateStatus
-         AND estimate.id = (
-           SELECT latest.id
-           FROM estimates latest
-           WHERE latest.dossier_id = dossier.id
-             AND latest.organization_id = :organizationId
-             AND latest.status = :approvedEstimateStatus
-             AND latest.deleted_at IS NULL
-           ORDER BY latest.version_no DESC, latest.approved_at DESC NULLS LAST, latest.created_at DESC
-           LIMIT 1
-         )`,
+        latestApprovedEstimateJoinCondition('dossier', 'estimate'),
         { approvedEstimateStatus: APPROVED_ESTIMATE, organizationId },
       )
       .where('dossier.organizationId = :organizationId', { organizationId });
@@ -617,18 +615,10 @@ export class ReportsService {
       .andWhere('estimate.status = :approvedEstimateStatus', {
         approvedEstimateStatus: APPROVED_ESTIMATE,
       })
-      .andWhere(
-        `estimate.id = (
-          SELECT latest.id
-          FROM estimates latest
-          WHERE latest.dossier_id = dossier.id
-            AND latest.organization_id = :organizationId
-            AND latest.status = :approvedEstimateStatus
-            AND latest.deleted_at IS NULL
-          ORDER BY latest.version_no DESC, latest.approved_at DESC NULLS LAST, latest.created_at DESC
-          LIMIT 1
-        )`,
-      );
+      .andWhere(`estimate.id = ${LATEST_APPROVED_ESTIMATE_SUBQUERY}`, {
+        organizationId,
+        approvedEstimateStatus: APPROVED_ESTIMATE,
+      });
 
     this.applyDateFilter(qb, query);
     this.applyAccessFilter(qb, query, access);
@@ -643,13 +633,22 @@ export class ReportsService {
 
   private applyDateFilter(qb: SelectQueryBuilder<any>, query: ReportQueryDto) {
     if (query.periodStart && query.periodEnd) {
-      const startTimestamp = `${query.periodStart} 00:00:00`;
-      const endTimestamp = `${query.periodEnd} 23:59:59.999`;
-
-      qb.andWhere('dossier.lockedAt IS NOT NULL').andWhere(
-        'dossier.lockedAt >= :periodStart AND dossier.lockedAt <= :periodEnd',
-        { periodStart: startTimestamp, periodEnd: endTimestamp },
+      const { startUtc, endUtc } = resolveCalendarBounds(
+        query.periodStart,
+        query.periodEnd,
       );
+
+      if (query.dateBasis === ReportDateBasis.APPROVED_AT) {
+        qb.andWhere('estimate.approvedAt IS NOT NULL').andWhere(
+          'estimate.approvedAt >= :periodStart AND estimate.approvedAt <= :periodEnd',
+          { periodStart: startUtc, periodEnd: endUtc },
+        );
+      } else {
+        qb.andWhere('dossier.lockedAt IS NOT NULL').andWhere(
+          'dossier.lockedAt >= :periodStart AND dossier.lockedAt <= :periodEnd',
+          { periodStart: startUtc, periodEnd: endUtc },
+        );
+      }
     }
   }
 
@@ -795,8 +794,11 @@ export class ReportsService {
   private getSupplierCostSummary(qb: SelectQueryBuilder<any>) {
     return qb
       .clone()
-      .select('COALESCE(SUM(costLine.grossAmount), 0)', 'costGross')
-      .addSelect('COALESCE(SUM(costLine.netAmount), 0)', 'costNet')
+      .select(`COALESCE(SUM(${WORKBOOK_GROSS_SQL('costLine')}), 0)`, 'costGross')
+      .addSelect(
+        `COALESCE(SUM(${VALUED_COST_NET_SQL('costLine')}), 0)`,
+        'costNet',
+      )
       .groupBy()
       .orderBy()
       .getRawOne();
@@ -804,16 +806,28 @@ export class ReportsService {
 
   private getFinancialLineSums() {
     return {
-      revenueGross: this.lineSumSql('estimate_revenue_lines', 'gross_amount'),
-      revenueNet: this.lineSumSql('estimate_revenue_lines', 'net_amount'),
-      costGross: this.lineSumSql('estimate_cost_lines', 'gross_amount'),
-      costNet: this.lineSumSql('estimate_cost_lines', 'net_amount'),
+      revenueGross: this.lineExprSumSql(
+        'estimate_revenue_lines',
+        WORKBOOK_GROSS_SQL('line_value'),
+      ),
+      revenueNet: this.lineExprSumSql(
+        'estimate_revenue_lines',
+        VALUED_REVENUE_NET_SQL('line_value'),
+      ),
+      costGross: this.lineExprSumSql(
+        'estimate_cost_lines',
+        WORKBOOK_GROSS_SQL('line_value'),
+      ),
+      costNet: this.lineExprSumSql(
+        'estimate_cost_lines',
+        VALUED_COST_NET_SQL('line_value'),
+      ),
       customerPaid: this.paymentSumSql(PaymentDirection.CUSTOMER_RECEIPT),
     };
   }
 
-  private lineSumSql(table: string, column: string) {
-    return `(SELECT COALESCE(SUM(line_value.${column}), 0)
+  private lineExprSumSql(table: string, expr: string) {
+    return `(SELECT COALESCE(SUM(${expr}), 0)
       FROM ${table} line_value
       WHERE line_value.estimate_id = estimate.id
         AND line_value.organization_id = :organizationId
@@ -848,12 +862,19 @@ export class ReportsService {
   }
 
   private mapSummary(row?: Record<string, any>): FinancialSummary {
-    const revenueGross = Number(row?.revenueGross || 0);
-    const revenueNet = Number(row?.revenueNet || 0);
-    const costGross = Number(row?.costGross || 0);
-    const costNet = Number(row?.costNet || 0);
-    const customerPaid = Number(row?.customerPaid || 0);
-    const profit = revenueNet - costNet;
+    const revenueGrossExact = Number(row?.revenueGross || 0);
+    const revenueNetExact = Number(row?.revenueNet || 0);
+    const costGrossExact = Number(row?.costGross || 0);
+    const costNetExact = Number(row?.costNet || 0);
+    const customerPaid = Math.round(Number(row?.customerPaid || 0));
+
+    const revenueGross = Math.round(revenueGrossExact);
+    const revenueNet = Math.round(revenueNetExact);
+    const costGross = Math.round(costGrossExact);
+    const costNet = Math.round(costNetExact);
+    const profitExact = revenueNetExact - costNetExact;
+    const profit = Math.round(profitExact);
+
     return {
       revenueGross,
       revenueNet,
@@ -861,11 +882,13 @@ export class ReportsService {
       costNet,
       profit,
       profitMargin:
-        revenueNet > 0 ? Number(((profit / revenueNet) * 100).toFixed(2)) : 0,
+        revenueNetExact > 0
+          ? Number(((profitExact / revenueNetExact) * 100).toFixed(2))
+          : 0,
       ...(row?.customerPaid !== undefined
         ? {
             customerPaid,
-            customerOutstanding: Math.max(revenueNet - customerPaid, 0),
+            customerOutstanding: Math.max(revenueGross - customerPaid, 0),
           }
         : {}),
     };
@@ -895,9 +918,10 @@ export class ReportsService {
     factory: () => Promise<T>,
   ): Promise<T> {
     const scope = this.resolveScope(access);
+    const dateBasis = query.dateBasis || ReportDateBasis.LOCKED_AT;
     const cacheKey = [
       'skylux:reports',
-      'locked-at-v2',
+      `${dateBasis}-v3`,
       reportType,
       organizationId,
       access?.userId || 'system',
@@ -905,6 +929,7 @@ export class ReportsService {
       JSON.stringify({
         periodStart: query.periodStart,
         periodEnd: query.periodEnd,
+        dateBasis,
         departmentId: query.departmentId,
         userId: query.userId,
         page: query.page || 1,

@@ -12,6 +12,7 @@ import {
   getMetadataArgsStorage,
 } from 'typeorm';
 import { EstimatesService } from './estimates.service';
+import { FinancialReadModelService } from '../financials/financial-read-model.service';
 import { Estimate } from './entities/estimate.entity';
 import { EstimateRevenueLine } from './entities/estimate-revenue-line.entity';
 import { EstimateCostLine } from './entities/estimate-cost-line.entity';
@@ -25,9 +26,11 @@ import { CreateEstimateDto } from './dto/create-estimate.dto';
 import { UpdateEstimateDto } from './dto/update-estimate.dto';
 import { EstimateStatus, DossierStatus } from '../../common/enums';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { DossierWorkflowService } from '../approvals/dossier-workflow.service';
 
 describe('EstimatesService', () => {
   let service: EstimatesService;
+  let mockWorkflowService: any;
   let estimateRepository: jest.Mocked<Repository<Estimate>>;
   let revenueLineRepository: jest.Mocked<Repository<EstimateRevenueLine>>;
   let costLineRepository: jest.Mocked<Repository<EstimateCostLine>>;
@@ -127,6 +130,7 @@ describe('EstimatesService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EstimatesService,
+        FinancialReadModelService,
         {
           provide: getRepositoryToken(Estimate),
           useValue: {
@@ -145,6 +149,7 @@ describe('EstimatesService', () => {
               select: jest.fn().mockReturnThis(),
               addSelect: jest.fn().mockReturnThis(),
               where: jest.fn().mockReturnThis(),
+              andWhere: jest.fn().mockReturnThis(),
               groupBy: jest.fn().mockReturnThis(),
               getRawMany: jest.fn().mockResolvedValue([]),
             })),
@@ -159,6 +164,7 @@ describe('EstimatesService', () => {
               select: jest.fn().mockReturnThis(),
               addSelect: jest.fn().mockReturnThis(),
               where: jest.fn().mockReturnThis(),
+              andWhere: jest.fn().mockReturnThis(),
               groupBy: jest.fn().mockReturnThis(),
               getRawMany: jest.fn().mockResolvedValue([]),
             })),
@@ -187,10 +193,32 @@ describe('EstimatesService', () => {
           provide: AuditLogsService,
           useValue: { record: jest.fn().mockResolvedValue(undefined) },
         },
+        {
+          provide: DossierWorkflowService,
+          useValue: {
+            reviseApprovedEstimateInTx: jest.fn().mockImplementation(
+              async (_manager, { dossier, targetEstimateStatus }) => ({
+                targetDossierStatus:
+                  targetEstimateStatus === EstimateStatus.SUBMITTED
+                    ? DossierStatus.RESUBMITTED
+                    : DossierStatus.EDITING,
+                updatedDossier: {
+                  ...dossier,
+                  status:
+                    targetEstimateStatus === EstimateStatus.SUBMITTED
+                      ? DossierStatus.RESUBMITTED
+                      : DossierStatus.EDITING,
+                },
+                historyRecords: [],
+              }),
+            ),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<EstimatesService>(EstimatesService);
+    mockWorkflowService = module.get(DossierWorkflowService);
     estimateRepository = module.get(getRepositoryToken(Estimate));
     revenueLineRepository = module.get(getRepositoryToken(EstimateRevenueLine));
     costLineRepository = module.get(getRepositoryToken(EstimateCostLine));
@@ -274,6 +302,54 @@ describe('EstimatesService', () => {
         service.findOne(mockUserPayload, 'invalid-uuid'),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('should attach canonical valued totals for mixed 8% VAT and 0% VAT lines', async () => {
+      const mixedEstimate = {
+        ...mockEstimate,
+        revenueLines: [
+          {
+            quantity: 2,
+            multiplier: 1,
+            unitPrice: 5400000,
+            vatRate: 8,
+            netAmount: 10800000,
+            grossAmount: 11664000,
+          },
+        ],
+        costLines: [
+          {
+            quantity: 1,
+            multiplier: 1,
+            unitPrice: 5400000,
+            vatRate: 8,
+            netAmount: 5400000,
+            grossAmount: 5832000,
+          },
+          {
+            quantity: 1,
+            multiplier: 1,
+            unitPrice: 2000000,
+            vatRate: 0,
+            netAmount: 2000000,
+            grossAmount: 2000000,
+          },
+        ],
+      } as unknown as Estimate;
+
+      estimateRepository.findOne.mockResolvedValue(mixedEstimate);
+
+      const result = (await service.findOne(mockUserPayload, 'est-uuid')) as any;
+
+      // Revenue valued net: 10,800,000 / 1.08 = 10,000,000
+      // Cost valued net: 5,400,000 / 1.08 + 2,000,000 = 7,000,000
+      // Profit: 3,000,000 (30% margin)
+      expect(result.revenueGross).toBe(10800000);
+      expect(result.totalRevenue).toBe(10000000);
+      expect(result.costGross).toBe(7400000);
+      expect(result.totalCost).toBe(7000000);
+      expect(result.totalProfit).toBe(3000000);
+      expect(result.profitMargin).toBe(30);
+    });
   });
 
   describe('create', () => {
@@ -314,6 +390,7 @@ describe('EstimatesService', () => {
       expect(dossiersService.findOne).toHaveBeenCalledWith(
         mockUserPayload,
         'dossier-uuid',
+        false,
       );
       expect(result.versionNo).toEqual(3);
 
@@ -792,6 +869,104 @@ describe('EstimatesService', () => {
       } as UpdateEstimateDto);
 
       expect(result.status).toBe(EstimateStatus.APPROVED);
+    });
+
+    it('executes atomic reviseApprovedEstimateInTx inside transaction when updating approved estimate (Ticket 05)', async () => {
+      estimateRepository.findOne.mockResolvedValue({
+        ...mockEstimate,
+        status: EstimateStatus.APPROVED,
+        version: 1,
+        dossier: {
+          id: 'dossier-uuid',
+          status: DossierStatus.APPROVED,
+        },
+        revenueLines: [],
+        costLines: [],
+      } as unknown as Estimate);
+
+      mockQueryBuilder.getOne.mockResolvedValueOnce({
+        ...mockEstimate,
+        status: EstimateStatus.APPROVED,
+        version: 1,
+      });
+
+      mockDossierRepository.createQueryBuilder.mockReturnValueOnce({
+        setLock: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue({
+          id: 'dossier-uuid',
+          organizationId: 'org-uuid',
+          status: DossierStatus.APPROVED,
+          version: 1,
+        }),
+      });
+
+      estimateRepository.save.mockImplementation((entity: any) =>
+        Promise.resolve({ ...entity, status: EstimateStatus.SUBMITTED } as any),
+      );
+
+      const result = await service.update(mockUserPayload, 'est-uuid', {
+        status: EstimateStatus.SUBMITTED,
+        version: 1,
+      } as UpdateEstimateDto);
+
+      expect(mockWorkflowService.reviseApprovedEstimateInTx).toHaveBeenCalledWith(
+        mockTransactionalEntityManager,
+        expect.objectContaining({
+          user: mockUserPayload,
+          wasApproved: true,
+          targetEstimateStatus: EstimateStatus.SUBMITTED,
+        }),
+      );
+      expect(result.status).toBe(EstimateStatus.SUBMITTED);
+    });
+
+    it('rolls back atomic unit of work when reviseApprovedEstimateInTx throws during revision (Ticket 05)', async () => {
+      estimateRepository.findOne.mockResolvedValue({
+        ...mockEstimate,
+        status: EstimateStatus.APPROVED,
+        version: 1,
+        dossier: {
+          id: 'dossier-uuid',
+          status: DossierStatus.APPROVED,
+        },
+        revenueLines: [],
+        costLines: [],
+      } as unknown as Estimate);
+
+      mockQueryBuilder.getOne.mockResolvedValueOnce({
+        ...mockEstimate,
+        status: EstimateStatus.APPROVED,
+        version: 1,
+      });
+
+      mockDossierRepository.createQueryBuilder.mockReturnValueOnce({
+        setLock: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue({
+          id: 'dossier-uuid',
+          organizationId: 'org-uuid',
+          status: DossierStatus.APPROVED,
+          version: 1,
+        }),
+      });
+
+      mockWorkflowService.reviseApprovedEstimateInTx.mockRejectedValueOnce(
+        new Error('Transaction rolled back: workflow history failure'),
+      );
+
+      estimateRepository.save.mockImplementation((entity: any) =>
+        Promise.resolve({ ...entity, status: EstimateStatus.SUBMITTED } as any),
+      );
+
+      await expect(
+        service.update(mockUserPayload, 'est-uuid', {
+          status: EstimateStatus.SUBMITTED,
+          version: 1,
+        } as UpdateEstimateDto),
+      ).rejects.toThrow('Transaction rolled back: workflow history failure');
     });
   });
 });

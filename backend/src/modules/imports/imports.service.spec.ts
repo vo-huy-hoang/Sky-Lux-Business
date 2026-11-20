@@ -10,6 +10,7 @@ import { ImportError } from './entities/import-error.entity';
 import { ImportTemplate } from './entities/import-template.entity';
 import { Dossier } from '../dossiers/entities/dossier.entity';
 import { Customer } from '../customers/entities/customer.entity';
+import { EstimateRevenueLine } from '../estimates/entities/estimate-revenue-line.entity';
 import { ImportSessionStatus } from '../../common/enums';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { CUSTOMER_BUDGET_FORMAT } from './customer-budget.parser';
@@ -723,6 +724,75 @@ describe('ImportsService', () => {
       await expect(
         service.confirm('org-id', 'session-fail'),
       ).rejects.toThrow('Database disk error');
+    });
+
+    it('should preserve revenue line multiplier > 1 instead of hardcoding 1 during customer budget confirm', async () => {
+      const mockSession = {
+        id: 'session-rev-mult',
+        organizationId: 'org-id',
+        errorRows: 0,
+        uploadedBy: 'user-id',
+      };
+      sessionRepository.findOne.mockResolvedValue(mockSession);
+      rowRepository.find.mockResolvedValue([
+        {
+          id: 'row-rev-mult',
+          sessionId: 'session-rev-mult',
+          status: 'VALID',
+          normalizedData: {
+            importFormat: CUSTOMER_BUDGET_FORMAT,
+            code: 'TOUR-MULT-01',
+            name: 'Tour Multiplier Test',
+            startDate: '2026-11-10',
+            endDate: '2026-11-12',
+            customerName: 'Khach Hang A',
+            customerCode: 'KH-MULT-01',
+            revenueLines: [
+              {
+                description: 'Gói tour người lớn',
+                quantity: 10,
+                multiplier: 3,
+                unitPrice: 1_800_000,
+                vatRate: 8,
+                sortOrder: 1,
+              },
+            ],
+            costLines: [],
+          },
+        },
+      ]);
+
+      dossierRepository.create.mockImplementation((d: any) => ({
+        id: 'dossier-mult-uuid',
+        ...d,
+      }));
+      const savedRevenueLines: any[] = [];
+      const transactionManager = {
+        find: jest.fn().mockResolvedValue([]),
+        findOne: jest.fn().mockResolvedValue(null),
+        create: jest.fn((_e, d) => ({ id: 'entity-id', ...d })),
+        save: jest.fn().mockImplementation((entityClass, data) => {
+          if (entityClass === EstimateRevenueLine) {
+            savedRevenueLines.push(data);
+          }
+          if (entityClass === Dossier) {
+            return Promise.resolve({ id: 'dossier-mult-uuid', ...data });
+          }
+          return Promise.resolve({ id: 'saved-uuid', ...data });
+        }),
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      dataSource.transaction.mockImplementationOnce((callback: any) =>
+        callback(transactionManager),
+      );
+
+      await service.confirm('org-id', 'session-rev-mult');
+
+      expect(savedRevenueLines).toHaveLength(1);
+      expect(savedRevenueLines[0].multiplier).toBe(3);
+      expect(savedRevenueLines[0].vatRate).toBe(8);
+      expect(savedRevenueLines[0].netAmount).toBe(54_000_000);
+      expect(savedRevenueLines[0].grossAmount).toBeCloseTo(58_320_000, 2);
     });
   });
 });

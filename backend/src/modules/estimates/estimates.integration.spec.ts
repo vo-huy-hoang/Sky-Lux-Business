@@ -4,6 +4,7 @@ import { DataSource, Repository } from 'typeorm';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { EstimatesController } from './estimates.controller';
 import { EstimatesService } from './estimates.service';
+import { FinancialReadModelService } from '../financials/financial-read-model.service';
 import { Estimate } from './entities/estimate.entity';
 import { EstimateRevenueLine } from './entities/estimate-revenue-line.entity';
 import { EstimateCostLine } from './entities/estimate-cost-line.entity';
@@ -78,6 +79,7 @@ describe('Estimates Module (Integration)', () => {
       controllers: [EstimatesController],
       providers: [
         EstimatesService,
+        FinancialReadModelService,
         {
           provide: getRepositoryToken(Estimate),
           useValue: {

@@ -50,6 +50,13 @@ import {
   AuditAction,
   AuditEntityType,
 } from '../audit-logs/audit-event.constants';
+import { DossierWorkflowService } from '../approvals/dossier-workflow.service';
+import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import {
+  calculateWorkbookGrossAmount,
+  parseVatRate,
+  toFiniteNumber,
+} from '../../common/utils/estimate-valuation.util';
 
 function formatVnd(amount?: number): string {
   if (amount === undefined || amount === null) return '0 đ';
@@ -61,10 +68,7 @@ function calculateLinesGrossTotal(lines?: any[]): number {
   return lines.reduce(
     (sum: number, line: any) =>
       sum +
-      Number(line.quantity || 1) *
-        Number(line.multiplier || 1) *
-        Number(line.unitPrice || 0) *
-        (1 + Number(line.vatRate || 0) / 100),
+      calculateWorkbookGrossAmount(line) * (1 + parseVatRate(line.vatRate) / 100),
     0,
   );
 }
@@ -136,6 +140,8 @@ export class ImportsService {
     private readonly auditLogsService: AuditLogsService,
     @Optional()
     private readonly storageService?: StorageService,
+    @Optional()
+    private readonly dossierWorkflowService?: DossierWorkflowService,
   ) {
     // Ensure upload directory exists
     if (!fs.existsSync(this.uploadDir)) {
@@ -377,9 +383,39 @@ export class ImportsService {
     organizationId: string,
     id: string,
     actorUserId?: string,
-    importedDossierStatus = DossierStatus.DRAFT,
+    userOrStatus: CurrentUserPayload | DossierStatus = DossierStatus.DRAFT,
   ) {
     const session = await this.findOne(organizationId, id);
+
+    const userPayload: CurrentUserPayload =
+      typeof userOrStatus === 'object' && userOrStatus !== null
+        ? userOrStatus
+        : ({
+            id: actorUserId ?? session.uploadedBy ?? 'system-import',
+            organizationId,
+            employeeCode: '',
+            fullName: 'Import Actor',
+            email: '',
+            roles:
+              userOrStatus === DossierStatus.IN_REVIEW
+                ? ['CEO_ADMIN']
+                : userOrStatus === DossierStatus.SUBMITTED
+                  ? ['OPERATOR']
+                  : ['SALES'],
+            permissions: [],
+          } as CurrentUserPayload);
+
+    const legacyTargetStatus: DossierStatus =
+      typeof userOrStatus === 'string'
+        ? userOrStatus
+        : userPayload.roles.includes('CEO_ADMIN') ||
+            userPayload.roles.includes('SUPER_ADMIN')
+          ? DossierStatus.IN_REVIEW
+          : userPayload.roles.includes('OPERATOR')
+            ? DossierStatus.SUBMITTED
+            : DossierStatus.DRAFT;
+
+    let activeImportStatus: DossierStatus = legacyTargetStatus;
 
     // Reject if session contains error rows
     if (session.errorRows > 0) {
@@ -532,7 +568,7 @@ export class ImportsService {
           ...dossierFields,
           code: generateImportedDossierCode(dossierFields.name),
           organizationId,
-          status: importedDossierStatus,
+          status: legacyTargetStatus,
           customerId: resolvedCustomerId,
           ...(customerName ? { customerName } : {}),
           ...(businessLine ? { businessLineId: businessLine.id } : {}),
@@ -545,12 +581,11 @@ export class ImportsService {
           createdBy: session.uploadedBy,
         };
 
-        const dossier = this.dossierRepository.create(dossierData);
-        const savedDossier = await transactionalEntityManager.save(
-          Dossier,
-          dossier,
-        );
+        const dossier = this.dossierRepository.create(dossierData) || dossierData;
+        const savedDossier =
+          (await transactionalEntityManager.save(Dossier, dossier)) || dossier;
 
+        let estimate: Estimate | undefined;
         if (importFormat === CUSTOMER_BUDGET_FORMAT) {
           const passengerTypes = new Map<string, string>();
           const units = new Map<string, string>();
@@ -710,16 +745,16 @@ export class ImportsService {
             }
           }
 
-          const estimate = await transactionalEntityManager.save(
+          estimate = await transactionalEntityManager.save(
             Estimate,
             transactionalEntityManager.create(Estimate, {
               organizationId,
               dossierId: savedDossier.id,
               versionNo: 1,
               status:
-                importedDossierStatus === DossierStatus.IN_REVIEW
+                activeImportStatus === DossierStatus.IN_REVIEW
                   ? EstimateStatus.IN_REVIEW
-                  : importedDossierStatus === DossierStatus.SUBMITTED
+                  : activeImportStatus === DossierStatus.SUBMITTED
                     ? EstimateStatus.SUBMITTED
                     : EstimateStatus.DRAFT,
               sourceImportSessionId: id,
@@ -744,12 +779,14 @@ export class ImportsService {
           );
 
           for (const line of revenueLines) {
-            const netAmount =
-              Number(line.quantity || 1) *
-              Number(line.multiplier || 1) *
-              Number(line.unitPrice || 0);
-            const grossAmount =
-              netAmount * (1 + Number(line.vatRate || 0) / 100);
+            const multiplier = toFiniteNumber(line.multiplier, 1);
+            const vatRate = parseVatRate(line.vatRate);
+            const netAmount = calculateWorkbookGrossAmount({
+              quantity: line.quantity,
+              multiplier,
+              unitPrice: line.unitPrice,
+            });
+            const grossAmount = netAmount * (1 + vatRate / 100);
             await transactionalEntityManager.save(
               EstimateRevenueLine,
               transactionalEntityManager.create(EstimateRevenueLine, {
@@ -759,9 +796,9 @@ export class ImportsService {
                 description: line.description,
                 quantity: line.quantity,
                 unitId: units.get(line.unitCode),
-                multiplier: 1,
+                multiplier,
                 unitPrice: line.unitPrice,
-                vatRate: line.vatRate,
+                vatRate,
                 netAmount,
                 grossAmount,
                 sortOrder: line.sortOrder,
@@ -770,11 +807,13 @@ export class ImportsService {
           }
 
           for (const line of costLines) {
-            const quantity = Number(line.quantity ?? 1);
-            const multiplier = Number(line.multiplier ?? 1);
-            const unitPrice = Number(line.unitPrice ?? 0);
-            const vatRate = Number(line.vatRate ?? 0);
-            const netAmount = quantity * multiplier * unitPrice;
+            const multiplier = toFiniteNumber(line.multiplier, 1);
+            const vatRate = parseVatRate(line.vatRate);
+            const netAmount = calculateWorkbookGrossAmount({
+              quantity: line.quantity,
+              multiplier,
+              unitPrice: line.unitPrice,
+            });
             const grossAmount = netAmount * (1 + vatRate / 100);
             await transactionalEntityManager.save(
               EstimateCostLine,
@@ -788,9 +827,9 @@ export class ImportsService {
                 supplierId: line.supplierId,
                 description: line.description,
                 quantity: line.quantity,
-                multiplier: line.multiplier,
+                multiplier,
                 unitPrice: line.unitPrice,
-                vatRate: line.vatRate,
+                vatRate,
                 sourceAmount: line.sourceAmount,
                 netAmount,
                 grossAmount,
@@ -814,6 +853,19 @@ export class ImportsService {
             { id: resolvedCustomerId, organizationId },
             updateCustomerData,
           );
+        }
+
+        if (this.dossierWorkflowService && savedDossier) {
+          const initResult =
+            await this.dossierWorkflowService.initializeImportedDossierInTx(
+              transactionalEntityManager,
+              {
+                user: userPayload,
+                dossier: savedDossier,
+                estimate,
+              },
+            );
+          activeImportStatus = initResult.initialStatus;
         }
 
         let rowRevenue = calculateLinesGrossTotal(revenueLines);
@@ -880,10 +932,10 @@ export class ImportsService {
       message: 'Nhập dữ liệu thành công',
       importedRowsCount: validRows.length,
       createdDossiers,
-      ...(importedDossierStatus === DossierStatus.SUBMITTED
+      ...(activeImportStatus === DossierStatus.SUBMITTED
         ? { sentToOperations: true }
         : {}),
-      ...(importedDossierStatus === DossierStatus.IN_REVIEW
+      ...(activeImportStatus === DossierStatus.IN_REVIEW
         ? { underReview: true }
         : {}),
     };
