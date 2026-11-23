@@ -35,6 +35,42 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
       if (!authLimit) {
         return true;
       }
+
+      // Kiểm tra trần giới hạn cấp IP khi có email đăng nhập (chống tấn công vét cạn / password spraying từ 1 IP)
+      const req = context.switchToHttp().getRequest();
+      if (req && this.storageService) {
+        const email = req.body?.email
+          ? String(req.body.email).toLowerCase().trim()
+          : '';
+        if (email) {
+          const ip =
+            req.ip ||
+            req.socket?.remoteAddress ||
+            req.connection?.remoteAddress ||
+            'unknown-ip';
+          const ipLimit = Math.max(authLimit * 4, 20);
+          const ipKey = `ip-ceiling:${ip}`;
+          const ipRecord = await this.storageService.increment(
+            ipKey,
+            requestProps.ttl,
+            ipLimit,
+            requestProps.blockDuration,
+            throttler.name,
+          );
+          if (ipRecord.isBlocked) {
+            await this.throwThrottlingException(context, {
+              limit: ipLimit,
+              ttl: requestProps.ttl,
+              key: ipKey,
+              tracker: ip,
+              totalHits: ipRecord.totalHits,
+              timeToExpire: ipRecord.timeToExpire,
+              isBlocked: true,
+              timeToBlockExpire: ipRecord.timeToBlockExpire,
+            });
+          }
+        }
+      }
     }
 
     return super.handleRequest(requestProps);

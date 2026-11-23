@@ -42,8 +42,7 @@ export default function TaskCreateModal({
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [form] = Form.useForm<CreateTaskFormValues>();
-  const hasRole = useAuthStore((state) => state.hasRole);
-  const canAssignUsers = hasRole(['CEO_ADMIN', 'SUPER_ADMIN']);
+  const canAssignUsers = useAuthStore((state) => state.isExecutiveAdmin());
 
   const { data: usersData, isLoading: isLoadingUsers } = useQuery({
     queryKey: queryKeys.users.list({ page: 1, pageSize: 100, status: 'ACTIVE' }),

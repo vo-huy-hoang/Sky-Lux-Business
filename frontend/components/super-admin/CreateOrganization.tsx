@@ -26,7 +26,7 @@ function toCode(value: string) {
 
 export function CreateOrganization() {
   const router = useRouter();
-  const isSuperAdmin = useAuthStore((state) => Boolean(state.user?.roles?.includes('SUPER_ADMIN')));
+  const isSuperAdmin = useAuthStore((state) => state.isPlatformSuperAdmin());
   const returnPath = isSuperAdmin ? '/organizations' : '/dashboard';
   const queryClient = useQueryClient();
   const [form] = Form.useForm<CreateOrganizationInput>();

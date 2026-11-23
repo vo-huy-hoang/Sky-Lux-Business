@@ -24,10 +24,9 @@ function DossierDetailPageContent() {
   const searchParams = useSearchParams();
   const tab = searchParams?.get('tab') || undefined;
   const user = useAuthStore((state) => state.user);
-  const hasRole = useAuthStore((state) => state.hasRole);
-  const isOperator = hasRole('OPERATOR');
-  const isSales = hasRole('SALES');
-  const isCeoAdmin = hasRole('CEO_ADMIN') || hasRole('SUPER_ADMIN');
+  const isOperator = useAuthStore((state) => state.isOperator());
+  const isSales = useAuthStore((state) => state.isSales());
+  const isCeoAdmin = useAuthStore((state) => state.isExecutiveAdmin());
   const canAccess = isOperator || isSales || isCeoAdmin;
 
   useEffect(() => {

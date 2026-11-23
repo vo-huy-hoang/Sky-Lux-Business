@@ -32,7 +32,7 @@ export default function UserRoleModal() {
   // 1. Fetch All Roles (Deep Hook with signal)
   const { data: rolesData } = useUserRoles('');
   const roles = rolesData || [];
-  const isSuperAdmin = useAuthStore((state) => Boolean(state.user?.roles?.includes('SUPER_ADMIN')));
+  const isSuperAdmin = useAuthStore((state) => state.isPlatformSuperAdmin());
   const assignableRoles = roles.filter((role) =>
     isSuperAdmin || ['OPERATOR', 'SALES'].includes(role.code),
   );

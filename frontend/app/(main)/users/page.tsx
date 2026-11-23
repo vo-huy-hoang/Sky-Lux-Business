@@ -45,7 +45,7 @@ export default function UsersAndRbacPage() {
 
   const debouncedUserSearch = useDebounce(userSearch, 350);
   const debouncedRoleSearch = useDebounce(roleSearch, 350);
-  const isSuperAdmin = useAuthStore((s) => Boolean(s.user?.roles?.includes('SUPER_ADMIN')));
+  const isSuperAdmin = useAuthStore((s) => s.isPlatformSuperAdmin());
 
   // 1. Fetch Paginated & Filtered Users via Deep Hook (API-USERS-001)
   const {

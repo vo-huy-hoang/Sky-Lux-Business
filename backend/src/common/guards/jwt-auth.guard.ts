@@ -21,17 +21,17 @@ import {
 } from '../utils/cookie.util';
 import { derivePurposeSecret } from '../utils/jwt-purpose.util';
 
-export interface UserAuthMeta {
-  id: string;
-  organizationId: string;
-  status: UserStatus;
-  authVersion: number;
-  mustChangePassword?: boolean;
-}
+import {
+  AuthSessionStore,
+  UserAuthMeta,
+} from '../../modules/auth/auth-session.store';
+
+export type { UserAuthMeta };
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   private readonly logger = new Logger(JwtAuthGuard.name);
+  private authSessionStore: AuthSessionStore;
 
   constructor(
     private readonly reflector: Reflector,
@@ -40,7 +40,13 @@ export class JwtAuthGuard implements CanActivate {
     private readonly dataSource: DataSource,
     @Optional()
     private readonly redisService?: RedisService,
-  ) {}
+    @Optional()
+    authSessionStore?: AuthSessionStore,
+  ) {
+    this.authSessionStore =
+      authSessionStore ??
+      new AuthSessionStore(this.dataSource, this.redisService);
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -136,54 +142,6 @@ export class JwtAuthGuard implements CanActivate {
   }
 
   private async getUserAuthMeta(userId: string): Promise<UserAuthMeta | null> {
-    const cacheKey = `user:auth-meta:${userId}`;
-
-    if (this.redisService) {
-      try {
-        const cached = await this.redisService.get<UserAuthMeta>(cacheKey);
-        if (cached !== null && cached !== undefined) {
-          return cached;
-        }
-      } catch (err: any) {
-        this.logger.warn(
-          `Redis get auth-meta fallback for user ${userId}: ${err?.message || err}`,
-        );
-      }
-    }
-
-    const user = await this.dataSource.getRepository(User).findOne({
-      where: { id: userId },
-      select: {
-        id: true,
-        organizationId: true,
-        status: true,
-        authVersion: true,
-        mustChangePassword: true,
-      },
-    });
-
-    if (!user) {
-      return null;
-    }
-
-    const meta: UserAuthMeta = {
-      id: user.id,
-      organizationId: user.organizationId,
-      status: user.status,
-      authVersion: user.authVersion,
-      mustChangePassword: Boolean(user.mustChangePassword),
-    };
-
-    if (this.redisService) {
-      try {
-        await this.redisService.set(cacheKey, meta, 300);
-      } catch (err: any) {
-        this.logger.warn(
-          `Redis set auth-meta error for user ${userId}: ${err?.message || err}`,
-        );
-      }
-    }
-
-    return meta;
+    return this.authSessionStore.getAuthMeta(userId);
   }
 }

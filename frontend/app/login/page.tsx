@@ -28,6 +28,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { authService } from '@/services/auth.service';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { safeRedirectPath, registerQueryClient } from '@/lib/session-manager';
 import { BrandLogo } from '@/components/ui';
 
 function LoginLogo() {
@@ -55,8 +56,15 @@ function LoginForm() {
   );
 
   React.useEffect(() => {
+    registerQueryClient(queryClient);
+  }, [queryClient]);
+
+  React.useEffect(() => {
     if (hasHydrated && user) {
-      const redirectPath = searchParams.get('redirect') || '/dashboard';
+      const redirectPath = safeRedirectPath(
+        searchParams.get('redirect'),
+        '/dashboard',
+      );
       router.replace(redirectPath);
     }
   }, [hasHydrated, user, router, searchParams]);
@@ -82,7 +90,10 @@ function LoginForm() {
       setAuth(response);
       message.success(`Chào mừng ${response.user.fullName} quay trở lại!`);
 
-      const redirectPath = searchParams.get('redirect') || '/dashboard';
+      const redirectPath = safeRedirectPath(
+        searchParams.get('redirect'),
+        '/dashboard',
+      );
       router.replace(redirectPath);
     } catch (err: any) {
       if (err.status === 429 || err.isRateLimited) {

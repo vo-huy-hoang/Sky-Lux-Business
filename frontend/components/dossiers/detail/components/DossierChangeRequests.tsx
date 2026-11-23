@@ -41,7 +41,7 @@ export function DossierChangeRequests({
   isLocked = false,
 }: DossierChangeRequestsProps) {
   const { message } = AntApp.useApp();
-  const isSales = useAuthStore((state) => state.hasRole('SALES'));
+  const isSales = useAuthStore((state) => state.isSales());
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const { data, isLoading, isFetching, isError, refetch } =
     useDossierChangeRequests(dossierId);

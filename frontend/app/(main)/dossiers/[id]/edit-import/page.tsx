@@ -30,10 +30,9 @@ export default function EditImportDossierPage() {
   const router = useRouter();
   const dossierId = params?.id as string;
 
-  const hasRole = useAuthStore((state) => state.hasRole);
   const sidebarCollapsed = useUIStore((state) => state.sidebarCollapsed);
-  const isOperator = hasRole('OPERATOR');
-  const isCeoAdmin = hasRole(['SUPER_ADMIN', 'CEO_ADMIN']);
+  const isOperator = useAuthStore((state) => state.isOperator());
+  const isCeoAdmin = useAuthStore((state) => state.isExecutiveAdmin());
   const canOperate = isOperator || isCeoAdmin;
 
   // 1. Fetch Dossier Info

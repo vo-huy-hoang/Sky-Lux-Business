@@ -25,6 +25,7 @@ import { UserStatus } from '../../common/enums';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { RedisService } from '../../common/redis/redis.service';
 import { derivePurposeSecret } from '../../common/utils/jwt-purpose.util';
+import { AuthSessionStore } from './auth-session.store';
 
 @Injectable()
 export class AuthService {
@@ -41,6 +42,8 @@ export class AuthService {
     private readonly configService: ConfigService,
     @Optional()
     private readonly redisService?: RedisService,
+    @Optional()
+    private readonly authSessionStore?: AuthSessionStore,
   ) {}
 
   private async extractUserPermissions(roles: any[]): Promise<string[]> {
@@ -355,6 +358,10 @@ export class AuthService {
   }
 
   async revokeUserTokens(userId: string): Promise<void> {
+    if (this.authSessionStore) {
+      await this.authSessionStore.revokeSessions(userId);
+      return;
+    }
     await this.refreshTokenRepository.update(
       { userId, isRevoked: false },
       { isRevoked: true, status: 'REVOKED', revokedReason: 'REVOKED' },
@@ -527,6 +534,10 @@ export class AuthService {
   }
 
   private async invalidateAuthMetaCache(userId: string): Promise<void> {
+    if (this.authSessionStore) {
+      await this.authSessionStore.invalidateCache(userId);
+      return;
+    }
     if (!this.redisService) return;
     try {
       await this.redisService.del(`user:auth-meta:${userId}`);

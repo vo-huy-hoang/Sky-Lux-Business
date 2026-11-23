@@ -199,5 +199,47 @@ describe('Phase 24: Distributed Throttler & Auth Shield', () => {
       const result = await (guard as any).handleRequest(requestProps);
       expect(result).toBe(true);
     });
+
+    it('should enforce IP-level ceiling to block password spraying across multiple emails from same IP', async () => {
+      const ip = '198.51.100.55';
+      const mockContext = (email: string) =>
+        ({
+          getHandler: jest.fn().mockReturnValue(() => {}),
+          getClass: jest.fn().mockReturnValue(class MockController {}),
+          switchToHttp: () => ({
+            getRequest: () => ({
+              headers: {},
+              body: { email },
+              ip,
+            }),
+            getResponse: () => ({ header: jest.fn() }),
+          }),
+        }) as unknown as ExecutionContext;
+
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(5);
+
+      const makeRequest = async (email: string) => {
+        const ctx = mockContext(email);
+        const tracker = `${ip}:${email}`;
+        return (guard as any).handleRequest({
+          context: ctx,
+          limit: 5,
+          ttl: 60000,
+          throttler: { name: 'auth', limit: 5, ttl: 60000 },
+          blockDuration: 0,
+          getTracker: jest.fn().mockResolvedValue(tracker),
+          generateKey: jest.fn().mockReturnValue(`auth:${tracker}`),
+        });
+      };
+
+      // Attacker tests 20 different victim emails once each (each email count is 1, so per-email limit 5 is not exceeded)
+      for (let i = 1; i <= 20; i++) {
+        const res = await makeRequest(`victim${i}@example.com`);
+        expect(res).toBe(true);
+      }
+
+      // The 21st attempt from this IP exceeds the IP ceiling of 20 and is blocked with 429
+      await expect(makeRequest('victim21@example.com')).rejects.toThrow(HttpException);
+    });
   });
 });

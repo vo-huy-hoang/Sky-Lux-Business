@@ -117,13 +117,15 @@ function DossiersContent() {
   const antdApp = typeof App?.useApp === 'function' ? App.useApp() : null;
   const notify = antdApp?.message?.success ? antdApp.message : staticMessage;
 
-  const hasRole = useAuthStore((state) => state.hasRole);
+  const isExecutiveAdmin = useAuthStore((state) => state.isExecutiveAdmin);
+  const isOperatorFn = useAuthStore((state) => state.isOperator);
   const hasPermission = useAuthStore((state) => state.hasPermission);
+  const hasRole = useAuthStore((state) => state.hasRole);
   const currentUser = useAuthStore((state) => state.user);
   const isCeoAdmin =
-    typeof hasRole === 'function' ? hasRole(['CEO_ADMIN', 'SUPER_ADMIN']) : false;
+    typeof isExecutiveAdmin === 'function' ? isExecutiveAdmin() : false;
   const isOperator =
-    typeof hasRole === 'function' ? hasRole('OPERATOR') : false;
+    typeof isOperatorFn === 'function' ? isOperatorFn() : false;
   const canDeleteDossier =
     typeof hasPermission === 'function' ? hasPermission('dossier.delete') : false;
 

@@ -2,6 +2,30 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import Cookies from 'js-cookie';
 import { UserProfile, LoginResponse } from '@/types/auth';
+import {
+  hasPermission as policyHasPermission,
+  isPlatformSuperAdmin,
+  isExecutiveAdmin,
+  isOperator,
+  isSales,
+  isAccountant,
+  isCeoAdmin,
+  hasExactRole,
+  canApproveDossier,
+  canManageUsers,
+  canAccessFinancialHub,
+  canManageOrganizations,
+  canManageRoles,
+  canExportReports,
+  canManageCustomers,
+  canViewCustomers,
+  canManageSuppliers,
+  canViewSuppliers,
+  canManageTasks,
+  canViewTasks,
+  canManageDossiers,
+  canViewDossiers,
+} from '@/lib/authorization-policy';
 
 interface AuthState {
   user: UserProfile | null;
@@ -18,6 +42,29 @@ interface AuthState {
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string | string[]) => boolean;
   isSuperAdmin: () => boolean;
+
+  // Semantic capabilities (Expand step)
+  isPlatformSuperAdmin: () => boolean;
+  isExecutiveAdmin: () => boolean;
+  isOperator: () => boolean;
+  isSales: () => boolean;
+  isAccountant: () => boolean;
+  isCeoAdmin: () => boolean;
+  hasExactRole: (role: string | string[]) => boolean;
+  canApproveDossier: () => boolean;
+  canManageUsers: () => boolean;
+  canAccessFinancialHub: () => boolean;
+  canManageOrganizations: () => boolean;
+  canManageRoles: () => boolean;
+  canExportReports: () => boolean;
+  canManageCustomers: () => boolean;
+  canViewCustomers: () => boolean;
+  canManageSuppliers: () => boolean;
+  canViewSuppliers: () => boolean;
+  canManageTasks: () => boolean;
+  canViewTasks: () => boolean;
+  canManageDossiers: () => boolean;
+  canViewDossiers: () => boolean;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -68,31 +115,44 @@ export const useAuthStore = create<AuthState>()(
         if (!user || !user.permissions) return false;
         if (
           user.permissions.includes('*') ||
-          user.roles.includes('SUPER_ADMIN') ||
-          user.roles.includes('CEO_ADMIN')
+          user.roles?.includes('SUPER_ADMIN') ||
+          user.roles?.includes('CEO_ADMIN')
         ) {
           return true;
         }
-        return user.permissions.includes(permission);
+        return policyHasPermission(user.permissions, permission);
       },
 
       hasRole: (role: string | string[]) => {
-        const { user } = get();
-        if (!user || !user.roles) return false;
-        if (user.roles.includes('SUPER_ADMIN')) return true;
-        if (Array.isArray(role)) {
-          return role.some((r) => user.roles.includes(r));
-        }
-        return user.roles.includes(role);
+        return hasExactRole(get().user, role);
       },
 
       isSuperAdmin: () => {
-        const { user } = get();
-        if (!user || !user.roles) return false;
-        return (
-          user.roles.includes('SUPER_ADMIN') || user.roles.includes('CEO_ADMIN')
-        );
+        return isPlatformSuperAdmin(get().user);
       },
+
+      // Semantic capability implementations
+      isPlatformSuperAdmin: () => isPlatformSuperAdmin(get().user),
+      isExecutiveAdmin: () => isExecutiveAdmin(get().user),
+      isOperator: () => isOperator(get().user),
+      isSales: () => isSales(get().user),
+      isAccountant: () => isAccountant(get().user),
+      isCeoAdmin: () => isCeoAdmin(get().user),
+      hasExactRole: (role: string | string[]) => hasExactRole(get().user, role),
+      canApproveDossier: () => canApproveDossier(get().user),
+      canManageUsers: () => canManageUsers(get().user),
+      canAccessFinancialHub: () => canAccessFinancialHub(get().user),
+      canManageOrganizations: () => canManageOrganizations(get().user),
+      canManageRoles: () => canManageRoles(get().user),
+      canExportReports: () => canExportReports(get().user),
+      canManageCustomers: () => canManageCustomers(get().user),
+      canViewCustomers: () => canViewCustomers(get().user),
+      canManageSuppliers: () => canManageSuppliers(get().user),
+      canViewSuppliers: () => canViewSuppliers(get().user),
+      canManageTasks: () => canManageTasks(get().user),
+      canViewTasks: () => canViewTasks(get().user),
+      canManageDossiers: () => canManageDossiers(get().user),
+      canViewDossiers: () => canViewDossiers(get().user),
     }),
     {
       name: 'skylux-auth-storage',

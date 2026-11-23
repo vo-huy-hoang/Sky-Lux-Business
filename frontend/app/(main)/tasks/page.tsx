@@ -27,10 +27,9 @@ import { CalendarOutlined, AppstoreOutlined } from '@ant-design/icons';
 const { Title } = Typography;
 
 export default function TasksPage() {
-  const hasRole = useAuthStore((state) => state.hasRole);
   const currentUserId = useAuthStore((state) => state.user?.id);
-  const isOperator = hasRole('OPERATOR');
-  const isCeoAdmin = hasRole(['CEO_ADMIN', 'SUPER_ADMIN']);
+  const isOperator = useAuthStore((state) => state.isOperator());
+  const isCeoAdmin = useAuthStore((state) => state.isExecutiveAdmin());
   const isPersonalTasks = !isOperator && !isCeoAdmin;
   const [ceoView, setCeoView] = useState<'CALENDAR' | 'BOARD'>('CALENDAR');
 

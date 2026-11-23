@@ -38,6 +38,7 @@ import {
 } from '@/services/auth.service';
 import { kpiService, MyKpiItem } from '@/services/kpi.service';
 import { dossiersService } from '@/services/dossiers.service';
+import { normalizeProfile, teardownSession } from '@/lib/session-manager';
 import { DossierItem } from '@/types/dossier';
 import { themeTokens } from '@/lib/theme/tokens.config';
 import { UserProfile } from '@/types/auth';
@@ -61,24 +62,6 @@ const notificationSettingDefinitions = [
   ['appointmentReminders', 'Nhắc lịch hẹn', 'Nhận nhắc nhở trước lịch hẹn'],
   ['periodicReports', 'Báo cáo định kỳ', 'Nhận báo cáo hiệu suất định kỳ'],
 ] as const;
-
-function normalizeProfile(profile: AuthMeResponse): UserProfile {
-  return {
-    id: profile.id,
-    organizationId: profile.organizationId,
-    organizationName: profile.organization?.name,
-    departmentId: profile.departmentId,
-    departmentName: profile.department?.name,
-    employeeCode: profile.employeeCode,
-    fullName: profile.fullName,
-    email: profile.email,
-    phone: profile.phone,
-    avatarUrl: profile.avatarUrl,
-    roles: profile.roles?.map((role) => role.code) || [],
-    permissions: profile.permissions || [],
-    mustChangePassword: Boolean(profile.mustChangePassword),
-  };
-}
 
 function formatPercent(value: number | undefined) {
   if (value === undefined || Number.isNaN(Number(value))) return '-';
@@ -115,7 +98,7 @@ export default function ProfilePage() {
   const setUser = useAuthStore((state) => state.setUser);
   const setAuth = useAuthStore((state) => state.setAuth);
   const logout = useAuthStore((state) => state.logout);
-  const isOperator = user?.roles?.includes('OPERATOR');
+  const isOperator = useAuthStore((state) => state.isOperator());
 
   const { data: meData, isLoading: isProfileLoading } = useQuery({
     queryKey: queryKeys.users.me(user?.id),
@@ -199,10 +182,8 @@ export default function ProfilePage() {
         message.success('Đổi mật khẩu thành công');
         return;
       }
-      queryClient.clear();
-      logout();
       message.success('Đổi mật khẩu thành công. Vui lòng đăng nhập lại.');
-      router.replace('/login');
+      void teardownSession({ queryClient, redirectTo: '/login' });
     },
     onError: (error: Error) => {
       message.error(error.message || 'Không thể đổi mật khẩu');

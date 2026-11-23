@@ -7,6 +7,7 @@ import { LockOutlined, LogoutOutlined, SafetyCertificateOutlined } from '@ant-de
 import { useQueryClient } from '@tanstack/react-query';
 import { authService } from '@/services/auth.service';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { teardownSession } from '@/lib/session-manager';
 import { getStrongPasswordFormRules } from '@/lib/password-policy';
 import type { UserProfile } from '@/types/auth';
 
@@ -58,15 +59,11 @@ export function ForceChangePasswordGate({ user }: ForceChangePasswordGateProps) 
   };
 
   const handleLogout = async () => {
-    try {
-      await authService.logout();
-    } catch {
-      // Ignore network errors while signing out locally
-    } finally {
-      queryClient.clear();
-      logout();
-      router.replace('/login');
-    }
+    await teardownSession({
+      queryClient,
+      callApiLogout: true,
+      redirectTo: '/login',
+    });
   };
 
   return (

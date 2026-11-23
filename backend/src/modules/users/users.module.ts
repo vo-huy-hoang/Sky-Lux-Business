@@ -8,6 +8,7 @@ import { Role } from '../roles/entities/role.entity';
 import { Department } from '../departments/entities/department.entity';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { Organization } from '../organizations/entities/organization.entity';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { Organization } from '../organizations/entities/organization.entity';
       Organization,
     ]),
     AuditLogsModule,
+    AuthModule,
   ],
   controllers: [UsersController],
   providers: [UsersService],

@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
 import { AuthService } from './auth.service';
+import { AuthSessionStore } from './auth-session.store';
 import { AuthController } from './auth.controller';
 import { User } from '../users/entities/user.entity';
 import { RolePermission } from '../permissions/entities/role-permission.entity';
@@ -26,7 +27,7 @@ import { RefreshToken } from './entities/refresh-token.entity';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService],
-  exports: [AuthService, JwtModule],
+  providers: [AuthService, AuthSessionStore],
+  exports: [AuthService, AuthSessionStore, JwtModule],
 })
 export class AuthModule {}
