@@ -22,7 +22,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { useNotificationStore } from '@/lib/stores/notification-store';
-import { authService } from '@/services/auth.service';
+import { teardownSession } from '@/lib/session-manager';
 import type { UserContext } from '@/lib/routes.config';
 import { BrandLogo } from '@/components/ui';
 import styles from './super-admin.module.css';
@@ -48,7 +48,6 @@ export function SuperAdminWorkspace({ children, routeMeta }: SuperAdminWorkspace
   const router = useRouter();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
-  const logout = useAuthStore((state) => state.logout);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const setNotificationsDrawerOpen = useUIStore((state) => state.setNotificationsDrawerOpen);
@@ -57,17 +56,11 @@ export function SuperAdminWorkspace({ children, routeMeta }: SuperAdminWorkspace
   const unreadCount = serverUnreadCount ?? notifications.filter((item) => !item.read).length;
 
   const handleLogout = async () => {
-    try {
-      await authService.logout();
-    } catch {
-      // Always clear the local session when the API cannot be reached.
-    } finally {
-      queryClient.clear();
-      logout();
-      // Start a fresh document so Next's App Router cannot reuse a cached
-      // login payload from an older deployed build after logout.
-      window.location.replace('/');
-    }
+    await teardownSession({
+      queryClient,
+      callApiLogout: true,
+      redirectTo: '/',
+    });
   };
 
   const accountMenu: MenuProps['items'] = [

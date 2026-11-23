@@ -3,8 +3,14 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Layout, Button, Result, Spin } from 'antd';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/stores/auth-store';
-import { authService } from '@/services/auth.service';
+import {
+  safeRedirectPath,
+  restoreSession,
+  teardownSession,
+  registerQueryClient,
+} from '@/lib/session-manager';
 import { useNotificationStore } from '@/lib/stores/notification-store';
 import {
   useNotificationsRealtime,
@@ -16,6 +22,12 @@ import {
   isPathAccessible,
   type UserContext,
 } from '@/lib/routes.config';
+import {
+  isOperator as checkIsOperator,
+  isSales as checkIsSales,
+  isExecutiveAdmin,
+  isPlatformSuperAdmin,
+} from '@/lib/authorization-policy';
 import { MainSidebar } from '@/components/layout/MainSidebar';
 import { MainHeader } from '@/components/layout/MainHeader';
 import { NotificationDrawer } from '@/components/layout/NotificationDrawer';
@@ -32,12 +44,17 @@ export default function MainLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const [hasMounted, setHasMounted] = useState(false);
   const [authRestoreTimedOut, setAuthRestoreTimedOut] = useState(false);
   const [authRestoreError, setAuthRestoreError] = useState(false);
   const [authRestoreRetryKey, setAuthRestoreRetryKey] = useState(0);
+
+  useEffect(() => {
+    registerQueryClient(queryClient);
+  }, [queryClient]);
 
   // Zustand restores the role from localStorage, which is unavailable during
   // server rendering. Keep the server and first client render role-neutral,
@@ -60,36 +77,19 @@ export default function MainLayout({
   }, [hasMounted, hasHydrated, authRestoreRetryKey]);
 
   useEffect(() => {
+    const isRetry = authRestoreRetryKey > 0;
     if (!hasMounted || (hasHydrated && user)) return;
-    if (!hasHydrated && !authRestoreTimedOut) return;
+    if (!hasHydrated && !authRestoreTimedOut && !isRetry) return;
 
     let active = true;
 
-    const restoreSession = async () => {
+    const runRestore = async () => {
       try {
-        // Browser attaches HttpOnly access_token cookie automatically via withCredentials.
-        const profile = await authService.getMe();
-        if (!active) return;
-
-        useAuthStore.getState().restoreAuth({
-          id: profile.id,
-          organizationId: profile.organizationId,
-          organizationName: profile.organization?.name,
-          departmentId: profile.departmentId,
-          departmentName: profile.department?.name,
-          employeeCode: profile.employeeCode,
-          fullName: profile.fullName,
-          email: profile.email,
-          phone: profile.phone,
-          avatarUrl: profile.avatarUrl,
-          roles: profile.roles.map((role) => role.code),
-          permissions: profile.permissions,
-          mustChangePassword: Boolean(profile.mustChangePassword),
-        });
+        await restoreSession();
       } catch (error: any) {
         if (!active) return;
 
-        if (error?.status === 401) {
+        if (error?.status === 401 || error?.response?.status === 401) {
           redirectToLogin();
           return;
         }
@@ -101,17 +101,18 @@ export default function MainLayout({
     };
 
     const redirectToLogin = () => {
-      useAuthStore.getState().logout();
-      const loginUrl = new URL('/login', window.location.origin);
-      if (pathname) loginUrl.searchParams.set('redirect', pathname);
-      window.location.replace(loginUrl.toString());
+      const target = pathname ? safeRedirectPath(pathname) : '/dashboard';
+      void teardownSession({
+        queryClient,
+        redirectTo: `/login?redirect=${encodeURIComponent(target)}`,
+      });
     };
 
-    void restoreSession();
+    void runRestore();
     return () => {
       active = false;
     };
-  }, [authRestoreTimedOut, hasMounted, hasHydrated, pathname, user]);
+  }, [authRestoreTimedOut, hasMounted, hasHydrated, pathname, user, authRestoreRetryKey, queryClient]);
 
   useEffect(() => {
     const handlePasswordChangeRequired = () => {
@@ -182,10 +183,10 @@ export default function MainLayout({
     }
   }, [hasHydrated]);
 
-  const isOperator = user?.roles?.includes('OPERATOR');
-  const isSales = user?.roles?.includes('SALES');
-  const isCeoAdmin = user?.roles?.some((role) => ['SUPER_ADMIN', 'CEO_ADMIN'].includes(role));
-  const isSuperAdmin = user?.roles?.includes('SUPER_ADMIN');
+  const isOperator = checkIsOperator(user);
+  const isSales = checkIsSales(user);
+  const isCeoAdmin = isExecutiveAdmin(user);
+  const isSuperAdmin = isPlatformSuperAdmin(user);
 
   const userCtx: UserContext = useMemo(
     () => ({

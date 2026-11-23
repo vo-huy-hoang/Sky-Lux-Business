@@ -8,8 +8,7 @@ import { SupplierManagementContent } from './components/SupplierManagementConten
 
 export default function SuppliersPage() {
   const router = useRouter();
-  const hasRole = useAuthStore((state) => state.hasRole);
-  const isCeoAdmin = hasRole(['CEO_ADMIN', 'SUPER_ADMIN']);
+  const isCeoAdmin = useAuthStore((state) => state.isExecutiveAdmin());
 
   return (
     <div className={isCeoAdmin ? 'space-y-5' : ''} style={isCeoAdmin ? undefined : { padding: '24px' }}>

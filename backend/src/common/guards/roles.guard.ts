@@ -44,15 +44,24 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('Access denied: No role assigned');
     }
 
+    // Config-driven admin roles policy
+    const adminRoles = this.configService.get<string[]>('app.adminRoles') || [
+      'SUPER_ADMIN',
+      'CEO_ADMIN',
+    ];
+
     // 1. SUPER_ADMIN has platform-wide universal bypass across all endpoints
     if (user.roles.includes('SUPER_ADMIN')) {
       return true;
     }
 
-    // 2. CEO_ADMIN has organization-level bypass over operational roles,
+    // 2. Configured admin roles (e.g. CEO_ADMIN) have organization-level bypass over operational roles,
     // but CANNOT bypass when the endpoint explicitly requires SUPER_ADMIN
     const isSuperAdminRequired = requiredRoles.includes('SUPER_ADMIN');
-    if (user.roles.includes('CEO_ADMIN') && !isSuperAdminRequired) {
+    const hasTenantAdminRole = user.roles.some(
+      (role: string) => adminRoles.includes(role) && role !== 'SUPER_ADMIN',
+    );
+    if (hasTenantAdminRole && !isSuperAdminRequired) {
       return true;
     }
 

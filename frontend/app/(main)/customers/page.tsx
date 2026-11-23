@@ -63,10 +63,9 @@ function formatDateOnly(dateStr?: string) {
 
 export default function CustomersPage() {
   const router = useRouter();
-  const hasRole = useAuthStore((state) => state.hasRole);
-  const isCeoAdmin = hasRole(['CEO_ADMIN', 'SUPER_ADMIN']);
-  const isOperator = hasRole('OPERATOR');
-  const isSales = hasRole('SALES');
+  const isCeoAdmin = useAuthStore((state) => state.isExecutiveAdmin());
+  const isOperator = useAuthStore((state) => state.isOperator());
+  const isSales = useAuthStore((state) => state.isSales());
   const canDeleteCustomer = !isSales && (isCeoAdmin || isOperator);
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);

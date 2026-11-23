@@ -1,4 +1,9 @@
 import { DossierItem } from '@/types/dossier';
+import {
+  isExecutiveAdmin,
+  isOperator as checkIsOperator,
+  isPlatformSuperAdmin,
+} from './authorization-policy';
 
 export interface UserContextForDelete {
   id?: string;
@@ -43,16 +48,12 @@ export function getDossierDeleteEligibility(
   const isCeoOrAdmin =
     typeof options?.hasRole === 'function'
       ? options.hasRole(['SUPER_ADMIN', 'CEO_ADMIN'])
-      : Boolean(
-          user?.roles?.some((role) =>
-            ['SUPER_ADMIN', 'CEO_ADMIN'].includes(role),
-          ),
-        );
+      : isExecutiveAdmin(user);
 
   const isOperator =
     typeof options?.hasRole === 'function'
       ? options.hasRole('OPERATOR')
-      : Boolean(user?.roles?.includes('OPERATOR'));
+      : checkIsOperator(user);
 
   const isOwner =
     dossier.salesUserId === user?.id || dossier.createdBy === user?.id;
@@ -74,7 +75,7 @@ export function getDossierDeleteEligibility(
     disableReason = 'Bạn không có quyền xóa hồ sơ';
   } else if (hasActivePayments) {
     disableReason = 'Không thể xóa hồ sơ đã phát sinh phiếu thu tiền thực tế';
-  } else if (isLocked && !user?.roles?.includes('SUPER_ADMIN')) {
+  } else if (isLocked && !isPlatformSuperAdmin(user)) {
     disableReason = 'Hồ sơ đã khóa, chỉ Quản trị viên cấp cao mới có thể xóa';
   } else if (isApprovedOrCompleted && !isCeoOrAdmin) {
     disableReason =

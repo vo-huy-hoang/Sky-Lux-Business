@@ -54,7 +54,7 @@ export default function UserModal() {
     })),
   );
   const isEditing = !!editingUser;
-  const isSuperAdmin = useAuthStore((s) => Boolean(s.user?.roles?.includes('SUPER_ADMIN')));
+  const isSuperAdmin = useAuthStore((s) => s.isPlatformSuperAdmin());
 
 
   // 1. Fetch Roles for Selection

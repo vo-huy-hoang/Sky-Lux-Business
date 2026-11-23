@@ -117,7 +117,8 @@ export default function ReportsPage() {
   const [isSavedDrawerOpen, setIsSavedDrawerOpen] = useState(false);
 
   const hasPermission = useAuthStore((state) => state.hasPermission);
-  const hasRole = useAuthStore((state) => state.hasRole);
+  const isExecutiveAdmin = useAuthStore((state) => state.isExecutiveAdmin);
+  const isAccountant = useAuthStore((state) => state.isAccountant);
 
   const reportType = useReportStore((state) => state.reportType);
   const periodStart = useReportStore((state) => state.periodStart);
@@ -139,7 +140,8 @@ export default function ReportsPage() {
   const canExportReports = hasPermission('report.export');
   const canFilterSales =
     hasPermission('report.view.all') ||
-    hasRole(['SUPER_ADMIN', 'CEO_ADMIN', 'ACCOUNTANT']);
+    isExecutiveAdmin() ||
+    isAccountant();
 
   const dates = useMemo<[Dayjs, Dayjs]>(
     () => [dayjs(periodStart), dayjs(periodEnd)],

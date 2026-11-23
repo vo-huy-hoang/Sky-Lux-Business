@@ -35,6 +35,7 @@ import {
 } from '../audit-logs/audit-event.constants';
 import { RedisService } from '../../common/redis/redis.service';
 import { generateTemporaryPassword } from '../../common/validators/password-policy.validator';
+import { AuthSessionStore } from '../auth/auth-session.store';
 
 @Injectable()
 export class UsersService {
@@ -54,9 +55,15 @@ export class UsersService {
     private readonly auditLogsService: AuditLogsService,
     @Optional()
     private readonly redisService?: RedisService,
+    @Optional()
+    private readonly authSessionStore?: AuthSessionStore,
   ) {}
 
   private async invalidateAuthMetaCache(userId: string): Promise<void> {
+    if (this.authSessionStore) {
+      await this.authSessionStore.invalidateCache(userId);
+      return;
+    }
     if (!this.redisService) return;
     try {
       await this.redisService.del(`user:auth-meta:${userId}`);
@@ -437,9 +444,6 @@ export class UsersService {
           'Một hoặc nhiều vai trò được chọn không hợp lệ hoặc không thuộc tổ chức của bạn',
         );
       }
-      for (const role of roles) {
-        await this.ensureBaselinePermissionsForRole(role);
-      }
     }
 
     if (actorRoles) {
@@ -689,9 +693,6 @@ export class UsersService {
           );
         }
         this.assertAssignableRoles(actorRoles, roles);
-        for (const role of roles) {
-          await this.ensureBaselinePermissionsForRole(role);
-        }
         user.roles = roles;
       } else {
         this.assertAssignableRoles(actorRoles, []);
@@ -913,10 +914,6 @@ export class UsersService {
     }
 
     this.assertAssignableRoles(actorRoles, roles);
-
-    for (const role of roles) {
-      await this.ensureBaselinePermissionsForRole(role);
-    }
 
     const previousRoleIds = (user.roles ?? []).map((role) => role.id).sort();
     const nextRoleIds = roles.map((role) => role.id).sort();

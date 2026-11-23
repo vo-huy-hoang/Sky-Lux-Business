@@ -60,7 +60,7 @@ export function DossierDetailTabs({
   const activeTab = useDossierUIStore((s) => s.activeTab);
   const setActiveTab = useDossierUIStore((s) => s.setActiveTab);
   const visitedTabs = useDossierUIStore((s) => s.visitedTabs) || { overview: true };
-  const isSales = useAuthStore((state) => state.hasRole("SALES"));
+  const isSales = useAuthStore((state) => state.isSales());
   const changeRequestsQuery = useDossierChangeRequests(dossierId);
   const openChangeRequestCount = (changeRequestsQuery.data?.data || []).filter(
     (request) => request.status === "OPEN",

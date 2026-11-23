@@ -21,7 +21,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useNotificationStore } from '@/lib/stores/notification-store';
-import { authService } from '@/services/auth.service';
+import { teardownSession } from '@/lib/session-manager';
 import type { UserContext } from '@/lib/routes.config';
 import { themeTokens } from '@/lib/theme/tokens.config';
 
@@ -37,7 +37,6 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
   const queryClient = useQueryClient();
 
   const user = useAuthStore((state) => state.user);
-  const logout = useAuthStore((state) => state.logout);
 
   const collapsed = useUIStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useUIStore((state) => state.toggleSidebar);
@@ -57,18 +56,12 @@ export function MainHeader({ routeMeta, userCtx }: MainHeaderProps) {
   const { isCeoAdmin } = userCtx;
 
   const handleLogout = useCallback(async () => {
-    try {
-      await authService.logout();
-    } catch {
-      // Gracefully catch network or connection error so logout always succeeds locally
-    } finally {
-      queryClient.clear();
-      logout();
-      // Start a fresh document so Next's App Router cannot reuse a cached
-      // login payload from an older deployed build after logout.
-      window.location.replace('/');
-    }
-  }, [logout, queryClient, router]);
+    await teardownSession({
+      queryClient,
+      callApiLogout: true,
+      redirectTo: '/',
+    });
+  }, [queryClient]);
 
   const userName = user?.fullName;
   const userEmail = user?.email;

@@ -14,299 +14,62 @@ import {
   BarChartOutlined,
   RiseOutlined,
   SettingOutlined,
-  FileTextOutlined,
   HistoryOutlined,
   BankOutlined,
 } from '@ant-design/icons';
+import {
+  UserContext,
+  RoutePolicyDefinition,
+  ROUTE_POLICY_DEFINITIONS,
+  canAccessRoutePolicy,
+  isPathAccessiblePolicy,
+  getActiveMenuKeyPolicy,
+} from './authorization-policy';
 
-export interface UserContext {
-  roles?: string[];
-  permissions?: string[];
-  isOperator?: boolean;
-  isSales?: boolean;
-  isCeoAdmin?: boolean;
-  isSuperAdmin?: boolean;
-}
+export type { UserContext };
 
-export interface AppRoute {
-  key: string;
-  path: string;
+export interface AppRoute extends RoutePolicyDefinition {
   icon: React.ReactNode;
-  label: string | ((ctx: UserContext) => string);
-  title: string | ((ctx: UserContext) => string);
-  subtitle: string | ((ctx: UserContext) => string);
-  requiredPermissions?: string[];
-  allowedRoles?: string[];
-  excludeRoles?: string[];
-  superAdminOnly?: boolean;
-  hideFromNavigationRoles?: string[];
-  hubKey?: string;
-  order: number;
 }
 
-export const APP_ROUTES: AppRoute[] = [
-  {
-    key: '/dashboard',
-    path: '/dashboard',
-    icon: React.createElement(DashboardOutlined),
-    label: 'Bảng điều khiển',
-    title: 'Bảng điều khiển',
-    subtitle: (ctx) =>
-      ctx.isOperator
-        ? 'Tổng quan hoạt động điều hành và hồ sơ đang xử lý'
-        : ctx.isSales
-        ? 'Tổng quan hiệu suất bán tour và công việc cá nhân'
-        : 'Tổng quan hiệu suất toàn công ty và chỉ số vận hành',
-    order: 10,
-  },
-  {
-    key: '/organizations',
-    path: '/organizations',
-    icon: React.createElement(BankOutlined),
-    label: 'Doanh nghiệp',
-    title: 'Doanh nghiệp',
-    subtitle: 'Quản lý các doanh nghiệp và tenant trên nền tảng Sky-Lux CRM',
-    superAdminOnly: true,
-    order: 15,
-  },
-  {
-    key: '/approvals',
-    path: '/approvals',
-    icon: React.createElement(AuditOutlined),
-    label: 'Hồ sơ chờ duyệt',
-    title: 'Hồ sơ chờ duyệt',
-    subtitle: 'Danh sách hồ sơ đang chờ CEO/Admin xem xét và phê duyệt',
-    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN'],
-    order: 20,
-  },
-  {
-    key: '/tasks',
-    path: '/tasks',
-    icon: React.createElement(CheckSquareOutlined),
-    label: (ctx) =>
-      ctx.isCeoAdmin
-        ? 'Lịch trình điều hành'
-        : ctx.isOperator
-        ? 'Công việc điều hành'
-        : 'Công việc của tôi',
-    title: (ctx) =>
-      ctx.isCeoAdmin
-        ? 'Lịch trình điều hành'
-        : ctx.isOperator
-        ? 'Công việc điều hành'
-        : 'Công việc của tôi',
-    subtitle: (ctx) =>
-      ctx.isCeoAdmin
-        ? 'Theo dõi lịch trình các đoàn tour và dịch vụ toàn công ty'
-        : ctx.isOperator
-        ? 'Theo dõi và quản lý công việc xử lý hồ sơ'
-        : 'Quản lý danh sách đầu việc cần thực hiện',
-    requiredPermissions: ['task.manage'],
-    order: 30,
-  },
-  {
-    key: '/dossiers',
-    path: '/dossiers',
-    icon: React.createElement(FolderOpenOutlined),
-    label: (ctx) =>
-      ctx.isCeoAdmin
-        ? 'Hồ sơ toàn hệ thống'
-        : ctx.isOperator
-        ? 'Hồ sơ chờ xử lý'
-        : 'Hồ sơ của tôi',
-    title: (ctx) =>
-      ctx.isCeoAdmin
-        ? 'Hồ sơ toàn hệ thống'
-        : ctx.isOperator
-        ? 'Hồ sơ chờ xử lý'
-        : 'Hồ sơ của tôi',
-    subtitle: (ctx) =>
-      ctx.isCeoAdmin
-        ? 'Theo dõi toàn bộ hồ sơ và tiến độ xử lý trong công ty'
-        : ctx.isOperator
-        ? 'Danh sách hồ sơ và dự toán cần kiểm tra điều hành'
-        : 'Danh sách hồ sơ và dự toán của bạn',
-    requiredPermissions: ['dossier.view.own', 'dossier.view.team', 'dossier.view.all'],
-    order: 40,
-  },
-  {
-    key: '/reports',
-    path: '/reports',
-    icon: React.createElement(BarChartOutlined),
-    label: (ctx) => (ctx.isSuperAdmin ? 'Báo cáo' : 'Báo cáo & Tài chính'),
-    title: (ctx) => (ctx.isSuperAdmin ? 'Báo cáo' : 'Báo cáo & Tài chính'),
-    subtitle: (ctx) =>
-      ctx.isSuperAdmin
-        ? 'Tạo và xuất các báo cáo quản trị dành cho CEO/Admin'
-        : 'Phân tích doanh thu, báo cáo quản trị và chỉ số hiệu suất kinh doanh',
-    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN', 'OPERATOR'],
-    hideFromNavigationRoles: ['OPERATOR'],
-    order: 50,
-  },
-  {
-    key: '/revenue',
-    path: '/revenue',
-    icon: React.createElement(BarChartOutlined),
-    label: (ctx) => ctx.isSuperAdmin ? 'Thanh toán' : 'Doanh thu & thống kê',
-    title: (ctx) => ctx.isSuperAdmin ? 'Thanh toán dịch vụ' : 'Doanh thu & thống kê',
-    subtitle: (ctx) => ctx.isSuperAdmin
-      ? 'Theo dõi phí thuê bao phần mềm và khoản thanh toán của từng doanh nghiệp'
-      : 'Phân tích doanh thu, lợi nhuận và cơ cấu hoạt động',
-    allowedRoles: ['OPERATOR', 'SUPER_ADMIN', 'CEO_ADMIN'],
-    hideFromNavigationRoles: ['OPERATOR', 'CEO_ADMIN'],
-    hubKey: '/reports',
-    order: 55,
-  },
-  {
-    key: '/kpi',
-    path: '/kpi',
-    icon: React.createElement(RiseOutlined),
-    label: 'KPI Sales',
-    title: 'KPI Sales',
-    subtitle: 'Theo dõi hiệu suất đội ngũ kinh doanh toàn công ty',
-    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN'],
-    hideFromNavigationRoles: ['CEO_ADMIN'],
-    hubKey: '/reports',
-    order: 60,
-  },
-  {
-    key: '/customers',
-    path: '/customers',
-    icon: React.createElement(UsergroupAddOutlined),
-    label: (ctx) =>
-      ctx.isCeoAdmin ? 'Khách hàng & NCC' : 'Khách hàng của tôi',
-    title: (ctx) =>
-      ctx.isCeoAdmin ? 'Khách hàng & nhà cung cấp' : 'Khách hàng của tôi',
-    subtitle: 'Quản lý thông tin và lịch sử khách hàng',
-    requiredPermissions: ['customer.manage'],
-    order: 80,
-  },
-  {
-    key: '/suppliers',
-    path: '/suppliers',
-    icon: React.createElement(ShopOutlined),
-    label: 'Nhà cung cấp',
-    title: 'Nhà cung cấp',
-    subtitle: 'Quản lý danh sách đối tác cung ứng dịch vụ (khách sạn, xe, vé, land tour)',
-    requiredPermissions: ['supplier.manage'],
-    hideFromNavigationRoles: ['CEO_ADMIN', 'SUPER_ADMIN'],
-    order: 85,
-  },
-  {
-    key: '/sales',
-    path: '/sales',
-    icon: React.createElement(TeamOutlined),
-    label: 'Quản lý Sales',
-    title: 'Quản lý Sales',
-    subtitle: 'Tổng hợp hiệu suất và doanh số của đội ngũ kinh doanh',
-    allowedRoles: ['OPERATOR', 'SUPER_ADMIN', 'CEO_ADMIN'],
-    excludeRoles: ['CEO_ADMIN'],
-    hideFromNavigationRoles: ['OPERATOR'],
-    order: 88,
-  },
-  {
-    key: '/imports',
-    path: '/imports',
-    icon: React.createElement(FileExcelOutlined),
-    label: 'Import dự toán Excel',
-    title: 'Import dự toán Excel',
-    subtitle: 'Tải lên và kiểm tra bảng tính dự toán chi phí',
-    requiredPermissions: ['import.manage'],
-    order: 90,
-  },
-  {
-    key: '/messages',
-    path: '/messages',
-    icon: React.createElement(MessageOutlined),
-    label: 'Tin nhắn',
-    title: 'Tin nhắn',
-    subtitle: 'Trao đổi nội bộ và cập nhật tiến độ công việc',
-    requiredPermissions: ['chat.access'],
-    order: 100,
-  },
-  {
-    key: '/users',
-    path: '/users',
-    icon: React.createElement(UserSwitchOutlined),
-    label: 'Người dùng & phân quyền',
-    title: 'Người dùng & phân quyền',
-    subtitle: 'Quản trị tài khoản, phòng ban và vai trò truy cập',
-    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN'],
-    order: 110,
-  },
-  {
-    key: '/settings',
-    path: '/settings',
-    icon: React.createElement(SettingOutlined),
-    label: 'Cấu hình hệ thống',
-    title: 'Cấu hình hệ thống',
-    subtitle: 'Thiết lập danh mục và thông số vận hành dùng chung',
-    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN'],
-    order: 120,
-  },
-  {
-    key: '/audit-logs',
-    path: '/audit-logs',
-    icon: React.createElement(HistoryOutlined),
-    label: 'Nhật ký hoạt động',
-    title: 'Nhật ký hoạt động',
-    subtitle: 'Theo dõi và kiểm tra toàn bộ lịch sử thao tác trong hệ thống',
-    allowedRoles: ['SUPER_ADMIN', 'CEO_ADMIN'],
-    order: 130,
-  },
-  {
-    key: '/profile',
-    path: '/profile',
-    icon: React.createElement(UserOutlined),
-    label: 'Hồ sơ cá nhân',
-    title: 'Hồ sơ cá nhân',
-    subtitle: 'Xem và cập nhật thông tin tài khoản, đổi mật khẩu',
-    order: 140,
-  },
-];
+export const ROUTE_ICON_MAP: Record<string, React.ReactNode> = {
+  '/dashboard': React.createElement(DashboardOutlined),
+  '/organizations': React.createElement(BankOutlined),
+  '/approvals': React.createElement(AuditOutlined),
+  '/tasks': React.createElement(CheckSquareOutlined),
+  '/dossiers': React.createElement(FolderOpenOutlined),
+  '/reports': React.createElement(BarChartOutlined),
+  '/revenue': React.createElement(BarChartOutlined),
+  '/kpi': React.createElement(RiseOutlined),
+  '/customers': React.createElement(UsergroupAddOutlined),
+  '/suppliers': React.createElement(ShopOutlined),
+  '/sales': React.createElement(TeamOutlined),
+  '/imports': React.createElement(FileExcelOutlined),
+  '/messages': React.createElement(MessageOutlined),
+  '/users': React.createElement(UserSwitchOutlined),
+  '/settings': React.createElement(SettingOutlined),
+  '/audit-logs': React.createElement(HistoryOutlined),
+  '/profile': React.createElement(UserOutlined),
+};
+
+export const APP_ROUTES: AppRoute[] = ROUTE_POLICY_DEFINITIONS.map((def) => ({
+  ...def,
+  icon: ROUTE_ICON_MAP[def.key] ?? null,
+}));
 
 /**
- * Kiểm tra xem một người dùng có quyền truy cập vào route hay không
+ * Kiểm tra xem một người dùng có quyền truy cập vào route hay không.
+ * Ủy quyền cho pure authorization policy.
  */
-export function canAccessRoute(route: AppRoute, ctx: UserContext): boolean {
-  // This route must be checked against the actual role code. Super Admin is
-  // also marked as CEO/Admin in the shared context, but that must not broaden
-  // access to the tenant directory for CEO_ADMIN accounts.
-  if (route.superAdminOnly) {
-    return Boolean(ctx.roles?.includes('SUPER_ADMIN'));
-  }
-
-  // Nếu route có loại trừ vai trò cụ thể
-  if (route.excludeRoles && route.excludeRoles.length > 0) {
-    const isExcluded = ctx.roles?.some((r) => route.excludeRoles!.includes(r));
-    if (isExcluded) return false;
-  }
-
-  // Super Admin và CEO_ADMIN có quyền truy cập mặc định trừ khi bị exclude
-  if (ctx.isSuperAdmin || ctx.isCeoAdmin || ctx.permissions?.includes('*')) {
-    return true;
-  }
-
-  // Kiểm tra vai trò được cho phép (allowedRoles)
-  if (route.allowedRoles && route.allowedRoles.length > 0) {
-    const hasRole = ctx.roles?.some((r) => route.allowedRoles!.includes(r));
-    if (hasRole) return true;
-  }
-
-  // Kiểm tra danh mục quyền bắt buộc (requiredPermissions)
-  if (route.requiredPermissions && route.requiredPermissions.length > 0) {
-    const hasPermission = ctx.permissions?.some((p) =>
-      route.requiredPermissions!.includes(p),
-    );
-    if (hasPermission) return true;
-  }
-
-  // Nếu không có bất kỳ ràng buộc nào, route mở cho mọi người dùng đã đăng nhập
-  return !route.allowedRoles && !route.requiredPermissions;
+export function canAccessRoute(
+  route: AppRoute | RoutePolicyDefinition,
+  ctx: UserContext,
+): boolean {
+  return canAccessRoutePolicy(route, ctx);
 }
 
 /**
- * Lọc danh sách menu phù hợp nhất cho người dùng đang đăng nhập
+ * Lọc danh sách menu phù hợp nhất cho người dùng đang đăng nhập.
  */
 export function getAccessibleRoutes(ctx: UserContext): AppRoute[] {
   return APP_ROUTES.filter((route) => canAccessRoute(route, ctx)).sort(
@@ -315,36 +78,17 @@ export function getAccessibleRoutes(ctx: UserContext): AppRoute[] {
 }
 
 /**
- * Kiểm tra xem một đường dẫn cụ thể có được phép truy cập bởi người dùng hay không
+ * Kiểm tra xem một đường dẫn cụ thể có được phép truy cập bởi người dùng hay không.
  */
 export function isPathAccessible(
   pathname: string | null,
   ctx: UserContext,
 ): boolean {
-  if (!pathname || pathname === '/' || pathname === '/main') return true;
-
-  // Chuẩn hóa đường dẫn legacy nếu bắt đầu bằng /main
-  const normalized = pathname.startsWith('/main/') ? pathname.replace(/^\/main/, '') : pathname;
-
-  // Only SUPER_ADMIN can access tenant/organization creation routes.
-  if (normalized === '/organizations/new') return !!ctx.isSuperAdmin;
-
-  // Cho phép Operator, Sales, CEO/Admin và Super Admin truy cập trang chi tiết hồ sơ tour
-  if (normalized.startsWith('/dossiers/')) {
-    return !!(ctx.isOperator || ctx.isSales || ctx.isCeoAdmin || ctx.isSuperAdmin);
-  }
-
-  // Khớp chính xác route dài nhất
-  const matched = APP_ROUTES.filter((r) => normalized.startsWith(r.path) || pathname.startsWith(r.path)).sort(
-    (a, b) => b.path.length - a.path.length,
-  )[0];
-
-  if (!matched) return true;
-  return canAccessRoute(matched, ctx);
+  return isPathAccessiblePolicy(pathname, ctx, ROUTE_POLICY_DEFINITIONS);
 }
 
 /**
- * Lấy tiêu đề và phụ đề Header tương ứng với đường dẫn hiện tại
+ * Lấy tiêu đề và phụ đề Header tương ứng với đường dẫn hiện tại.
  */
 export function getRouteMeta(
   pathname: string | null,
@@ -398,18 +142,8 @@ export function getRouteMeta(
 }
 
 /**
- * Xác định chính xác key của menu đang được chọn (highlight)
+ * Xác định chính xác key của menu đang được chọn (highlight).
  */
 export function getActiveMenuKey(pathname: string | null): string {
-  if (!pathname || pathname === '/' || pathname === '/main' || pathname === '/dashboard') return '/dashboard';
-
-  const normalized = pathname.startsWith('/main/') ? pathname.replace(/^\/main/, '') : pathname;
-
-  // Khớp chính xác route dài nhất theo cấu trúc khai báo
-  const matched = APP_ROUTES.filter((r) => normalized.startsWith(r.path) || pathname.startsWith(r.path)).sort(
-    (a, b) => b.path.length - a.path.length,
-  )[0];
-
-  if (!matched) return normalized;
-  return matched.hubKey || matched.key;
+  return getActiveMenuKeyPolicy(pathname, ROUTE_POLICY_DEFINITIONS);
 }

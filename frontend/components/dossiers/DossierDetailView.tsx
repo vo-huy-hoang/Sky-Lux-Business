@@ -57,10 +57,9 @@ export default function DossierDetailView({
     };
   }, [dossierId, initialTab]);
 
-  const hasRole = useAuthStore((state) => state.hasRole);
-  const isOperator = hasRole("OPERATOR");
-  const isCeoAdmin = hasRole(["SUPER_ADMIN", "CEO_ADMIN"]);
-  const isSales = hasRole("SALES");
+  const isOperator = useAuthStore((state) => state.isOperator());
+  const isCeoAdmin = useAuthStore((state) => state.isExecutiveAdmin());
+  const isSales = useAuthStore((state) => state.isSales());
 
   const dossierQuery = useDossierDetail(dossierId);
   const {

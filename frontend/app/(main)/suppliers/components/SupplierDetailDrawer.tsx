@@ -64,12 +64,10 @@ export const SupplierDetailDrawer: React.FC<SupplierDetailDrawerProps> = ({
   const [filterMode, setFilterMode] = useState<'ALL' | 'COMPLETED_ONLY'>('COMPLETED_ONLY');
 
   const hasPermission = useAuthStore((state) => state.hasPermission);
-  const hasRole = useAuthStore((state) => state.hasRole);
+  const canViewSuppliers = useAuthStore((state) => state.canViewSuppliers);
   const canViewHistory =
-    hasPermission('supplier.view') ||
-    hasPermission('supplier.manage') ||
-    hasPermission('dossier.cost.view') ||
-    hasRole(['CEO_ADMIN', 'SUPER_ADMIN']);
+    canViewSuppliers() ||
+    hasPermission('dossier.cost.view');
 
   React.useEffect(() => {
     if (visible) {

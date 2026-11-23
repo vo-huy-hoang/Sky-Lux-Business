@@ -43,7 +43,10 @@ export class PermissionsGuard implements CanActivate {
     }
 
     // Admin roles have full access (bypass)
-    const adminRoles = this.configService.get<string[]>('app.adminRoles') || [];
+    const adminRoles = this.configService.get<string[]>('app.adminRoles') || [
+      'SUPER_ADMIN',
+      'CEO_ADMIN',
+    ];
     const hasAdminRole =
       user.roles && user.roles.some((role) => adminRoles.includes(role));
     if (hasAdminRole) {

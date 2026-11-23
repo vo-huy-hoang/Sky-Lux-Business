@@ -21,6 +21,7 @@ import {
   AuditEntityType,
 } from '../audit-logs/audit-event.constants';
 import { RedisService } from '../../common/redis/redis.service';
+import { AuthSessionStore } from '../auth/auth-session.store';
 import {
   BASELINE_ROLE_PERMISSIONS,
   syncBaselinePermissionsForRole,
@@ -29,6 +30,7 @@ import {
 @Injectable()
 export class RolesService {
   private readonly logger = new Logger(RolesService.name);
+  private authSessionStore: AuthSessionStore;
 
   constructor(
     @InjectRepository(Role)
@@ -37,7 +39,13 @@ export class RolesService {
     private readonly auditLogsService: AuditLogsService,
     @Optional()
     private readonly redisService?: RedisService,
-  ) {}
+    @Optional()
+    authSessionStore?: AuthSessionStore,
+  ) {
+    this.authSessionStore =
+      authSessionStore ??
+      new AuthSessionStore(this.dataSource, this.redisService);
+  }
 
   async create(
     createRoleDto: CreateRoleDto,
@@ -212,25 +220,7 @@ export class RolesService {
       await this.roleRepository.save(role);
 
       // Revoke existing sessions so the removed role's permissions stop applying immediately.
-      await this.dataSource.query(
-        `UPDATE "users" SET "auth_version" = "auth_version" + 1
-         WHERE "id" = ANY($1::uuid[])`,
-        [affectedUserIds],
-      );
-
-      if (this.redisService) {
-        try {
-          await Promise.all(
-            affectedUserIds.map((userId) =>
-              this.redisService!.del(`user:auth-meta:${userId}`),
-            ),
-          );
-        } catch (err: any) {
-          this.logger.warn(
-            `Failed to invalidate auth-meta cache for users after deleting role ${role.id}: ${err?.message || err}`,
-          );
-        }
-      }
+      await this.authSessionStore.bumpAuthVersionAndInvalidate(affectedUserIds);
     }
 
     // Tiến hành xóa mềm vai trò
@@ -286,32 +276,11 @@ export class RolesService {
         await transactionalEntityManager.save(RolePermission, rolePermissions);
       }
 
-      await transactionalEntityManager.query(
-        `UPDATE "users" SET "auth_version" = "auth_version" + 1
-         WHERE "id" IN (SELECT "user_id" FROM "user_roles" WHERE "role_id" = $1)`,
-        [role.id],
+      await this.authSessionStore.bumpAuthVersionForRole(
+        role.id,
+        transactionalEntityManager,
       );
     });
-
-    if (this.redisService) {
-      try {
-        const userRows: { user_id: string }[] = await this.dataSource.query(
-          `SELECT "user_id" FROM "user_roles" WHERE "role_id" = $1`,
-          [role.id],
-        );
-        if (userRows && userRows.length > 0) {
-          await Promise.all(
-            userRows.map((r) =>
-              this.redisService!.del(`user:auth-meta:${r.user_id}`),
-            ),
-          );
-        }
-      } catch (err: any) {
-        this.logger.warn(
-          `Failed to invalidate auth-meta cache for users in role ${role.id}: ${err?.message || err}`,
-        );
-      }
-    }
 
     await this.auditLogsService.record({
       organizationId,
@@ -328,6 +297,15 @@ export class RolesService {
     });
 
     return { message: 'Gán quyền cho vai trò thành công' };
+  }
+
+  /**
+   * Lấy danh sách tất cả các quyền hạn hệ thống sắp xếp theo module và mã quyền.
+   */
+  async findAllPermissions(): Promise<Permission[]> {
+    return this.dataSource.getRepository(Permission).find({
+      order: { module: 'ASC', code: 'ASC' },
+    });
   }
 
   async ensureBaselinePermissionsForRole(role: Role): Promise<void> {

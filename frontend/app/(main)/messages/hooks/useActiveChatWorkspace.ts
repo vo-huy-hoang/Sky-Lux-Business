@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useChatRealtime } from '@/hooks/chat';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { isOperator as checkIsOperator } from '@/lib/authorization-policy';
 import { useChatUIStore } from '@/lib/stores/chat-ui-store';
 import { useConversationNavigation } from './useConversationNavigation';
 
@@ -19,7 +20,7 @@ import { useConversationNavigation } from './useConversationNavigation';
  */
 export function useActiveChatWorkspace() {
   const user = useAuthStore((state) => state.user);
-  const isOperator = user?.roles?.includes('OPERATOR');
+  const isOperator = checkIsOperator(user);
 
   const [showRightPanel, setShowRightPanel] = useState(true);
 

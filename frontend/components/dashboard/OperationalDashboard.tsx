@@ -87,10 +87,19 @@ const taskStatusLabels: Record<string, string> = {
 };
 
 export function OperationalDashboard() {
-  const hasRole = useAuthStore((state) => state.hasRole);
-  const isOperator = hasRole('OPERATOR');
-  const isSales = hasRole('SALES');
-  const isSuperAdmin = hasRole('SUPER_ADMIN') || hasRole('CEO_ADMIN');
+  const isOperator = useAuthStore((state) =>
+    (typeof state.isOperator === 'function' && state.isOperator()) ||
+    (typeof state.hasRole === 'function' && state.hasRole('OPERATOR')),
+  );
+  const isSales = useAuthStore((state) =>
+    (typeof state.isSales === 'function' && state.isSales()) ||
+    (typeof state.hasRole === 'function' && state.hasRole('SALES')),
+  );
+  const isSuperAdmin = useAuthStore((state) =>
+    (typeof state.isExecutiveAdmin === 'function' && state.isExecutiveAdmin()) ||
+    (typeof state.hasRole === 'function' &&
+      Boolean(state.hasRole('SUPER_ADMIN') || state.hasRole('CEO_ADMIN'))),
+  );
 
   const {
     data: dossiersData,

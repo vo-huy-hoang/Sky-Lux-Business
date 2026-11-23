@@ -522,8 +522,8 @@ function CeoRevenuePage() {
 }
 
 export default function RevenuePage() {
-  const hasRole = useAuthStore((state) => state.hasRole);
-  const isSuperAdmin = useAuthStore((state) => Boolean(state.user?.roles?.includes('SUPER_ADMIN')));
+  const isSuperAdmin = useAuthStore((state) => state.isPlatformSuperAdmin());
+  const isOperator = useAuthStore((state) => state.isOperator());
   if (isSuperAdmin) return <SaasBillingOverview />;
-  return hasRole('OPERATOR') ? <OperatorRevenue /> : <CeoRevenuePage />;
+  return isOperator ? <OperatorRevenue /> : <CeoRevenuePage />;
 }

@@ -128,6 +128,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ auth: { limit: 10, ttl: 60000 } })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Làm mới Access Token (API-AUTH-003)' })
@@ -214,6 +215,7 @@ export class AuthController {
     return this.authService.createStreamToken(user);
   }
 
+  @Throttle({ auth: { limit: 5, ttl: 60000 } })
   @Post('change-password')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()

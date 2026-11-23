@@ -77,7 +77,7 @@ describe('Phase 1: Reactive Session Synchronization & Multi-Role Support', () =>
     expect(useAuthStore.getState().hasRole(['OPERATOR', 'SALES'])).toBe(true);
     expect(useAuthStore.getState().hasRole(['CEO_ADMIN', 'SUPER_ADMIN'])).toBe(false);
 
-    // SUPER_ADMIN has access to everything
+    // SUPER_ADMIN has exact role check without spoofing arbitrary roles
     useAuthStore.setState({
       user: {
         id: 'user-admin',
@@ -88,7 +88,8 @@ describe('Phase 1: Reactive Session Synchronization & Multi-Role Support', () =>
       } as any,
     });
 
-    expect(useAuthStore.getState().hasRole('ANY_ARBITRARY_ROLE')).toBe(true);
-    expect(useAuthStore.getState().hasRole(['RANDOM_1', 'RANDOM_2'])).toBe(true);
+    expect(useAuthStore.getState().hasRole('SUPER_ADMIN')).toBe(true);
+    expect(useAuthStore.getState().hasRole('ANY_ARBITRARY_ROLE')).toBe(false);
+    expect(useAuthStore.getState().hasRole(['RANDOM_1', 'RANDOM_2'])).toBe(false);
   });
 });

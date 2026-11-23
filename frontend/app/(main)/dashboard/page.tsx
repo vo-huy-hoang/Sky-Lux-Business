@@ -22,7 +22,9 @@ const useIsClient = () => React.useSyncExternalStore(subscribe, () => true, () =
 
 function RoleDashboard() {
   const isClient = useIsClient();
-  const hasRole = useAuthStore((state) => state.hasRole);
+  const isSuperAdmin = useAuthStore((state) => state.isPlatformSuperAdmin());
+  const isCeoAdmin = useAuthStore((state) => state.isCeoAdmin());
+  const isOperator = useAuthStore((state) => state.isOperator());
 
   if (!isClient) {
     return (
@@ -31,10 +33,6 @@ function RoleDashboard() {
       </div>
     );
   }
-
-  const isSuperAdmin = hasRole('SUPER_ADMIN');
-  const isCeoAdmin = hasRole('CEO_ADMIN');
-  const isOperator = hasRole('OPERATOR');
 
   if (isSuperAdmin) {
     return (

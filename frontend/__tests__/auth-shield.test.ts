@@ -109,7 +109,7 @@ describe('Phase 24: Distributed Throttler & Auth Shield (Frontend)', () => {
       expect(useAuthStore.getState().hasRole(['SALES', 'OPERATOR'])).toBe(false);
     });
 
-    it('should always return true for SUPER_ADMIN', () => {
+    it('should strictly check exact role membership for SUPER_ADMIN without spoofing other roles (contracted)', () => {
       useAuthStore.setState({
         user: {
           id: 'u3',
@@ -122,8 +122,12 @@ describe('Phase 24: Distributed Throttler & Auth Shield (Frontend)', () => {
         } as any,
       });
 
-      expect(useAuthStore.getState().hasRole('ANY_ROLE')).toBe(true);
-      expect(useAuthStore.getState().hasRole(['ROLE_A', 'ROLE_B'])).toBe(true);
+      expect(useAuthStore.getState().hasRole('SUPER_ADMIN')).toBe(true);
+      expect(useAuthStore.getState().hasRole(['SUPER_ADMIN', 'CEO_ADMIN'])).toBe(true);
+      expect(useAuthStore.getState().hasRole('ANY_ROLE')).toBe(false);
+      expect(useAuthStore.getState().hasRole(['ROLE_A', 'ROLE_B'])).toBe(false);
+      expect(useAuthStore.getState().isSuperAdmin()).toBe(true);
+      expect(useAuthStore.getState().isPlatformSuperAdmin()).toBe(true);
     });
   });
 });

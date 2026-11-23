@@ -8,6 +8,7 @@ import {
   RiseOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { isExecutiveAdmin } from '@/lib/authorization-policy';
 
 export interface ReportingTab {
   key: string;
@@ -56,10 +57,10 @@ export function FinancialReportingHubNav({ className = '' }: FinancialReportingH
   const visibleTabs = React.useMemo(() => {
     return REPORTING_TABS.filter((tab) => {
       if (!tab.allowedRoles) return true;
-      if (userRoles.includes('SUPER_ADMIN') || userRoles.includes('CEO_ADMIN')) return true;
+      if (isExecutiveAdmin(user)) return true;
       return tab.allowedRoles.some((role) => userRoles.includes(role));
     });
-  }, [userRoles]);
+  }, [user, userRoles]);
 
   const activeTabKey = React.useMemo(() => {
     if (!pathname) return 'reports';

@@ -68,17 +68,6 @@ const processQueue = (error: any) => {
   failedQueue = [];
 };
 
-function clearClientAuthState(): void {
-  Cookies.remove('csrf_token', { path: '/' });
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.removeItem('skylux-auth-storage');
-    } catch {
-      // Ignore storage removal errors
-    }
-  }
-}
-
 apiClient.interceptors.response.use(
   (response) => {
     // Unwrap standard envelope if present: { success, data, ... }
@@ -151,11 +140,10 @@ apiClient.interceptors.response.use(
       } catch (refreshErr) {
         processQueue(refreshErr);
         if (error.response?.status === 401) {
-          clearClientAuthState();
-          if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-            // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-            window.location.href = '/login';
-          }
+          const { teardownSession } = await import('./session-manager');
+          void teardownSession({
+            redirectTo: '/login',
+          });
         }
         return Promise.reject(refreshErr);
       } finally {
